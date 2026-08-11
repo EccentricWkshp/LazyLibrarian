@@ -4247,6 +4247,33 @@ class WebInterface:
 
     @cherrypy.expose
     @require_auth()
+    @cherrypy.tools.json_out()
+    def unlink_author_source(self, authorid, source):
+        """ AJAX: clear a linked source id so it can be searched (and linked to a
+        different match) again. If this was the author's PrimarySource, clears that
+        too rather than leaving it pointing at a now-empty id - falls back to the
+        priority order (same as an author nobody's set a primary for) until the user
+        picks a new one. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.AUTHOR_LINKABLE_SOURCES:
+            return {'error': f'{source} cannot be unlinked'}
+        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorID, PrimarySource from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        updates = {column: ''}
+        if author['PrimarySource'] == source:
+            updates['PrimarySource'] = ''
+        db.upsert('authors', updates, {'AuthorID': authorid})
+        db.close()
+        logger.info(f"Unlinked {source} from author {authorid}")
+        return {'success': True}
+
+    @cherrypy.expose
+    @require_auth()
     def edit_book(self, bookid=None, library='eBook', images=False):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)

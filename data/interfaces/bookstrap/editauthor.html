@@ -73,6 +73,11 @@
                         </button>
                         %elif not config[src_col]:
                         <span class="text-muted"><small>${src_name} not enabled</small></span>
+                        %else:
+                        <button type="button" class="btn btn-xs btn-danger"
+                                onclick="removeAuthorSource('${config['AuthorID']}', '${src_name}')">
+                          <i class="fa fa-times"></i> Remove
+                        </button>
                         %endif
                         <span id="${src_col}_status"></span>
                       </td>
@@ -80,9 +85,9 @@
                     %endfor
                   </tbody>
                 </table>
-                %if CONFIG.get_bool('GB_API') or CONFIG.get_bool('DNB_API'):
+                %if CONFIG['GB_API'] or CONFIG.get_bool('DNB_API'):
                 <label class="control-label">Search for additional titles (book search only, no author linking):</label><br>
-                %if CONFIG.get_bool('GB_API'):
+                %if CONFIG['GB_API']:
                 <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
                   <i class="fa fa-search"></i> Search Google Books</a>
                 %endif
@@ -203,6 +208,26 @@
             $.notify({ message: source + ' set as primary source' }, { type: 'success' });
         }, 'json').fail(function () {
             bootbox.alert('Failed to set primary source - check the logs');
+        });
+    }
+
+    function removeAuthorSource(authorid, source) {
+        bootbox.confirm({
+            message: 'Remove the ' + source + ' link for this author? You can search and re-link it afterward.',
+            buttons: {
+                confirm: { label: 'Yes, remove', className: 'btn-danger' },
+                cancel: { label: 'Cancel', className: 'btn-default' }
+            },
+            callback: function (result) {
+                if (result) {
+                    $.get('unlink_author_source', {authorid: authorid, source: source}, function (data) {
+                        if (data.error) { bootbox.alert(data.error); return; }
+                        location.reload();
+                    }, 'json').fail(function () {
+                        bootbox.alert('Remove failed - check the logs');
+                    });
+                }
+            }
         });
     }
   </script>
