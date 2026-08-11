@@ -61,6 +61,7 @@
             toggleElement("#opds_authentication", "#opdscredentials");
 
             // Importing
+            toggleElement("#ol_use_dump", "#ol_dump_options");
             toggleElement("#hc_api", "#hc_options");
             toggleElement("#hc_sync", "#hcsync_options");
             toggleElement("#hc_syncreadonly", "#hc_sync_limit_group", true);
