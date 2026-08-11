@@ -49,6 +49,18 @@
             <div class="row">
               <div class="form-group col-md-12">
                 <label class="control-label">Source IDs:</label>
+                <%
+                    # Same fallback used on the author page's badge: if nobody's
+                    # explicitly chosen a primary yet, treat whichever linked source
+                    # comes first in priority order as the (implicit) primary, so the
+                    # radio here agrees with what the author page is actually showing.
+                    effective_primary = config['PrimarySource']
+                    if not effective_primary:
+                        for fallback_name, fallback_col, _ in linkable_sources:
+                            if config[fallback_col]:
+                                effective_primary = fallback_name
+                                break
+                %>
                 <table class="table table-condensed table-bordered" id="source_ids_table">
                   <thead>
                     <tr><th>Source</th><th>ID</th><th>Primary</th><th></th></tr>
@@ -61,12 +73,12 @@
                       <td class="text-center">
                         %if config[src_col]:
                         <input type="radio" name="primary_source_radio" value="${src_name}"
-                              ${'checked' if config['PrimarySource']==src_name else ''}
+                              ${'checked' if effective_primary==src_name else ''}
                               onchange="setPrimarySource('${config['AuthorID']}', '${src_name}')">
                         %endif
                       </td>
                       <td>
-                        %if not config[src_col] and CONFIG.get_bool(src_enabled_key):
+                        %if not config[src_col] and CONFIG[src_enabled_key]:
                         <button type="button" class="btn btn-xs btn-info"
                                 onclick="searchAuthorSource('${config['AuthorID']}', '${src_name}')">
                           <i class="fa fa-search"></i> Search ${src_name}
@@ -85,13 +97,13 @@
                     %endfor
                   </tbody>
                 </table>
-                %if CONFIG['GB_API'] or CONFIG.get_bool('DNB_API'):
+                %if CONFIG['GB_API'] or CONFIG['DNB_API']:
                 <label class="control-label">Search for additional titles (book search only, no author linking):</label><br>
                 %if CONFIG['GB_API']:
                 <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
                   <i class="fa fa-search"></i> Search Google Books</a>
                 %endif
-                %if CONFIG.get_bool('DNB_API'):
+                %if CONFIG['DNB_API']:
                 <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
                   <i class="fa fa-search"></i> Search DNB</a>
                 %endif
