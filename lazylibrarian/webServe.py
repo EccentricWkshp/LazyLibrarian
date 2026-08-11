@@ -4145,6 +4145,106 @@ class WebInterface:
         rmtree(icrawlerdir, ignore_errors=True)
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
 
+    # Sources that expose a per-author ID and a uniform find_author_id()/get_author_info()
+    # pair (unlike GoogleBooks/DNB, which are book-search-only - see gb.py/dnb.py, neither
+    # has find_author_id). These are the only sources that can be linked to an author record
+    # or chosen as an author's PrimarySource.
+    AUTHOR_LINKABLE_SOURCES = {'GoodReads': 'gr_id', 'OpenLibrary': 'ol_id',
+                              'HardCover': 'hc_id', 'RanobeDB': 'ran_id'}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def search_author_source(self, authorid, source):
+        """ AJAX: search a single source for this author by name, return the best
+        candidate (if any) for the edit-author screen to show for confirmation.
+        Does not write anything - see link_author_source for that. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.AUTHOR_LINKABLE_SOURCES:
+            return {'error': f'{source} does not support author search'}
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
+        db.close()
+        if not author:
+            return {'error': f'Author {authorid} not found'}
+        if source not in lazylibrarian.INFOSOURCES:
+            return {'error': f'{source} is not a configured source'}
+        info_source = lazylibrarian.INFOSOURCES[source]
+        if not CONFIG.get_bool(info_source['enabled']):
+            return {'error': f'{source} is not enabled in Config -> Importing'}
+        api = info_source['api']()
+        try:
+            result = api.find_author_id(authorname=author['AuthorName'])
+        except Exception as e:
+            logger.error(f"search_author_source {source} error for author {authorid}: {e}")
+            return {'error': f'{source} search failed, check the logs'}
+        if not result or not result.get('authorid'):
+            return {'found': False}
+        return {'found': True, 'authorid': result.get('authorid'), 'authorname': result.get('authorname'),
+                'authorlink': result.get('authorlink')}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def link_author_source(self, authorid, source, sourceid):
+        """ AJAX: persist a user-confirmed source ID against this author. Does not
+        change PrimarySource - see set_primary_source for that. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.AUTHOR_LINKABLE_SOURCES:
+            return {'error': f'{source} cannot be linked to an author'}
+        if not sourceid:
+            return {'error': 'No source id supplied'}
+        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorID from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        db.action(f'UPDATE authors SET {column}=? WHERE AuthorID=?', (sourceid, authorid))
+        db.close()
+        logger.info(f"Linked author {authorid} to {source} id {sourceid}")
+        return {'success': True, 'column': column, 'value': sourceid}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def set_primary_source(self, authorid, source):
+        """ Mark one of an author's already-linked sources as their primary - drives the
+        author-page name link and source badge. Re-fetches the canonical link for the
+        stored id rather than guessing a URL template, so AuthorLink always matches
+        whatever that source's own get_author_info() would build. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.AUTHOR_LINKABLE_SOURCES:
+            return {'error': f'{source} cannot be a primary source'}
+        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        db = database.DBConnection()
+        author = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        sourceid = author[column]
+        if not sourceid:
+            db.close()
+            return {'error': f'Author is not linked to {source} yet'}
+        info_source = lazylibrarian.INFOSOURCES[source]
+        api = info_source['api']()
+        try:
+            info = api.get_author_info(authorid=sourceid, authorname=author['AuthorName'])
+        except Exception as e:
+            logger.error(f"set_primary_source {source} lookup error for author {authorid}: {e}")
+            info = None
+        authorlink = info.get('authorlink') if info else ''
+        updates = {'PrimarySource': source}
+        if authorlink:
+            updates['AuthorLink'] = authorlink
+        db.upsert('authors', updates, {'AuthorID': authorid})
+        db.close()
+        logger.info(f"Set primary source for author {authorid} to {source}")
+        return {'success': True, 'authorlink': authorlink}
+
     @cherrypy.expose
     @require_auth()
     def edit_book(self, bookid=None, library='eBook', images=False):
