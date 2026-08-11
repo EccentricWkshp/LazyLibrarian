@@ -4171,7 +4171,7 @@ class WebInterface:
         if source not in lazylibrarian.INFOSOURCES:
             return {'error': f'{source} is not a configured source'}
         info_source = lazylibrarian.INFOSOURCES[source]
-        if not CONFIG.get_bool(info_source['enabled']):
+        if not CONFIG[info_source['enabled']]:
             return {'error': f'{source} is not enabled in Config -> Importing'}
         api = info_source['api']()
         try:
@@ -4251,7 +4251,9 @@ class WebInterface:
     def unlink_author_source(self, authorid, source):
         """ AJAX: clear a linked source id so it can be searched (and linked to a
         different match) again. If this was the author's PrimarySource, clears that
-        too rather than leaving it pointing at a now-empty id - falls back to the
+        too AND clears AuthorLink - leaving AuthorLink pointing at a source that's no
+        longer linked would be stale/misleading (it's what the author-page name link
+        itself uses), not just cosmetically wrong on the badge. Falls back to the
         priority order (same as an author nobody's set a primary for) until the user
         picks a new one. """
         self.check_permitted(lazylibrarian.perm_edit)
@@ -4267,6 +4269,7 @@ class WebInterface:
         updates = {column: ''}
         if author['PrimarySource'] == source:
             updates['PrimarySource'] = ''
+            updates['AuthorLink'] = ''
         db.upsert('authors', updates, {'AuthorID': authorid})
         db.close()
         logger.info(f"Unlinked {source} from author {authorid}")
