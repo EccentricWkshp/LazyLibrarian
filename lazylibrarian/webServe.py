@@ -689,7 +689,8 @@ class WebInterface:
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
             cmd = ("SELECT AuthorImg,AuthorName,LastBook,LastDate,Status,AuthorLink,LastLink,HaveBooks,"
-                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason from authors ")
+                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource,gr_id,ol_id,hc_id,"
+                   "ran_id from authors ")
             if lazylibrarian.IGNORED_AUTHORS:
                 if CONFIG.get_bool('IGNORE_PAUSED'):
                     cmd += "where Status IN ('Ignored', 'Paused') "
@@ -795,10 +796,32 @@ class WebInterface:
 
                     arow[12] = strip_quotes(reasonstring)
                     nrow.append(percent)
-                    nrow.extend(arow[4:-2])
+                    nrow.extend(arow[4:11])
                     bar = ''
                     nrow.append(bar)
-                    nrow.extend(arow[11:])
+                    nrow.extend(arow[11:13])
+
+                    # Same source-badge convention as author.html/editauthor.html: prefer
+                    # the explicitly-confirmed PrimarySource (linked, so AuthorLink is
+                    # guaranteed to match); otherwise fall back to priority order among
+                    # whatever's linked, shown as plain text since there's no verified
+                    # matching URL for an inferred guess.
+                    primarysource, author_gr, author_ol, author_hc, author_ran = arow[13:18]
+                    badge_source = primarysource
+                    if not badge_source:
+                        for fb_name, fb_val in (('GoodReads', author_gr), ('OpenLibrary', author_ol),
+                                                ('HardCover', author_hc), ('RanobeDB', author_ran)):
+                            if fb_val:
+                                badge_source = fb_name
+                                break
+                    if primarysource:
+                        badge_html = (f'<a href="{arow[5]}" target="_blank" rel="noreferrer">'
+                                      f'<small><i>{badge_source}</i></small></a>')
+                    elif badge_source:
+                        badge_html = f'<small><i>{badge_source}</i></small>'
+                    else:
+                        badge_html = ''
+                    nrow.append(badge_html)
                     rows.append(nrow)  # add each rowlist to the masterlist
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")

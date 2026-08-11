@@ -186,6 +186,7 @@
                      %else:
                         btn = '<a>' + row[1] + '</a>'
                      %endif
+                     if (row[15]) { btn = btn + '<br>' + row[15]; }
                      return btn ;}
                      },
                      { targets: [3],
