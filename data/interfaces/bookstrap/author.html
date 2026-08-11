@@ -126,8 +126,10 @@
                             break
             %>
             <h1><a href="${author['AuthorLink']}" target="_blank" rel="noreferrer">${author['AuthorName']}</a>
-            %if primary_source:
-            <small><span class="label label-info" style="font-size: 11px; padding: 2px 6px; vertical-align: middle;" data-toggle="tooltip" title="Primary Source: ${primary_source}${'' if author.get('PrimarySource') else ' (not explicitly set)'}">${primary_source}</span></small>
+            %if author.get('PrimarySource'):
+            <a href="${author['AuthorLink']}" target="_blank" rel="noreferrer"><small><i>${primary_source}</i></small></a>
+            %elif primary_source:
+            <small><i>${primary_source}</i></small>
             %endif
             %if perm&lazylibrarian.perm_edit:
             <a href="edit_author?authorid=${author['AuthorID']}"><small><i>Edit</i></small></a>
