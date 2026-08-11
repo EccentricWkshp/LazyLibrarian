@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 92
+db_current_version = 93
 
 
 def upgrade_needed():
@@ -1544,6 +1544,15 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding ran_id column to authors table'
         upgradelog.write(f"{time.ctime()} v92: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE authors ADD COLUMN ran_id TEXT')
+
+    if not has_column(db, "authors", "PrimarySource"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding PrimarySource column to authors table'
+        upgradelog.write(f"{time.ctime()} v93: {lazylibrarian.UPDATE_MSG}\n")
+        # Which of gr_id/ol_id/hc_id/ran_id the user has explicitly chosen as this
+        # author's canonical page (drives the author-page name link and source
+        # badge). Empty/null means "not chosen yet", not "none available".
+        db.action('ALTER TABLE authors ADD COLUMN PrimarySource TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
