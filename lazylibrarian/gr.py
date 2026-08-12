@@ -1327,6 +1327,13 @@ class GoodReads:
 
         bookname = rootxml.find('./book/title').text
 
+        try:
+            bookimg = rootxml.find('./book/img_url').text
+            if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
+                bookimg = 'images/nocover.png'
+        except (KeyError, AttributeError):
+            bookimg = 'images/nocover.png'
+
         if not book_language:
             book_language = "Unknown"
         #
@@ -1366,6 +1373,33 @@ class GoodReads:
                     pass
             bookdate = originalpubdate
 
+        if (not bookdate or bookdate == '0000') and bookname:
+            title_match = re.search(r'\b(1[89]\d\d|20\d\d)\b', bookname)
+            if title_match and check_year(title_match.group(1), past=1800, future=1):
+                bookdate = title_match.group(1)
+                self.logger.debug(f"Extracted pubdate {bookdate} from title for {bookid}")
+
+        need_date = not bookdate or bookdate == '0000'
+        need_img = 'nocover' in bookimg or 'nophoto' in bookimg
+        if (need_date or need_img) and bookname and CONFIG['GB_API']:
+            # Legitimate API call, not a page-scrape - see !1849 (GoodReads HTML-scraping
+            # got the maintainer's own API keys cancelled and their IP blocked). Author
+            # name isn't normally extracted this early, so read it directly here rather
+            # than reordering the rest of the function around it.
+            try:
+                early_authorname = rootxml.find('./book/authors/author/name').text
+            except (KeyError, AttributeError):
+                early_authorname = ''
+            if early_authorname:
+                early_gb_info = get_gb_info(author=early_authorname, title=bookname, expire=False)
+                if early_gb_info and need_date and early_gb_info.get('date') and early_gb_info['date'] != '0000':
+                    bookdate = early_gb_info['date']
+                    self.logger.debug(f"Got pubdate {bookdate} from googlebooks for {bookid}")
+                if early_gb_info and need_img and early_gb_info.get('img') and \
+                        'nocover' not in early_gb_info['img'] and 'nophoto' not in early_gb_info['img']:
+                    bookimg = early_gb_info['img']
+                    self.logger.debug(f"Got cover from googlebooks for {bookid}")
+
         if CONFIG.get_bool('NO_PUBDATE') and (not bookdate or bookdate == '0000'):
             msg = f'Book {bookname} Publication date [{bookdate}] does not match preference'
             self.logger.warning(msg)
@@ -1386,12 +1420,6 @@ class GoodReads:
                 self.logger.warning(msg)
                 if reason.startswith("Series:") or threadname.startswith('SERIES'):
                     return False
-        try:
-            bookimg = rootxml.find('./book/img_url').text
-            if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
-                bookimg = 'images/nocover.png'
-        except (KeyError, AttributeError):
-            bookimg = 'images/nocover.png'
 
         #  multiauth info
         # for each author in './book/authors'
