@@ -304,14 +304,6 @@ def book_keys():
     return keys
 
 
-# Per-source author page links: which authors.* column holds each linkable
-# source's own canonical author-page URL, keyed the same way INFOSOURCES/
-# AUTHOR_LINKABLE_SOURCES name these sources. GB/DNB have no author entity of
-# their own (author_key == 'authorid') so they're not included here.
-AUTHOR_LINK_COLUMNS = {'GoodReads': 'gr_link', 'OpenLibrary': 'ol_link',
-                       'HardCover': 'hc_link', 'RanobeDB': 'ran_link'}
-
-
 def get_all_author_details(authorid='', authorname=None):
     # fetch as much data as you can on an author using all configured sources
 
@@ -372,7 +364,7 @@ def get_all_author_details(authorid='', authorname=None):
             if res:
                 author_info[src[0]] = res
                 author_info[src[0]][src[2]] = auth_id
-                link_col = AUTHOR_LINK_COLUMNS.get(src[0])
+                link_col = lazylibrarian.INFOSOURCES.get(src[0], {}).get('author_link')
                 if link_col and res.get('authorlink'):
                     source_links[link_col] = res['authorlink']
                 if not merged_info:

@@ -92,8 +92,8 @@
 </%def>
 <%def name="body()">
 <%
-    linkable_sources = [('GoodReads', 'gr_id', 'gr_link'), ('OpenLibrary', 'ol_id', 'ol_link'),
-                        ('HardCover', 'hc_id', 'hc_link'), ('RanobeDB', 'ran_id', 'ran_link')]
+    linkable_sources = [(name, src['author_key'], src['author_link'])
+                        for name, src in lazylibrarian.INFOSOURCES.items() if src.get('author_link')]
     linked_sources = [(name, author.get(id_col), author.get(link_col))
                       for name, id_col, link_col in linkable_sources if author.get(id_col)]
 

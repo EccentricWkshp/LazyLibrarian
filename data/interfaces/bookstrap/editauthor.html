@@ -2,9 +2,6 @@
 <%!
     import lazylibrarian
     from lazylibrarian.config2 import CONFIG
-
-    linkable_sources = [('GoodReads', 'gr_id', 'GR_API'), ('OpenLibrary', 'ol_id', 'OL_API'),
-                        ('HardCover', 'hc_id', 'HC_API'), ('RanobeDB', 'ran_id', 'RAN_API')]
 %>
 <%def name="headerIncludes()">
     <div id="subhead_container">
@@ -13,6 +10,10 @@
     </div>
 </%def>
 <%def name="body()">
+<%
+    linkable_sources = [(name, src['author_key'], src['enabled'])
+                        for name, src in lazylibrarian.INFOSOURCES.items() if src.get('author_link')]
+%>
 <button class="hidden" onclick="" id="myAlert" title=""><i class="fa fa-circle-notch fa-spin"></i> Searching, please wait...</button>
 <form accept-charset="UTF-8" action="author_update" method="post">
     <div class="configtable">
