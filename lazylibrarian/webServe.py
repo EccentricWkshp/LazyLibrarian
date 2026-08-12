@@ -2656,12 +2656,57 @@ class WebInterface:
             if res and res['SendTo']:
                 email = res['SendTo']
         author = dict(db.match("SELECT * from authors WHERE AuthorID=?", (authorid,)))
-        db.close()
         if not author:
+            db.close()
             raise cherrypy.HTTPRedirect("authors")
         authorname = author['AuthorName']
         if not authorname:  # still loading?
+            db.close()
             raise cherrypy.HTTPRedirect("authors")
+
+        # Per-source book counts + cross-source overlap for the Sources table below.
+        # Uses all six book-level source columns for overlap (a book can carry a gb_id/
+        # dnb_id even though those aren't author-linkable sources), counted in Python
+        # rather than 4 separate SQL queries since per-author book counts are small.
+        book_rows = db.select("SELECT gr_id,ol_id,gb_id,hc_id,dnb_id,ran_id,ASIN from books WHERE AuthorID=?",
+                              (authorid,))
+        book_source_cols = ('gr_id', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'ran_id', 'ASIN')
+        source_book_counts = {}
+        for col in ('gr_id', 'ol_id', 'hc_id', 'ran_id', 'gb_id', 'ASIN'):
+            count = 0
+            overlap = 0
+            for row in book_rows:
+                if row[col]:
+                    count += 1
+                    if any(row[other] for other in book_source_cols if other != col):
+                        overlap += 1
+            source_book_counts[col] = (count, overlap)
+
+        ebook_status_counts = {row['Status']: row['cnt'] for row in db.select(
+            "SELECT Status, COUNT(*) as cnt FROM books WHERE AuthorID=? GROUP BY Status", (authorid,))}
+        audio_status_counts = {row['AudioStatus']: row['cnt'] for row in db.select(
+            "SELECT AudioStatus, COUNT(*) as cnt FROM books WHERE AuthorID=? GROUP BY AudioStatus", (authorid,))}
+        db.close()
+
+        def parse_author_date(datestr):
+            if not datestr:
+                return None
+            parts = datestr.split('-')
+            try:
+                year = int(parts[0])
+                month = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+                day = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+                return datetime.date(year, month, day)
+            except (ValueError, IndexError):
+                return None
+
+        born_date = parse_author_date(author.get('AuthorBorn'))
+        death_date = parse_author_date(author.get('AuthorDeath'))
+        author_age = None
+        if born_date:
+            end_date = death_date or datetime.date.today()
+            author_age = end_date.year - born_date.year - ((end_date.month, end_date.day)
+                                                            < (born_date.month, born_date.day))
 
         author['AuthorBorn'] = date_format(author['AuthorBorn'], CONFIG['AUTHOR_DATE_FORMAT'],
                                            context=authorname, datelang=CONFIG['DATE_LANG'])
@@ -2677,9 +2722,24 @@ class WebInterface:
                 librarian_note = match.group('note')
                 author['About'] = author['About'][match.end():]
 
+        # Per-source About text - a linear list of what each linked source itself
+        # says, not just the single merged/preferred version above.
+        about_by_source = []
+        for name, col in (('GoodReads', 'gr_about'), ('OpenLibrary', 'ol_about'),
+                          ('HardCover', 'hc_about'), ('RanobeDB', 'ran_about')):
+            text = author.get(col)
+            if text:
+                note_match = self.LIBRARIAN_NOTE_RE.match(text)
+                if note_match:
+                    text = text[note_match.end():]
+                about_by_source.append((name, text))
+
         return serve_template(templatename="author_detail.html", title=authorname, author=author,
                               showseries=CONFIG.get_int('SERIES_TAB'), user=user, email=email,
-                              librarian_note=librarian_note, gb_search_link=self.gb_search_link(authorname))
+                              librarian_note=librarian_note, gb_search_link=self.gb_search_link(authorname),
+                              author_age=author_age, ebook_status_counts=ebook_status_counts,
+                              audio_status_counts=audio_status_counts, about_by_source=about_by_source,
+                              source_book_counts=source_book_counts)
 
     @cherrypy.expose
     @require_auth()
@@ -4086,6 +4146,14 @@ class WebInterface:
         self.label_thread('EDIT_AUTHOR')
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
+        user = 0
+        email = ''
+        cookie = cherrypy.request.cookie
+        if cookie and 'll_uid' in list(cookie.keys()):
+            user = cookie['ll_uid'].value
+            res = db.match('SELECT SendTo from users where UserID=?', (user,))
+            if res and res['SendTo']:
+                email = res['SendTo']
         try:
             data = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
         finally:
@@ -4099,6 +4167,7 @@ class WebInterface:
                     for itm in listdir(res):
                         photos.append([itm, os.path.join(basedir, itm)])
             return serve_template(templatename="editauthor.html", title="Edit Author", config=data,
+                                  showseries=CONFIG.get_int('SERIES_TAB'), user=user, email=email,
                                   images=photos)
         logger.info(f'Missing author {authorid}')
         return None
