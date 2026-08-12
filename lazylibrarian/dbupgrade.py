@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 94
+db_current_version = 95
 
 
 def upgrade_needed():
@@ -1565,6 +1565,16 @@ def update_schema(db, upgradelog):
             lazylibrarian.UPDATE_MSG = f'Adding {col} column to authors table'
             upgradelog.write(f"{time.ctime()} v94: {lazylibrarian.UPDATE_MSG}\n")
             db.action(f'ALTER TABLE authors ADD COLUMN {col} TEXT')
+
+    if not has_column(db, "books", "ASIN"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding ASIN column to books table'
+        upgradelog.write(f"{time.ctime()} v95: {lazylibrarian.UPDATE_MSG}\n")
+        # Referenced by author_detail's per-source book-count/overlap query below -
+        # needs to exist regardless of whether the ASIN-capture feature itself
+        # (add_bookid_to_db) has landed yet, so this page doesn't hard-fail on a
+        # fresh install that only has this branch.
+        db.action('ALTER TABLE books ADD COLUMN ASIN TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
