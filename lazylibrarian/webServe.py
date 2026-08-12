@@ -138,6 +138,7 @@ from lazylibrarian.images import (
     write_pdf_tags,
 )
 from lazylibrarian.importer import (
+    AUTHOR_LINK_COLUMNS,
     add_author_name_to_db,
     add_author_to_db,
     get_preferred_author,
@@ -2615,7 +2616,71 @@ class WebInterface:
             templatename="author.html", title=authorname, author=author,
             languages=languages, booklang=book_lang, types=types, library=library, ignored=ignored,
             showseries=CONFIG.get_int('SERIES_TAB'), firstpage=firstpage, user=user, email=email,
-            book_filter=args.get('book_filter', ''))
+            book_filter=args.get('book_filter', ''), gb_search_link=self.gb_search_link(authorname))
+
+    # GoodReads prefixes its 'about' field with an editorial note like:
+    # "<i>Librarian Note: There is more than one author in the Goodreads
+    # database with this name.</i><br /><br />actual bio..." when applicable
+    # (duplicate-author disambiguation, merged records, etc.) - GR's own
+    # convention, not a separate structured API field. get_all_author_details()
+    # stores 'about' verbatim, so this is detectable straight from what's
+    # already in the authors table, no extra fetch or schema change needed.
+    LIBRARIAN_NOTE_RE = re.compile(
+        r'^\s*<i>\s*Librarian Note:\s*(?P<note>.*?)\s*</i>\s*(?:<br\s*/?>\s*)*', re.IGNORECASE | re.DOTALL)
+
+    @staticmethod
+    def gb_search_link(authorname):
+        """ GoogleBooks has no author-entity/ID of its own (see AUTHOR_LINKABLE_SOURCES) -
+        volumes only, not authors - so unlike gr_link/ol_link/hc_link/ran_link this can't
+        be a verified per-author page link, just a name-based search results link using
+        Google Books' inauthor: search operator. Not stored - built fresh each render so
+        it always reflects the current AuthorName. """
+        if not CONFIG['GB_API'] or not authorname:
+            return ''
+        return f'https://books.google.com/books?q=inauthor:%22{quote(authorname)}%22'
+
+    @cherrypy.expose
+    @require_auth()
+    def author_detail(self, authorid):
+        """ Read-only "master" detail view for an author, linked from the author
+        name on author_page. Surfaces fields that exist in the authors table but
+        have never had anywhere to display on the read-only side (AKA, About,
+        DateAdded, Updated, ...) - see author_page for the book-listing view. """
+        self.check_permitted(lazylibrarian.perm_ebook + lazylibrarian.perm_audio, redirect_unauth=True)
+        db = database.DBConnection()
+        user = 0
+        email = ''
+        cookie = cherrypy.request.cookie
+        if cookie and 'll_uid' in list(cookie.keys()):
+            user = cookie['ll_uid'].value
+            res = db.match('SELECT SendTo from users where UserID=?', (user,))
+            if res and res['SendTo']:
+                email = res['SendTo']
+        author = dict(db.match("SELECT * from authors WHERE AuthorID=?", (authorid,)))
+        db.close()
+        if not author:
+            raise cherrypy.HTTPRedirect("authors")
+        authorname = author['AuthorName']
+        if not authorname:  # still loading?
+            raise cherrypy.HTTPRedirect("authors")
+
+        author['AuthorBorn'] = date_format(author['AuthorBorn'], CONFIG['AUTHOR_DATE_FORMAT'],
+                                           context=authorname, datelang=CONFIG['DATE_LANG'])
+        author['AuthorDeath'] = date_format(author['AuthorDeath'], CONFIG['AUTHOR_DATE_FORMAT'],
+                                            context=authorname, datelang=CONFIG['DATE_LANG'])
+        if author.get('Updated'):
+            author['Updated'] = datetime.datetime.fromtimestamp(int(author['Updated'])).strftime('%Y-%m-%d %H:%M')
+
+        librarian_note = ''
+        if author.get('About'):
+            match = self.LIBRARIAN_NOTE_RE.match(author['About'])
+            if match:
+                librarian_note = match.group('note')
+                author['About'] = author['About'][match.end():]
+
+        return serve_template(templatename="author_detail.html", title=authorname, author=author,
+                              showseries=CONFIG.get_int('SERIES_TAB'), user=user, email=email,
+                              librarian_note=librarian_note, gb_search_link=self.gb_search_link(authorname))
 
     @cherrypy.expose
     @require_auth()
@@ -4212,7 +4277,10 @@ class WebInterface:
     @cherrypy.tools.json_out()
     def link_author_source(self, authorid, source, sourceid):
         """ AJAX: persist a user-confirmed source ID against this author. Does not
-        change PrimarySource - see set_primary_source for that. """
+        change PrimarySource - see set_primary_source for that. Also fetches and
+        stores that source's own author-page link immediately (into its
+        AUTHOR_LINK_COLUMNS column) rather than waiting for the next scheduled
+        refresh to backfill it via get_all_author_details(). """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.AUTHOR_LINKABLE_SOURCES:
@@ -4221,11 +4289,23 @@ class WebInterface:
             return {'error': 'No source id supplied'}
         column = self.AUTHOR_LINKABLE_SOURCES[source]
         db = database.DBConnection()
-        author = db.match('SELECT AuthorID from authors WHERE AuthorID=?', (authorid,))
+        author = db.match('SELECT AuthorID,AuthorName from authors WHERE AuthorID=?', (authorid,))
         if not author:
             db.close()
             return {'error': f'Author {authorid} not found'}
-        db.action(f'UPDATE authors SET {column}=? WHERE AuthorID=?', (sourceid, authorid))
+        updates = {column: sourceid}
+        link_column = AUTHOR_LINK_COLUMNS.get(source)
+        if link_column:
+            info_source = lazylibrarian.INFOSOURCES[source]
+            api = info_source['api']()
+            try:
+                info = api.get_author_info(authorid=sourceid, authorname=author['AuthorName'])
+            except Exception as e:
+                logger.error(f"link_author_source {source} lookup error for author {authorid}: {e}")
+                info = None
+            if info and info.get('authorlink'):
+                updates[link_column] = info['authorlink']
+        db.upsert('authors', updates, {'AuthorID': authorid})
         db.close()
         logger.info(f"Linked author {authorid} to {source} id {sourceid}")
         return {'success': True, 'column': column, 'value': sourceid}
@@ -4263,6 +4343,9 @@ class WebInterface:
         updates = {'PrimarySource': source}
         if authorlink:
             updates['AuthorLink'] = authorlink
+            link_column = AUTHOR_LINK_COLUMNS.get(source)
+            if link_column:
+                updates[link_column] = authorlink
         db.upsert('authors', updates, {'AuthorID': authorid})
         db.close()
         logger.info(f"Set primary source for author {authorid} to {source}")
@@ -4273,12 +4356,15 @@ class WebInterface:
     @cherrypy.tools.json_out()
     def unlink_author_source(self, authorid, source):
         """ AJAX: clear a linked source id so it can be searched (and linked to a
-        different match) again. If this was the author's PrimarySource, clears that
-        too AND clears AuthorLink - leaving AuthorLink pointing at a source that's no
-        longer linked would be stale/misleading (it's what the author-page name link
-        itself uses), not just cosmetically wrong on the badge. Falls back to the
-        priority order (same as an author nobody's set a primary for) until the user
-        picks a new one. """
+        different match) again. Also clears that source's own AUTHOR_LINK_COLUMNS
+        entry - a stale link to a source that's no longer linked would show as a
+        dead/misleading clickable entry in the author page's source list. If this
+        was the author's PrimarySource, clears that too AND clears AuthorLink -
+        leaving AuthorLink pointing at a source that's no longer linked would be
+        stale/misleading (it's what the author-page name link itself uses), not
+        just cosmetically wrong on the badge. Falls back to the priority order
+        (same as an author nobody's set a primary for) until the user picks a new
+        one. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.AUTHOR_LINKABLE_SOURCES:
@@ -4290,6 +4376,9 @@ class WebInterface:
             db.close()
             return {'error': f'Author {authorid} not found'}
         updates = {column: ''}
+        link_column = AUTHOR_LINK_COLUMNS.get(source)
+        if link_column:
+            updates[link_column] = ''
         if author['PrimarySource'] == source:
             updates['PrimarySource'] = ''
             updates['AuthorLink'] = ''
