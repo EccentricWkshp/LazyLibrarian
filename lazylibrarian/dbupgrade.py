@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 92
+db_current_version = 93
 
 
 def upgrade_needed():
@@ -1544,6 +1544,16 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding ran_id column to authors table'
         upgradelog.write(f"{time.ctime()} v92: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE authors ADD COLUMN ran_id TEXT')
+
+    if not has_column(db, "books", "ASIN"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding ASIN column to books table'
+        upgradelog.write(f"{time.ctime()} v93: {lazylibrarian.UPDATE_MSG}\n")
+        # GoodReads' book/show/{id}.xml response has asin/kindle_asin fields sitting
+        # right alongside isbn/link/etc that were never read - only add_bookid_to_db's
+        # single-book fetch has them, not the bulk author/show book list, so this only
+        # backfills as books get individually (re)added rather than during bulk refresh.
+        db.action('ALTER TABLE books ADD COLUMN ASIN TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

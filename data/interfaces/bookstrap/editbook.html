@@ -6,6 +6,10 @@
 <%def name="headerIncludes()">
     <button class="hidden" onclick="" id="myAlert" title=""><i class="fa fa-circle-notch fa-spin"></i> Searching, please wait...</button>
     <div id="subhead_container" class="row">
+          <a href="book_detail?bookid=${config['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-info-circle"></i> Detail</a>
+          %if perm&lazylibrarian.perm_force:
+          <a href="refresh_book?bookid=${config['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> Refresh Book</a>
+          %endif
           <form action="booksearch" method="get" class="form-inline">
             <div class="indented">
             <input type="hidden" name="bookid" value=${config['BookID']}>
