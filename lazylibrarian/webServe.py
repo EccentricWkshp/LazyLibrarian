@@ -138,7 +138,6 @@ from lazylibrarian.images import (
     write_pdf_tags,
 )
 from lazylibrarian.importer import (
-    AUTHOR_LINK_COLUMNS,
     add_author_name_to_db,
     add_author_to_db,
     get_preferred_author,
@@ -2630,7 +2629,7 @@ class WebInterface:
 
     @staticmethod
     def gb_search_link(authorname):
-        """ GoogleBooks has no author-entity/ID of its own (see AUTHOR_LINKABLE_SOURCES) -
+        """ GoogleBooks has no author-entity/ID of its own (see INFOSOURCES's author_link) -
         volumes only, not authors - so unlike gr_link/ol_link/hc_link/ran_link this can't
         be a verified per-author page link, just a name-based search results link using
         Google Books' inauthor: search operator. Not stored - built fresh each render so
@@ -4233,12 +4232,16 @@ class WebInterface:
         rmtree(icrawlerdir, ignore_errors=True)
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
 
-    # Sources that expose a per-author ID and a uniform find_author_id()/get_author_info()
-    # pair (unlike GoogleBooks/DNB, which are book-search-only - see gb.py/dnb.py, neither
-    # has find_author_id). These are the only sources that can be linked to an author record
-    # or chosen as an author's PrimarySource.
-    AUTHOR_LINKABLE_SOURCES = {'GoodReads': 'gr_id', 'OpenLibrary': 'ol_id',
-                              'HardCover': 'hc_id', 'RanobeDB': 'ran_id'}
+    @staticmethod
+    def author_linkable(source):
+        """ True for sources that expose a per-author ID and a uniform
+        find_author_id()/get_author_info() pair (unlike GoogleBooks/DNB, which are
+        book-search-only - see gb.py/dnb.py, neither has find_author_id). These are
+        the only sources that can be linked to an author record or chosen as an
+        author's PrimarySource. Derived from INFOSOURCES's author_link field (the
+        single source of truth for per-source author columns) rather than a second,
+        separately-maintained list. """
+        return source in lazylibrarian.INFOSOURCES and bool(lazylibrarian.INFOSOURCES[source].get('author_link'))
 
     @cherrypy.expose
     @require_auth()
@@ -4249,7 +4252,7 @@ class WebInterface:
         Does not write anything - see link_author_source for that. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if not self.author_linkable(source):
             return {'error': f'{source} does not support author search'}
         db = database.DBConnection()
         author = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
@@ -4278,23 +4281,23 @@ class WebInterface:
     def link_author_source(self, authorid, source, sourceid):
         """ AJAX: persist a user-confirmed source ID against this author. Does not
         change PrimarySource - see set_primary_source for that. Also fetches and
-        stores that source's own author-page link immediately (into its
-        AUTHOR_LINK_COLUMNS column) rather than waiting for the next scheduled
-        refresh to backfill it via get_all_author_details(). """
+        stores that source's own author-page link immediately (into its INFOSOURCES
+        author_link column) rather than waiting for the next scheduled refresh to
+        backfill it via get_all_author_details(). """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if not self.author_linkable(source):
             return {'error': f'{source} cannot be linked to an author'}
         if not sourceid:
             return {'error': 'No source id supplied'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = lazylibrarian.INFOSOURCES[source]['author_key']
         db = database.DBConnection()
         author = db.match('SELECT AuthorID,AuthorName from authors WHERE AuthorID=?', (authorid,))
         if not author:
             db.close()
             return {'error': f'Author {authorid} not found'}
         updates = {column: sourceid}
-        link_column = AUTHOR_LINK_COLUMNS.get(source)
+        link_column = lazylibrarian.INFOSOURCES[source].get('author_link')
         if link_column:
             info_source = lazylibrarian.INFOSOURCES[source]
             api = info_source['api']()
@@ -4320,9 +4323,9 @@ class WebInterface:
         whatever that source's own get_author_info() would build. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if not self.author_linkable(source):
             return {'error': f'{source} cannot be a primary source'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = lazylibrarian.INFOSOURCES[source]['author_key']
         db = database.DBConnection()
         author = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4343,7 +4346,7 @@ class WebInterface:
         updates = {'PrimarySource': source}
         if authorlink:
             updates['AuthorLink'] = authorlink
-            link_column = AUTHOR_LINK_COLUMNS.get(source)
+            link_column = lazylibrarian.INFOSOURCES[source].get('author_link')
             if link_column:
                 updates[link_column] = authorlink
         db.upsert('authors', updates, {'AuthorID': authorid})
@@ -4356,7 +4359,7 @@ class WebInterface:
     @cherrypy.tools.json_out()
     def unlink_author_source(self, authorid, source):
         """ AJAX: clear a linked source id so it can be searched (and linked to a
-        different match) again. Also clears that source's own AUTHOR_LINK_COLUMNS
+        different match) again. Also clears that source's own INFOSOURCES author_link
         entry - a stale link to a source that's no longer linked would show as a
         dead/misleading clickable entry in the author page's source list. If this
         was the author's PrimarySource, clears that too AND clears AuthorLink -
@@ -4367,16 +4370,16 @@ class WebInterface:
         one. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if not self.author_linkable(source):
             return {'error': f'{source} cannot be unlinked'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = lazylibrarian.INFOSOURCES[source]['author_key']
         db = database.DBConnection()
         author = db.match('SELECT AuthorID, PrimarySource from authors WHERE AuthorID=?', (authorid,))
         if not author:
             db.close()
             return {'error': f'Author {authorid} not found'}
         updates = {column: ''}
-        link_column = AUTHOR_LINK_COLUMNS.get(source)
+        link_column = lazylibrarian.INFOSOURCES[source].get('author_link')
         if link_column:
             updates[link_column] = ''
         if author['PrimarySource'] == source:
