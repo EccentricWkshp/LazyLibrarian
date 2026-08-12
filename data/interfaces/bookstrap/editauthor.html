@@ -107,6 +107,12 @@
             </div>
             <div class="row">
               <div class="form-group col-md-12">
+                <label for="amazonauthorurl" class="control-label">Amazon Author Page:</label>
+                <input type="text" id="amazonauthorurl" name="amazonauthorurl" value="${config['AmazonAuthorURL'] or ''}" class="form-control" placeholder="https://www.amazon.com/stores/.../author/... - no free lookup exists for this, paste it if you find it">
+              </div>
+            </div>
+            <div class="row">
+              <div class="form-group col-md-12">
                 <label class="control-label">Source IDs:</label>
                 <%
                     # Same fallback used on the author page's badge: if nobody's

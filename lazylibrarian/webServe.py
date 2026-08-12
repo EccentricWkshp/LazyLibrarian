@@ -2615,7 +2615,8 @@ class WebInterface:
             templatename="author.html", title=authorname, author=author,
             languages=languages, booklang=book_lang, types=types, library=library, ignored=ignored,
             showseries=CONFIG.get_int('SERIES_TAB'), firstpage=firstpage, user=user, email=email,
-            book_filter=args.get('book_filter', ''), gb_search_link=self.gb_search_link(authorname))
+            book_filter=args.get('book_filter', ''), gb_search_link=self.gb_search_link(authorname),
+            amazon_search_link=self.amazon_search_link(authorname))
 
     # GoodReads prefixes its 'about' field with an editorial note like:
     # "<i>Librarian Note: There is more than one author in the Goodreads
@@ -2637,6 +2638,22 @@ class WebInterface:
         if not CONFIG['GB_API'] or not authorname:
             return ''
         return f'https://books.google.com/books?q=inauthor:%22{quote(authorname)}%22'
+
+    @staticmethod
+    def amazon_search_link(authorname):
+        """ Amazon has no free author-lookup API (PA-API needs an Associates account with
+        real sales volume) and scraping product pages for the byline's own p_27 author-facet
+        value would carry the same ban risk already ruled out elsewhere. This is the
+        unauthenticated version of that same p_27 facet search Amazon's own byline links
+        use - built from the plain author name, no fetch/scrape involved, same
+        unverified-search-link status as gb_search_link. Useful for self-published authors
+        (see ASIN work) who often have nothing else to search by. """
+        if not authorname:
+            return ''
+        # The whole "p_27:Name" refinement value needs encoding as one unit (colon -> %3A)
+        # to match what Amazon's own byline search links actually send - a bare colon
+        # after p_27 with only the name percent-encoded silently fails to filter by author.
+        return f'https://www.amazon.com/s?i=stripbooks&rh={quote(f"p_27:{authorname}")}'
 
     @cherrypy.expose
     @require_auth()
@@ -2739,7 +2756,8 @@ class WebInterface:
                               librarian_note=librarian_note, gb_search_link=self.gb_search_link(authorname),
                               author_age=author_age, ebook_status_counts=ebook_status_counts,
                               audio_status_counts=audio_status_counts, about_by_source=about_by_source,
-                              source_book_counts=source_book_counts)
+                              source_book_counts=source_book_counts,
+                              amazon_search_link=self.amazon_search_link(authorname))
 
     @cherrypy.expose
     @require_auth()
@@ -4177,7 +4195,7 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def author_update(self, authorid='', authorname='', authorborn='', authordeath='', authorimg='',
-                      editordata='', manual='0', aka='', **kwargs):
+                      editordata='', manual='0', aka='', amazonauthorurl='', **kwargs):
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -4196,6 +4214,8 @@ class WebInterface:
                 edited += "Born "
             if authdata["AKA"] != aka:
                 edited += "AKA "
+            if (authdata["AmazonAuthorURL"] or '') != amazonauthorurl:
+                edited += "AmazonURL "
             if authdata["AuthorDeath"] != authordeath:
                 edited += "Died "
             if 'cover' in kwargs:
@@ -4288,6 +4308,7 @@ class WebInterface:
                     'AuthorImg': authorimg,
                     'About': editordata,
                     'AKA': aka,
+                    'AmazonAuthorURL': amazonauthorurl,
                     'Manual': bool(manual)
                 }
                 db.upsert("authors", new_value_dict, control_value_dict)

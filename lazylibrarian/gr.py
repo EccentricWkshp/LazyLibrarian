@@ -433,6 +433,13 @@ class GoodReads:
             gb_lang_change = 0
             cache_hits = 0
             not_cached = 0
+            # ASIN only comes from the single-book book/show endpoint, not this bulk
+            # author/list one (see the "We can't call book/show for every book because
+            # of api limits" note below) - capped per refresh so a single author with
+            # many missing ASINs can't turn one bulk call into dozens of extra ones;
+            # authors converge on full ASIN coverage gradually over successive refreshes.
+            asin_lookups_this_refresh = 0
+            asin_lookups_cap = 5
 
             # Artist is loading
             db.action("UPDATE authors SET Status='Loading' WHERE AuthorID=?", (authorid,))
@@ -1020,6 +1027,14 @@ class GoodReads:
                                 self.logger.debug(f'Added {authorid} as primary')
                                 set_genres(get_list(bookgenre, ','), bookid)
 
+                                if asin_lookups_this_refresh < asin_lookups_cap:
+                                    current_asin = db.match('SELECT ASIN FROM books WHERE BookID=?', (bookid,))
+                                    if current_asin and not current_asin['ASIN']:
+                                        asin_lookups_this_refresh += 1
+                                        asin = self.get_book_asin(bookid)
+                                        if asin:
+                                            db.action('UPDATE books SET ASIN=? WHERE BookID=?', (asin, bookid))
+
                                 update_value_dict = {}
                                 # need to run get_work_series AFTER adding to book table (foreign key constraint)
                                 serieslist = []
@@ -1298,6 +1313,29 @@ class GoodReads:
                 self.logger.warning(f"Deleted {cnt} {plural(cnt, 'entry')} with unknown goodreads bookid")
         finally:
             db.close()
+
+    def get_book_asin(self, bookid):
+        """ ASIN/kindle_asin only exist on the single-book book/show endpoint, not the
+        bulk author/list one - see get_author_books' rate-limited, capped use of this
+        below. Returns '' on any failure (not found, blocked, network error) rather
+        than raising - callers treat "no ASIN found" as a normal, expected outcome. """
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        try:
+            rootxml, _ = gr_xml_request(url)
+        except Exception as e:
+            self.logger.debug(f"get_book_asin error for {bookid}: {e}")
+            return ''
+        if rootxml is None:
+            return ''
+        book_el = rootxml.find('book')
+        if book_el is None:
+            return ''
+        asin_el = book_el.find('asin')
+        asin = asin_el.text if asin_el is not None and asin_el.text else ''
+        if not asin:
+            kasin_el = book_el.find('kindle_asin')
+            asin = kasin_el.text if kasin_el is not None and kasin_el.text else ''
+        return asin or ''
 
     def add_bookid_to_db(self, bookid=None, bookstatus=None, audiostatus=None, reason='gr.add_bookid'):
         url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])

@@ -256,7 +256,33 @@
           </td>
         </tr>
         %endif
-        %if not linked_sources and not gb_search_link:
+        %if amazon_search_link or author.get('AmazonAuthorURL'):
+        <tr>
+          <td>Amazon
+            %if author.get('AmazonAuthorURL'):
+            <i class="fa fa-check text-success" title="Manually linked Author Central page"></i>
+            %endif
+          </td>
+          <td class="text-muted"><small>${'manually linked' if author.get('AmazonAuthorURL') else 'no author ID (search by name)'}</small></td>
+          <td>
+            %if author.get('AmazonAuthorURL'):
+            <a href="${author['AmazonAuthorURL']}" target="_blank" rel="noreferrer">${author['AmazonAuthorURL']}</a>
+            %else:
+            <a href="${amazon_search_link}" target="_blank" rel="noreferrer">${amazon_search_link}</a>
+            %endif
+          </td>
+          <% amzn_count, amzn_overlap = source_book_counts.get('ASIN', (0, 0)) %>
+          <td title="Books by this author with a captured ASIN">${amzn_count}</td>
+          <td title="Of those, how many also have an id from at least one other source">
+            %if amzn_count:
+            ${amzn_overlap} (${round(100 * amzn_overlap / amzn_count)}%)
+            %else:
+            0
+            %endif
+          </td>
+        </tr>
+        %endif
+        %if not linked_sources and not gb_search_link and not amazon_search_link and not author.get('AmazonAuthorURL'):
         <tr><td colspan="5" class="text-muted">No sources linked yet</td></tr>
         %endif
       </tbody>
