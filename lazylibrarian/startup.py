@@ -329,11 +329,19 @@ class StartupLazyLibrarian:
 
     @staticmethod
     def build_sources():
+        # Dict insertion order here IS the fallback priority order used wherever no
+        # explicit authors.PrimarySource is set - see editauthor.html's linkable_sources
+        # (built straight from this dict via .items()) and webServe.py's author-list
+        # badge (a separately hardcoded GoodReads-first tuple, meant to agree with this).
+        # Keep GoodReads first: every author here is GoodReads-imported, so putting
+        # anything else first meant simply linking a second source (e.g. OpenLibrary)
+        # visibly flipped the implied-primary star/radio away from GoodReads with no
+        # explicit choice by the user - confirmed live, reported 2026-08-13.
         info_sources = {
-                'OpenLibrary': {'src': 'OL', 'author_key': 'ol_id', 'book_key': 'ol_id', 'enabled': 'OL_API',
-                                'api': ol.OpenLibrary, 'has_subs': 0},
                 'GoodReads': {'src': 'GR', 'author_key': 'gr_id', 'book_key': 'gr_id', 'enabled': 'GR_API',
                               'api': gr.GoodReads, 'has_subs': 0},
+                'OpenLibrary': {'src': 'OL', 'author_key': 'ol_id', 'book_key': 'ol_id', 'enabled': 'OL_API',
+                                'api': ol.OpenLibrary, 'has_subs': 0},
                 'HardCover': {'src': 'HC', 'author_key': 'hc_id', 'book_key': 'hc_id', 'enabled': 'HC_API',
                               'api': hc.HardCover, 'has_subs': 1},
                 'GoogleBooks': {'src': 'GB', 'author_key': 'authorid', 'book_key': 'gb_id', 'enabled': 'GB_API',
