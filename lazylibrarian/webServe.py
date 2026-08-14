@@ -2665,14 +2665,20 @@ class WebInterface:
             raise cherrypy.HTTPRedirect("authors")
 
         # Per-source book counts + cross-source overlap for the Sources table below.
-        # Uses all six book-level source columns for overlap (a book can carry a gb_id/
+        # Uses every source's book_key column for overlap (a book can carry a gb_id/
         # dnb_id even though those aren't author-linkable sources), counted in Python
-        # rather than 4 separate SQL queries since per-author book counts are small.
-        book_rows = db.select("SELECT gr_id,ol_id,gb_id,hc_id,dnb_id,ran_id,ASIN from books WHERE AuthorID=?",
-                              (authorid,))
-        book_source_cols = ('gr_id', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'ran_id', 'ASIN')
+        # rather than one SQL query per source since per-author book counts are small.
+        # Column list is derived from INFOSOURCES (single source of truth, see !1850
+        # review) instead of a hand-duplicated tuple. DNB is excluded from the *count*
+        # loop below (but stays in book_source_cols for overlap) because it has no
+        # dedicated row in author_detail.html - unlike GoogleBooks, which also has no
+        # author entity of its own but does get a row, so it stays in both.
+        book_source_cols = tuple(src['book_key'] for src in lazylibrarian.INFOSOURCES.values()
+                                 if src.get('book_key')) + ('ASIN',)
+        book_rows = db.select(
+            f"SELECT {','.join(book_source_cols)} from books WHERE AuthorID=?", (authorid,))
         source_book_counts = {}
-        for col in ('gr_id', 'ol_id', 'hc_id', 'ran_id', 'gb_id', 'ASIN'):
+        for col in (c for c in book_source_cols if c != 'dnb_id'):
             count = 0
             overlap = 0
             for row in book_rows:
