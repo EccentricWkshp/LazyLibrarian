@@ -2293,7 +2293,7 @@ class WebInterface:
                     # check was issuenum (all digit) and now expect date
                     # reset latest-issue to force scanning for new style issue names
                     if (('I' in new_datetype and '-' in mag['IssueDate']) or
-                        (new_datetype and 'I' not in new_datetype and mag.get('IssueDate', '').isdigit())):
+                        (new_datetype and 'I' not in new_datetype and mag['IssueDate'] and mag['IssueDate'].isdigit())):
                             new_value_dict['IssueDate'] = ''
                             logger.debug(f"Reset IssueDate for {mag['Title']} as datestyle changed to {new_datetype}")
                 new_coverpage = check_int(kwargs.get(f"coverpage[{title}]"), 1)
