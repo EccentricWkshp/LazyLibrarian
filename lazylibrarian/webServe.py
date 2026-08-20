@@ -6375,8 +6375,9 @@ class WebInterface:
             if len(rowlist):
                 for row in rowlist:  # iterate through the sqlite3.Row objects
                     entry = list(row)  # turn sqlite objects into lists
-                    entry[1] = entry[1].replace('.', ' ')
-                    provider = entry[4]
+                    if entry[1]:
+                        entry[1] = entry[1].replace('.', ' ')
+                    provider = entry[4] or ''
                     if len(provider) > 20:
                         while len(provider) > 20 and '/' in provider:
                             provider = provider.split('/', 1)[1]
