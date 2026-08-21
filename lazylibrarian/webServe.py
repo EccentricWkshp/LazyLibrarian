@@ -6374,7 +6374,15 @@ class WebInterface:
             if len(rowlist):
                 for row in rowlist:  # iterate through the sqlite3.Row objects
                     entry = list(row)  # turn sqlite objects into lists
-                    rows.append(entry)  # add the rowlist to the masterlist
+                    if entry[1]:
+                        entry[1] = entry[1].replace('.', ' ')
+                    provider = entry[4] or ''
+                    if len(provider) > 20:
+                        while len(provider) > 20 and '/' in provider:
+                            provider = provider.split('/', 1)[1]
+                        provider = provider.replace('/', ' ')
+                        entry[4] = provider
+                    rows.append(entry)
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
@@ -6392,19 +6400,6 @@ class WebInterface:
                     rows = filtered
                 else:
                     rows = filtered[displaystart:(displaystart + displaylength)]
-
-                for row in rows:  # iterate through the sqlite3.Row objects
-                    # title needs spaces for column resizing
-                    title = row[1]
-                    title = title.replace('.', ' ')
-                    row[1] = title
-                    # make this shorter and with spaces for column resizing
-                    provider = row[4]
-                    if len(provider) > 20:
-                        while len(provider) > 20 and '/' in provider:
-                            provider = provider.split('/', 1)[1]
-                        provider = provider.replace('/', ' ')
-                        row[4] = provider
 
             serversidelogger.debug(f"get_past_issues returning {displaystart} to {displaystart + displaylength}")
             serversidelogger.debug(f"get_past_issues filtered {len(filtered)} from {len(rowlist)}:{len(rows)}")
