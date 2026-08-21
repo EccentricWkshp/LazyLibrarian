@@ -370,11 +370,10 @@ def serve_template(templatename, **kwargs):
                         cnt = db.match("select count(*) as counter from users")
                     if cnt and cnt['counter'] == 1 and CONFIG.get_bool('SINGLE_USER') and \
                             templatename not in ["register.html", "response.html", "opds.html"]:
-                        logger.debug(f"Single user login for {res['UserID']}")
                         res = db.match('SELECT * from users')
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        logger.debug(f"Auto-login for {res['UserName']}")
+                        logger.debug(f"Single user login for {res['UserName']}")
                         db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                   (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                         lazylibrarian.SHOWLOGOUT = 0

@@ -455,6 +455,8 @@ class BookState:
                 self.book_title = _normalize_title(
                     f"{data.get('AuthorName', '')} - {data.get('BookName', '')}"
                 )
+            else:
+                logger.error(f"BookID {self.book_id} not found in books/authors table")
         elif self.book_id and self.is_magazine():
             result = db.match(
                 "SELECT Title FROM magazines WHERE Title=?", (self.book_id,)
@@ -462,7 +464,9 @@ class BookState:
             if result:
                 data = dict(result)
                 self.book_title = _normalize_title(data.get("Title", ""))
-        logger.debug(f"IsBook:{self.is_book()} IsMag:{self.is_magazine()} Title:{self.book_title}")
+            else:
+                logger.error(f"BookID {self.book_id} not found in magazines table")
+        logger.debug(f"IsBook:{self.is_book()} IsMag:{self.is_magazine()} Title:{self.book_title} BookID:{self.book_id}")
 
     def __repr__(self) -> str:
         """String representation for debugging."""
