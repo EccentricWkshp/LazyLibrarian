@@ -2452,8 +2452,8 @@ class WebInterface:
                         db.upsert("authors", {'Status': action}, {'AuthorID': authorid})
                         logger.info(f'Status set to "{action}" for "{check["AuthorName"]}"')
                         passed += 1
-                    elif action == "Delete":
-                        logger.info(f"Deleting author and media files for {check['AuthorName']}")
+                    elif action in ("Delete", "Delete+Ignore"):
+                        logger.info(f"{action} author and media files for {check['AuthorName']}")
                         cmd = "SELECT BookFile,AudioFile from books WHERE AuthorID=? and "
                         cmd += "((BookFile IS NOT NULL AND BookFile != '') or (AudioFile IS NOT NULL AND AudioFile != ''))"
                         books = db.select(cmd, (authorid,))
@@ -2474,9 +2474,14 @@ class WebInterface:
                                 delete_empty_folders(CONFIG['AUDIO_DIR'])
                             except Exception as e:
                                 logger.error(f"Error deleting: {e}")
-                        logger.debug(f"Deleting author {authorid}")
-                        db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
-                        logger.debug(f"Deletion complete for {authorid}")
+                        if action == "Delete+Ignore":
+                            db.action("UPDATE books SET BookFile='', AudioFile='' WHERE AuthorID=?",
+                                      (authorid,))
+                            db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
+                            logger.info(f"Author {check['AuthorName']} set to Ignored")
+                        else:
+                            db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
+                            logger.info(f"Author {check['AuthorName']} deleted")
                         passed += 1
                     elif action == "Remove":
                         logger.info(f"Removing author: {check['AuthorName']}")
