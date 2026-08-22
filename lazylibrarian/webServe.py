@@ -2453,7 +2453,7 @@ class WebInterface:
                         logger.info(f'Status set to "{action}" for "{check["AuthorName"]}"')
                         passed += 1
                     elif action in ("Delete", "Delete+Ignore"):
-                        logger.info(f"Deleting media files for {check['AuthorName']}")
+                        logger.info(f"{action} author and media files for {check['AuthorName']}")
                         cmd = "SELECT BookFile,AudioFile from books WHERE AuthorID=? and "
                         cmd += "((BookFile IS NOT NULL AND BookFile != '') or (AudioFile IS NOT NULL AND AudioFile != ''))"
                         books = db.select(cmd, (authorid,))
@@ -2477,12 +2477,11 @@ class WebInterface:
                         if action == "Delete+Ignore":
                             db.action("UPDATE books SET BookFile='', AudioFile='' WHERE AuthorID=?",
                                       (authorid,))
-                            logger.debug(f"Setting author {authorid} to Ignored")
                             db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
+                            logger.info(f"Author {check['AuthorName']} set to Ignored")
                         else:
-                            logger.debug(f"Deleting author {authorid}")
                             db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
-                        logger.debug(f"Deletion complete for {authorid}")
+                            logger.info(f"Author {check['AuthorName']} deleted")
                         passed += 1
                     elif action == "Remove":
                         logger.info(f"Removing author: {check['AuthorName']}")
