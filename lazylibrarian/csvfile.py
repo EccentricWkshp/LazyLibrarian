@@ -373,7 +373,7 @@ def import_csv(search_dir: str, status: str = 'Wanted', library: str = '', confi
                     results = search_for(unaccented(searchterm, only_ascii=False))
                     for result in results:
                         if result['book_fuzz'] >= CONFIG.get_int('MATCH_RATIO') \
-                                and result['authorid'] == authorid:
+                                and result['author_fuzz'] >= CONFIG.get_int('MATCH_RATIO'):
                             bookmatch = result
                             break
                     if not bookmatch:  # no match on full searchterm, try splitting out subtitle and series
