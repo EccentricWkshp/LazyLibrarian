@@ -573,7 +573,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
                             lazylibrarian.TIMERS['SLEEP_HC'] += sleep_time
                         else:  # longer waits block provider and continue
                             delay = int(sleep_time)
-                elif r.status_code in [401, 403]:
+                elif r.status_code in [400, 401, 403]:
                     # allow time for user to update
                     delay = 24 * 3600
                     if r.status_code == 401:
@@ -588,7 +588,8 @@ query FindAuthor { authors_by_pk(id: [authorid])
                     # unexpected error code, short delay
                     delay = 60
                     msg = "HardCover error"
-                    self.logger.error(f"Unexpected HardCover error: Status code {r.status_code}")
+                    res = f"Unexpected HardCover Status code: {r.status_code}"
+                    self.logger.error(res)
                 if r:
                     # noinspection PyBroadException
                     try:
