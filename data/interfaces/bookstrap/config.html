@@ -704,6 +704,10 @@
                       <label for="ol_dump_interval" class="control-label">Automated Dump Sync Interval (Days):</label>
                       <input type="number" class="form-control input-short" id="ol_dump_interval" name="ol_dump_interval" value="${ol_dump_int_val}" min="1" max="365" />
                     </div>
+                    <div class="form-group">
+                      <button class="button btn btn-sm btn-primary" type="button" value="Sync Now" id="ol_dump_sync_now"><i class="fa fa-sync"></i> Sync Now</button>
+                      <span class="help-block">Downloads/updates the local dump now instead of waiting for the next scheduled sync. Resumes an interrupted download rather than starting over - see the log for progress.</span>
+                    </div>
                   </fieldset>
                   <fieldset id="dnb_options">
                   <label class="control-label">Deutsche Nationalbibliothek API:</label>

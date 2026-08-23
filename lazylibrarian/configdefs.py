@@ -141,7 +141,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('Importer', 'MULTI_SOURCE', 0),
     ConfigBool('Importer', 'OL_USE_DUMP', 0),
     ConfigFolder('Importer', 'OL_DUMP_DIR', ''),
-    ConfigScheduler('Importer', 'OL_DUMP_INTERVAL', 'update_openlibrary_dump', 30, TimeUnit.DAY,
+    ConfigScheduler('Importer', 'OL_DUMP_INTERVAL', 'update_openlibrary_dump', 7, TimeUnit.DAY,
                     'OLDUMPUPDATE', 'lazylibrarian.scheduling.update_openlibrary_dump', 'Update OpenLibrary Bulk Dump',
                     needs_provider=False, persist=True),
 

@@ -298,6 +298,22 @@
             });
         });
 
+        $('#ol_dump_sync_now').on('click', function() {
+            $.get("force_openlibrary_dump", function(data) {
+                let msg = data.success ? 'OpenLibrary bulk-dump sync started - check the log for progress.' : (data.error || 'Failed to start sync.');
+                bootbox.dialog({
+                    title: 'OpenLibrary Dump Sync',
+                    message: msg,
+                    buttons: {
+                        primary: {
+                            label: "Close",
+                            className: 'btn-primary'
+                        }
+                    }
+                });
+            });
+        });
+
         $('#test_sabnzbd').on('click', function() {
             let host = $.trim($("#sab_host").val());
             let port = $.trim($("#sab_port").val());
