@@ -688,9 +688,14 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
+            # Sources with a real per-author id (author_key != 'authorid', i.e. not
+            # GoogleBooks/DNB) - derived from INFOSOURCES so a new such source needs no
+            # change here. Order also drives the badge fallback priority below.
+            author_link_sources = [(name, src['author_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                                   if src['author_key'] != 'authorid']
             cmd = ("SELECT AuthorImg,AuthorName,LastBook,LastDate,Status,AuthorLink,LastLink,HaveBooks,"
-                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource,gr_id,ol_id,hc_id,"
-                   "ran_id from authors ")
+                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource," +
+                   ",".join(col for _, col in author_link_sources) + " from authors ")
             if lazylibrarian.IGNORED_AUTHORS:
                 if CONFIG.get_bool('IGNORE_PAUSED'):
                     cmd += "where Status IN ('Ignored', 'Paused') "
@@ -806,11 +811,11 @@ class WebInterface:
                     # guaranteed to match); otherwise fall back to priority order among
                     # whatever's linked, shown as plain text since there's no verified
                     # matching URL for an inferred guess.
-                    primarysource, author_gr, author_ol, author_hc, author_ran = arow[13:18]
+                    primarysource = arow[13]
+                    link_values = arow[14:14 + len(author_link_sources)]
                     badge_source = primarysource
                     if not badge_source:
-                        for fb_name, fb_val in (('GoodReads', author_gr), ('OpenLibrary', author_ol),
-                                                ('HardCover', author_hc), ('RanobeDB', author_ran)):
+                        for (fb_name, _), fb_val in zip(author_link_sources, link_values):
                             if fb_val:
                                 badge_source = fb_name
                                 break
@@ -4168,12 +4173,16 @@ class WebInterface:
         rmtree(icrawlerdir, ignore_errors=True)
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
 
-    # Sources that expose a per-author ID and a uniform find_author_id()/get_author_info()
-    # pair (unlike GoogleBooks/DNB, which are book-search-only - see gb.py/dnb.py, neither
-    # has find_author_id). These are the only sources that can be linked to an author record
-    # or chosen as an author's PrimarySource.
-    AUTHOR_LINKABLE_SOURCES = {'GoodReads': 'gr_id', 'OpenLibrary': 'ol_id',
-                              'HardCover': 'hc_id', 'RanobeDB': 'ran_id'}
+    @staticmethod
+    def author_linkable_sources():
+        """ Sources that expose a per-author ID and a uniform find_author_id()/
+        get_author_info() pair (unlike GoogleBooks/DNB, which are book-search-only -
+        see gb.py/dnb.py, neither has find_author_id). These are the only sources that
+        can be linked to an author record or chosen as an author's PrimarySource.
+        Derived from lazylibrarian.INFOSOURCES at call time, not class-definition time -
+        webServe is imported before startup.init_build_lists() populates INFOSOURCES. """
+        return {name: src['author_key'] for name, src in lazylibrarian.INFOSOURCES.items()
+                if src['author_key'] != 'authorid'}
 
     @cherrypy.expose
     @require_auth()
@@ -4184,7 +4193,7 @@ class WebInterface:
         Does not write anything - see link_author_source for that. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} does not support author search'}
         db = database.DBConnection()
         author = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
@@ -4215,11 +4224,11 @@ class WebInterface:
         change PrimarySource - see set_primary_source for that. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be linked to an author'}
         if not sourceid:
             return {'error': 'No source id supplied'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT AuthorID from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4240,9 +4249,9 @@ class WebInterface:
         whatever that source's own get_author_info() would build. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be a primary source'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4281,9 +4290,9 @@ class WebInterface:
         picks a new one. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if source not in self.AUTHOR_LINKABLE_SOURCES:
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be unlinked'}
-        column = self.AUTHOR_LINKABLE_SOURCES[source]
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT AuthorID, PrimarySource from authors WHERE AuthorID=?', (authorid,))
         if not author:
