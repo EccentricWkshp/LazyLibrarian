@@ -109,7 +109,7 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         res = "Please check your NZBget host and port (if it is running). "
         res += f"NZBget is not responding to this combination: {e}"
         logger.error(res)
-        logger.error(f"NZBget url is [{url}]")
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except ProtocolError as e:
@@ -118,6 +118,7 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         else:
             res = f"Protocol Error: {e.errmsg}"
         logger.error(res)
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except Exception as e:
