@@ -440,7 +440,10 @@ def get_book_cover(bookid=None, src=None, ignore=''):
 
         title = safe_unicode(item['BookName'])
         author = safe_unicode(item['AuthorName'])
-        safeparams = quote_plus(make_utf8bytes(f"{author} {title}")[0])
+        # "book cover" biases the keyword image search away from generic-noun collisions in
+        # the author name or title (e.g. an author called "Jade" returning gemstone photos,
+        # or a title containing "Annie" returning stills from the musical) - see WI-011.
+        safeparams = quote_plus(make_utf8bytes(f"{author} {title} book cover")[0])
 
         # see if hardcover has a cover
         if not src or src == 'hardcover' and 'hardcover' not in ignore:
@@ -636,6 +639,25 @@ def crawl_image(crawler_name, src, cachedir, bookid, safeparams, imgid=None):
     logger.debug(f"{crawler_name} found {res} {plural(res, 'image')}")
     if res:
         img = os.path.join(icrawlerdir, os.listdir(icrawlerdir)[0])
+
+        # A raw keyword image search has no way to confirm a result is actually a book
+        # cover - it just returns whatever ranks first for the text, which can be a
+        # completely unrelated image if the author/title contains a common noun (seen
+        # live: an author named "Jade" got a photo of a jade gemstone, WI-011). Book
+        # covers are reliably portrait; a near-square or landscape result is a strong
+        # signal the crawler matched on the wrong thing rather than found a real cover,
+        # so reject those instead of silently caching them.
+        try:
+            with PILImage.open(img) as pil_img:
+                width, height = pil_img.size
+            if height and width / height >= 0.95:
+                logger.debug(
+                    f"Rejecting {crawler_name} image for {bookid}, aspect ratio "
+                    f"{width}x{height} doesn't look like a book cover")
+                rmtree(icrawlerdir, ignore_errors=True)
+                return None, src
+        except Exception as e:
+            logger.debug(f"Could not check aspect ratio of {crawler_name} image for {bookid}: {e}")
 
         coverlink = cache_bookimg(img, bookid, src, suffix=f"_{crawler_name[:2]}", imgid=imgid)
         rmtree(icrawlerdir, ignore_errors=True)

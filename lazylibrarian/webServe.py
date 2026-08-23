@@ -1803,7 +1803,13 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     @cherrypy.tools.json_out()
-    def mark_series_ajax(self, action=None, **args):
+    def mark_series_ajax(self, action=None, redirect=None, **args):
+        # redirect is an explicit param (not left in **args) for the same reason
+        # mark_books_ajax already declares it: series.html's #mark_series form has a
+        # hidden `redirect` field (the authorid to bounce back to) that FormData sends
+        # alongside the checked series - left in args it's iterated as if it were a
+        # SeriesID, fails to match any series, and is counted as a failed item
+        # (Issue #2850).
         self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -1919,8 +1925,8 @@ class WebInterface:
                                       (userid, 'series', iss['bookid']))
                         logger.debug(f"Unsubscribe {userid} to series {seriesid}")
 
-            if "redirect" in args:
-                redirect = f"series?authorid={args['redirect']}"
+            if redirect:
+                redirect = f"series?authorid={redirect}"
             else:
                 redirect = "series"
         db.close()
@@ -4634,7 +4640,12 @@ class WebInterface:
                                 logger.debug(f'eBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'Status': 'Wanted'}, {'BookID': bookid})
+                                # ScanResult set here too, matching the Ignored/Skipped/Have
+                                # actions below - otherwise re-wanting a previously-deleted
+                                # book leaves its stale "User deleted" ScanResult in place
+                                # with no indication the book is active again.
+                                db.upsert("books", {'Status': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'Status set to "Wanted" for "{bookname}"')
                                 wantedbooks.append({"bookid": bookid})
                                 passed += 1
@@ -4643,7 +4654,8 @@ class WebInterface:
                                 logger.debug(f'AudioBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'AudioStatus': 'Wanted'}, {'BookID': bookid})
+                                db.upsert("books", {'AudioStatus': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'AudioStatus set to "Wanted" for "{bookname}"')
                                 wantedaudio.append({"bookid": bookid})
                                 passed += 1
