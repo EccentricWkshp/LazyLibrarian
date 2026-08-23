@@ -523,18 +523,51 @@ def search_book(books=None, library=None):
                             matches.append(match)
 
             if matches:
-                try:
-                    highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0)))
-                except TypeError:
-                    highest = max(matches, key=lambda s: (str(s[0]), str(s[3])))
+                # Try candidates best-first, falling through to the next one if a download
+                # fails (e.g. a broken/VIP-restricted release that scores well but 500s on
+                # fetch) instead of giving up after one attempt - matches holds at most one
+                # candidate per source type (nzb/tor/direct/irc/rss), so this is a small,
+                # bounded retry using results already fetched this cycle, no extra provider
+                # queries (Issue #3023). Stops as soon as something snatches successfully,
+                # or turns out to already be snatched by someone else (result 1) - not just
+                # on our own success (result 2).
+                snatched = False
+                while matches:
+                    try:
+                        highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0)))
+                    except TypeError:
+                        highest = max(matches, key=lambda s: (str(s[0]), str(s[3])))
 
-                logger.info(
-                    f"Requesting {book['library']} download: {round(highest[0], 2)}% {highest[1]['NZBprov']}: "
-                    f"{highest[1]['NZBtitle']}")
-                if download_result(highest, book) > 1:
-                    book_count += 1  # we found it
-                db.action("DELETE from failedsearch WHERE BookID=? AND Library=?",
-                          (book['bookid'], book['library']))
+                    logger.info(
+                        f"Requesting {book['library']} download: {round(highest[0], 2)}% {highest[1]['NZBprov']}: "
+                        f"{highest[1]['NZBtitle']}")
+                    result = download_result(highest, book)
+                    if result > 1:
+                        book_count += 1  # we found it
+                    if result > 0:
+                        snatched = True
+                        break  # snatched (by us, or already by someone else) - nothing more to try
+                    matches.remove(highest)
+                    if matches:
+                        logger.info(
+                            f"{highest[1]['NZBprov']} release for {book['searchterm']} failed to download, "
+                            f"trying next best candidate ({len(matches)} remaining)")
+                if snatched:
+                    db.action("DELETE from failedsearch WHERE BookID=? AND Library=?",
+                              (book['bookid'], book['library']))
+                elif CONFIG.get_bool('DELAYSEARCH'):
+                    # Every candidate we tried failed to download (not "no results found" -
+                    # this book had a match, it just wouldn't fetch). Previously the
+                    # failedsearch record was deleted unconditionally whenever there was a
+                    # match at all, silently clearing the backoff counter on every failed
+                    # download and letting the next scheduled search retry immediately
+                    # instead of backing off like the "no results" case does (Issue #3024).
+                    res = db.match('SELECT * FROM failedsearch WHERE BookID=? AND Library=?',
+                                   (book['bookid'], book['library']))
+                    interval = check_int(res['Interval'], 0) if res else 0
+                    db.upsert("failedsearch",
+                             {'Count': 0, 'Interval': interval + 1, 'Time': time.time()},
+                             {'BookID': book['bookid'], 'Library': book['library']})
             elif CONFIG.get_bool('DELAYSEARCH') and not force and do_search and len(modelist):
                 res = db.match('SELECT * FROM failedsearch WHERE BookID=? AND Library=?',
                                (book['bookid'], book['library']))
