@@ -1,15 +1,20 @@
 import os
 import gzip
 import json
-import shutil
 import sqlite3
 import time
 import logging
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian import database
 from lazylibrarian.filesystem import DIRS
+from lazylibrarian.formatter import thread_name
 
 logger = logging.getLogger(__name__)
+
+# How often (in downloaded bytes) to log download progress.
+DOWNLOAD_PROGRESS_STEP = 200 * 1024 * 1024
+# How often (in indexed rows) to log indexing progress.
+INDEX_PROGRESS_STEP = 500000
 
 AUTHORS_DUMP_URL = "https://openlibrary.org/data/ol_dump_authors_latest.txt.gz"
 WORKS_DUMP_URL = "https://openlibrary.org/data/ol_dump_works_latest.txt.gz"
@@ -57,8 +62,17 @@ def init_dump_db(db_path):
 def download_dump_file(url, local_path):
     """Download url to local_path, skipping the download if a same-size file already
     exists (e.g. left over from a previous run that got interrupted after completing
-    this stage). Returns True if local_path ends up complete and usable."""
+    this stage). If a `local_path.part` staging file is left over from a run that was
+    interrupted mid-download, resumes it with an HTTP Range request instead of
+    restarting from byte zero - these dumps are several GB compressed, and a plain
+    restart after every interruption (network blip, container restart, OOM) could
+    make the download never finish on a slow or flaky connection. Falls back to a
+    full restart if the server doesn't honour the Range request (returns 200 instead
+    of 206) or the partial file turns out larger than the current remote copy (a new
+    dump was published mid-download). Returns True if local_path ends up complete and
+    usable."""
     import urllib.request
+    import urllib.error
 
     req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': 'LazyLibrarian/1.0'})
     try:
@@ -72,33 +86,93 @@ def download_dump_file(url, local_path):
         logger.info(f"{os.path.basename(local_path)} already fully downloaded ({remote_size} bytes), skipping")
         return True
 
-    logger.info(f"Downloading {url} -> {local_path}...")
-    req = urllib.request.Request(url, headers={'User-Agent': 'LazyLibrarian/1.0'})
     partial_path = f"{local_path}.part"
-    with urllib.request.urlopen(req) as resp, open(partial_path, 'wb') as out:
-        shutil.copyfileobj(resp, out, length=1024 * 1024)
+    resume_from = 0
+    mode = 'wb'
+    if os.path.exists(partial_path):
+        partial_size = os.path.getsize(partial_path)
+        if remote_size and partial_size < remote_size:
+            resume_from = partial_size
+            mode = 'ab'
+        elif partial_size:
+            # Either no remote_size to compare against, or the partial file is already
+            # as big as (or bigger than) the current remote copy - can't trust it, start over.
+            os.remove(partial_path)
+
+    headers = {'User-Agent': 'LazyLibrarian/1.0'}
+    if resume_from:
+        headers['Range'] = f'bytes={resume_from}-'
+        logger.info(f"Resuming {os.path.basename(local_path)} from byte {resume_from} "
+                   f"({resume_from * 100 // remote_size}% already downloaded)")
+    else:
+        logger.info(f"Downloading {url} -> {local_path}...")
+
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        resp = urllib.request.urlopen(req)
+    except urllib.error.HTTPError as e:
+        if resume_from and e.code == 416:
+            # Range not satisfiable - our partial file is already complete/stale, restart clean.
+            logger.warning(f"Server rejected resume of {os.path.basename(local_path)}, restarting from scratch")
+            os.remove(partial_path)
+            return download_dump_file(url, local_path)
+        raise
+
+    with resp:
+        if resume_from and resp.status != 206:
+            # Server ignored the Range header and is sending the whole file again - can't
+            # append what we already have on top of that, so restart the file cleanly.
+            logger.warning(f"Server didn't honour resume for {os.path.basename(local_path)} "
+                           f"(status {resp.status}), restarting from scratch")
+            resume_from = 0
+            mode = 'wb'
+        downloaded = resume_from
+        next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
+        with open(partial_path, mode) as out:
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+                downloaded += len(chunk)
+                if downloaded >= next_log_at:
+                    if remote_size:
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (1024 * 1024)} MB "
+                                   f"({downloaded * 100 // remote_size}%)")
+                    else:
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (1024 * 1024)} MB")
+                    next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
 
     downloaded_size = os.path.getsize(partial_path)
     if remote_size and downloaded_size != remote_size:
-        logger.error(f"Download of {url} incomplete: got {downloaded_size} bytes, expected {remote_size}")
-        os.remove(partial_path)
+        logger.error(f"Download of {url} incomplete: got {downloaded_size} bytes, expected {remote_size} "
+                     f"- left as {partial_path} to resume next run")
         return False
 
     os.replace(partial_path, local_path)
+    logger.info(f"{os.path.basename(local_path)} download complete ({downloaded_size} bytes)")
     return True
 
 
 def update_openlibrary_dump():
-    """Scheduled task to download and stream OpenLibrary author & work dumps into local SQLite database.
-    Safe to interrupt and re-run: already-complete downloads are skipped, and indexing uses
-    INSERT OR REPLACE so re-processing a file is idempotent."""
+    """Scheduled (or manually-triggered, see webServe.force_openlibrary_dump) task to
+    download and stream OpenLibrary author & work dumps into local SQLite database.
+    Safe to interrupt and re-run: already-complete downloads are skipped, an
+    interrupted download resumes via HTTP Range rather than restarting, and indexing
+    uses INSERT OR REPLACE so re-processing a file is idempotent."""
     if not CONFIG['OL_USE_DUMP']:
         logger.debug("OpenLibrary local dump indexing disabled in configuration")
         return
 
+    incoming_threadname = thread_name()
+    thread_name('OLDUMPUPDATE')
     dump_dir = get_dump_dir()
     db_path = get_dump_db_path()
     logger.info(f"Starting OpenLibrary Bulk Dump Sync -> {db_path}")
+
+    jobdb = database.DBConnection()
+    logger.debug(f"Storing start time for {thread_name()}")
+    jobdb.upsert("jobs", {"Start": time.time()}, {"Name": thread_name()})
 
     conn = None
     try:
@@ -113,6 +187,7 @@ def update_openlibrary_dump():
 
         logger.info("Indexing OpenLibrary Authors into local database...")
         batch = []
+        indexed = 0
         with gzip.open(authors_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -128,10 +203,15 @@ def update_openlibrary_dump():
                 if len(batch) >= 10000:
                     cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
                     conn.commit()
+                    indexed += len(batch)
                     batch = []
+                    if indexed % INDEX_PROGRESS_STEP < 10000:
+                        logger.info(f"Indexed {indexed} authors so far...")
         if batch:
             cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
             conn.commit()
+            indexed += len(batch)
+        logger.info(f"Indexed {indexed} authors total")
 
         # 2. Ingest Works Dump
         works_gz = os.path.join(dump_dir, 'ol_dump_works.txt.gz')
@@ -141,6 +221,7 @@ def update_openlibrary_dump():
 
         logger.info("Indexing OpenLibrary Works into local database...")
         batch = []
+        indexed = 0
         with gzip.open(works_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -165,10 +246,15 @@ def update_openlibrary_dump():
                 if len(batch) >= 10000:
                     cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
                     conn.commit()
+                    indexed += len(batch)
                     batch = []
+                    if indexed % INDEX_PROGRESS_STEP < 10000:
+                        logger.info(f"Indexed {indexed} works so far...")
         if batch:
             cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
             conn.commit()
+            indexed += len(batch)
+        logger.info(f"Indexed {indexed} works total")
 
         logger.info("OpenLibrary Bulk Dump indexing complete successfully.")
     except Exception as e:
@@ -176,6 +262,10 @@ def update_openlibrary_dump():
     finally:
         if conn:
             conn.close()
+        logger.debug(f"Storing finish time for {thread_name()}")
+        jobdb.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
+        jobdb.close()
+        thread_name(incoming_threadname)
 
 def query_local_dump_author(author_name):
     """Search local dump database for author ID by name."""
