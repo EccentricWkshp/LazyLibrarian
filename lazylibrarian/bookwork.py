@@ -265,7 +265,12 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
             if match and match['Status'] in ['Wanted', 'Skipped', 'Ignored']:
                 if CONFIG.get_bool('EBOOK_TAB'):
                     new_status = match['Status']
-                if CONFIG.get_bool('AUDIO_TAB'):
+                # Narrowing (Skipped/Ignored) always applies, but only let a series' Wanted
+                # status escalate audio to Wanted if the user's own default audio preference
+                # (adefault, from NEWAUDIO_STATUS/NEWAUTHOR_AUDIO) would already do that -
+                # otherwise "never auto-want audio" gets silently overridden by marking a
+                # series Wanted (Issue #2838).
+                if CONFIG.get_bool('AUDIO_TAB') and (match['Status'] != 'Wanted' or adefault == 'Wanted'):
                     new_astatus = match['Status']
                 if new_status or new_astatus:
                     logger.debug(f"Marking {bookname} as {match['Status']}, series {item[2]}")
@@ -280,7 +285,8 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
                 wanted_status = authstatus
             if CONFIG.get_bool('EBOOK_TAB'):
                 new_status = wanted_status
-            if CONFIG.get_bool('AUDIO_TAB'):
+            # Same audio-escalation guard as the series check above (Issue #2838).
+            if CONFIG.get_bool('AUDIO_TAB') and (wanted_status != 'Wanted' or adefault == 'Wanted'):
                 new_astatus = wanted_status
             if new_status or new_astatus:
                 logger.debug(f'Marking {bookname} as {wanted_status}, author {authstatus}')
@@ -533,7 +539,11 @@ def add_series_members(seriesid, refresh=False):
                         if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                             db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set status to {wanted_status} for {member[1]}")
-                        if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                        # Only let a Wanted series escalate audio to Wanted if the user's own
+                        # default audio preference would already do that (Issue #2838) -
+                        # narrowing (Skipped) always applies.
+                        if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                             db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set audiostatus to {wanted_status} for {member[1]}")
                     else:
@@ -546,7 +556,9 @@ def add_series_members(seriesid, refresh=False):
                             if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                                 db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set status to {wanted_status} for {member[1]}")
-                            if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                            # Same audio-escalation guard as above (Issue #2838).
+                            if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                    and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                                 db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set audiostatus to {wanted_status} for {member[1]}")
                     count += 1
