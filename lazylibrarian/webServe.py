@@ -1803,7 +1803,13 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     @cherrypy.tools.json_out()
-    def mark_series_ajax(self, action=None, **args):
+    def mark_series_ajax(self, action=None, redirect=None, **args):
+        # redirect is an explicit param (not left in **args) for the same reason
+        # mark_books_ajax already declares it: series.html's #mark_series form has a
+        # hidden `redirect` field (the authorid to bounce back to) that FormData sends
+        # alongside the checked series - left in args it's iterated as if it were a
+        # SeriesID, fails to match any series, and is counted as a failed item
+        # (Issue #2850).
         self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -1919,8 +1925,8 @@ class WebInterface:
                                       (userid, 'series', iss['bookid']))
                         logger.debug(f"Unsubscribe {userid} to series {seriesid}")
 
-            if "redirect" in args:
-                redirect = f"series?authorid={args['redirect']}"
+            if redirect:
+                redirect = f"series?authorid={redirect}"
             else:
                 redirect = "series"
         db.close()
