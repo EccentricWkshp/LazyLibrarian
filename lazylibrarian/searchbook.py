@@ -549,6 +549,7 @@ def search_book(books=None, library=None):
                         break  # snatched (by us, or already by someone else) - nothing more to try
                     matches.remove(highest)
                     if matches:
+                        TELEMETRY.record_usage_data("SearchBook/RetryNextCandidate")
                         logger.info(
                             f"{highest[1]['NZBprov']} release for {book['searchterm']} failed to download, "
                             f"trying next best candidate ({len(matches)} remaining)")
