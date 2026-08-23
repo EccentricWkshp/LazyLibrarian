@@ -329,19 +329,18 @@ class StartupLazyLibrarian:
 
     @staticmethod
     def build_sources():
-        # Dict insertion order here IS the fallback priority order used wherever no
-        # explicit authors.PrimarySource is set - see editauthor.html's linkable_sources
-        # (built straight from this dict via .items()) and webServe.py's author-list
-        # badge (a separately hardcoded GoodReads-first tuple, meant to agree with this).
-        # Keep GoodReads first: every author here is GoodReads-imported, so putting
-        # anything else first meant simply linking a second source (e.g. OpenLibrary)
-        # visibly flipped the implied-primary star/radio away from GoodReads with no
-        # explicit choice by the user - confirmed live, reported 2026-08-13.
+        # Dict insertion order here is the fallback priority order wherever code walks
+        # INFOSOURCES looking for "the" source with no other guidance. Keep OpenLibrary
+        # first - it's the only source usable without an API key, so this is the one
+        # order that's sane for every install regardless of which sources a given user
+        # actually has configured/populated (a previous attempt hardcoded GoodReads
+        # first on the reasoning that "almost every author is GoodReads-imported" here -
+        # that doesn't generalise to other users' libraries, see upstream !1867 review).
         info_sources = {
-                'GoodReads': {'src': 'GR', 'author_key': 'gr_id', 'book_key': 'gr_id', 'enabled': 'GR_API',
-                              'api': gr.GoodReads, 'has_subs': 0},
                 'OpenLibrary': {'src': 'OL', 'author_key': 'ol_id', 'book_key': 'ol_id', 'enabled': 'OL_API',
                                 'api': ol.OpenLibrary, 'has_subs': 0},
+                'GoodReads': {'src': 'GR', 'author_key': 'gr_id', 'book_key': 'gr_id', 'enabled': 'GR_API',
+                              'api': gr.GoodReads, 'has_subs': 0},
                 'HardCover': {'src': 'HC', 'author_key': 'hc_id', 'book_key': 'hc_id', 'enabled': 'HC_API',
                               'api': hc.HardCover, 'has_subs': 1},
                 'GoogleBooks': {'src': 'GB', 'author_key': 'authorid', 'book_key': 'gb_id', 'enabled': 'GB_API',
