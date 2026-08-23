@@ -4640,7 +4640,12 @@ class WebInterface:
                                 logger.debug(f'eBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'Status': 'Wanted'}, {'BookID': bookid})
+                                # ScanResult set here too, matching the Ignored/Skipped/Have
+                                # actions below - otherwise re-wanting a previously-deleted
+                                # book leaves its stale "User deleted" ScanResult in place
+                                # with no indication the book is active again.
+                                db.upsert("books", {'Status': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'Status set to "Wanted" for "{bookname}"')
                                 wantedbooks.append({"bookid": bookid})
                                 passed += 1
@@ -4649,7 +4654,8 @@ class WebInterface:
                                 logger.debug(f'AudioBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'AudioStatus': 'Wanted'}, {'BookID': bookid})
+                                db.upsert("books", {'AudioStatus': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'AudioStatus set to "Wanted" for "{bookname}"')
                                 wantedaudio.append({"bookid": bookid})
                                 passed += 1
