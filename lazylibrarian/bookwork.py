@@ -862,11 +862,20 @@ def get_series_members(seriesid=None, seriesname=None, refresh=False):
     return filtered, api_hits, source
 
 
-def get_gb_info(isbn=None, author=None, title=None, expire=False):
+def get_gb_info(isbn=None, author=None, title=None, expire=True):
     """ GoodReads/OpenLibrary do not always have a book description in api results
         due to restrictive TOS from some providers, and goodreads may not have genre
         Try to get missing info from googlebooks
-        Return info dictionary, None if error"""
+        Return info dictionary, None if error
+
+        expire=True (the default) lets a cached "no fuzzy match" result age out after
+        CACHE_AGE days so it gets retried on a later refresh, same as the GoodReads
+        pubdate lookup. expire=False pins the result in the cache forever - a Google
+        Books search that fails to fuzzy-match a book/author once (common for messy or
+        subtitled titles) would otherwise never be retried, permanently blocking that
+        book's date/description/genre/rating/publisher from ever being filled in via
+        this fallback. Only pass expire=False for callers that already gate a fresh
+        lookup behind their own explicit refresh flag (see api.py's _setnodesc/_setnogenre)."""
     if not author or not title or not CONFIG['GB_API']:
         return {}
 
