@@ -959,7 +959,7 @@ class GoodReads:
                                     if genres:
                                         bookgenre = ', '.join(genres)
                                 infodict = get_gb_info(isbn=bookisbn, author=author_name_result,
-                                                       title=bookname, expire=False)
+                                                       title=bookname)
                                 if infodict:  # None if api blocked
                                     gbupdate = []
                                     if not bookdesc and infodict['desc']:
@@ -1058,18 +1058,29 @@ class GoodReads:
                                     elif not existing:
                                         update_value_dict["ScanResult"] = reason
 
-                                    if ('nocover' in bookimg or 'nophoto' in bookimg) and \
-                                            cover_lookups_this_refresh < cover_lookups_cap:
-                                        # try to get a cover from another source
-                                        start = time.time()
-                                        link, source = get_book_cover(bookid, ignore='goodreads')
-                                        if source != 'cache':
-                                            cover_count += 1
-                                            cover_time += (time.time() - start)
-                                            cover_lookups_this_refresh += 1
-                                            time.sleep(2)
-                                        if link:
-                                            update_value_dict["BookImg"] = link
+                                    if 'nocover' in bookimg or 'nophoto' in bookimg:
+                                        # infodict (Google Books) was already fetched a few lines
+                                        # above for date/desc/genre - use its cover too before
+                                        # falling to the untrusted keyword image-search crawler.
+                                        # Costs no extra API call, so isn't gated by
+                                        # cover_lookups_cap.
+                                        gb_img = infodict.get('img') if infodict else ''
+                                        if gb_img and gb_img.startswith('http') and \
+                                                'nocover' not in gb_img and 'nophoto' not in gb_img:
+                                            link = cache_bookimg(gb_img, bookid, 'gr')
+                                            if link:
+                                                update_value_dict["BookImg"] = link
+                                        elif cover_lookups_this_refresh < cover_lookups_cap:
+                                            # try to get a cover from another source
+                                            start = time.time()
+                                            link, source = get_book_cover(bookid, ignore='goodreads')
+                                            if source != 'cache':
+                                                cover_count += 1
+                                                cover_time += (time.time() - start)
+                                                cover_lookups_this_refresh += 1
+                                                time.sleep(2)
+                                            if link:
+                                                update_value_dict["BookImg"] = link
                                     elif bookimg and bookimg.startswith('http'):
                                         link = cache_bookimg(bookimg, bookid, 'gr')
                                         update_value_dict["BookImg"] = link
@@ -1492,8 +1503,9 @@ class GoodReads:
             genres, _ = get_gr_genres(bookid)
             if genres:
                 bookgenre = ', '.join(genres)
+            infodict = None
             if not bookdesc:
-                infodict = get_gb_info(isbn=bookisbn, author=authorname, title=bookname, expire=False)
+                infodict = get_gb_info(isbn=bookisbn, author=authorname, title=bookname)
                 if infodict is not None:  # None if api blocked
                     if infodict and infodict['desc']:
                         bookdesc = infodict['desc']
@@ -1538,8 +1550,16 @@ class GoodReads:
                 added = True
                 # get_book_cover needs the bookid to already exist in db
                 if 'nocover' in bookimg or 'nophoto' in bookimg:
-                    # try to get a cover from another source
-                    link, _ = get_book_cover(bookid, ignore='goodreads')
+                    # infodict (Google Books), if fetched above for the description, may
+                    # already have a usable cover - use it before falling to the untrusted
+                    # keyword image-search crawler. No extra API call either way.
+                    gb_img = infodict.get('img') if infodict else ''
+                    if gb_img and gb_img.startswith('http') and \
+                            'nocover' not in gb_img and 'nophoto' not in gb_img:
+                        link = cache_bookimg(gb_img, bookid, 'gr')
+                    else:
+                        # try to get a cover from another source
+                        link, _ = get_book_cover(bookid, ignore='goodreads')
                     if link:
                         new_value_dict = {"BookImg": link}
                         db.upsert("books", new_value_dict, control_value_dict)

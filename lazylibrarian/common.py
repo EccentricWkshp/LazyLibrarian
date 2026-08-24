@@ -59,29 +59,25 @@ from lazylibrarian.filesystem import (
 from lazylibrarian.formatter import get_list, make_unicode
 from lazylibrarian.logconfig import LOGCONFIG
 
+reading_status = {'toread': 1, 'reading': 2, 'haveread': 3, 'read': 3, 'owned': 4, 'abandoned': 5, 'dnf': 5, }
 
-def get_user_agent() -> str:
+
+def get_user_agent(configured=True) -> str:
     # Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36
-    if CONFIG['USER_AGENT']:
+    if configured and CONFIG['USER_AGENT']:
         return CONFIG['USER_AGENT']
-    return f"LazyLibrarian ({platform.system()} {platform.release()})"
+    return f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION']})"
 
 
 def get_readinglist(table, user):
     # return a set of all bookids in a readinglist
     db = database.DBConnection()
     readinglist = []
-    # status_id = 1 want-to-read, 2 currently_reading, 3 read, 4 owned, 5 dnf
-    if table.lower() == 'toread':
-        status = 1
-    elif table.lower() == 'reading':
-        status = 2
-    elif table.lower() in ['haveread', 'read']:
-        status = 3
-    elif table.lower() in ['abandoned', 'dnf']:
-        status = 5
+    if table.lower() in reading_status:
+        status = reading_status[table.lower()]
     else:
-        status = 4
+        status = reading_status['owned']
+
     cmd = "SELECT bookid from readinglists WHERE userid=? and status=?"
     res = db.select(cmd, (user, status))
     if res:
@@ -94,16 +90,11 @@ def get_readinglist(table, user):
 def set_readinglist(table, user, booklist):
     # set the readinglist for a user
     db = database.DBConnection()
-    if table.lower() == 'toread':
-        status = 1
-    elif table.lower() == 'reading':
-        status = 2
-    elif table.lower() in ['haveread', 'read']:
-        status = 3
-    elif table.lower() in ['abandoned', 'dnf']:
-        status = 5
+    if table.lower() in reading_status:
+        status = reading_status[table.lower()]
     else:
-        status = 4
+        status = reading_status['owned']
+
     try:
         readinglist = set(booklist)
         for book in readinglist:

@@ -265,7 +265,12 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
             if match and match['Status'] in ['Wanted', 'Skipped', 'Ignored']:
                 if CONFIG.get_bool('EBOOK_TAB'):
                     new_status = match['Status']
-                if CONFIG.get_bool('AUDIO_TAB'):
+                # Narrowing (Skipped/Ignored) always applies, but only let a series' Wanted
+                # status escalate audio to Wanted if the user's own default audio preference
+                # (adefault, from NEWAUDIO_STATUS/NEWAUTHOR_AUDIO) would already do that -
+                # otherwise "never auto-want audio" gets silently overridden by marking a
+                # series Wanted (Issue #2838).
+                if CONFIG.get_bool('AUDIO_TAB') and (match['Status'] != 'Wanted' or adefault == 'Wanted'):
                     new_astatus = match['Status']
                 if new_status or new_astatus:
                     logger.debug(f"Marking {bookname} as {match['Status']}, series {item[2]}")
@@ -280,7 +285,8 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
                 wanted_status = authstatus
             if CONFIG.get_bool('EBOOK_TAB'):
                 new_status = wanted_status
-            if CONFIG.get_bool('AUDIO_TAB'):
+            # Same audio-escalation guard as the series check above (Issue #2838).
+            if CONFIG.get_bool('AUDIO_TAB') and (wanted_status != 'Wanted' or adefault == 'Wanted'):
                 new_astatus = wanted_status
             if new_status or new_astatus:
                 logger.debug(f'Marking {bookname} as {wanted_status}, author {authstatus}')
@@ -533,7 +539,11 @@ def add_series_members(seriesid, refresh=False):
                         if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                             db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set status to {wanted_status} for {member[1]}")
-                        if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                        # Only let a Wanted series escalate audio to Wanted if the user's own
+                        # default audio preference would already do that (Issue #2838) -
+                        # narrowing (Skipped) always applies.
+                        if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                             db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set audiostatus to {wanted_status} for {member[1]}")
                     else:
@@ -546,7 +556,9 @@ def add_series_members(seriesid, refresh=False):
                             if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                                 db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set status to {wanted_status} for {member[1]}")
-                            if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                            # Same audio-escalation guard as above (Issue #2838).
+                            if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                    and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                                 db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set audiostatus to {wanted_status} for {member[1]}")
                     count += 1
@@ -850,11 +862,20 @@ def get_series_members(seriesid=None, seriesname=None, refresh=False):
     return filtered, api_hits, source
 
 
-def get_gb_info(isbn=None, author=None, title=None, expire=False):
+def get_gb_info(isbn=None, author=None, title=None, expire=True):
     """ GoodReads/OpenLibrary do not always have a book description in api results
         due to restrictive TOS from some providers, and goodreads may not have genre
         Try to get missing info from googlebooks
-        Return info dictionary, None if error"""
+        Return info dictionary, None if error
+
+        expire=True (the default) lets a cached "no fuzzy match" result age out after
+        CACHE_AGE days so it gets retried on a later refresh, same as the GoodReads
+        pubdate lookup. expire=False pins the result in the cache forever - a Google
+        Books search that fails to fuzzy-match a book/author once (common for messy or
+        subtitled titles) would otherwise never be retried, permanently blocking that
+        book's date/description/genre/rating/publisher from ever being filled in via
+        this fallback. Only pass expire=False for callers that already gate a fresh
+        lookup behind their own explicit refresh flag (see api.py's _setnodesc/_setnogenre)."""
     if not author or not title or not CONFIG['GB_API']:
         return {}
 

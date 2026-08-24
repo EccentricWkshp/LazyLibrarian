@@ -32,10 +32,10 @@ from lazylibrarian.formatter import make_unicode
 
 def check_link():
     # socket.setdefaulttimeout(2)
-    test, res = send_nzb(cmd="test")
+    version, res = send_nzb(cmd="test")
     # socket.setdefaulttimeout(None)
-    if test:
-        return "NZBget connection successful"
+    if version:
+        return f"NZBget connection successful, version {version}"
     return f"NZBget connection FAILED\n{res}"
 
 
@@ -96,8 +96,9 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         if nzb_get_rpc.writelog("INFO", msg):
             dlcommslogger.debug("Successfully connected to NZBget")
             if cmd == "test":
+                cmd = "version"
                 # should check nzbget category is valid
-                return True, ''
+                # return version
         else:
             if nzbid is not None:
                 res = "Successfully connected to NZBget, unable to send message"
@@ -109,7 +110,7 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         res = "Please check your NZBget host and port (if it is running). "
         res += f"NZBget is not responding to this combination: {e}"
         logger.error(res)
-        logger.error(f"NZBget url is [{url}]")
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except ProtocolError as e:
@@ -118,6 +119,7 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         else:
             res = f"Protocol Error: {e.errmsg}"
         logger.error(res)
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except Exception as e:
@@ -125,6 +127,15 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         logger.error(res)
         logger.error(f"NZBget url [{url}]")
         return False, res
+
+    if cmd == 'version':
+        try:
+            res = nzb_get_rpc.version()
+            return res, ''
+        except Exception as e:
+            logger.error(f"NZBget version: {e}")
+            logger.error(f"NZBget url [{url}]")
+            return '' , str(e)
 
     if cmd == 'history':
         try:
