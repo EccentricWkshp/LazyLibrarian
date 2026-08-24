@@ -688,9 +688,16 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
+            # Sources that expose a per-author ID (unlike GoogleBooks/DNB, which are
+            # book-search-only - their author_key is the plain 'authorid' placeholder,
+            # not a real per-source column). Derived from INFOSOURCES so a new such
+            # source needs no change here or in the badge fallback below.
+            author_link_sources = [(name, src['author_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                                    if src['author_key'] != 'authorid']
             cmd = ("SELECT AuthorImg,AuthorName,LastBook,LastDate,Status,AuthorLink,LastLink,HaveBooks,"
-                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource,gr_id,ol_id,hc_id,"
-                   "ran_id from authors ")
+                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource," +
+                   ",".join(col for _, col in author_link_sources) +
+                   " from authors ")
             if lazylibrarian.IGNORED_AUTHORS:
                 if CONFIG.get_bool('IGNORE_PAUSED'):
                     cmd += "where Status IN ('Ignored', 'Paused') "
@@ -806,12 +813,11 @@ class WebInterface:
                     # guaranteed to match); otherwise fall back to priority order among
                     # whatever's linked, shown as plain text since there's no verified
                     # matching URL for an inferred guess.
-                    primarysource, author_gr, author_ol, author_hc, author_ran = arow[13:18]
+                    primarysource = arow[13]
                     badge_source = primarysource
                     if not badge_source:
-                        for fb_name, fb_val in (('GoodReads', author_gr), ('OpenLibrary', author_ol),
-                                                ('HardCover', author_hc), ('RanobeDB', author_ran)):
-                            if fb_val:
+                        for idx, (fb_name, _) in enumerate(author_link_sources):
+                            if arow[14 + idx]:
                                 badge_source = fb_name
                                 break
                     if primarysource:
