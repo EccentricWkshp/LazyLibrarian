@@ -90,8 +90,7 @@
       <thead><tr><th>Source</th><th>ID</th><th>Link</th></tr></thead>
       <tbody>
         <%
-            source_names = {'gr_id': 'GoodReads', 'ol_id': 'OpenLibrary', 'gb_id': 'GoogleBooks',
-                            'dnb_id': 'DNB', 'hc_id': 'HardCover', 'ran_id': 'RanobeDB'}
+            source_names = {src['book_key']: name for name, src in lazylibrarian.INFOSOURCES.items()}
         %>
         %for col, sourceid, link in book_links:
         <tr>

@@ -2672,18 +2672,22 @@ class WebInterface:
         logger.debug(f'refresh_author Invalid authorid [{authorid}]')
         raise cherrypy.HTTPError(404, f"AuthorID {authorid} not found")
 
-    # Priority order for picking which single source to refresh a book from - matches
-    # the priority used elsewhere (linkable_sources, INFOSOURCES's author_link). Every
-    # source implements the same add_bookid_to_db(bookid, bookstatus, audiostatus,
-    # reason) interface (see bookdict.py's docstring), so this can dispatch generically
-    # rather than needing per-source logic. Deliberately only ever calls ONE source, not
-    # all of a book's linked sources - unlike get_all_author_details(), there's no
-    # merge-multiple-sources logic at the book level yet, so calling a second source
-    # after the first would just overwrite the first source's fields wholesale rather
-    # than filling gaps.
-    BOOK_REFRESH_SOURCE_PRIORITY = [('GoodReads', 'gr_id'), ('OpenLibrary', 'ol_id'),
-                                    ('HardCover', 'hc_id'), ('RanobeDB', 'ran_id'),
-                                    ('DNB', 'dnb_id'), ('GoogleBooks', 'gb_id')]
+    @staticmethod
+    def book_refresh_source_priority():
+        """ Priority order for picking which single source to refresh a book from -
+        author-linkable sources (INFOSOURCES's author_key, richer/more curated data)
+        before book-search-only ones (GoogleBooks/DNB), each group in INFOSOURCES'
+        own order. Every source implements the same add_bookid_to_db(bookid,
+        bookstatus, audiostatus, reason) interface (see bookdict.py's docstring), so
+        this can dispatch generically rather than needing per-source logic.
+        Derived from lazylibrarian.INFOSOURCES at call time, not class-definition
+        time - webServe is imported before startup.init_build_lists() populates
+        INFOSOURCES. """
+        author_linkable = [(name, src['book_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                           if src['author_key'] != 'authorid']
+        book_only = [(name, src['book_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                    if src['author_key'] == 'authorid']
+        return author_linkable + book_only
 
     @cherrypy.expose
     @require_auth()
@@ -2702,7 +2706,11 @@ class WebInterface:
         if locked:
             logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - manually locked")
             raise cherrypy.HTTPRedirect(f"book_detail?bookid={bookid}")
-        for source_name, id_col in self.BOOK_REFRESH_SOURCE_PRIORITY:
+        # Deliberately only ever calls ONE source, not all of a book's linked sources -
+        # unlike get_all_author_details(), there's no merge-multiple-sources logic at
+        # the book level yet, so calling a second source after the first would just
+        # overwrite the first source's fields wholesale rather than filling gaps.
+        for source_name, id_col in self.book_refresh_source_priority():
             source_id = book[id_col]
             if source_id:
                 api = lazylibrarian.INFOSOURCES[source_name]['api']()
@@ -4187,19 +4195,6 @@ class WebInterface:
         rmtree(icrawlerdir, ignore_errors=True)
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
 
-    # Book-level source ids resolve to working pages via simple templates (unlike author
-    # ids, which need a live API call). Verified live against real ids from this
-    # library before relying on them: GoodReads bare id (no title slug) 200s,
-    # OpenLibrary work id 301s, Google Books volume id 302s, DNB id 302s. HardCover/
-    # RanobeDB have no verified template and ~0 usage in this library's book records,
-    # so shown as plain ids rather than guessed (possibly wrong) links.
-    BOOK_LINK_TEMPLATES = {
-        'gr_id': 'https://www.goodreads.com/book/show/{}',
-        'ol_id': 'https://openlibrary.org/works/{}',
-        'gb_id': 'https://books.google.com/books?id={}',
-        'dnb_id': 'https://d-nb.info/{}',
-    }
-
     @cherrypy.expose
     @require_auth()
     def book_detail(self, bookid=None):
@@ -4220,13 +4215,20 @@ class WebInterface:
         book['OriginalPubDate'] = date_format(book['OriginalPubDate'], CONFIG['AUTHOR_DATE_FORMAT'],
                                               context=book['BookName'], datelang=CONFIG['DATE_LANG'])
 
+        # Book-level source ids resolve to working pages via simple templates (unlike
+        # author ids, which need a live API call) - stored as INFOSOURCES['link_template'],
+        # only present for sources verified live against real ids from this library:
+        # GoodReads bare id (no title slug) 200s, OpenLibrary work id 301s, Google Books
+        # volume id 302s, DNB id 302s. HardCover/RanobeDB have no verified template and
+        # ~0 usage in this library's book records, so shown as plain ids (no link_template
+        # key) rather than guessed (possibly wrong) links.
         book_links = []
-        for col, template in self.BOOK_LINK_TEMPLATES.items():
+        for src in lazylibrarian.INFOSOURCES.values():
+            col = src['book_key']
             if book.get(col):
-                book_links.append((col, book[col], template.format(book[col])))
-        for col in ('hc_id', 'ran_id'):
-            if book.get(col):
-                book_links.append((col, book[col], ''))
+                template = src.get('link_template')
+                link = template.format(book[col]) if template else ''
+                book_links.append((col, book[col], link))
 
         amazon_link = f'https://www.amazon.com/dp/{book["ASIN"]}' if book.get('ASIN') else ''
 
