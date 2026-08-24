@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 95
+db_current_version = 96
 
 
 def upgrade_needed():
@@ -1579,6 +1579,18 @@ def update_schema(db, upgradelog):
         # not the bulk author/show book list, so this only backfills as books get
         # individually (re)added rather than during bulk refresh.
         db.action('ALTER TABLE books ADD COLUMN ASIN TEXT')
+
+    if not has_column(db, "authors", "AmazonAuthorURL"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding AmazonAuthorURL column to authors table'
+        upgradelog.write(f"{time.ctime()} v96: {lazylibrarian.UPDATE_MSG}\n")
+        # Amazon Author Central pages (amazon.com/stores/{slug}/author/{AuthorASIN}) use a
+        # separate ID system from book ASINs, with no free lookup for it anywhere - GR/OL/
+        # HC/GB APIs don't expose it. Manual-entry only, same pattern as the gr_id/ol_id/
+        # hc_id/ran_id manual-link field on the edit-author screen. Stores the whole pasted
+        # URL rather than trying to parse out just the ID, since the slug portion isn't
+        # reliably derivable and the full URL works as-is.
+        db.action('ALTER TABLE authors ADD COLUMN AmazonAuthorURL TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

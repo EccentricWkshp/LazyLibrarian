@@ -129,7 +129,7 @@
             <a href="edit_author?authorid=${author['AuthorID']}"><small><i>Edit</i></small></a>
             %endif
             </h1>
-            %if linked_sources or gb_search_link:
+            %if linked_sources or gb_search_link or amazon_search_link or author.get('AmazonAuthorURL'):
             <p>
             %for name, link in linked_sources:
                 %if link:
@@ -140,6 +140,11 @@
             %endfor
             %if gb_search_link:
             <a href="${gb_search_link}" target="_blank" rel="noreferrer" title="Google Books has no author page of its own - this is a name search, not a verified link"><small><i>GoogleBooks (search)</i></small></a>&nbsp;&nbsp;
+            %endif
+            %if author.get('AmazonAuthorURL'):
+            <a href="${author['AmazonAuthorURL']}" target="_blank" rel="noreferrer" title="Manually linked Amazon Author Central page"><small><i>Amazon</i></small></a>&nbsp;&nbsp;
+            %elif amazon_search_link:
+            <a href="${amazon_search_link}" target="_blank" rel="noreferrer" title="Amazon has no free author-lookup API - this is a name search, not a verified link. Useful for self-published authors."><small><i>Amazon (search)</i></small></a>&nbsp;&nbsp;
             %endif
             </p>
             %endif

@@ -2,14 +2,6 @@
 <%!
     import lazylibrarian
     from lazylibrarian.config2 import CONFIG
-
-    # Sources that expose a per-author ID (unlike GoogleBooks/DNB, which are
-    # book-search-only - their author_key is the plain 'authorid' placeholder,
-    # not a real per-source column). Derived from INFOSOURCES so a new such
-    # source needs no template change; order matches INFOSOURCES' own, same as
-    # webServe.py's author_linkable_sources().
-    linkable_sources = [(name, src['author_key'], src['enabled']) for name, src in lazylibrarian.INFOSOURCES.items()
-                        if src['author_key'] != 'authorid']
 %>
 <%def name="headerIncludes()">
     <div id="subhead_container">
@@ -111,6 +103,12 @@
               <div class="form-group col-md-6">
                 <label for="aka" class="control-label">AKA:</label>
                 <input type="text" id="aka" name="aka" value="${config['aka']}" class="form-control">
+              </div>
+            </div>
+            <div class="row">
+              <div class="form-group col-md-12">
+                <label for="amazonauthorurl" class="control-label">Amazon Author Page:</label>
+                <input type="text" id="amazonauthorurl" name="amazonauthorurl" value="${config['AmazonAuthorURL'] or ''}" class="form-control" placeholder="https://www.amazon.com/stores/.../author/... - no free lookup exists for this, paste it if you find it">
               </div>
             </div>
             <div class="row">
