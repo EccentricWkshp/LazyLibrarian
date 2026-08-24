@@ -2,6 +2,14 @@
 <%!
     import lazylibrarian
     from lazylibrarian.config2 import CONFIG
+
+    # Sources that expose a per-author ID (unlike GoogleBooks/DNB, which are
+    # book-search-only - their author_key is the plain 'authorid' placeholder,
+    # not a real per-source column). Derived from INFOSOURCES so a new such
+    # source needs no template change; order matches INFOSOURCES' own, same as
+    # webServe.py's author_linkable_sources().
+    linkable_sources = [(name, src['author_key'], src['enabled']) for name, src in lazylibrarian.INFOSOURCES.items()
+                        if src['author_key'] != 'authorid']
 %>
 <%def name="headerIncludes()">
     <div id="subhead_container">

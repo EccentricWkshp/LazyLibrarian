@@ -160,6 +160,7 @@ from lazylibrarian.manual_import import (
 from lazylibrarian.manualbook import search_item
 from lazylibrarian.metadata_opf import create_opf
 from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
+from lazylibrarian.oldump import update_openlibrary_dump
 from lazylibrarian.opds import OPDS
 from lazylibrarian.opfedit import opf_read, opf_write
 from lazylibrarian.postprocess import process_dir
@@ -1832,7 +1833,13 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     @cherrypy.tools.json_out()
-    def mark_series_ajax(self, action=None, **args):
+    def mark_series_ajax(self, action=None, redirect=None, **args):
+        # redirect is an explicit param (not left in **args) for the same reason
+        # mark_books_ajax already declares it: series.html's #mark_series form has a
+        # hidden `redirect` field (the authorid to bounce back to) that FormData sends
+        # alongside the checked series - left in args it's iterated as if it were a
+        # SeriesID, fails to match any series, and is counted as a failed item
+        # (Issue #2850).
         self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -1948,8 +1955,8 @@ class WebInterface:
                                       (userid, 'series', iss['bookid']))
                         logger.debug(f"Unsubscribe {userid} to series {seriesid}")
 
-            if "redirect" in args:
-                redirect = f"series?authorid={args['redirect']}"
+            if redirect:
+                redirect = f"series?authorid={redirect}"
             else:
                 redirect = "series"
         db.close()
@@ -2481,8 +2488,8 @@ class WebInterface:
                         db.upsert("authors", {'Status': action}, {'AuthorID': authorid})
                         logger.info(f'Status set to "{action}" for "{check["AuthorName"]}"')
                         passed += 1
-                    elif action == "Delete":
-                        logger.info(f"Deleting author and media files for {check['AuthorName']}")
+                    elif action in ("Delete", "Delete+Ignore"):
+                        logger.info(f"{action} author and media files for {check['AuthorName']}")
                         cmd = "SELECT BookFile,AudioFile from books WHERE AuthorID=? and "
                         cmd += "((BookFile IS NOT NULL AND BookFile != '') or (AudioFile IS NOT NULL AND AudioFile != ''))"
                         books = db.select(cmd, (authorid,))
@@ -2503,9 +2510,14 @@ class WebInterface:
                                 delete_empty_folders(CONFIG['AUDIO_DIR'])
                             except Exception as e:
                                 logger.error(f"Error deleting: {e}")
-                        logger.debug(f"Deleting author {authorid}")
-                        db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
-                        logger.debug(f"Deletion complete for {authorid}")
+                        if action == "Delete+Ignore":
+                            db.action("UPDATE books SET BookFile='', AudioFile='' WHERE AuthorID=?",
+                                      (authorid,))
+                            db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
+                            logger.info(f"Author {check['AuthorName']} set to Ignored")
+                        else:
+                            db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
+                            logger.info(f"Author {check['AuthorName']} deleted")
                         passed += 1
                     elif action == "Remove":
                         logger.info(f"Removing author: {check['AuthorName']}")
@@ -4314,15 +4326,15 @@ class WebInterface:
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
 
     @staticmethod
-    def author_linkable(source):
-        """ True for sources that expose a per-author ID and a uniform
-        find_author_id()/get_author_info() pair (unlike GoogleBooks/DNB, which are
-        book-search-only - see gb.py/dnb.py, neither has find_author_id). These are
-        the only sources that can be linked to an author record or chosen as an
-        author's PrimarySource. Derived from INFOSOURCES's author_link field (the
-        single source of truth for per-source author columns) rather than a second,
-        separately-maintained list. """
-        return source in lazylibrarian.INFOSOURCES and bool(lazylibrarian.INFOSOURCES[source].get('author_link'))
+    def author_linkable_sources():
+        """ Sources that expose a per-author ID and a uniform find_author_id()/
+        get_author_info() pair (unlike GoogleBooks/DNB, which are book-search-only -
+        see gb.py/dnb.py, neither has find_author_id). These are the only sources that
+        can be linked to an author record or chosen as an author's PrimarySource.
+        Derived from lazylibrarian.INFOSOURCES at call time, not class-definition time -
+        webServe is imported before startup.init_build_lists() populates INFOSOURCES. """
+        return {name: src['author_key'] for name, src in lazylibrarian.INFOSOURCES.items()
+                if src['author_key'] != 'authorid'}
 
     @cherrypy.expose
     @require_auth()
@@ -4333,7 +4345,7 @@ class WebInterface:
         Does not write anything - see link_author_source for that. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if not self.author_linkable(source):
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} does not support author search'}
         db = database.DBConnection()
         author = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
@@ -4367,11 +4379,11 @@ class WebInterface:
         backfill it via get_all_author_details(). """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if not self.author_linkable(source):
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be linked to an author'}
         if not sourceid:
             return {'error': 'No source id supplied'}
-        column = lazylibrarian.INFOSOURCES[source]['author_key']
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT AuthorID,AuthorName from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4404,9 +4416,9 @@ class WebInterface:
         whatever that source's own get_author_info() would build. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if not self.author_linkable(source):
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be a primary source'}
-        column = lazylibrarian.INFOSOURCES[source]['author_key']
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4451,9 +4463,9 @@ class WebInterface:
         one. """
         self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
-        if not self.author_linkable(source):
+        if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be unlinked'}
-        column = lazylibrarian.INFOSOURCES[source]['author_key']
+        column = self.author_linkable_sources()[source]
         db = database.DBConnection()
         author = db.match('SELECT AuthorID, PrimarySource from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -4955,7 +4967,12 @@ class WebInterface:
                                 logger.debug(f'eBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'Status': 'Wanted'}, {'BookID': bookid})
+                                # ScanResult set here too, matching the Ignored/Skipped/Have
+                                # actions below - otherwise re-wanting a previously-deleted
+                                # book leaves its stale "User deleted" ScanResult in place
+                                # with no indication the book is active again.
+                                db.upsert("books", {'Status': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'Status set to "Wanted" for "{bookname}"')
                                 wantedbooks.append({"bookid": bookid})
                                 passed += 1
@@ -4964,7 +4981,8 @@ class WebInterface:
                                 logger.debug(f'AudioBook "{bookname}" is already marked Open')
                                 failed += 1
                             else:
-                                db.upsert("books", {'AudioStatus': 'Wanted'}, {'BookID': bookid})
+                                db.upsert("books", {'AudioStatus': 'Wanted', 'ScanResult': 'User Wanted'},
+                                          {'BookID': bookid})
                                 logger.debug(f'AudioStatus set to "Wanted" for "{bookname}"')
                                 wantedaudio.append({"bookid": bookid})
                                 passed += 1
@@ -7409,6 +7427,24 @@ class WebInterface:
         else:
             logger.debug('AAUPDATE already running')
         raise cherrypy.HTTPRedirect("home")
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def force_openlibrary_dump(self):
+        """ AJAX: manually trigger an OpenLibrary bulk-dump sync right now instead of
+        waiting for its next scheduled run. Resumes any partially-downloaded file left
+        from a previous interrupted run via the same Range-resume logic the scheduled
+        job itself uses - see oldump.download_dump_file. """
+        self.check_permitted(lazylibrarian.perm_force)
+        logger = logging.getLogger(__name__)
+        if not CONFIG['OL_USE_DUMP']:
+            return {'error': 'OpenLibrary local dump indexing is not enabled in Config -> Importing'}
+        if 'OLDUMPUPDATE' in [n.name for n in list(threading.enumerate())]:
+            return {'error': 'OpenLibrary dump sync is already running'}
+        threading.Thread(target=update_openlibrary_dump, name='OLDUMPUPDATE', args=[]).start()
+        logger.info("Manually triggered OpenLibrary bulk dump sync")
+        return {'success': True}
 
     @cherrypy.expose
     @require_auth()

@@ -465,7 +465,8 @@ class BookState:
                 data = dict(result)
                 self.book_title = _normalize_title(data.get("Title", ""))
             else:
-                logger.error(f"BookID {self.book_id} not found in magazines table")
+                logger.debug(f"BookID {self.book_id} not found in magazines table, assume new")
+                self.book_title = _normalize_title(self.book_id)
         logger.debug(f"IsBook:{self.is_book()} IsMag:{self.is_magazine()} Title:{self.book_title} BookID:{self.book_id}")
 
     def __repr__(self) -> str:

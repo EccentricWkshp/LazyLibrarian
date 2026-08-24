@@ -139,6 +139,11 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigCSV('Logging', 'LOGSPECIALDEBUG', ''),
 
     ConfigBool('Importer', 'MULTI_SOURCE', 0),
+    ConfigBool('Importer', 'OL_USE_DUMP', 0),
+    ConfigFolder('Importer', 'OL_DUMP_DIR', ''),
+    ConfigScheduler('Importer', 'OL_DUMP_INTERVAL', 'update_openlibrary_dump', 7, TimeUnit.DAY,
+                    'OLDUMPUPDATE', 'lazylibrarian.scheduling.update_openlibrary_dump', 'Update OpenLibrary Bulk Dump',
+                    needs_provider=False, persist=True),
 
     ConfigBool('Calibre', 'CALIBRE_USE_SERVER', 0),
     ConfigStr('Calibre', 'CALIBRE_SERVER', ''),
