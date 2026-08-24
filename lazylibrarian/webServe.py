@@ -27,7 +27,7 @@ import time
 import traceback
 import uuid
 from shutil import copyfile, rmtree
-from urllib.parse import quote, unquote, unquote_plus, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, unquote_plus, urlencode, urlsplit, urlunsplit
 
 import cherrypy
 from cherrypy.lib.static import serve_file
@@ -59,7 +59,7 @@ from lazylibrarian.auth import SESSION_KEY, AuthController, require_auth
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import add_series_members, delete_empty_series, set_series
-from lazylibrarian.cache import ImageType, cache_img
+from lazylibrarian.cache import ImageType, cache_img, gr_xml_request
 from lazylibrarian.calibre import calibre_test, calibredb, get_calibre_id, sync_calibre_list
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
 from lazylibrarian.comicid import cv_identify, cx_identify, name_words, title_words
@@ -2843,6 +2843,56 @@ class WebInterface:
         logger.debug(f'refresh_author Invalid authorid [{authorid}]')
         raise cherrypy.HTTPError(404, f"AuthorID {authorid} not found")
 
+    @staticmethod
+    def book_refresh_source_priority():
+        """ Priority order for picking which single source to refresh a book from -
+        author-linkable sources (INFOSOURCES's author_key, richer/more curated data)
+        before book-search-only ones (GoogleBooks/DNB), each group in INFOSOURCES'
+        own order. Every source implements the same add_bookid_to_db(bookid,
+        bookstatus, audiostatus, reason) interface (see bookdict.py's docstring), so
+        this can dispatch generically rather than needing per-source logic.
+        Derived from lazylibrarian.INFOSOURCES at call time, not class-definition
+        time - webServe is imported before startup.init_build_lists() populates
+        INFOSOURCES. """
+        author_linkable = [(name, src['book_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                           if src['author_key'] != 'authorid']
+        book_only = [(name, src['book_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                    if src['author_key'] == 'authorid']
+        return author_linkable + book_only
+
+    @cherrypy.expose
+    @require_auth()
+    def refresh_book(self, bookid):
+        self.check_permitted(lazylibrarian.perm_force)
+        logger = logging.getLogger(__name__)
+        db = database.DBConnection()
+        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,gb_id FROM books WHERE BookID=?",
+                        (bookid,))
+        db.close()
+        if not book:
+            raise cherrypy.HTTPError(404, f"BookID {bookid} not found")
+        locked = book['Manual']
+        if locked and str(locked).isdigit():
+            locked = bool(int(locked))
+        if locked:
+            logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - manually locked")
+            raise cherrypy.HTTPRedirect(f"book_detail?bookid={bookid}")
+        # Deliberately only ever calls ONE source, not all of a book's linked sources -
+        # unlike get_all_author_details(), there's no merge-multiple-sources logic at
+        # the book level yet, so calling a second source after the first would just
+        # overwrite the first source's fields wholesale rather than filling gaps.
+        for source_name, id_col in self.book_refresh_source_priority():
+            source_id = book[id_col]
+            if source_id:
+                api = lazylibrarian.INFOSOURCES[source_name]['api']()
+                threading.Thread(target=api.add_bookid_to_db, name=f"REFRESHBOOK_{bookid}",
+                                 kwargs={'bookid': source_id,
+                                         'reason': f"WebServer refresh_book {bookid} via {source_name}"}).start()
+                break
+        else:
+            logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - no linked source id")
+        raise cherrypy.HTTPRedirect(f"book_detail?bookid={bookid}")
+
     @cherrypy.expose
     @require_auth()
     def follow_author(self, authorid):
@@ -4482,6 +4532,86 @@ class WebInterface:
         db.close()
         logger.info(f"Unlinked {source} from author {authorid}")
         return {'success': True}
+
+    @cherrypy.expose
+    @require_auth()
+    def book_detail(self, bookid=None):
+        """ Read-only "master" detail view for a book, replacing the old bookinfo()
+        popup (which only ever showed image/title/description via bookdesc) for plain
+        book ids - see base.html's bookinfo() for the author/comic cases, unchanged. """
+        self.check_permitted(lazylibrarian.perm_ebook + lazylibrarian.perm_audio, redirect_unauth=True)
+        db = database.DBConnection()
+        book = db.match("SELECT books.*, AuthorName from books,authors WHERE "
+                        "books.AuthorID=authors.AuthorID AND BookID=?", (bookid,))
+        db.close()
+        if not book:
+            raise cherrypy.HTTPRedirect("books")
+        book = dict(book)
+
+        book['BookDate'] = date_format(book['BookDate'], CONFIG['AUTHOR_DATE_FORMAT'],
+                                       context=book['BookName'], datelang=CONFIG['DATE_LANG'])
+        book['OriginalPubDate'] = date_format(book['OriginalPubDate'], CONFIG['AUTHOR_DATE_FORMAT'],
+                                              context=book['BookName'], datelang=CONFIG['DATE_LANG'])
+
+        # Book-level source ids resolve to working pages via simple templates (unlike
+        # author ids, which need a live API call) - stored as INFOSOURCES['link_template'],
+        # only present for sources verified live against real ids from this library:
+        # GoodReads bare id (no title slug) 200s, OpenLibrary work id 301s, Google Books
+        # volume id 302s, DNB id 302s. HardCover/RanobeDB have no verified template and
+        # ~0 usage in this library's book records, so shown as plain ids (no link_template
+        # key) rather than guessed (possibly wrong) links.
+        book_links = []
+        for src in lazylibrarian.INFOSOURCES.values():
+            col = src['book_key']
+            if book.get(col):
+                template = src.get('link_template')
+                link = template.format(book[col]) if template else ''
+                book_links.append((col, book[col], link))
+
+        amazon_link = f'https://www.amazon.com/dp/{book["ASIN"]}' if book.get('ASIN') else ''
+
+        return serve_template(templatename="book_detail.html", title=book['BookName'], book=book,
+                              book_links=book_links, amazon_link=amazon_link)
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def lookup_book_asin(self, bookid=None):
+        """ AJAX: on-demand fetch of a book's ASIN from GoodReads' single-book endpoint
+        (book/show/{id}.xml - has asin/kindle_asin; the bulk author-book-list endpoint
+        used during normal refresh doesn't, so this can't be backfilled for free the way
+        author source links were - see gr.py's add_bookid_to_db). Not run automatically
+        for every book, only when the detail page is actually viewed and asks for it. """
+        self.check_permitted(lazylibrarian.perm_ebook)
+        logger = logging.getLogger(__name__)
+        db = database.DBConnection()
+        book = db.match("SELECT gr_id from books WHERE BookID=?", (bookid,))
+        if not book or not book['gr_id']:
+            db.close()
+            return {'error': 'No GoodReads id linked to this book'}
+        api = lazylibrarian.INFOSOURCES['GoodReads']['api']()
+        try:
+            url = '/'.join([CONFIG['GR_URL'], f"book/show/{book['gr_id']}.xml?{urlencode(api.params)}"])
+            rootxml, _ = gr_xml_request(url)
+        except Exception as e:
+            logger.error(f"lookup_book_asin error for book {bookid}: {e}")
+            db.close()
+            return {'error': 'Lookup failed, check the logs'}
+        asin = ''
+        if rootxml is not None:
+            book_el = rootxml.find('book')
+            if book_el is not None:
+                asin_el = book_el.find('asin')
+                asin = asin_el.text if asin_el is not None and asin_el.text else ''
+                if not asin:
+                    kasin_el = book_el.find('kindle_asin')
+                    asin = kasin_el.text if kasin_el is not None and kasin_el.text else ''
+        if not asin:
+            db.close()
+            return {'found': False}
+        db.action('UPDATE books SET ASIN=? WHERE BookID=?', (asin, bookid))
+        db.close()
+        return {'found': True, 'asin': asin, 'link': f'https://www.amazon.com/dp/{asin}'}
 
     @cherrypy.expose
     @require_auth()

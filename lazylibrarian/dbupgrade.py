@@ -1573,7 +1573,11 @@ def update_schema(db, upgradelog):
         # Referenced by author_detail's per-source book-count/overlap query below -
         # needs to exist regardless of whether the ASIN-capture feature itself
         # (add_bookid_to_db) has landed yet, so this page doesn't hard-fail on a
-        # fresh install that only has this branch.
+        # fresh install that only has this branch. GoodReads' book/show/{id}.xml
+        # response has asin/kindle_asin fields sitting right alongside isbn/link/etc
+        # that were never read - only add_bookid_to_db's single-book fetch has them,
+        # not the bulk author/show book list, so this only backfills as books get
+        # individually (re)added rather than during bulk refresh.
         db.action('ALTER TABLE books ADD COLUMN ASIN TEXT')
 
     if changes:

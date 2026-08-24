@@ -1316,10 +1316,27 @@ class GoodReads:
             self.searchinglogger.debug(url)
             rootxml, _ = gr_xml_request(url)
             if rootxml is None:
-                self.logger.debug(f"Failed to get book info for {bookid}")
+                # Was silently swallowed at debug level - invisible at INFO log level, so
+                # a refresh_book click that changed nothing gave no clue why. Warn, and
+                # leave a visible trail on the book itself (shown on book_detail.html)
+                # since this is usually reached from a single-book refresh with no other
+                # feedback mechanism (refresh_book is fire-and-forget - background thread
+                # + immediate redirect, same pattern as refresh_author).
+                msg = (f"Refresh failed for book {bookid} - could not reach GoodReads "
+                       f"(blocked/rate-limited?), nothing updated")
+                self.logger.warning(msg)
+                db = database.DBConnection()
+                db.action("UPDATE books SET ScanResult=? WHERE BookID=?",
+                         (f"[Refresh Failed {today()}] Could not reach GoodReads", bookid))
+                db.close()
                 return False
         except Exception as e:
-            self.logger.error(f"{type(e).__name__} finding book: {str(e)}")
+            msg = f"Refresh failed for book {bookid} - {type(e).__name__}: {str(e)}"
+            self.logger.error(msg)
+            db = database.DBConnection()
+            db.action("UPDATE books SET ScanResult=? WHERE BookID=?",
+                     (f"[Refresh Failed {today()}] {type(e).__name__}: {str(e)}", bookid))
+            db.close()
             return False
 
         threadname = thread_name()
@@ -1427,6 +1444,11 @@ class GoodReads:
         bookrate = check_float(rootxml.find('./book/average_rating').text, 0)
         bookpages = rootxml.find('.book/num_pages').text
         workid = rootxml.find('.book/work/id').text
+        # asin/kindle_asin sit alongside isbn/link/etc in this response but were never read -
+        # only this single-book endpoint has them, the bulk author/show book list doesn't
+        bookasin = rootxml.find('./book/asin').text
+        if not bookasin:
+            bookasin = rootxml.find('./book/kindle_asin').text
 
         db = database.DBConnection()
         try:
@@ -1544,7 +1566,8 @@ class GoodReads:
                     "WorkID": workid,
                     "gr_id": bookid,
                     "ScanResult": reason,
-                    "OriginalPubDate": originalpubdate
+                    "OriginalPubDate": originalpubdate,
+                    "ASIN": bookasin or ''
                 }
                 db.upsert("books", new_value_dict, control_value_dict)
                 added = True
