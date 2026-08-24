@@ -13,11 +13,73 @@
 %>
 <%def name="headerIncludes()">
     <div id="subhead_container">
-        <div id="subhead_menu">
-        </div>
+        <form id="subhead_menu" class="form-inline">
+        <a href="author_page?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-book"></i> Books</a>
+        <a href="author_detail?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-info-circle"></i> Detail</a>
+        %if perm&lazylibrarian.perm_status:
+            %if config['Status'] == 'Paused':
+                <a href="resume_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-pause"></i> Paused</a>
+            %else:
+              %if config['Status'] == 'Active':
+                <a href="want_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-play"></i> Active</a>
+              %else:
+                %if config['Status'] == 'Wanted':
+                  <a href="ignore_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-plus"></i> Wanted</a>
+                %else:
+                  <a href="pause_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-ban"></i> Ignored</a>
+                %endif
+              %endif
+            %endif
+        %endif
+        %if perm&lazylibrarian.perm_force:
+            <a href="refresh_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> Refresh Author</a>
+            <a href="library_scan_author?authorid=${config['AuthorID']}&library=eBook" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> eBook Scan</a>
+            %if CONFIG.get_int('AUDIO_TAB') > 0:
+                <a href="library_scan_author?authorid=${config['AuthorID']}&library=AudioBook" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> AudioBook Scan</a>
+            %endif
+        %endif
+        %if perm&lazylibrarian.perm_edit:
+            <button class="button btn btn-sm btn-primary" type="button" value="removeme" id="removeme"><i class="fa fa-times"></i> Remove Author</button>
+        %endif
+        %if showseries >= 1:
+            %if perm&lazylibrarian.perm_series:
+              <a href="series?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-book"></i> Series</a>
+              %endif
+        %endif
+        %if CONFIG['GR_FOLLOW']:
+            %if config['GRfollow']:
+              %if config['GRfollow'] != '0':
+                <a href="unfollow_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-check"></i> Following</a>
+              %else:
+                <a href="follow_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-times"></i> Not Following</a>
+              %endif
+            %else:
+              <a href="follow_author?authorid=${config['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-times"></i> Not Following</a>
+            %endif
+        %endif
+        %if lazylibrarian.PRIMARY_AUTHORS == True:
+            <a href="toggle_primary?page=edit_author&authorid=${config['AuthorID']}" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="Primary Author, or Contributor"><i class="fa fa-star"></i></a>
+        %else:
+            <a href="toggle_primary?page=edit_author&authorid=${config['AuthorID']}" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="Primary Author, or Contributor"><i class="fa fa-handshake"></i></a>
+        %endif
+        %if CONFIG['USER_ACCOUNTS']:
+          %if CONFIG['RSS_ENABLED']:
+            %if CONFIG.get_int('EBOOK_TAB') > 0:
+            <a href="rss_feed?user=${user}&type=eBook&authorid=${config['AuthorID']}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="rss feed of recent ebooks"><i class="fa fa-rss"></i>&nbsp;<i class="fa fa-book"></i></a>
+            %endif
+            %if CONFIG.get_int('AUDIO_TAB') > 0:
+            <a href="rss_feed?user=${user}&type=AudioBook&authorid=${config['AuthorID']}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="rss feed of recent audiobooks"><i class="fa fa-rss"></i>&nbsp;<i class="fa fa-headphones"></i></a>
+            %endif
+          %endif
+        %endif
+        </form>
     </div>
 </%def>
 <%def name="body()">
+<%
+    linkable_sources = [(name, src['author_key'], src['enabled'])
+                        for name, src in lazylibrarian.INFOSOURCES.items() if src.get('author_link')]
+%>
 <button class="hidden" onclick="" id="myAlert" title=""><i class="fa fa-circle-notch fa-spin"></i> Searching, please wait...</button>
 <form accept-charset="UTF-8" action="author_update" method="post">
     <div class="configtable">
@@ -87,6 +149,12 @@
                         <button type="button" class="btn btn-xs btn-info"
                                 onclick="searchAuthorSource('${config['AuthorID']}', '${src_name}')">
                           <i class="fa fa-search"></i> Search ${src_name}
+                        </button>
+                        <input type="text" id="${src_col}_manual" class="form-control input-sm"
+                              style="display:inline-block;width:110px" placeholder="or enter ID">
+                        <button type="button" class="btn btn-xs btn-default"
+                                onclick="linkAuthorSourceManual('${config['AuthorID']}', '${src_name}', '${src_col}_manual')">
+                          <i class="fa fa-link"></i> Link
                         </button>
                         %elif not config[src_col]:
                         <span class="text-muted"><small>${src_name} not enabled</small></span>
@@ -188,7 +256,48 @@
     }
     $(document).ready(function() {
         initThisPage();
+        $('#removeme').click(function () {
+            bootbox.confirm({
+                message: "Are you sure you want to permanently delete the author?",
+                buttons: {
+                    confirm: { label: 'Yes', className: 'btn-success' },
+                    cancel: { label: 'No', className: 'btn-danger' }
+                },
+                callback: function (result) {
+                  if (result) {
+                      $.get("remove_author", {'authorid': '${config['AuthorID']}' });
+                      window.location = "authors";
+                  }
+                }
+            });
+        });
     });
+
+    function linkAuthorSourceManual(authorid, source, inputId) {
+        // Search only finds a match by fuzzy name - some authors (renamed, pen names,
+        // ambiguous common names) never turn up that way even though you can find the
+        // correct page yourself. link_author_source itself doesn't require having
+        // searched first - it just needs a real id - so this skips straight to it.
+        var sourceid = $('#' + inputId).val().trim();
+        if (!sourceid) { bootbox.alert('Enter an ID first'); return; }
+        bootbox.confirm({
+            message: 'Link this author to ' + source + ' id "' + sourceid + '"? This is not verified against the name - double-check the id is correct before confirming.',
+            buttons: {
+                confirm: { label: 'Yes, link it', className: 'btn-success' },
+                cancel: { label: 'No', className: 'btn-danger' }
+            },
+            callback: function (result) {
+                if (result) {
+                    $.get('link_author_source', {authorid: authorid, source: source, sourceid: sourceid}, function (linkdata) {
+                        if (linkdata.error) { bootbox.alert(linkdata.error); return; }
+                        location.reload();
+                    }, 'json').fail(function () {
+                        bootbox.alert('Link failed - check the logs');
+                    });
+                }
+            }
+        });
+    }
 
     function searchAuthorSource(authorid, source) {
         $('#myAlert').removeClass('hidden');

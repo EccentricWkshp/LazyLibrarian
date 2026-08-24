@@ -313,6 +313,7 @@ def get_all_author_details(authorid='', authorname=None):
     searchinglogger.debug(f"{authorid}:{authorname}:{sources}")
     keys = author_keys()
     author_info = {}
+    source_links = {}
     pref = ''
     match = {}
     db = database.DBConnection()
@@ -363,6 +364,9 @@ def get_all_author_details(authorid='', authorname=None):
             if res:
                 author_info[src[0]] = res
                 author_info[src[0]][src[2]] = auth_id
+                link_col = lazylibrarian.INFOSOURCES.get(src[0], {}).get('author_link')
+                if link_col and res.get('authorlink'):
+                    source_links[link_col] = res['authorlink']
                 if not merged_info:
                     pref = src[0]
                     merged_info = author_info[pref]
@@ -398,6 +402,7 @@ def get_all_author_details(authorid='', authorname=None):
         merged_info['AKA'] = ', '.join(akas)
     if authorid:
         merged_info['authorid'] = authorid  # keep original entry authorid if we have one
+    merged_info.update(source_links)
     db.close()
     searchinglogger.debug(str(merged_info))
     return merged_info
