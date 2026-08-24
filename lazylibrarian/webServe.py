@@ -688,8 +688,14 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
+            # Sources with a real per-author id (author_key != 'authorid', i.e. not
+            # GoogleBooks/DNB) - derived from INFOSOURCES so a new such source needs no
+            # change here. Order also drives the badge fallback priority below.
+            author_link_sources = [(name, src['author_key']) for name, src in lazylibrarian.INFOSOURCES.items()
+                                   if src['author_key'] != 'authorid']
             cmd = ("SELECT AuthorImg,AuthorName,LastBook,LastDate,Status,AuthorLink,LastLink,HaveBooks,"
-                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason from authors ")
+                   "UnignoredBooks,AuthorID,LastBookID,DateAdded,Reason,PrimarySource," +
+                   ",".join(col for _, col in author_link_sources) + " from authors ")
             if lazylibrarian.IGNORED_AUTHORS:
                 if CONFIG.get_bool('IGNORE_PAUSED'):
                     cmd += "where Status IN ('Ignored', 'Paused') "
@@ -795,10 +801,32 @@ class WebInterface:
 
                     arow[12] = strip_quotes(reasonstring)
                     nrow.append(percent)
-                    nrow.extend(arow[4:-2])
+                    nrow.extend(arow[4:11])
                     bar = ''
                     nrow.append(bar)
-                    nrow.extend(arow[11:])
+                    nrow.extend(arow[11:13])
+
+                    # Same source-badge convention as author.html/editauthor.html: prefer
+                    # the explicitly-confirmed PrimarySource (linked, so AuthorLink is
+                    # guaranteed to match); otherwise fall back to priority order among
+                    # whatever's linked, shown as plain text since there's no verified
+                    # matching URL for an inferred guess.
+                    primarysource = arow[13]
+                    link_values = arow[14:14 + len(author_link_sources)]
+                    badge_source = primarysource
+                    if not badge_source:
+                        for (fb_name, _), fb_val in zip(author_link_sources, link_values):
+                            if fb_val:
+                                badge_source = fb_name
+                                break
+                    if primarysource:
+                        badge_html = (f'<a href="{arow[5]}" target="_blank" rel="noreferrer">'
+                                      f'<small><i>{badge_source}</i></small></a>')
+                    elif badge_source:
+                        badge_html = f'<small><i>{badge_source}</i></small>'
+                    else:
+                        badge_html = ''
+                    nrow.append(badge_html)
                     rows.append(nrow)  # add each rowlist to the masterlist
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
@@ -4155,6 +4183,140 @@ class WebInterface:
         icrawlerdir = os.path.join(DIRS.CACHEDIR, 'icrawler', authorid)
         rmtree(icrawlerdir, ignore_errors=True)
         raise cherrypy.HTTPRedirect(f"author_page?authorid={authorid}")
+
+    @staticmethod
+    def author_linkable_sources():
+        """ Sources that expose a per-author ID and a uniform find_author_id()/
+        get_author_info() pair (unlike GoogleBooks/DNB, which are book-search-only -
+        see gb.py/dnb.py, neither has find_author_id). These are the only sources that
+        can be linked to an author record or chosen as an author's PrimarySource.
+        Derived from lazylibrarian.INFOSOURCES at call time, not class-definition time -
+        webServe is imported before startup.init_build_lists() populates INFOSOURCES. """
+        return {name: src['author_key'] for name, src in lazylibrarian.INFOSOURCES.items()
+                if src['author_key'] != 'authorid'}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def search_author_source(self, authorid, source):
+        """ AJAX: search a single source for this author by name, return the best
+        candidate (if any) for the edit-author screen to show for confirmation.
+        Does not write anything - see link_author_source for that. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.author_linkable_sources():
+            return {'error': f'{source} does not support author search'}
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
+        db.close()
+        if not author:
+            return {'error': f'Author {authorid} not found'}
+        if source not in lazylibrarian.INFOSOURCES:
+            return {'error': f'{source} is not a configured source'}
+        info_source = lazylibrarian.INFOSOURCES[source]
+        if not CONFIG[info_source['enabled']]:
+            return {'error': f'{source} is not enabled in Config -> Importing'}
+        api = info_source['api']()
+        try:
+            result = api.find_author_id(authorname=author['AuthorName'])
+        except Exception as e:
+            logger.error(f"search_author_source {source} error for author {authorid}: {e}")
+            return {'error': f'{source} search failed, check the logs'}
+        if not result or not result.get('authorid'):
+            return {'found': False}
+        return {'found': True, 'authorid': result.get('authorid'), 'authorname': result.get('authorname'),
+                'authorlink': result.get('authorlink')}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def link_author_source(self, authorid, source, sourceid):
+        """ AJAX: persist a user-confirmed source ID against this author. Does not
+        change PrimarySource - see set_primary_source for that. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.author_linkable_sources():
+            return {'error': f'{source} cannot be linked to an author'}
+        if not sourceid:
+            return {'error': 'No source id supplied'}
+        column = self.author_linkable_sources()[source]
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorID from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        db.action(f'UPDATE authors SET {column}=? WHERE AuthorID=?', (sourceid, authorid))
+        db.close()
+        logger.info(f"Linked author {authorid} to {source} id {sourceid}")
+        return {'success': True, 'column': column, 'value': sourceid}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def set_primary_source(self, authorid, source):
+        """ Mark one of an author's already-linked sources as their primary - drives the
+        author-page name link and source badge. Re-fetches the canonical link for the
+        stored id rather than guessing a URL template, so AuthorLink always matches
+        whatever that source's own get_author_info() would build. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.author_linkable_sources():
+            return {'error': f'{source} cannot be a primary source'}
+        column = self.author_linkable_sources()[source]
+        db = database.DBConnection()
+        author = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        sourceid = author[column]
+        if not sourceid:
+            db.close()
+            return {'error': f'Author is not linked to {source} yet'}
+        info_source = lazylibrarian.INFOSOURCES[source]
+        api = info_source['api']()
+        try:
+            info = api.get_author_info(authorid=sourceid, authorname=author['AuthorName'])
+        except Exception as e:
+            logger.error(f"set_primary_source {source} lookup error for author {authorid}: {e}")
+            info = None
+        authorlink = info.get('authorlink') if info else ''
+        updates = {'PrimarySource': source}
+        if authorlink:
+            updates['AuthorLink'] = authorlink
+        db.upsert('authors', updates, {'AuthorID': authorid})
+        db.close()
+        logger.info(f"Set primary source for author {authorid} to {source}")
+        return {'success': True, 'authorlink': authorlink}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def unlink_author_source(self, authorid, source):
+        """ AJAX: clear a linked source id so it can be searched (and linked to a
+        different match) again. If this was the author's PrimarySource, clears that
+        too AND clears AuthorLink - leaving AuthorLink pointing at a source that's no
+        longer linked would be stale/misleading (it's what the author-page name link
+        itself uses), not just cosmetically wrong on the badge. Falls back to the
+        priority order (same as an author nobody's set a primary for) until the user
+        picks a new one. """
+        self.check_permitted(lazylibrarian.perm_edit)
+        logger = logging.getLogger(__name__)
+        if source not in self.author_linkable_sources():
+            return {'error': f'{source} cannot be unlinked'}
+        column = self.author_linkable_sources()[source]
+        db = database.DBConnection()
+        author = db.match('SELECT AuthorID, PrimarySource from authors WHERE AuthorID=?', (authorid,))
+        if not author:
+            db.close()
+            return {'error': f'Author {authorid} not found'}
+        updates = {column: ''}
+        if author['PrimarySource'] == source:
+            updates['PrimarySource'] = ''
+            updates['AuthorLink'] = ''
+        db.upsert('authors', updates, {'AuthorID': authorid})
+        db.close()
+        logger.info(f"Unlinked {source} from author {authorid}")
+        return {'success': True}
 
     @cherrypy.expose
     @require_auth()

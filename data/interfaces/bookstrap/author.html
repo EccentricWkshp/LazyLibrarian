@@ -113,7 +113,24 @@
     </div>
     <div id="authorhead_container" class="col-md-9">
         <div id="authorhead_menu">
+            <%
+                # PrimarySource is the explicit, user-confirmed choice (see edit_author's
+                # "Search"/"Primary" controls). Fall back to whichever linkable source
+                # actually has an id, for authors nobody's set a primary for yet.
+                primary_source = author.get('PrimarySource')
+                if not primary_source:
+                    for fallback_name, fallback_col in (('GoodReads', 'gr_id'), ('OpenLibrary', 'ol_id'),
+                                                        ('HardCover', 'hc_id'), ('RanobeDB', 'ran_id')):
+                        if author.get(fallback_col):
+                            primary_source = fallback_name
+                            break
+            %>
             <h1><a href="${author['AuthorLink']}" target="_blank" rel="noreferrer">${author['AuthorName']}</a>
+            %if author.get('PrimarySource'):
+            <a href="${author['AuthorLink']}" target="_blank" rel="noreferrer"><small><i>${primary_source}</i></small></a>
+            %elif primary_source:
+            <small><i>${primary_source}</i></small>
+            %endif
             %if perm&lazylibrarian.perm_edit:
             <a href="edit_author?authorid=${author['AuthorID']}"><small><i>Edit</i></small></a>
             %endif
