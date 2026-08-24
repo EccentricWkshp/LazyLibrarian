@@ -160,6 +160,7 @@ from lazylibrarian.manual_import import (
 from lazylibrarian.manualbook import search_item
 from lazylibrarian.metadata_opf import create_opf
 from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
+from lazylibrarian.oldump import update_openlibrary_dump
 from lazylibrarian.opds import OPDS
 from lazylibrarian.opfedit import opf_read, opf_write
 from lazylibrarian.postprocess import process_dir
@@ -7262,6 +7263,24 @@ class WebInterface:
         else:
             logger.debug('AAUPDATE already running')
         raise cherrypy.HTTPRedirect("home")
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def force_openlibrary_dump(self):
+        """ AJAX: manually trigger an OpenLibrary bulk-dump sync right now instead of
+        waiting for its next scheduled run. Resumes any partially-downloaded file left
+        from a previous interrupted run via the same Range-resume logic the scheduled
+        job itself uses - see oldump.download_dump_file. """
+        self.check_permitted(lazylibrarian.perm_force)
+        logger = logging.getLogger(__name__)
+        if not CONFIG['OL_USE_DUMP']:
+            return {'error': 'OpenLibrary local dump indexing is not enabled in Config -> Importing'}
+        if 'OLDUMPUPDATE' in [n.name for n in list(threading.enumerate())]:
+            return {'error': 'OpenLibrary dump sync is already running'}
+        threading.Thread(target=update_openlibrary_dump, name='OLDUMPUPDATE', args=[]).start()
+        logger.info("Manually triggered OpenLibrary bulk dump sync")
+        return {'success': True}
 
     @cherrypy.expose
     @require_auth()
