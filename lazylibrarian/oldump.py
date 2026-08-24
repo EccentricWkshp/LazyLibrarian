@@ -6,6 +6,7 @@ import time
 import logging
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian import database
+from lazylibrarian.common import get_user_agent
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import thread_name
 
@@ -74,7 +75,7 @@ def download_dump_file(url, local_path):
     import urllib.request
     import urllib.error
 
-    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': 'LazyLibrarian/1.0'})
+    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': get_user_agent(configured=False)})
     try:
         with urllib.request.urlopen(req) as resp:
             remote_size = int(resp.headers.get('Content-Length', 0))
@@ -99,7 +100,7 @@ def download_dump_file(url, local_path):
             # as big as (or bigger than) the current remote copy - can't trust it, start over.
             os.remove(partial_path)
 
-    headers = {'User-Agent': 'LazyLibrarian/1.0'}
+    headers = {'User-Agent': get_user_agent(configured=False)}
     if resume_from:
         headers['Range'] = f'bytes={resume_from}-'
         logger.info(f"Resuming {os.path.basename(local_path)} from byte {resume_from} "
