@@ -371,7 +371,7 @@ def add_bookdict_to_db(book):
     author = db.match('SELECT authorname from authors where authorid=?', (book['authorid'],))
     db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
               (book['authorid'], book['bookid'], ROLE['PRIMARY']), suppress='UNIQUE')
-    logger.debug(f"Add primary {book['authorid']}{author['authorname']}")
+    logger.debug(f"Add primary {book['authorid']}:{author['authorname']}")
     if CONFIG.get_bool('CONTRIBUTING_AUTHORS') and book.get('contributors'):
         for entry in book['contributors']:
             if entry[0]:

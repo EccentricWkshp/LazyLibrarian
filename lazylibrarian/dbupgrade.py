@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 93
+db_current_version = 95
 
 
 def upgrade_needed():
@@ -1545,14 +1545,39 @@ def update_schema(db, upgradelog):
         upgradelog.write(f"{time.ctime()} v92: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE authors ADD COLUMN ran_id TEXT')
 
+    if not has_column(db, "authors", "PrimarySource"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding PrimarySource column to authors table'
+        upgradelog.write(f"{time.ctime()} v93: {lazylibrarian.UPDATE_MSG}\n")
+        # Which of gr_id/ol_id/hc_id/ran_id the user has explicitly chosen as this
+        # author's canonical page (drives the author-page name link and source
+        # badge). Empty/null means "not chosen yet", not "none available".
+        db.action('ALTER TABLE authors ADD COLUMN PrimarySource TEXT')
+
+    # Per-source author page links, one column per linkable source, so the author
+    # page can list every linked source as its own clickable link instead of only
+    # ever showing the single (formerly "primary") AuthorLink. Populated by
+    # get_all_author_details() during normal author refresh (it already calls
+    # get_author_info() on every linked source) and immediately on link_author_source().
+    for col in ('gr_link', 'ol_link', 'hc_link', 'ran_link'):
+        if not has_column(db, "authors", col):
+            changes += 1
+            lazylibrarian.UPDATE_MSG = f'Adding {col} column to authors table'
+            upgradelog.write(f"{time.ctime()} v94: {lazylibrarian.UPDATE_MSG}\n")
+            db.action(f'ALTER TABLE authors ADD COLUMN {col} TEXT')
+
     if not has_column(db, "books", "ASIN"):
         changes += 1
         lazylibrarian.UPDATE_MSG = 'Adding ASIN column to books table'
-        upgradelog.write(f"{time.ctime()} v93: {lazylibrarian.UPDATE_MSG}\n")
-        # GoodReads' book/show/{id}.xml response has asin/kindle_asin fields sitting
-        # right alongside isbn/link/etc that were never read - only add_bookid_to_db's
-        # single-book fetch has them, not the bulk author/show book list, so this only
-        # backfills as books get individually (re)added rather than during bulk refresh.
+        upgradelog.write(f"{time.ctime()} v95: {lazylibrarian.UPDATE_MSG}\n")
+        # Referenced by author_detail's per-source book-count/overlap query below -
+        # needs to exist regardless of whether the ASIN-capture feature itself
+        # (add_bookid_to_db) has landed yet, so this page doesn't hard-fail on a
+        # fresh install that only has this branch. GoodReads' book/show/{id}.xml
+        # response has asin/kindle_asin fields sitting right alongside isbn/link/etc
+        # that were never read - only add_bookid_to_db's single-book fetch has them,
+        # not the bulk author/show book list, so this only backfills as books get
+        # individually (re)added rather than during bulk refresh.
         db.action('ALTER TABLE books ADD COLUMN ASIN TEXT')
 
     if changes:

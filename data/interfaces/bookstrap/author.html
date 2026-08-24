@@ -113,11 +113,36 @@
     </div>
     <div id="authorhead_container" class="col-md-9">
         <div id="authorhead_menu">
-            <h1><a href="${author['AuthorLink']}" target="_blank" rel="noreferrer">${author['AuthorName']}</a>
+            <%
+                # Every linked source, each with its own stored page link (see
+                # INFOSOURCES author_link / link_author_source, set_primary_source,
+                # get_all_author_details). No single "primary" is needed here any
+                # more - that's still tracked (PrimarySource) for future metadata-
+                # merge preference, but this page just lists what's linked.
+                linkable_sources = [(name, src['author_key'], src['author_link'])
+                                   for name, src in lazylibrarian.INFOSOURCES.items() if src.get('author_link')]
+                linked_sources = [(name, author.get(link_col))
+                                 for name, id_col, link_col in linkable_sources if author.get(id_col)]
+            %>
+            <h1><a href="author_detail?authorid=${author['AuthorID']}">${author['AuthorName']}</a>
             %if perm&lazylibrarian.perm_edit:
             <a href="edit_author?authorid=${author['AuthorID']}"><small><i>Edit</i></small></a>
             %endif
             </h1>
+            %if linked_sources or gb_search_link:
+            <p>
+            %for name, link in linked_sources:
+                %if link:
+                <a href="${link}" target="_blank" rel="noreferrer"><small><i>${name}</i></small></a>&nbsp;&nbsp;
+                %else:
+                <small><i class="text-muted" title="Linked, page link not fetched yet">${name}</i></small>&nbsp;&nbsp;
+                %endif
+            %endfor
+            %if gb_search_link:
+            <a href="${gb_search_link}" target="_blank" rel="noreferrer" title="Google Books has no author page of its own - this is a name search, not a verified link"><small><i>GoogleBooks (search)</i></small></a>&nbsp;&nbsp;
+            %endif
+            </p>
+            %endif
             %if CONFIG['SHOW_REASON']:
               %if author['Reason']:
               <%

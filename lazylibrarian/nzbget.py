@@ -32,10 +32,10 @@ from lazylibrarian.formatter import make_unicode
 
 def check_link():
     # socket.setdefaulttimeout(2)
-    test, res = send_nzb(cmd="test")
+    version, res = send_nzb(cmd="test")
     # socket.setdefaulttimeout(None)
-    if test:
-        return "NZBget connection successful"
+    if version:
+        return f"NZBget connection successful, version {version}"
     return f"NZBget connection FAILED\n{res}"
 
 
@@ -60,7 +60,6 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         return False, res
 
     add_to_top = False
-    nzbget_xml_rpc = "%(username)s:%(password)s@%(host)s:%(port)s/xmlrpc"
 
     if not host.startswith("http://") and not host.startswith("https://"):
         host = f"http://{host}"
@@ -68,10 +67,9 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
     host = host.rstrip('/')
     hostparts = host.split('://')
 
-    url = hostparts[0] + '://' + nzbget_xml_rpc % {"host": hostparts[1],
-                                                   "username": quote(CONFIG['NZBGET_USER'], safe=''),
-                                                   "port": port,
-                                                   "password": quote(CONFIG['NZBGET_PASS'], safe='')}
+    url = f"{hostparts[0]}://{quote(CONFIG['NZBGET_USER'], safe='')}:{quote(CONFIG['NZBGET_PASS'], safe='')}@{hostparts[1]}:{port}/xmlrpc"
+    dlcommslogger.debug(f"URL: {url}")
+
     try:
         nzb_get_rpc = ServerProxy(url)
     except Exception as e:
@@ -96,8 +94,9 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         if nzb_get_rpc.writelog("INFO", msg):
             dlcommslogger.debug("Successfully connected to NZBget")
             if cmd == "test":
+                cmd = "version"
                 # should check nzbget category is valid
-                return True, ''
+                # return version
         else:
             if nzbid is not None:
                 res = "Successfully connected to NZBget, unable to send message"
@@ -109,15 +108,16 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         res = "Please check your NZBget host and port (if it is running). "
         res += f"NZBget is not responding to this combination: {e}"
         logger.error(res)
-        logger.error(f"NZBget url is [{url}]")
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except ProtocolError as e:
         if e.errmsg == "Unauthorized":
-            res = "NZBget password is incorrect."
+            res = "NZBget username or password incorrect."
         else:
             res = f"Protocol Error: {e.errmsg}"
         logger.error(res)
+        logger.error(f"NZBget url [{url}]")
         return False, res
 
     except Exception as e:
@@ -125,6 +125,15 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
         logger.error(res)
         logger.error(f"NZBget url [{url}]")
         return False, res
+
+    if cmd == 'version':
+        try:
+            res = nzb_get_rpc.version()
+            return res, ''
+        except Exception as e:
+            logger.error(f"NZBget version: {e}")
+            logger.error(f"NZBget url [{url}]")
+            return '' , str(e)
 
     if cmd == 'history':
         try:
