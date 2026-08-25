@@ -329,11 +329,13 @@ class StartupLazyLibrarian:
 
     @staticmethod
     def build_sources():
-        # author_link/author_about: which authors.* columns hold this source's own
-        # canonical author-page URL/about-text, for sources that have a real author
-        # entity of their own (author_key != 'authorid'). None for GoogleBooks/DNB,
-        # which only have book-level ids - single source of truth for this mapping,
-        # rather than each caller keeping its own copy (see upstream !1850 review).
+        # Dict insertion order here is the fallback priority order wherever code walks
+        # INFOSOURCES looking for "the" source with no other guidance. Keep OpenLibrary
+        # first - it's the only source usable without an API key, so this is the one
+        # order that's sane for every install regardless of which sources a given user
+        # actually has configured/populated (a previous attempt hardcoded GoodReads
+        # first on the reasoning that "almost every author is GoodReads-imported" here -
+        # that doesn't generalise to other users' libraries, see upstream !1867 review).
         info_sources = {
                 'OpenLibrary': {'src': 'OL', 'author_key': 'ol_id', 'book_key': 'ol_id', 'enabled': 'OL_API',
                                 'api': ol.OpenLibrary, 'has_subs': 0,
