@@ -814,7 +814,7 @@ class OpenLibrary:
                                 if 'Invalid language [' in reason:
                                     with contextlib.suppress(IndexError):
                                         lang = reason.split('Invalid language [')[1].split("'")[1]
-                                infodict = get_gb_info(isbn=isbn, author=auth_name, title=title, expire=False)
+                                infodict = get_gb_info(isbn=isbn, author=auth_name, title=title)
                                 if infodict:
                                     gbupdate = []
                                     if infodict['desc']:
@@ -850,10 +850,19 @@ class OpenLibrary:
                                     publishers = ', '.join(publishers)
                                 cover_link = cover
                                 if 'nocover' in cover or 'nophoto' in cover:
-                                    start = time.time()
-                                    cover_link, _ = get_book_cover(key, ignore='openlibrary')
-                                    cover_time += (time.time() - start)
-                                    cover_count += 1
+                                    # infodict (Google Books) was already fetched a few lines
+                                    # above for date/desc/genre/etc - use its cover too before
+                                    # falling to the untrusted keyword image-search crawler. No
+                                    # extra API call either way.
+                                    gb_img = infodict.get('img') if infodict else ''
+                                    if gb_img and gb_img.startswith('http') and \
+                                            'nocover' not in gb_img and 'nophoto' not in gb_img:
+                                        cover_link = cache_bookimg(gb_img, key, 'ol')
+                                    else:
+                                        start = time.time()
+                                        cover_link, _ = get_book_cover(key, ignore='openlibrary')
+                                        cover_time += (time.time() - start)
+                                        cover_count += 1
                                 elif cover and cover.startswith('http'):
                                     cover_link = cache_bookimg(cover, key, 'ol')
                                 if not cover_link:  # no results on search or failed to cache it

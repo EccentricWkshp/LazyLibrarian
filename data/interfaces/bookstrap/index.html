@@ -85,6 +85,7 @@
               <option value="Paused">Paused</option>
               <option value="Remove">Remove</option>
               <option value="Delete">Delete</option>
+              <option value="Delete+Ignore">Delete + Ignore</option>
               %endif
               %if CONFIG['USER_ACCOUNTS']:
                 <option value="Subscribe">Subscribe</option>
@@ -186,6 +187,7 @@
                      %else:
                         btn = '<a>' + row[1] + '</a>'
                      %endif
+                     if (row[15]) { btn = btn + '<br>' + row[15]; }
                      return btn ;}
                      },
                      { targets: [3],
@@ -291,11 +293,16 @@
         var c = ($(":checkbox:checked").length);
         var all_check = document.getElementById("allcheck").checked;
         if (all_check) { c -= 1};
-        if (c > 0 && (x == "Delete" || x == "Remove")) {
+        if (c > 0 && (x == "Delete" || x == "Remove" || x == "Delete+Ignore")) {
             if (x == "Delete") {
                 if (c == 1){ msg = "Are you sure you want to permanently delete the selected author and their media?"}
                 if (c > 1){ msg = "Are you sure you want to permanently delete the " + c +
                             " selected authors and their media?"}
+                };
+            if (x == "Delete+Ignore") {
+                if (c == 1){ msg = "Are you sure you want to delete media for the selected author and ignore them?"}
+                if (c > 1){ msg = "Are you sure you want to delete media for the " + c +
+                            " selected authors and ignore them?"}
                 };
             if (x == "Remove") {
                 if (c == 1){ msg = "Are you sure you want to remove the selected author?"}

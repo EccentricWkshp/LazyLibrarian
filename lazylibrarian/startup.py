@@ -329,19 +329,34 @@ class StartupLazyLibrarian:
 
     @staticmethod
     def build_sources():
+        # author_link/author_about: which authors.* columns hold this source's own
+        # canonical author-page URL/about-text, for sources that have a real author
+        # entity of their own (author_key != 'authorid'). None for GoogleBooks/DNB,
+        # which only have book-level ids - single source of truth for this mapping,
+        # rather than each caller keeping its own copy (see upstream !1850 review).
         info_sources = {
                 'OpenLibrary': {'src': 'OL', 'author_key': 'ol_id', 'book_key': 'ol_id', 'enabled': 'OL_API',
-                                'api': ol.OpenLibrary, 'has_subs': 0},
+                                'api': ol.OpenLibrary, 'has_subs': 0,
+                                'author_link': 'ol_link', 'author_about': 'ol_about',
+                                'link_template': 'https://openlibrary.org/works/{}'},
                 'GoodReads': {'src': 'GR', 'author_key': 'gr_id', 'book_key': 'gr_id', 'enabled': 'GR_API',
-                              'api': gr.GoodReads, 'has_subs': 0},
+                              'api': gr.GoodReads, 'has_subs': 0,
+                              'author_link': 'gr_link', 'author_about': 'gr_about',
+                              'link_template': 'https://www.goodreads.com/book/show/{}'},
                 'HardCover': {'src': 'HC', 'author_key': 'hc_id', 'book_key': 'hc_id', 'enabled': 'HC_API',
-                              'api': hc.HardCover, 'has_subs': 1},
+                              'api': hc.HardCover, 'has_subs': 1,
+                              'author_link': 'hc_link', 'author_about': 'hc_about'},
                 'GoogleBooks': {'src': 'GB', 'author_key': 'authorid', 'book_key': 'gb_id', 'enabled': 'GB_API',
-                                'api': gb.GoogleBooks, 'has_subs': 1},
+                                'api': gb.GoogleBooks, 'has_subs': 1,
+                                'author_link': None, 'author_about': None,
+                                'link_template': 'https://books.google.com/books?id={}'},
                 'DNB': {'src': 'DN', 'author_key': 'authorid', 'book_key': 'dnb_id', 'enabled': 'DNB_API',
-                        'api': dnb.DNB, 'has_subs': 1},
+                        'api': dnb.DNB, 'has_subs': 1,
+                        'author_link': None, 'author_about': None,
+                        'link_template': 'https://d-nb.info/{}'},
                 'RanobeDB': {'src': 'RA', 'author_key': 'ran_id', 'book_key': 'ran_id', 'enabled': 'RAN_API',
-                        'api': ran.RanobeDB, 'has_subs': 0},
+                        'api': ran.RanobeDB, 'has_subs': 0,
+                        'author_link': 'ran_link', 'author_about': 'ran_about'},
                 }
         adminlogger = logging.getLogger('special.admin')
         adminlogger.debug(info_sources)
