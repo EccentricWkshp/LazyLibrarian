@@ -1,12 +1,13 @@
-import os
 import gzip
 import json
+import logging
+import os
 import sqlite3
 import time
-import logging
-from lazylibrarian.config2 import CONFIG
+
 from lazylibrarian import database
 from lazylibrarian.common import get_user_agent
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import thread_name
 
@@ -72,8 +73,8 @@ def download_dump_file(url, local_path):
     of 206) or the partial file turns out larger than the current remote copy (a new
     dump was published mid-download). Returns True if local_path ends up complete and
     usable."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': get_user_agent(configured=False)})
     try:
