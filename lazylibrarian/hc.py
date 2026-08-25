@@ -590,7 +590,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
                     msg = "HardCover error"
                     res = f"Unexpected HardCover Status code: {r.status_code}"
                     self.logger.error(res)
-                if r:
+                if r is not None:
                     # noinspection PyBroadException
                     try:
                         res = r.json()
