@@ -16,8 +16,10 @@ import re
 import threading
 import time
 import traceback
+import uuid
 from urllib.parse import quote, quote_plus, urlencode
 
+import requests
 from rapidfuzz import fuzz
 
 import lazylibrarian
@@ -46,6 +48,33 @@ if CONFIG.get_bool('GOOGLE_TRANS_ID'):
 else:
     Translator = None
 import asyncio
+
+
+def detect_language_ms(text):
+    """
+        Call Microsoft Azure translation service to detect the language of text
+        Return language detected and reliability of detection (0.0 to 1.0)
+    """
+    ms_endpoint = "https://api.cognitive.microsofttranslator.com/"
+    subscription_key = CONFIG['MS_TRANS_ID']
+    headers = {
+        'Ocp-Apim-Subscription-Key': subscription_key,
+        'Ocp-Apim-Subscription-Region': 'global',
+        'Content-type': 'application/json',
+        'X-ClientTraceId': str(uuid.uuid4())
+    }
+
+    body = [{'text': text}]
+    path = '/detect?api-version=3.0'
+    constructed_url = ms_endpoint + path
+    try:
+        request = requests.post(constructed_url, headers=headers, json=body)
+        response = request.json()
+        language = response[0]['language']
+        score = response[0]['score']
+        return [language, score]
+    except Exception as e:
+        return [f'Translation error from Microsoft {e}', 0.0]
 
 
 def set_all_book_authors():
@@ -1360,13 +1389,19 @@ def isbnlang(isbn):
     return book_language, cache_hit, thing_hit
 
 
-def language_from_words(words):
+def language_from_words(words, source='ms'):
+    # Since yesterday (24 Aug 2026) google now reports everything as English, 1.0
     if not words:
         return 'None', 0
     logger = logging.getLogger(__name__)
+
+    if source == 'ms' and CONFIG.get_bool('MS_TRANS_ID'):
+        return detect_language_ms(words)
+
     # couldn't be loaded, or configured off
     if not Translator or not CONFIG.get_bool('GOOGLE_TRANS_ID'):
         return 'Disabled', 0
+
     logging.getLogger('googletrans').setLevel(logging.CRITICAL)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)
     logging.getLogger('hpack').setLevel(logging.CRITICAL)
