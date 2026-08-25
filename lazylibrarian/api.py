@@ -3239,7 +3239,13 @@ class Api:
         if 'words' not in kwargs:
             self.data = 'Missing parameter: words'
             return
-        self.data = language_from_words(kwargs['words'])
+        if 'source' in kwargs:
+            if kwargs['source'] not in ['ms', 'google']:
+                self.data = 'Invalid parameter: source'
+                return
+            self.data = language_from_words(kwargs['words'], source=kwargs['source'])
+        else:
+            self.data = language_from_words(kwargs['words'])
 
     def _getauthorinfo(self, **kwargs):
         TELEMETRY.record_usage_data()

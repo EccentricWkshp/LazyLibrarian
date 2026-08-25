@@ -433,6 +433,13 @@ class GoodReads:
             gb_lang_change = 0
             cache_hits = 0
             not_cached = 0
+            # ASIN only comes from the single-book book/show endpoint, not this bulk
+            # author/list one (see the "We can't call book/show for every book because
+            # of api limits" note below) - capped per refresh so a single author with
+            # many missing ASINs can't turn one bulk call into dozens of extra ones;
+            # authors converge on full ASIN coverage gradually over successive refreshes.
+            asin_lookups_this_refresh = 0
+            asin_lookups_cap = 5
 
             # Artist is loading
             db.action("UPDATE authors SET Status='Loading' WHERE AuthorID=?", (authorid,))
@@ -959,7 +966,7 @@ class GoodReads:
                                     if genres:
                                         bookgenre = ', '.join(genres)
                                 infodict = get_gb_info(isbn=bookisbn, author=author_name_result,
-                                                       title=bookname, expire=False)
+                                                       title=bookname)
                                 if infodict:  # None if api blocked
                                     gbupdate = []
                                     if not bookdesc and infodict['desc']:
@@ -1020,6 +1027,14 @@ class GoodReads:
                                 self.logger.debug(f'Added {authorid} as primary')
                                 set_genres(get_list(bookgenre, ','), bookid)
 
+                                if asin_lookups_this_refresh < asin_lookups_cap:
+                                    current_asin = db.match('SELECT ASIN FROM books WHERE BookID=?', (bookid,))
+                                    if current_asin and not current_asin['ASIN']:
+                                        asin_lookups_this_refresh += 1
+                                        asin = self.get_book_asin(bookid)
+                                        if asin:
+                                            db.action('UPDATE books SET ASIN=? WHERE BookID=?', (asin, bookid))
+
                                 update_value_dict = {}
                                 # need to run get_work_series AFTER adding to book table (foreign key constraint)
                                 serieslist = []
@@ -1058,18 +1073,29 @@ class GoodReads:
                                     elif not existing:
                                         update_value_dict["ScanResult"] = reason
 
-                                    if ('nocover' in bookimg or 'nophoto' in bookimg) and \
-                                            cover_lookups_this_refresh < cover_lookups_cap:
-                                        # try to get a cover from another source
-                                        start = time.time()
-                                        link, source = get_book_cover(bookid, ignore='goodreads')
-                                        if source != 'cache':
-                                            cover_count += 1
-                                            cover_time += (time.time() - start)
-                                            cover_lookups_this_refresh += 1
-                                            time.sleep(2)
-                                        if link:
-                                            update_value_dict["BookImg"] = link
+                                    if 'nocover' in bookimg or 'nophoto' in bookimg:
+                                        # infodict (Google Books) was already fetched a few lines
+                                        # above for date/desc/genre - use its cover too before
+                                        # falling to the untrusted keyword image-search crawler.
+                                        # Costs no extra API call, so isn't gated by
+                                        # cover_lookups_cap.
+                                        gb_img = infodict.get('img') if infodict else ''
+                                        if gb_img and gb_img.startswith('http') and \
+                                                'nocover' not in gb_img and 'nophoto' not in gb_img:
+                                            link = cache_bookimg(gb_img, bookid, 'gr')
+                                            if link:
+                                                update_value_dict["BookImg"] = link
+                                        elif cover_lookups_this_refresh < cover_lookups_cap:
+                                            # try to get a cover from another source
+                                            start = time.time()
+                                            link, source = get_book_cover(bookid, ignore='goodreads')
+                                            if source != 'cache':
+                                                cover_count += 1
+                                                cover_time += (time.time() - start)
+                                                cover_lookups_this_refresh += 1
+                                                time.sleep(2)
+                                            if link:
+                                                update_value_dict["BookImg"] = link
                                     elif bookimg and bookimg.startswith('http'):
                                         link = cache_bookimg(bookimg, bookid, 'gr')
                                         update_value_dict["BookImg"] = link
@@ -1299,16 +1325,56 @@ class GoodReads:
         finally:
             db.close()
 
+    def get_book_asin(self, bookid):
+        """ ASIN/kindle_asin only exist on the single-book book/show endpoint, not the
+        bulk author/list one - see get_author_books' rate-limited, capped use of this
+        below. Returns '' on any failure (not found, blocked, network error) rather
+        than raising - callers treat "no ASIN found" as a normal, expected outcome. """
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        try:
+            rootxml, _ = gr_xml_request(url)
+        except Exception as e:
+            self.logger.debug(f"get_book_asin error for {bookid}: {e}")
+            return ''
+        if rootxml is None:
+            return ''
+        book_el = rootxml.find('book')
+        if book_el is None:
+            return ''
+        asin_el = book_el.find('asin')
+        asin = asin_el.text if asin_el is not None and asin_el.text else ''
+        if not asin:
+            kasin_el = book_el.find('kindle_asin')
+            asin = kasin_el.text if kasin_el is not None and kasin_el.text else ''
+        return asin or ''
+
     def add_bookid_to_db(self, bookid=None, bookstatus=None, audiostatus=None, reason='gr.add_bookid'):
         url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
         try:
             self.searchinglogger.debug(url)
             rootxml, _ = gr_xml_request(url)
             if rootxml is None:
-                self.logger.debug(f"Failed to get book info for {bookid}")
+                # Was silently swallowed at debug level - invisible at INFO log level, so
+                # a refresh_book click that changed nothing gave no clue why. Warn, and
+                # leave a visible trail on the book itself (shown on book_detail.html)
+                # since this is usually reached from a single-book refresh with no other
+                # feedback mechanism (refresh_book is fire-and-forget - background thread
+                # + immediate redirect, same pattern as refresh_author).
+                msg = (f"Refresh failed for book {bookid} - could not reach GoodReads "
+                       f"(blocked/rate-limited?), nothing updated")
+                self.logger.warning(msg)
+                db = database.DBConnection()
+                db.action("UPDATE books SET ScanResult=? WHERE BookID=?",
+                         (f"[Refresh Failed {today()}] Could not reach GoodReads", bookid))
+                db.close()
                 return False
         except Exception as e:
-            self.logger.error(f"{type(e).__name__} finding book: {str(e)}")
+            msg = f"Refresh failed for book {bookid} - {type(e).__name__}: {str(e)}"
+            self.logger.error(msg)
+            db = database.DBConnection()
+            db.action("UPDATE books SET ScanResult=? WHERE BookID=?",
+                     (f"[Refresh Failed {today()}] {type(e).__name__}: {str(e)}", bookid))
+            db.close()
             return False
 
         threadname = thread_name()
@@ -1326,6 +1392,13 @@ class GoodReads:
             book_language = ''
 
         bookname = rootxml.find('./book/title').text
+
+        try:
+            bookimg = rootxml.find('./book/img_url').text
+            if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
+                bookimg = 'images/nocover.png'
+        except (KeyError, AttributeError):
+            bookimg = 'images/nocover.png'
 
         if not book_language:
             book_language = "Unknown"
@@ -1366,6 +1439,33 @@ class GoodReads:
                     pass
             bookdate = originalpubdate
 
+        if (not bookdate or bookdate == '0000') and bookname:
+            title_match = re.search(r'\b(1[89]\d\d|20\d\d)\b', bookname)
+            if title_match and check_year(title_match.group(1), past=1800, future=1):
+                bookdate = title_match.group(1)
+                self.logger.debug(f"Extracted pubdate {bookdate} from title for {bookid}")
+
+        need_date = not bookdate or bookdate == '0000'
+        need_img = 'nocover' in bookimg or 'nophoto' in bookimg
+        if (need_date or need_img) and bookname and CONFIG['GB_API']:
+            # Legitimate API call, not a page-scrape - see !1849 (GoodReads HTML-scraping
+            # got the maintainer's own API keys cancelled and their IP blocked). Author
+            # name isn't normally extracted this early, so read it directly here rather
+            # than reordering the rest of the function around it.
+            try:
+                early_authorname = rootxml.find('./book/authors/author/name').text
+            except (KeyError, AttributeError):
+                early_authorname = ''
+            if early_authorname:
+                early_gb_info = get_gb_info(author=early_authorname, title=bookname, expire=False)
+                if early_gb_info and need_date and early_gb_info.get('date') and early_gb_info['date'] != '0000':
+                    bookdate = early_gb_info['date']
+                    self.logger.debug(f"Got pubdate {bookdate} from googlebooks for {bookid}")
+                if early_gb_info and need_img and early_gb_info.get('img') and \
+                        'nocover' not in early_gb_info['img'] and 'nophoto' not in early_gb_info['img']:
+                    bookimg = early_gb_info['img']
+                    self.logger.debug(f"Got cover from googlebooks for {bookid}")
+
         if CONFIG.get_bool('NO_PUBDATE') and (not bookdate or bookdate == '0000'):
             msg = f'Book {bookname} Publication date [{bookdate}] does not match preference'
             self.logger.warning(msg)
@@ -1386,12 +1486,6 @@ class GoodReads:
                 self.logger.warning(msg)
                 if reason.startswith("Series:") or threadname.startswith('SERIES'):
                     return False
-        try:
-            bookimg = rootxml.find('./book/img_url').text
-            if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
-                bookimg = 'images/nocover.png'
-        except (KeyError, AttributeError):
-            bookimg = 'images/nocover.png'
 
         #  multiauth info
         # for each author in './book/authors'
@@ -1416,6 +1510,11 @@ class GoodReads:
         bookrate = check_float(rootxml.find('./book/average_rating').text, 0)
         bookpages = rootxml.find('.book/num_pages').text
         workid = rootxml.find('.book/work/id').text
+        # asin/kindle_asin sit alongside isbn/link/etc in this response but were never read -
+        # only this single-book endpoint has them, the bulk author/show book list doesn't
+        bookasin = rootxml.find('./book/asin').text
+        if not bookasin:
+            bookasin = rootxml.find('./book/kindle_asin').text
 
         db = database.DBConnection()
         try:
@@ -1492,8 +1591,9 @@ class GoodReads:
             genres, _ = get_gr_genres(bookid)
             if genres:
                 bookgenre = ', '.join(genres)
+            infodict = None
             if not bookdesc:
-                infodict = get_gb_info(isbn=bookisbn, author=authorname, title=bookname, expire=False)
+                infodict = get_gb_info(isbn=bookisbn, author=authorname, title=bookname)
                 if infodict is not None:  # None if api blocked
                     if infodict and infodict['desc']:
                         bookdesc = infodict['desc']
@@ -1532,14 +1632,23 @@ class GoodReads:
                     "WorkID": workid,
                     "gr_id": bookid,
                     "ScanResult": reason,
-                    "OriginalPubDate": originalpubdate
+                    "OriginalPubDate": originalpubdate,
+                    "ASIN": bookasin or ''
                 }
                 db.upsert("books", new_value_dict, control_value_dict)
                 added = True
                 # get_book_cover needs the bookid to already exist in db
                 if 'nocover' in bookimg or 'nophoto' in bookimg:
-                    # try to get a cover from another source
-                    link, _ = get_book_cover(bookid, ignore='goodreads')
+                    # infodict (Google Books), if fetched above for the description, may
+                    # already have a usable cover - use it before falling to the untrusted
+                    # keyword image-search crawler. No extra API call either way.
+                    gb_img = infodict.get('img') if infodict else ''
+                    if gb_img and gb_img.startswith('http') and \
+                            'nocover' not in gb_img and 'nophoto' not in gb_img:
+                        link = cache_bookimg(gb_img, bookid, 'gr')
+                    else:
+                        # try to get a cover from another source
+                        link, _ = get_book_cover(bookid, ignore='goodreads')
                     if link:
                         new_value_dict = {"BookImg": link}
                         db.upsert("books", new_value_dict, control_value_dict)

@@ -61,6 +61,7 @@
             toggleElement("#opds_authentication", "#opdscredentials");
 
             // Importing
+            toggleElement("#ol_use_dump", "#ol_dump_options");
             toggleElement("#hc_api", "#hc_options");
             toggleElement("#hc_sync", "#hcsync_options");
             toggleElement("#hc_syncreadonly", "#hc_sync_limit_group", true);
@@ -287,6 +288,22 @@
                 bootbox.dialog({
                     title: 'Supported Types',
                     message: '<pre>'+data+'</pre>',
+                    buttons: {
+                        primary: {
+                            label: "Close",
+                            className: 'btn-primary'
+                        }
+                    }
+                });
+            });
+        });
+
+        $('#ol_dump_sync_now').on('click', function() {
+            $.get("force_openlibrary_dump", function(data) {
+                let msg = data.success ? 'OpenLibrary bulk-dump sync started - check the log for progress.' : (data.error || 'Failed to start sync.');
+                bootbox.dialog({
+                    title: 'OpenLibrary Dump Sync',
+                    message: msg,
                     buttons: {
                         primary: {
                             label: "Close",

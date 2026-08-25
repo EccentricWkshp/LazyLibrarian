@@ -482,6 +482,14 @@
       }
 
       function bookinfo(bookid) {
+        // Plain book ids get the new read-only detail page; author ("A_" prefix) and
+        // comic ("CV"/"CX" prefix) ids keep the existing popup - see bookdesc() in
+        // webServe.py for the same prefix split server-side.
+        var idStr = String(bookid);
+        if (!idStr.startsWith('A_') && !idStr.startsWith('CV') && !idStr.startsWith('CX')) {
+            window.location = 'book_detail?bookid=' + idStr;
+            return;
+        }
         $.get('bookdesc', {'bookid': bookid},
         function(data) {
             var $textAndPic = $('<div></div>');

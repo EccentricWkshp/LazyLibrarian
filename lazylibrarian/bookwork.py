@@ -16,8 +16,10 @@ import re
 import threading
 import time
 import traceback
+import uuid
 from urllib.parse import quote, quote_plus, urlencode
 
+import requests
 from rapidfuzz import fuzz
 
 import lazylibrarian
@@ -46,6 +48,33 @@ if CONFIG.get_bool('GOOGLE_TRANS_ID'):
 else:
     Translator = None
 import asyncio
+
+
+def detect_language_ms(text):
+    """
+        Call Microsoft Azure translation service to detect the language of text
+        Return language detected and reliability of detection (0.0 to 1.0)
+    """
+    ms_endpoint = "https://api.cognitive.microsofttranslator.com/"
+    subscription_key = CONFIG['MS_TRANS_ID']
+    headers = {
+        'Ocp-Apim-Subscription-Key': subscription_key,
+        'Ocp-Apim-Subscription-Region': 'global',
+        'Content-type': 'application/json',
+        'X-ClientTraceId': str(uuid.uuid4())
+    }
+
+    body = [{'text': text}]
+    path = '/detect?api-version=3.0'
+    constructed_url = ms_endpoint + path
+    try:
+        request = requests.post(constructed_url, headers=headers, json=body)
+        response = request.json()
+        language = response[0]['language']
+        score = response[0]['score']
+        return [language, score]
+    except Exception as e:
+        return [f'Translation error from Microsoft {e}', 0.0]
 
 
 def set_all_book_authors():
@@ -265,7 +294,12 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
             if match and match['Status'] in ['Wanted', 'Skipped', 'Ignored']:
                 if CONFIG.get_bool('EBOOK_TAB'):
                     new_status = match['Status']
-                if CONFIG.get_bool('AUDIO_TAB'):
+                # Narrowing (Skipped/Ignored) always applies, but only let a series' Wanted
+                # status escalate audio to Wanted if the user's own default audio preference
+                # (adefault, from NEWAUDIO_STATUS/NEWAUTHOR_AUDIO) would already do that -
+                # otherwise "never auto-want audio" gets silently overridden by marking a
+                # series Wanted (Issue #2838).
+                if CONFIG.get_bool('AUDIO_TAB') and (match['Status'] != 'Wanted' or adefault == 'Wanted'):
                     new_astatus = match['Status']
                 if new_status or new_astatus:
                     logger.debug(f"Marking {bookname} as {match['Status']}, series {item[2]}")
@@ -280,7 +314,8 @@ def get_status(bookid=None, serieslist=None, default=None, adefault=None, authst
                 wanted_status = authstatus
             if CONFIG.get_bool('EBOOK_TAB'):
                 new_status = wanted_status
-            if CONFIG.get_bool('AUDIO_TAB'):
+            # Same audio-escalation guard as the series check above (Issue #2838).
+            if CONFIG.get_bool('AUDIO_TAB') and (wanted_status != 'Wanted' or adefault == 'Wanted'):
                 new_astatus = wanted_status
             if new_status or new_astatus:
                 logger.debug(f'Marking {bookname} as {wanted_status}, author {authstatus}')
@@ -533,7 +568,11 @@ def add_series_members(seriesid, refresh=False):
                         if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                             db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set status to {wanted_status} for {member[1]}")
-                        if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                        # Only let a Wanted series escalate audio to Wanted if the user's own
+                        # default audio preference would already do that (Issue #2838) -
+                        # narrowing (Skipped) always applies.
+                        if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                             db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                             logger.debug(f"Series [{seriesname}] set audiostatus to {wanted_status} for {member[1]}")
                     else:
@@ -546,7 +585,9 @@ def add_series_members(seriesid, refresh=False):
                             if CONFIG.get_bool('EBOOK_TAB') and newbook['Status'] != wanted_status:
                                 db.action("UPDATE books SET Status=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set status to {wanted_status} for {member[1]}")
-                            if CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status:
+                            # Same audio-escalation guard as above (Issue #2838).
+                            if (CONFIG.get_bool('AUDIO_TAB') and newbook['AudioStatus'] != wanted_status
+                                    and (wanted_status != 'Wanted' or CONFIG['NEWAUDIO_STATUS'] == 'Wanted')):
                                 db.action("UPDATE books SET AudioStatus=? WHERE BookID=?", (wanted_status, bookid))
                                 logger.debug(f"Author {member[4]} set audiostatus to {wanted_status} for {member[1]}")
                     count += 1
@@ -850,11 +891,20 @@ def get_series_members(seriesid=None, seriesname=None, refresh=False):
     return filtered, api_hits, source
 
 
-def get_gb_info(isbn=None, author=None, title=None, expire=False):
+def get_gb_info(isbn=None, author=None, title=None, expire=True):
     """ GoodReads/OpenLibrary do not always have a book description in api results
         due to restrictive TOS from some providers, and goodreads may not have genre
         Try to get missing info from googlebooks
-        Return info dictionary, None if error"""
+        Return info dictionary, None if error
+
+        expire=True (the default) lets a cached "no fuzzy match" result age out after
+        CACHE_AGE days so it gets retried on a later refresh, same as the GoodReads
+        pubdate lookup. expire=False pins the result in the cache forever - a Google
+        Books search that fails to fuzzy-match a book/author once (common for messy or
+        subtitled titles) would otherwise never be retried, permanently blocking that
+        book's date/description/genre/rating/publisher from ever being filled in via
+        this fallback. Only pass expire=False for callers that already gate a fresh
+        lookup behind their own explicit refresh flag (see api.py's _setnodesc/_setnogenre)."""
     if not author or not title or not CONFIG['GB_API']:
         return {}
 
@@ -1339,13 +1389,19 @@ def isbnlang(isbn):
     return book_language, cache_hit, thing_hit
 
 
-def language_from_words(words):
+def language_from_words(words, source='ms'):
+    # Since yesterday (24 Aug 2026) google now reports everything as English, 1.0
     if not words:
         return 'None', 0
     logger = logging.getLogger(__name__)
+
+    if source == 'ms' and CONFIG.get_bool('MS_TRANS_ID'):
+        return detect_language_ms(words)
+
     # couldn't be loaded, or configured off
     if not Translator or not CONFIG.get_bool('GOOGLE_TRANS_ID'):
         return 'Disabled', 0
+
     logging.getLogger('googletrans').setLevel(logging.CRITICAL)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)
     logging.getLogger('hpack').setLevel(logging.CRITICAL)

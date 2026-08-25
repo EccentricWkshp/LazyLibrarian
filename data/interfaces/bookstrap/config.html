@@ -684,6 +684,31 @@
                     </label>
                   </div>
                   </fieldset>
+                  <div class="checkbox">
+                    <%
+                    ol_use_dump_checked = 'checked="checked"' if CONFIG.get_bool('OL_USE_DUMP') else ''
+                    ol_dump_dir_val = CONFIG.get_str('OL_DUMP_DIR')
+                    ol_dump_int_val = CONFIG.get_int('OL_DUMP_INTERVAL')
+                    %>
+                    <label for="ol_use_dump">
+                      <input type="checkbox" id="ol_use_dump" name="ol_use_dump" value="1" ${ol_use_dump_checked} />
+                      Use Local Bulk Data Dump (Offline Database Engine)
+                    </label>
+                  </div>
+                  <fieldset id="ol_dump_options">
+                    <div class="form-group">
+                      <label for="ol_dump_dir" class="control-label">OpenLibrary Dump Directory:</label>
+                      <input type="text" class="form-control" id="ol_dump_dir" name="ol_dump_dir" value="${ol_dump_dir_val}" placeholder="Default: /config/cache/openlibrary_dump" />
+                    </div>
+                    <div class="form-group">
+                      <label for="ol_dump_interval" class="control-label">Automated Dump Sync Interval (Days):</label>
+                      <input type="number" class="form-control input-short" id="ol_dump_interval" name="ol_dump_interval" value="${ol_dump_int_val}" min="1" max="365" />
+                    </div>
+                    <div class="form-group">
+                      <button class="button btn btn-sm btn-primary" type="button" value="Sync Now" id="ol_dump_sync_now"><i class="fa fa-sync"></i> Sync Now</button>
+                      <span class="help-block">Downloads/updates the local dump now instead of waiting for the next scheduled sync. Resumes an interrupted download rather than starting over - see the log for progress.</span>
+                    </div>
+                  </fieldset>
                   <fieldset id="dnb_options">
                   <label class="control-label">Deutsche Nationalbibliothek API:</label>
                   <div class="checkbox">
@@ -3887,6 +3912,11 @@
                       <input type="checkbox" id="google_trans_id" name="google_trans_id" value="1" ${checked} />
                       Use Google Translate to identify language from book title
                     </label>
+                  </div>
+                  <div class="form-group">
+                    <label for="ms_trans_id" class="control=label">Microsoft Azure key:</label>
+                    <input type="text" id="ms_trans_id" name="ms_trans_id" value="${CONFIG['MS_TRANS_ID']}" class="form-control">
+                    <span class="help-block">Microsoft Azure can be used to identify language from book title</span>
                   </div>
               </div>
             </div>
