@@ -506,7 +506,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
         """Get API result from cache or fetch if needed."""
         headers = {'Content-Type': 'application/json',
                    'User-Agent': self.user_agent,
-                   'authorization': self.apikey
+                   'authorization': self.apikey if str(self.apikey).startswith('Bearer ') else f'Bearer {self.apikey}'
                    }
         query = {'query': searchcmd}
         cache_location = DIRS.get_cachedir('JSONCache')
