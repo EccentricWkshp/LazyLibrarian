@@ -32,7 +32,11 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.configtypes import ConfigScheduler
 from lazylibrarian.formatter import check_int, plural
 from lazylibrarian.importer import add_author_to_db
-from lazylibrarian.oldump import update_openlibrary_dump  # needed here
+from lazylibrarian.oldump import update_openlibrary_dump
+
+# This is to suppress ruff warning about unused import
+# If you remove it, the scheduler complains about missing ref
+_ = update_openlibrary_dump
 
 # Notification Types
 NOTIFY_SNATCH = 1

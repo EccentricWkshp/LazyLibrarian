@@ -1008,7 +1008,7 @@ def _extract_best_match_from_collection(
         ) or _is_metadata_file(f)):
             source = os.path.join(candidate_dir, f)
             if path_isdir(source):
-                shutil.copytree(source, target_dir)
+                shutil.copytree(source, target_dir, dirs_exist_ok=True)
             else:
                 dest = os.path.join(target_dir, f)
                 shutil.copyfile(source, dest)
@@ -3028,91 +3028,103 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
         processing_delay = CONFIG.get_int("PP_DELAY")
 
         ppcount = 0
+        failed_processing = []
 
         for book_row in books_to_process:
             # Create BookState from database row
             book_state = BookState.from_db_row(book_row, CONFIG)
-
-            # Check processing delay (once per book, not per directory!)
-            # Legacy-compatible: processes even if Completed==0 (some clients don't set it)
-            if processing_delay:
-                should_delay, elapsed = book_state.should_delay_processing(
-                    processing_delay
-                )
-                if should_delay:
-                    postprocesslogger.warning(
-                        f"Ignoring {book_state.download_title} as completion was only {elapsed} "
-                        f"{plural(elapsed, 'second')} ago, delay is {processing_delay}"
+            try:
+                stage = 'validation'  # stage is used for location reporting if there is an exception
+                # Check processing delay (once per book, not per directory!)
+                # Legacy-compatible: processes even if Completed==0 (some clients don't set it)
+                if processing_delay:
+                    should_delay, elapsed = book_state.should_delay_processing(
+                        processing_delay
                     )
-                    continue
-                # Only log completion time if we have a valid timestamp
-                if book_state.is_completed():
+                    if should_delay:
+                        postprocesslogger.warning(
+                            f"Ignoring {book_state.download_title} as completion was only {elapsed} "
+                            f"{plural(elapsed, 'second')} ago, delay is {processing_delay}"
+                        )
+                        continue
+                    # Only log completion time if we have a valid timestamp
+                    if book_state.is_completed():
+                        postprocesslogger.debug(
+                            f"{book_state.download_title} was completed {elapsed} {plural(elapsed, 'second')} ago"
+                        )
+                    else:
+                        postprocesslogger.debug(
+                            f"{book_state.download_title} has no completion timestamp (client doesn't support it)"
+                        )
+
+                stage = 'enriching'
+                # Enrich with download_folder (general + name) and book_title
+                book_state.enrich_with_download_info(db)
+
+                postprocesslogger.debug(
+                    f"Enrichment result: download_folder='{book_state.download_folder}', "
+                    f"book_title='{book_state.book_title[:50] if book_state.book_title else '(empty)'}'"
+                )
+
+                # ========================================================
+                #  Downloaded Processing Stage | Targeted Location Pass
+                # ========================================================
+                stage = 'targeted'
+                if book_state.download_folder:
                     postprocesslogger.debug(
-                        f"{book_state.download_title} was completed {elapsed} {plural(elapsed, 'second')} ago"
+                        f"Targeted Location Pass: Processing search for {book_state.download_title}"
+                    )
+                    result = _search_in_known_location(
+                        book_state, ignoreclient, db, postprocesslogger, fuzzlogger
+                    )
+                    if result > 0:
+                        ppcount += result
+                        postprocesslogger.info(
+                            f"Matching Stage - First Pass SUCCESS: {book_state.download_title}"
+                        )
+                        continue  # Successfully processed, move to next book
+
+                    postprocesslogger.debug(
+                        f"Matching Stage - First Pass unsuccessful for {book_state.download_title}, trying Pass 2"
                     )
                 else:
                     postprocesslogger.debug(
-                        f"{book_state.download_title} has no completion timestamp (client doesn't support it)"
+                        f"Matching Stage - First Pass skipped because no targeted download folder "
+                        f"specified for {book_state.download_title}, trying Pass 2"
                     )
 
-            # Enrich with download_folder (general + name) and book_title
-            book_state.enrich_with_download_info(db)
-
-            postprocesslogger.debug(
-                f"Enrichment result: download_folder='{book_state.download_folder}', "
-                f"book_title='{book_state.book_title[:50] if book_state.book_title else '(empty)'}'"
-            )
-
-            # ========================================================
-            #  Downloaded Processing Stage | Targeted Location Pass
-            # ========================================================
-            if book_state.download_folder:
+                # =======================================================
+                #  Matching Stage | Second Pass: Fuzzy Search
+                #  * Only here if not processed in First Pass
+                # =======================================================
+                stage = 'matching'
                 postprocesslogger.debug(
-                    f"Targeted Location Pass: Processing search for {book_state.download_title}"
+                    f"Matching Stage - Second Pass: Fallback search for {book_state.download_title}"
                 )
-                result = _search_in_known_location(
-                    book_state, ignoreclient, db, postprocesslogger, fuzzlogger
+                result = _process_snatched_book(
+                    book_state,
+                    all_downloads,
+                    ignoreclient,
+                    db,
+                    postprocesslogger,
+                    fuzzlogger,
                 )
                 if result > 0:
                     ppcount += result
                     postprocesslogger.info(
-                        f"Matching Stage - First Pass SUCCESS: {book_state.download_title}"
+                        f"Matching Stage - Second Pass SUCCESS: {book_state.download_title}"
                     )
-                    continue  # Successfully processed, move to next book
-
-                postprocesslogger.debug(
-                    f"Matching Stage - First Pass unsuccessful for {book_state.download_title}, trying Pass 2"
-                )
-            else:
-                postprocesslogger.debug(
-                    f"Matching Stage - First Pass skipped because no targeted download folder "
-                    f"specified for {book_state.download_title}, trying Pass 2"
-                )
-
-            # =======================================================
-            #  Matching Stage | Second Pass: Fuzzy Search
-            #  * Only here if not processed in First Pass
-            # =======================================================
-            postprocesslogger.debug(
-                f"Matching Stage - Second Pass: Fallback search for {book_state.download_title}"
-            )
-            result = _process_snatched_book(
-                book_state,
-                all_downloads,
-                ignoreclient,
-                db,
-                postprocesslogger,
-                fuzzlogger,
-            )
-            if result > 0:
-                ppcount += result
-                postprocesslogger.info(
-                    f"Matching Stage - Second Pass SUCCESS: {book_state.download_title}"
-                )
-            else:
-                postprocesslogger.warning(
-                    f"Matching Stage - Second Pass FAILED: {book_state.download_title}. No matches"
-                )
+                else:
+                    postprocesslogger.warning(
+                        f"Matching Stage - Second Pass FAILED: {book_state.download_title}. No matches"
+                    )
+                    book_state.mark_failed(stage, "No matches")
+                    failed_processing.append(book_state)
+            except Exception as e:
+                postprocesslogger.debug(f"Error processing {book_row}: {e}")
+                book_state.mark_failed(stage, "Exception while processing")
+                failed_processing.append(book_state)
+                continue
 
         postprocesslogger.debug("Snatched Processing Stage Complete")
 
@@ -3127,36 +3139,34 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
 
         # Mark unprocessed books as Failed to force a retry on next search
         failed = [0, 0, 0, 0]  # ebook, audio, mag, comic
-        for book_row in books_to_process:
-            book_state = BookState.from_db_row(book_row, CONFIG)
-            if not book_state.was_processed and book_state.has_failed():
-                logger.warning(
-                    f"Marking {book_state.download_title} as Failed: "
-                    f"{book_state.processing_stage} - {book_state.failure_reason}"
-                )
-                control_value_dict = {"DownloadID": book_state.download_id, "Status": "Snatched"}
-                new_value_dict = {
-                    "Status": "Failed",
-                    "NZBDate": now(),
-                    "DLResult": f"{book_state.processing_stage}: {book_state.failure_reason}"
-                }
-                db.upsert("wanted", new_value_dict, control_value_dict)
-                book_type_str = book_state.get_book_type_str()
-                cmd = ''
-                if book_type_str == BookType.EBOOK.value:
-                    cmd = "UPDATE books SET status='Wanted' WHERE status='Snatched' and BookID=?"
-                    failed[0] += 1
-                elif book_type_str == BookType.AUDIOBOOK.value:
-                    cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
-                    failed[1] += 1
-                elif book_type_str == BookType.MAGAZINE.value():
-                    failed[2] += 1
-                elif book_type_str == BookType.COMIC.value():
-                    failed[3] += 1
-                if cmd:
-                    db.action(cmd, (book_state.book_id,))
-                if CONFIG.get_bool("DEL_FAILED"):
-                    delete_task(book_state.source, book_state.download_id, True)
+        for book_state in failed_processing:
+            logger.warning(
+                f"Marking {book_state.download_title} as Failed: "
+                f"{book_state.processing_stage} - {book_state.failure_reason}"
+            )
+            control_value_dict = {"DownloadID": book_state.download_id, "Status": "Snatched"}
+            new_value_dict = {
+                "Status": "Failed",
+                "NZBDate": now(),
+                "DLResult": f"{book_state.processing_stage}: {book_state.failure_reason}"
+            }
+            db.upsert("wanted", new_value_dict, control_value_dict)
+            book_type_str = book_state.get_book_type_str()
+            cmd = ''
+            if book_type_str == BookType.EBOOK.value:
+                cmd = "UPDATE books SET status='Wanted' WHERE status='Snatched' and BookID=?"
+                failed[0] += 1
+            elif book_type_str == BookType.AUDIOBOOK.value:
+                cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
+                failed[1] += 1
+            elif book_type_str == BookType.MAGAZINE.value():
+                failed[2] += 1
+            elif book_type_str == BookType.COMIC.value():
+                failed[3] += 1
+            if cmd:
+                db.action(cmd, (book_state.book_id,))
+            if CONFIG.get_bool("DEL_FAILED"):
+                delete_task(book_state.source, book_state.download_id, True)
         if any(failed):
             logger.debug(f"Failed to process {failed[0]} ebook, {failed[1]} audio, {failed[2]} magazine, {failed[3]} comic")
 
@@ -3412,19 +3422,15 @@ def process_book(book_path: str, book_id: str, logger=None, library=""):
                 if ".unpack" in book_path:
                     book_path = f"{book_path.split('.unpack')[0]}.unpack"
 
-                if (
-                    ".unpack" in book_path
-                    or (not CONFIG.get_bool("DESTINATION_COPY")
-                        and book_path != dest_dir)
-                ):
-                    if path_isdir(book_path):
-                        # calibre might have already deleted it?
+                if path_isdir(book_path):
+                    if book_path.endswith(".unpack"):
                         logger.debug(f"Deleting {book_path}")
                         shutil.rmtree(book_path, ignore_errors=True)
-                elif CONFIG.get_bool("DESTINATION_COPY"):
-                    logger.debug(f"Not removing {book_path} as Keep Files is set")
-                else:
-                    logger.debug(f"Not removing {book_path} as in download root")
+                    elif book_path in [get_directory("Download"), get_directory("Alternate")]:
+                        logger.debug(f"Not removing {book_path} as root folder")
+                    elif not CONFIG.get_bool("DESTINATION_COPY"):
+                        logger.debug(f"Deleting {book_path}")
+                        shutil.rmtree(book_path, ignore_errors=True)
 
                 logger.info(f"Successfully processed: {global_name}")
                 custom_notify_download(f"{book_id} {book_type_aux}")
