@@ -416,12 +416,14 @@ class OPDS:
         cmd = ("select genrename,(select count(*) as counter from genrebooks,books where "
                "genrebooks.genreid = genres.genreid and books.status='Open' and "
                "books.bookid=genrebooks.bookid) as cnt from genres where cnt > 0")
+        args = ()
         if 'query' in kwargs:
-            cmd += f" and instr(genrename, '{kwargs['query']}') > 0"
+            cmd += " and instr(genrename, ?) > 0"
+            args = (kwargs['query'], )
         cmd += " order by cnt DESC,genrename ASC"
         db = database.DBConnection()
         try:
-            results = db.select(cmd)
+            results = db.select(cmd, args) if args else db.select(cmd)
         finally:
             db.close()
         if limit:
@@ -587,12 +589,14 @@ class OPDS:
         links.append(getlink(href=f'{self.searchroot}/opensearchauthors.xml',
                              ftype='application/opensearchdescription+xml', rel='search', title='Search Authors'))
         cmd = "SELECT AuthorName,AuthorID,HaveEBooks,TotalBooks,Updated,AuthorImg from Authors WHERE "
+        args = ()
         if 'query' in kwargs:
-            cmd += f"instr(AuthorName, '{kwargs['query']}') > 0 AND "
+            cmd += "instr(AuthorName, ?) > 0 AND "
+            args = (kwargs['query'], )
         cmd += "HaveEBooks > 0 order by AuthorName"
         db = database.DBConnection()
         try:
-            results = db.select(cmd)
+            results = db.select(cmd, args) if args else db.select(cmd)
         finally:
             db.close()
         if limit:
@@ -664,12 +668,14 @@ class OPDS:
         links.append(getlink(href=f'{self.searchroot}/opensearchauthors.xml',
                              ftype='application/opensearchdescription+xml', rel='search', title='Search Authors'))
         cmd = "SELECT AuthorName,AuthorID,HaveAudioBooks,TotalBooks,Updated,AuthorImg from Authors WHERE "
+        args = ()
         if 'query' in kwargs:
-            cmd += f"instr(AuthorName, '{kwargs['query']}') > 0 AND "
+            cmd += "instr(AuthorName, ?) > 0 AND "
+            args = (kwargs['query'], )
         cmd += "HaveAudioBooks > 0 order by AuthorName"
         db = database.DBConnection()
         try:
-            results = db.select(cmd)
+            results = db.select(cmd, args) if args else db.select(cmd)
         finally:
             db.close()
         if limit:
@@ -894,12 +900,14 @@ class OPDS:
         links.append(getlink(href=f'{self.searchroot}/opensearchseries.xml',
                              ftype='application/opensearchdescription+xml', rel='search', title='Search Series'))
         cmd = "SELECT SeriesName,SeriesID,Have,Total from Series WHERE CAST(Have AS INTEGER) > 0 "
+        args = ()
         if 'query' in kwargs:
-            cmd += f"AND instr(SeriesName, '{kwargs['query']}') > 0 "
+            cmd += "AND instr(SeriesName, ?) > 0 "
+            args = (kwargs['query'], )
         cmd += "order by SeriesName"
         db = database.DBConnection()
         try:
-            results = db.select(cmd)
+            results = db.select(cmd, args) if args else db.select(cmd)
             if limit:
                 page = results[index:(index + limit)]
             else:
