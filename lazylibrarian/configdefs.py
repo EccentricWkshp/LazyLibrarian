@@ -537,6 +537,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('API', 'DNB_API', 0),
     ConfigBool('API', 'RAN_API', 0),
     ConfigBool('API', 'HC_API', 0),
+    ConfigBool('API', 'AUDNEXUS', 0),
     ConfigBool('API', 'HC_SYNC', 0),
     ConfigBool('API', 'HC_SYNCREADONLY', 0),
     ConfigInt('API', 'HC_SYNC_LIMIT', 10),

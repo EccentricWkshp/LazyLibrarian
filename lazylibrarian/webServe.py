@@ -8887,6 +8887,7 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_custom(self, **kwargs):
+        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         thread_name("WEBSERVER")
         fail = ''

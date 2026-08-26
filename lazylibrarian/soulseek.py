@@ -306,10 +306,21 @@ class SLSKD:
         for file in files:
             self.slskd.transfers.cancel_download(username=username, id=file['id'])
 
-        os.chdir(self.download_dir)
+        # delete_dir is derived from a remote Soulseek peer's self-reported directory name
+        # (see slsk_search/on_transfer_update callers) - never trust it as a safe relative
+        # path. A peer reporting a name ending in "\.." (or an absolute path) could otherwise
+        # make this resolve outside download_dir and rmtree something else entirely.
+        base = os.path.realpath(self.download_dir)
+        target = os.path.realpath(os.path.join(base, delete_dir))
+        if not target.startswith(base + os.sep):
+            # Also refuses target == base: this must be a subdirectory of download_dir,
+            # never the download directory itself.
+            self.logger.warning(f"Refusing to delete '{delete_dir}' reported by peer {username}: "
+                                f"resolves outside download directory ({target})")
+            return
 
-        if os.path.exists(delete_dir):
-            shutil.rmtree(delete_dir)
+        if os.path.exists(target):
+            shutil.rmtree(target)
 
     def download(self, results):
         time_count = 0
