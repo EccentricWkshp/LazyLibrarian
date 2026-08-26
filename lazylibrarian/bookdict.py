@@ -446,6 +446,15 @@ def add_bookdict_to_db(book):
         added = 'added'
     logger.info(f"{book['bookname']} by {book['authorname']} {added}, {book['status']}/{book['audiostatus']}")
     db.close()
+    # Audiobook enrichment: fill Narrator (and genre/description/cover when empty)
+    # from Audnexus for an owned audiobook that has an ASIN. No-op unless the
+    # AUDNEXUS toggle is on and the fields are empty; never lets an enrichment
+    # error break the book add.
+    try:
+        from lazylibrarian.audnexus import enrich_audiobook
+        enrich_audiobook(book['bookid'])
+    except Exception as enrich_err:
+        logger.debug(f"Audnexus enrich skipped for {book.get('bookid')}: {enrich_err}")
     return True
 
 
