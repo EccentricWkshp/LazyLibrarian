@@ -3159,9 +3159,9 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
             elif book_type_str == BookType.AUDIOBOOK.value:
                 cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
                 failed[1] += 1
-            elif book_type_str == BookType.MAGAZINE.value():
+            elif book_type_str == BookType.MAGAZINE.value:
                 failed[2] += 1
-            elif book_type_str == BookType.COMIC.value():
+            elif book_type_str == BookType.COMIC.value:
                 failed[3] += 1
             if cmd:
                 db.action(cmd, (book_state.book_id,))
