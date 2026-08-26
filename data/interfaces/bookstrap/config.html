@@ -767,6 +767,14 @@
                       <span class="help-block">Maximum number of updates or deletions allowed per sync. Zero means no limit.</span>
                     </div>
                   </fieldset>
+                  <label class="control-label">Audnexus:</label>
+                  <div class="checkbox">
+                    <% checked = 'checked="checked"' if CONFIG['AUDNEXUS'] else '' %>
+                    <label for="audnexus">
+                      <input type="checkbox" id="audnexus" name="audnexus" value="1" ${checked} />
+                      Enrich owned audiobooks with narrator, genre, description and cover from Audnexus (audnex.us) by ASIN
+                    </label>
+                  </div>
                   <fieldset id="gb_options">
                   <div class="form-group">
                     <label for="gb_api" class="control-label">GoogleBooks API:</label>
