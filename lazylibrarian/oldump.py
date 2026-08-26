@@ -2,9 +2,11 @@ import gzip
 import json
 import logging
 import os
+import shutil
 import sqlite3
 import time
 
+import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
@@ -13,13 +15,79 @@ from lazylibrarian.formatter import thread_name
 
 logger = logging.getLogger(__name__)
 
-# How often (in downloaded bytes) to log download progress.
+# How often (in downloaded bytes) to log download progress, and to check for a stop request.
 DOWNLOAD_PROGRESS_STEP = 200 * 1024 * 1024
 # How often (in indexed rows) to log indexing progress.
 INDEX_PROGRESS_STEP = 500000
+# How often (in indexed rows) to check for a stop request - much more frequent than the
+# progress log above, since that can be minutes apart on a slow machine.
+STOP_CHECK_STEP = 10000
+
+# Rough multiplier applied to the combined compressed download size to estimate the extra
+# space the indexed sqlite database will need on top of the two dump files it's built from -
+# not exact (depends on how many rows have usable ISBN/cover data), just enough to catch
+# "this clearly won't fit" before committing to a multi-GB download.
+DB_SIZE_ESTIMATE_MULTIPLIER = 1.5
 
 AUTHORS_DUMP_URL = "https://openlibrary.org/data/ol_dump_authors_latest.txt.gz"
 WORKS_DUMP_URL = "https://openlibrary.org/data/ol_dump_works_latest.txt.gz"
+
+
+def _stop_requested():
+    return lazylibrarian.STOPTHREADS and thread_name() == "OLDUMPUPDATE"
+
+
+def get_remote_size(url):
+    """HEAD request for url's Content-Length. Returns 0 if it can't be determined."""
+    import urllib.request
+
+    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': get_user_agent(configured=False)})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return int(resp.headers.get('Content-Length', 0))
+    except Exception as e:
+        logger.warning(f"Unable to check remote size for {url}: {e}")
+        return 0
+
+
+def _local_footprint(dump_dir):
+    """Bytes already on disk from a previous run: complete or partial dump downloads, plus
+    the sqlite database if it exists. Used to estimate the *additional* space a fresh run
+    needs, not the total, since resumed downloads and an already-partly-built database don't
+    need to be downloaded/built again."""
+    total = 0
+    for name in ('ol_dump_authors.txt.gz', 'ol_dump_authors.txt.gz.part',
+                 'ol_dump_works.txt.gz', 'ol_dump_works.txt.gz.part'):
+        path = os.path.join(dump_dir, name)
+        if os.path.exists(path):
+            total += os.path.getsize(path)
+    db_path = get_dump_db_path()
+    if os.path.exists(db_path):
+        total += os.path.getsize(db_path)
+    return total
+
+
+def check_disk_space(dump_dir):
+    """Preflight check, run before any download starts: estimate how much additional disk
+    space this sync needs (remaining downloads + sqlite indexing) and compare against what's
+    actually free. Returns (ok, estimated_needed_bytes, free_bytes). Logs a clear estimate
+    either way so the numbers are visible in the log even when there's enough room."""
+    authors_size = get_remote_size(AUTHORS_DUMP_URL)
+    works_size = get_remote_size(WORKS_DUMP_URL)
+    dump_total = authors_size + works_size
+    estimated_total = dump_total + int(dump_total * DB_SIZE_ESTIMATE_MULTIPLIER)
+    already_local = _local_footprint(dump_dir)
+    estimated_needed = max(0, estimated_total - already_local)
+    free = shutil.disk_usage(dump_dir).free
+
+    def mb(n):
+        return n // (1024 * 1024)
+
+    logger.info(f"OpenLibrary dump space estimate: ~{mb(estimated_total)} MB total "
+                f"(downloads + indexed database), ~{mb(already_local)} MB already on disk, "
+                f"~{mb(estimated_needed)} MB additional needed, {mb(free)} MB free in {dump_dir}")
+    return estimated_needed <= free, estimated_needed, free
+
 
 def get_dump_dir():
     dump_dir = CONFIG['OL_DUMP_DIR']
@@ -76,13 +144,7 @@ def download_dump_file(url, local_path):
     import urllib.error
     import urllib.request
 
-    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': get_user_agent(configured=False)})
-    try:
-        with urllib.request.urlopen(req) as resp:
-            remote_size = int(resp.headers.get('Content-Length', 0))
-    except Exception as e:
-        logger.warning(f"Unable to check remote size for {url}: {e}")
-        remote_size = 0
+    remote_size = get_remote_size(url)
 
     if remote_size and os.path.exists(local_path) and os.path.getsize(local_path) == remote_size:
         logger.info(f"{os.path.basename(local_path)} already fully downloaded ({remote_size} bytes), skipping")
@@ -130,8 +192,14 @@ def download_dump_file(url, local_path):
             mode = 'wb'
         downloaded = resume_from
         next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
+        stopped = False
         with open(partial_path, mode) as out:
             while True:
+                if _stop_requested():
+                    logger.debug(f"STOPTHREADS Aborting {os.path.basename(local_path)} download "
+                                 f"at {downloaded // (1024 * 1024)} MB, will resume next run")
+                    stopped = True
+                    break
                 chunk = resp.read(1024 * 1024)
                 if not chunk:
                     break
@@ -144,6 +212,9 @@ def download_dump_file(url, local_path):
                     else:
                         logger.info(f"{os.path.basename(local_path)}: {downloaded // (1024 * 1024)} MB")
                     next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
+
+    if stopped:
+        return False
 
     downloaded_size = os.path.getsize(partial_path)
     if remote_size and downloaded_size != remote_size:
@@ -178,6 +249,13 @@ def update_openlibrary_dump():
 
     conn = None
     try:
+        space_ok, needed, free = check_disk_space(dump_dir)
+        if not space_ok:
+            logger.error(f"Aborting OpenLibrary dump sync: estimated ~{needed // (1024 * 1024)} MB "
+                         f"needed but only {free // (1024 * 1024)} MB free in {dump_dir} - free up space "
+                         f"or point OL_DUMP_DIR somewhere with more room, then try again")
+            return
+
         conn = init_dump_db(db_path)
         cur = conn.cursor()
 
@@ -190,6 +268,7 @@ def update_openlibrary_dump():
         logger.info("Indexing OpenLibrary Authors into local database...")
         batch = []
         indexed = 0
+        authors_stopped = False
         with gzip.open(authors_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -202,18 +281,26 @@ def update_openlibrary_dump():
                             batch.append((key, name))
                     except Exception:
                         pass
-                if len(batch) >= 10000:
+                if len(batch) >= STOP_CHECK_STEP:
                     cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
                     conn.commit()
                     indexed += len(batch)
                     batch = []
-                    if indexed % INDEX_PROGRESS_STEP < 10000:
+                    if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Indexed {indexed} authors so far...")
-        if batch:
+                    if _stop_requested():
+                        logger.debug(f"STOPTHREADS Aborting author indexing at {indexed} rows, "
+                                     f"will re-index (idempotent) next run")
+                        authors_stopped = True
+                        break
+
+        if batch and not authors_stopped:
             cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
             conn.commit()
             indexed += len(batch)
-        logger.info(f"Indexed {indexed} authors total")
+        logger.info(f"Indexed {indexed} authors total{' (stopped early)' if authors_stopped else ''}")
+        if authors_stopped:
+            return
 
         # 2. Ingest Works Dump
         works_gz = os.path.join(dump_dir, 'ol_dump_works.txt.gz')
@@ -224,6 +311,7 @@ def update_openlibrary_dump():
         logger.info("Indexing OpenLibrary Works into local database...")
         batch = []
         indexed = 0
+        works_stopped = False
         with gzip.open(works_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -245,20 +333,30 @@ def update_openlibrary_dump():
                             batch.append((key, author_id, title, first_publish_date, '', cover_i))
                     except Exception:
                         pass
-                if len(batch) >= 10000:
+                if len(batch) >= STOP_CHECK_STEP:
                     cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
                     conn.commit()
                     indexed += len(batch)
                     batch = []
-                    if indexed % INDEX_PROGRESS_STEP < 10000:
+                    if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Indexed {indexed} works so far...")
-        if batch:
+                    if _stop_requested():
+                        logger.debug(f"STOPTHREADS Aborting works indexing at {indexed} rows, "
+                                     f"will re-index (idempotent) next run")
+                        works_stopped = True
+                        break
+
+        if batch and not works_stopped:
             cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
             conn.commit()
             indexed += len(batch)
-        logger.info(f"Indexed {indexed} works total")
+        logger.info(f"Indexed {indexed} works total{' (stopped early)' if works_stopped else ''}")
 
-        logger.info("OpenLibrary Bulk Dump indexing complete successfully.")
+        if works_stopped:
+            logger.info("OpenLibrary Bulk Dump indexing stopped (shutdown requested).")
+        else:
+            logger.info("OpenLibrary Bulk Dump indexing complete successfully.")
+
     except Exception as e:
         logger.error(f"Error updating OpenLibrary bulk dump: {e}")
     finally:
