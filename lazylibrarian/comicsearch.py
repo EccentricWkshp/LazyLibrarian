@@ -265,7 +265,7 @@ def search_comics(comicid=None):
                         searchinglogger.debug(f"No match ({match[3]['seriesid']}) want {id_list}: {item['title']}")
                         notfound += 1
                 else:
-                    searchinglogger.debug(f"No match [{item['score']}%] {item['title']}")
+                    searchinglogger.debug(f"No match [{round(item['score'], 2)}%] {item['title']}")
                     notfound += 1
 
             total = len(foundissues)

@@ -1395,7 +1395,7 @@ def language_from_words(words, source='ms'):
         return 'None', 0
     logger = logging.getLogger(__name__)
 
-    if source == 'ms' and CONFIG.get_bool('MS_TRANS_ID'):
+    if source == 'ms' and CONFIG['MS_TRANS_ID']:
         return detect_language_ms(words)
 
     # couldn't be loaded, or configured off
