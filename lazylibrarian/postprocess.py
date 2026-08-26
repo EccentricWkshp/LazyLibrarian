@@ -3029,12 +3029,11 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
 
         ppcount = 0
         failed_processing = []
-
         for book_row in books_to_process:
+            stage = 'validation'  # stage is used for location reporting if there is an exception
             # Create BookState from database row
             book_state = BookState.from_db_row(book_row, CONFIG)
             try:
-                stage = 'validation'  # stage is used for location reporting if there is an exception
                 # Check processing delay (once per book, not per directory!)
                 # Legacy-compatible: processes even if Completed==0 (some clients don't set it)
                 if processing_delay:
