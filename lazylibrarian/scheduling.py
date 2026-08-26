@@ -32,6 +32,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.configtypes import ConfigScheduler
 from lazylibrarian.formatter import check_int, plural
 from lazylibrarian.importer import add_author_to_db
+from lazylibrarian.oldump import update_openlibrary_dump  # needed here
 
 # Notification Types
 NOTIFY_SNATCH = 1
