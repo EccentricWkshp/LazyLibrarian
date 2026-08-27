@@ -529,7 +529,7 @@ class StartupLazyLibrarian:
         self.logger.debug('No valid dicts.json file found, using defaults')
         return {"filename_dict": {'<': '', '>': '', '...': '', ' = ': ' ', '?': '', '$': 's', '|': '',
                                   ' + ': ' ', '"': '', ',': '', '*': '', ':': '', ';': '', '\'': '', '/': '_',
-                                  '\\\\': '\\'},
+                                  '\\': ''},
                 "apostrophe_dict": quotes
                 }
 
