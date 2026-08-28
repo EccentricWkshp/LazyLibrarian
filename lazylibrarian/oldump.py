@@ -104,8 +104,8 @@ def get_dump_db_path():
 def init_dump_db(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute("PRAGMA journal_mode = WAL;")
-    cur.execute("PRAGMA synchronous = NORMAL;")
+    cur.execute("PRAGMA journal_mode = OFF;")
+    cur.execute("PRAGMA synchronous = MEMORY;")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ol_authors (
             author_id TEXT PRIMARY KEY,
@@ -123,9 +123,10 @@ def init_dump_db(db_path):
             FOREIGN KEY(author_id) REFERENCES ol_authors(author_id)
         );
     """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
+    cur.execute("DROP INDEX IF EXISTS idx_ol_authors_name;")
+    cur.execute("DROP INDEX IF EXISTS idx_ol_works_author;")
+    cur.execute("DROP INDEX IF EXISTS idx_ol_works_title;")
+
     conn.commit()
     return conn
 
@@ -234,7 +235,7 @@ def update_openlibrary_dump():
     interrupted download resumes via HTTP Range rather than restarting, and indexing
     uses INSERT OR REPLACE so re-processing a file is idempotent."""
     if not CONFIG['OL_USE_DUMP']:
-        logger.debug("OpenLibrary local dump indexing disabled in configuration")
+        logger.debug("OpenLibrary local dump importing disabled in configuration")
         return
 
     incoming_threadname = thread_name()
@@ -269,6 +270,7 @@ def update_openlibrary_dump():
         batch = []
         indexed = 0
         authors_stopped = False
+        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(authors_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -283,22 +285,22 @@ def update_openlibrary_dump():
                         pass
                 if len(batch) >= STOP_CHECK_STEP:
                     cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
-                    conn.commit()
                     indexed += len(batch)
                     batch = []
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
-                        logger.info(f"Indexed {indexed} authors so far...")
+                        logger.info(f"Imported {indexed} authors so far...")
                     if _stop_requested():
-                        logger.debug(f"STOPTHREADS Aborting author indexing at {indexed} rows, "
-                                     f"will re-index (idempotent) next run")
+                        logger.debug(f"STOPTHREADS Aborting author importing at {indexed} rows, "
+                                     f"will re-import (idempotent) next run")
                         authors_stopped = True
                         break
 
         if batch and not authors_stopped:
             cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
-            conn.commit()
             indexed += len(batch)
-        logger.info(f"Indexed {indexed} authors total{' (stopped early)' if authors_stopped else ''}")
+        logger.info(f"Imported {indexed} authors total{' (stopped early)' if authors_stopped else ''}")
+        cur.execute("END TRANSACTION;")
+
         if authors_stopped:
             return
 
@@ -308,10 +310,11 @@ def update_openlibrary_dump():
             logger.error("Aborting OpenLibrary dump sync: works download failed or incomplete")
             return
 
-        logger.info("Indexing OpenLibrary Works into local database...")
+        logger.info("Importing OpenLibrary Works into local database...")
         batch = []
         indexed = 0
         works_stopped = False
+        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(works_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -335,33 +338,36 @@ def update_openlibrary_dump():
                         pass
                 if len(batch) >= STOP_CHECK_STEP:
                     cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
-                    conn.commit()
                     indexed += len(batch)
                     batch = []
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
-                        logger.info(f"Indexed {indexed} works so far...")
+                        logger.info(f"Imported {indexed} works so far...")
                     if _stop_requested():
-                        logger.debug(f"STOPTHREADS Aborting works indexing at {indexed} rows, "
-                                     f"will re-index (idempotent) next run")
+                        logger.debug(f"STOPTHREADS Aborting works importing at {indexed} rows, "
+                                     f"will re-import (idempotent) next run")
                         works_stopped = True
                         break
 
         if batch and not works_stopped:
             cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
-            conn.commit()
             indexed += len(batch)
-        logger.info(f"Indexed {indexed} works total{' (stopped early)' if works_stopped else ''}")
-
+        logger.info(f"Imported {indexed} works total{' (stopped early)' if works_stopped else ''}")
+        cur.execute("END TRANSACTION;")
         if works_stopped:
-            logger.info("OpenLibrary Bulk Dump indexing stopped (shutdown requested).")
+            logger.info("OpenLibrary Bulk Dump importing stopped (shutdown requested).")
         else:
-            logger.info("OpenLibrary Bulk Dump indexing complete successfully.")
+            logger.info("OpenLibrary Bulk Dump importing complete successfully.")
 
     except Exception as e:
         logger.error(f"Error updating OpenLibrary bulk dump: {e}")
     finally:
         if conn:
+            logger.info("OpenLibrary Bulk Dump indexing started.")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
             conn.close()
+            logger.info("OpenLibrary Bulk Dump indexing complete.")
         logger.debug(f"Storing finish time for {thread_name()}")
         jobdb.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
         jobdb.close()
