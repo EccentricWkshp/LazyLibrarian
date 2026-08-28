@@ -3167,9 +3167,9 @@ class WebInterface:
             searchterm = f'{author} {title}'
             searchterm = searchterm.strip()
 
-        if action == 'e_full':
+        if action.startswith('e_'):
             cat = 'book'
-        elif action == 'a_full':
+        elif action.startswith('a_'):
             cat = 'audio'
         elif action:
             cat = 'general'
