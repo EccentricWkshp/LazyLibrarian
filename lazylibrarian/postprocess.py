@@ -1365,14 +1365,14 @@ def _update_issue_database(
 
 
 def _is_protected_root(path):
+    if not path:
+        return False
     resolved = os.path.realpath(os.path.normpath(path))
     roots = set()
-    for d in get_list(CONFIG.get_str('DOWNLOAD_DIR'), ','):
+    for dirname in ('Download', 'Alternate'):
+        d = get_directory(dirname)
         if d:
             roots.add(os.path.realpath(os.path.normpath(d)))
-    alt = get_directory('Alternate')
-    if alt:
-        roots.add(os.path.realpath(os.path.normpath(alt)))
     return resolved in roots
 
 
