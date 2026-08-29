@@ -1364,15 +1364,23 @@ def _update_issue_database(
         db.upsert("magazines", new_value_dict, control_value_dict)
 
 
+def _resolve_root(d):
+    if d and len(d) >= 2 and d[0] == '.' and d[1] in ('/', '\\'):
+        d = os.path.join(DIRS.PROG_DIR, d[2:])
+    return os.path.normcase(os.path.realpath(os.path.normpath(d)))
+
+
 def _is_protected_root(path):
     if not path:
         return False
-    resolved = os.path.realpath(os.path.normpath(path))
+    resolved = _resolve_root(path)
     roots = set()
-    for dirname in ('Download', 'Alternate'):
-        d = get_directory(dirname)
+    for d in get_list(CONFIG.get_str('DOWNLOAD_DIR'), ','):
         if d:
-            roots.add(os.path.realpath(os.path.normpath(d)))
+            roots.add(_resolve_root(d))
+    alt = CONFIG.get_str('ALTERNATE_DIR')
+    if alt:
+        roots.add(_resolve_root(alt))
     return resolved in roots
 
 
