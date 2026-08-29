@@ -1364,6 +1364,26 @@ def _update_issue_database(
         db.upsert("magazines", new_value_dict, control_value_dict)
 
 
+def _resolve_root(d):
+    if d and len(d) >= 2 and d[0] == '.' and d[1] in ('/', '\\'):
+        d = os.path.join(DIRS.PROG_DIR, d[2:])
+    return os.path.normcase(os.path.realpath(os.path.normpath(d)))
+
+
+def _is_protected_root(path):
+    if not path:
+        return False
+    resolved = _resolve_root(path)
+    roots = set()
+    for d in get_list(CONFIG.get_str('DOWNLOAD_DIR'), ','):
+        if d:
+            roots.add(_resolve_root(d))
+    alt = CONFIG.get_str('ALTERNATE_DIR')
+    if alt:
+        roots.add(_resolve_root(alt))
+    return resolved in roots
+
+
 def _should_delete_processed_files(book_path, download_dir) -> "tuple[bool, str]":
     """
     Determine if processed files should be deleted based on configuration.
@@ -2510,7 +2530,7 @@ def _handle_seeding_status(
             logger.debug("Not removing original files as the torrent was not ours")
         elif CONFIG.get_bool("DESTINATION_COPY"):
             logger.debug("Not removing original files as Keep Files is set")
-        elif book_path in get_list(CONFIG["DOWNLOAD_DIR"]):
+        elif _is_protected_root(book_path):
             logger.debug("Not removing original files as in download root")
         else:
             shutil.rmtree(book_path, ignore_errors=True)
@@ -3425,7 +3445,7 @@ def process_book(book_path: str, book_id: str, logger=None, library=""):
                     if book_path.endswith(".unpack"):
                         logger.debug(f"Deleting {book_path}")
                         shutil.rmtree(book_path, ignore_errors=True)
-                    elif book_path in [get_directory("Download"), get_directory("Alternate")]:
+                    elif _is_protected_root(book_path):
                         logger.debug(f"Not removing {book_path} as root folder")
                     elif not CONFIG.get_bool("DESTINATION_COPY"):
                         logger.debug(f"Deleting {book_path}")
