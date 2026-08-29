@@ -870,15 +870,23 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                         # match on the current book's filename since a series folder may
                         # hold opf/metadata for more than one book
                         # Allow metadata in opf file to override book metadata as may be users pref
+                        pre_opf_author = res.get('creator', '')
                         metafile = ''
                         try:
                             metafile = opf_file(rootdir, bookfile=files)
                             if metafile:
                                 logger.debug(f"Reading info from {metafile}")
                                 res2 = get_book_info(metafile)
-                                for item in res2:
-                                    if res2[item]:  # only override if OPF field is non-empty
-                                        res[item] = res2[item]
+                                opf_author = res2.get('creator', '')
+                                if pre_opf_author and opf_author and \
+                                        collate_fuzzy(pre_opf_author, opf_author) != 0:
+                                    logger.warning(
+                                        f"OPF {metafile} author [{opf_author}] disagrees with "
+                                        f"embedded metadata [{pre_opf_author}]; ignoring stale OPF")
+                                else:
+                                    for item in res2:
+                                        if res2[item]:
+                                            res[item] = res2[item]
                         except Exception as e:
                             logger.error(f'get_book_info failed for {metafile}, {type(e).__name__} {str(e)}')
 
