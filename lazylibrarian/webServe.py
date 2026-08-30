@@ -6287,6 +6287,7 @@ class WebInterface:
 
                     if not row[1] or not row[1].startswith('cache/'):
                         row[1] = 'images/nocover.jpg'
+                        row.append('images/nocover.jpg')
                     else:
                         fname, extn = splitext(row[1])
                         imgfile = os.path.join(DIRS.CACHEDIR, f'{fname[6:]}_w200{extn}')
