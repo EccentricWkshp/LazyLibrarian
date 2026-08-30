@@ -31,7 +31,7 @@ import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import pwd_generator
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import md5_utf8
+from lazylibrarian.formatter import md5_utf8, get_list
 
 SESSION_KEY = '_cp_username'
 
@@ -54,21 +54,47 @@ def check_credentials(username, password):
     return "Incorrect username or password."
 
 
-# noinspection PyUnusedLocal
-LOCAL_NETWORKS = [ipaddress.ip_network('10.46.0.0/16'), ipaddress.ip_network('192.168.0.0/16')]
+def get_remote_ip():
+    """Best-effort real client IP, honoring reverse-proxy headers.
+    Checks the same headers as the WHITELIST auto-login below, in the
+    same order, for consistency."""
+    remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2 / nginx
+    if remote_ip:
+        remote_ip = remote_ip.split(',')[0].strip()
+    if not remote_ip:
+        remote_ip = cherrypy.request.headers.get('X-Host')  # lighttpd
+    if not remote_ip:
+        remote_ip = cherrypy.request.headers.get('Remote-Addr')
+    if not remote_ip:
+        remote_ip = cherrypy.request.remote.ip
+    return remote_ip
 
 
-def _client_is_local():
-    """True if the request's real client IP (honoring X-Forwarded-For from a
-    reverse proxy) falls within the trusted local networks, in which case
-    login is not required."""
-    try:
-        xff = cherrypy.request.headers.get('X-Forwarded-For')
-        ip = xff.split(',')[0].strip() if xff else cherrypy.request.remote.ip
-        addr = ipaddress.ip_address(ip)
-        return any(addr in net for net in LOCAL_NETWORKS)
-    except Exception:
+def is_whitelisted_ip(remote_ip):
+    """True if remote_ip matches an entry in the WHITELIST config.
+    Entries may be exact IPs or CIDR ranges (e.g. 10.46.0.0/16), unlike
+    the older prefix-matching hack this replaces which only understood
+    a single hardcoded /24-shaped string format."""
+    whitelist = get_list(CONFIG.get_csv('WHITELIST'))
+    if not whitelist or not remote_ip:
         return False
+    try:
+        addr = ipaddress.ip_address(remote_ip)
+    except ValueError:
+        return False
+    for entry in whitelist:
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            if '/' in entry:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif addr == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def check_auth(*args, **kwargs):
@@ -78,7 +104,7 @@ def check_auth(*args, **kwargs):
     conditions = cherrypy.request.config.get('auth.require', None)
     get_params = quote(cherrypy.request.request_line.split()[1])
     if conditions is not None:
-        if _client_is_local():
+        if is_whitelisted_ip(get_remote_ip()):
             return
         # noinspection PyUnresolvedReferences
         username = cherrypy.session.get(SESSION_KEY)  # pylint: disable=no-member

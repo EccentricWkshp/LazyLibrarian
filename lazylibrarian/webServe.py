@@ -55,7 +55,7 @@ from lazylibrarian import (
     utorrent,
     versioncheck,
 )
-from lazylibrarian.auth import SESSION_KEY, AuthController, require_auth
+from lazylibrarian.auth import SESSION_KEY, AuthController, require_auth, get_remote_ip, is_whitelisted_ip
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import add_series_members, delete_empty_series, set_series
@@ -382,28 +382,10 @@ def serve_template(templatename, **kwargs):
                         lazylibrarian.SHOWLOGOUT = 1
 
                 if not res:
-                    remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2
-                    if not remote_ip:
-                        remote_ip = cherrypy.request.headers.get('X-Host')  # lighthttpd
-                    if not remote_ip:
-                        remote_ip = cherrypy.request.headers.get('Remote-Addr')
-                    if not remote_ip:
-                        remote_ip = cherrypy.request.remote.ip
-                    whitelist = get_list(CONFIG.get_csv('WHITELIST'))
-                    to_whitelist = False
-                    if remote_ip in whitelist:
-                        # exact match
-                        to_whitelist = True
-                        adminlogger.debug(f"Whitelisted login from {remote_ip}")
-                    for white in whitelist:
-                        # allow ranges in the format 192.168.1.1/24
-                        white_parts = white.split('.')
-                        if (len(white_parts) == 4 and white_parts[3] == '1/24' and
-                                remote_ip.startswith('.'.join(white_parts[:3]))):
-                            to_whitelist = True
-                            adminlogger.debug(f"Whitelisted login from {white}")
-                            break
+                    remote_ip = get_remote_ip()
+                    to_whitelist = is_whitelisted_ip(remote_ip)
                     if to_whitelist:
+                        adminlogger.debug(f"Whitelisted login from {remote_ip}")
                         columns = db.select('PRAGMA table_info(users)')
                         if not columns:  # no such table
                             cnt = 0
