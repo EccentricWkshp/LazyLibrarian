@@ -1560,8 +1560,11 @@ class Api:
 
     def _getsnatched(self):
         TELEMETRY.record_usage_data()
-        cmd = ("SELECT * from books,wanted WHERE books.bookid=wanted.bookid and books.Status='Snatched' "
-               "or AudioStatus='Snatched'")
+        # The OR needs bracketing: AND binds tighter, so without it the second
+        # branch carries no join condition and every book whose AudioStatus is
+        # Snatched is crossed with the whole wanted table.
+        cmd = ("SELECT * from books,wanted WHERE books.bookid=wanted.bookid "
+               "and (books.Status='Snatched' or books.AudioStatus='Snatched')")
         self.data = self._dic_from_query(cmd)
 
     def _logmessage(self, **kwargs):
