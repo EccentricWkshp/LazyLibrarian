@@ -21,6 +21,7 @@
 
 import logging
 import time
+import ipaddress
 from html import escape
 from urllib.parse import quote
 
@@ -54,6 +55,22 @@ def check_credentials(username, password):
 
 
 # noinspection PyUnusedLocal
+LOCAL_NETWORKS = [ipaddress.ip_network('10.46.0.0/16'), ipaddress.ip_network('192.168.0.0/16')]
+
+
+def _client_is_local():
+    """True if the request's real client IP (honoring X-Forwarded-For from a
+    reverse proxy) falls within the trusted local networks, in which case
+    login is not required."""
+    try:
+        xff = cherrypy.request.headers.get('X-Forwarded-For')
+        ip = xff.split(',')[0].strip() if xff else cherrypy.request.remote.ip
+        addr = ipaddress.ip_address(ip)
+        return any(addr in net for net in LOCAL_NETWORKS)
+    except Exception:
+        return False
+
+
 def check_auth(*args, **kwargs):
     """A tool that looks in config for 'auth.require'. If found, and it
     is not None, a login is required and the entry is evaluated as a list of
@@ -61,6 +78,8 @@ def check_auth(*args, **kwargs):
     conditions = cherrypy.request.config.get('auth.require', None)
     get_params = quote(cherrypy.request.request_line.split()[1])
     if conditions is not None:
+        if _client_is_local():
+            return
         # noinspection PyUnresolvedReferences
         username = cherrypy.session.get(SESSION_KEY)  # pylint: disable=no-member
         if username:
