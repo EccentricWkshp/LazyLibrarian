@@ -21,6 +21,7 @@
 
 import logging
 import time
+import ipaddress
 from html import escape
 from urllib.parse import quote
 
@@ -30,7 +31,7 @@ import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import pwd_generator
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import md5_utf8
+from lazylibrarian.formatter import md5_utf8, get_list
 
 SESSION_KEY = '_cp_username'
 
@@ -53,7 +54,49 @@ def check_credentials(username, password):
     return "Incorrect username or password."
 
 
-# noinspection PyUnusedLocal
+def get_remote_ip():
+    """Best-effort real client IP, honoring reverse-proxy headers.
+    Checks the same headers as the WHITELIST auto-login below, in the
+    same order, for consistency."""
+    remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2 / nginx
+    if remote_ip:
+        remote_ip = remote_ip.split(',')[0].strip()
+    if not remote_ip:
+        remote_ip = cherrypy.request.headers.get('X-Host')  # lighttpd
+    if not remote_ip:
+        remote_ip = cherrypy.request.headers.get('Remote-Addr')
+    if not remote_ip:
+        remote_ip = cherrypy.request.remote.ip
+    return remote_ip
+
+
+def is_whitelisted_ip(remote_ip):
+    """True if remote_ip matches an entry in the WHITELIST config.
+    Entries may be exact IPs or CIDR ranges (e.g. 10.46.0.0/16), unlike
+    the older prefix-matching hack this replaces which only understood
+    a single hardcoded /24-shaped string format."""
+    whitelist = get_list(CONFIG.get_csv('WHITELIST'))
+    if not whitelist or not remote_ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(remote_ip)
+    except ValueError:
+        return False
+    for entry in whitelist:
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            if '/' in entry:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif addr == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def check_auth(*args, **kwargs):
     """A tool that looks in config for 'auth.require'. If found, and it
     is not None, a login is required and the entry is evaluated as a list of
@@ -61,6 +104,8 @@ def check_auth(*args, **kwargs):
     conditions = cherrypy.request.config.get('auth.require', None)
     get_params = quote(cherrypy.request.request_line.split()[1])
     if conditions is not None:
+        if is_whitelisted_ip(get_remote_ip()):
+            return
         # noinspection PyUnresolvedReferences
         username = cherrypy.session.get(SESSION_KEY)  # pylint: disable=no-member
         if username:
