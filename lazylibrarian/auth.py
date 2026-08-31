@@ -19,9 +19,9 @@
 # Session tool to be loaded.
 # from cherrypy/tools on gitHub
 
+import ipaddress
 import logging
 import time
-import ipaddress
 from html import escape
 from urllib.parse import quote
 
@@ -31,7 +31,7 @@ import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import pwd_generator
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import md5_utf8, get_list
+from lazylibrarian.formatter import get_list, md5_utf8
 
 SESSION_KEY = '_cp_username'
 
@@ -55,19 +55,21 @@ def check_credentials(username, password):
 
 
 def get_remote_ip():
-    """Best-effort real client IP, honoring reverse-proxy headers.
-    Checks the same headers as the WHITELIST auto-login below, in the
-    same order, for consistency."""
-    remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2 / nginx
-    if remote_ip:
-        remote_ip = remote_ip.split(',')[0].strip()
-    if not remote_ip:
+    """Return the client IP used for whitelist checks.
+
+    Only trust X-Forwarded-For when PROXY_LOCAL is configured, which
+    means the admin has declared that a reverse proxy sits in front
+    of LazyLibrarian.  Without that setting, use the TCP peer address
+    so a remote client cannot spoof a local IP via a forged header."""
+    if CONFIG.get_str('PROXY_LOCAL'):
         remote_ip = cherrypy.request.headers.get('X-Host')  # lighttpd
-    if not remote_ip:
-        remote_ip = cherrypy.request.headers.get('Remote-Addr')
-    if not remote_ip:
-        remote_ip = cherrypy.request.remote.ip
-    return remote_ip
+        if not remote_ip:
+            remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2 / nginx
+        if remote_ip:
+            remote_ip = remote_ip.split(',')[0].strip()
+            return remote_ip
+    return cherrypy.request.remote.ip
+
 
 
 def is_whitelisted_ip(remote_ip):
