@@ -2887,7 +2887,9 @@ class Api:
         try:
             dbentry = db.match(f"SELECT {table}ID from {table}s WHERE {table}ID=?", (itemid,))
             if dbentry:
-                subcache = 'cache' + os.path.sep + itemid + '.jpg'
+                # The file was copied to CACHEDIR/<table>/<id>.jpg above,
+                # so the stored path needs the same <table> component.
+                subcache = os.path.join('cache', table, itemid + '.jpg')
                 db.action(f"UPDATE {table}s SET {table}Img=? WHERE {table}ID=?", (subcache, itemid))
             else:
                 self.data = f"{table}ID {itemid} not found"
