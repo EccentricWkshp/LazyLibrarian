@@ -55,7 +55,13 @@ from lazylibrarian import (
     utorrent,
     versioncheck,
 )
-from lazylibrarian.auth import SESSION_KEY, AuthController, require_auth, get_remote_ip, is_whitelisted_ip
+from lazylibrarian.auth import (
+    SESSION_KEY,
+    AuthController,
+    get_remote_ip,
+    is_whitelisted_ip,
+    require_auth,
+)
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import add_series_members, delete_empty_series, set_series
@@ -1829,7 +1835,8 @@ class WebInterface:
             args.pop(arg, None)
         passed = 0
         failed = 0
-        redirect = ''
+        if redirect is None:
+            redirect = ''
         if action:
             for seriesid in args:
                 if action in ["Wanted", "Active", "Skipped", "Ignored", "Paused"]:
@@ -4407,10 +4414,10 @@ class WebInterface:
             return {'error': f'Author {authorid} not found'}
         if source not in lazylibrarian.INFOSOURCES:
             return {'error': f'{source} is not a configured source'}
-        info_source = lazylibrarian.INFOSOURCES[source]
-        if not CONFIG[info_source['enabled']]:
+        inf_source = lazylibrarian.INFOSOURCES[source]
+        if not CONFIG[inf_source['enabled']]:
             return {'error': f'{source} is not enabled in Config -> Importing'}
-        api = info_source['api']()
+        api = inf_source['api']()
         try:
             result = api.find_author_id(authorname=author['AuthorName'])
         except Exception as e:
@@ -4445,8 +4452,8 @@ class WebInterface:
         updates = {column: sourceid}
         link_column = lazylibrarian.INFOSOURCES[source].get('author_link')
         if link_column:
-            info_source = lazylibrarian.INFOSOURCES[source]
-            api = info_source['api']()
+            inf_source = lazylibrarian.INFOSOURCES[source]
+            api = inf_source['api']()
             try:
                 info = api.get_author_info(authorid=sourceid, authorname=author['AuthorName'])
             except Exception as e:
@@ -4481,8 +4488,8 @@ class WebInterface:
         if not sourceid:
             db.close()
             return {'error': f'Author is not linked to {source} yet'}
-        info_source = lazylibrarian.INFOSOURCES[source]
-        api = info_source['api']()
+        inf_source = lazylibrarian.INFOSOURCES[source]
+        api = inf_source['api']()
         try:
             info = api.get_author_info(authorid=sourceid, authorname=author['AuthorName'])
         except Exception as e:
