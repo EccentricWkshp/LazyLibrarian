@@ -2712,9 +2712,9 @@ class WebInterface:
                         overlap += 1
             source_book_counts[col] = (count, overlap)
 
-        ebook_status_counts = {row['Status']: row['cnt'] for row in db.select(
+        ebook_status_counts = {row['Status'] or 'None': row['cnt'] for row in db.select(
             "SELECT Status, COUNT(*) as cnt FROM books WHERE AuthorID=? GROUP BY Status", (authorid,))}
-        audio_status_counts = {row['AudioStatus']: row['cnt'] for row in db.select(
+        audio_status_counts = {row['AudioStatus'] or 'None': row['cnt'] for row in db.select(
             "SELECT AudioStatus, COUNT(*) as cnt FROM books WHERE AuthorID=? GROUP BY AudioStatus", (authorid,))}
         db.close()
 
