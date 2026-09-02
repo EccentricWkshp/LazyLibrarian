@@ -1595,9 +1595,9 @@ def update_schema(db, upgradelog):
         db.action('ALTER TABLE authors ADD COLUMN AmazonAuthorURL TEXT')
 
     if db_version < 97:
+        changes += 1
         nulls = db.match("SELECT COUNT(*) as cnt FROM books WHERE Status IS NULL OR AudioStatus IS NULL")
         if nulls and nulls['cnt']:
-            changes += 1
             lazylibrarian.UPDATE_MSG = f"Setting {nulls['cnt']} NULL Status/AudioStatus rows to Skipped"
             upgradelog.write(f"{time.ctime()} v97: {lazylibrarian.UPDATE_MSG}\n")
             db.action("UPDATE books SET Status='Skipped' WHERE Status IS NULL")
