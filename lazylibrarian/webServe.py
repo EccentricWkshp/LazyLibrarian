@@ -3914,12 +3914,23 @@ class WebInterface:
                 res = db.match('SELECT BookName,BookImg from books WHERE BookID=?', (itemid,))
                 if res:
                     logger.debug(f"Itemid {itemid} matches ebook")
+                    bookimg = res['BookImg']
+                    if bookimg and bookimg.startswith('http'):
+                        # external URL (set by e.g. googlebooks import) - cache it,
+                        # point the row at the cached file and serve that, instead
+                        # of silently falling through to the app logo
+                        link, ok, _ = cache_img(ImageType.BOOK, itemid, bookimg)
+                        if ok:
+                            db.action("UPDATE books SET BookImg=? WHERE BookID=?",
+                                      (link, itemid))
+                            logger.info(f"Cached external cover for {itemid} from {bookimg}")
+                            bookimg = link
                     if size:
-                        target = createthumb(os.path.join(DIRS.DATADIR, res['BookImg']), size, False)
+                        target = createthumb(os.path.join(DIRS.DATADIR, bookimg), size, False)
                     if not target:
-                        target = os.path.join(DIRS.DATADIR, res['BookImg'])
+                        target = os.path.join(DIRS.DATADIR, bookimg)
                     if path_isfile(target):
-                        return self.send_file(target, name=res['BookName'] + splitext(res['BookImg'])[1])
+                        return self.send_file(target, name=res['BookName'] + splitext(bookimg)[1])
                 else:
                     res = db.match('SELECT Title,Cover from issues WHERE IssueID=?', (itemid,))
                     if res:
