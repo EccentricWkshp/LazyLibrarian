@@ -95,7 +95,7 @@ generator = ''
 # (both are switched off by googleapis)
 # bing gives seemingly random results, some NSFW, sometimes based on first word of
 # search query, eg "Michael Agnew" returns lots of pictures of Michael Jackson
-force_ignore = 'flikr, baidu, librarything, googleapis, bing'
+force_ignore = 'flickr, baidu, librarything, googleapis, bing'
 
 
 def img_id(length=10):
@@ -577,19 +577,19 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 return None, src
 
         if PIL and safeparams:
-            if not src or src == 'baidu' and 'baidu' not in ignore:
+            if (not src or src == 'baidu') and 'baidu' not in ignore:
                 res, src = crawl_image('baidu', src, cachedir, bookid, safeparams, imgid=imgid)
                 if res:
                     return res, src
-            if not src or src == 'bing' and 'bing' not in ignore:
+            if (not src or src == 'bing') and 'bing' not in ignore:
                 res, src = crawl_image('bing', src, cachedir, bookid, safeparams, imgid=imgid)
                 if res:
                     return res, src
-            if not src or src == 'flikr' and 'flikr' not in ignore:
+            if (not src or src == 'flickr') and 'flickr' not in ignore:
              res, src = crawl_image('flickr', src, cachedir, bookid, safeparams, imgid=imgid)
              if res:
                  return res, src
-            if not src or src == 'googleimage' and 'googleapis' not in ignore:
+            if (not src or src == 'googleimage') and 'googleapis' not in ignore:
                 res, src = crawl_image('google', src, cachedir, bookid, safeparams, imgid=imgid)
                 if res:
                     return res, src
