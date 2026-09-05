@@ -128,7 +128,7 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 
-db_current_version = 96
+db_current_version = 97
 
 
 def upgrade_needed():
@@ -248,9 +248,11 @@ def db_upgrade(current_version: int, restartjobs: bool = False):
                               'ON DELETE CASCADE, BookName TEXT, BookSub TEXT, BookDesc TEXT, ' +
                               'BookGenre TEXT, BookIsbn TEXT, BookPub TEXT, BookRate INTEGER DEFAULT 0, ' +
                               'BookImg TEXT, BookPages INTEGER DEFAULT 0, BookLink TEXT, BookID TEXT UNIQUE, ' +
-                              'BookFile TEXT, BookDate TEXT, BookLang TEXT, BookAdded TEXT, Status TEXT, ' +
+                              'BookFile TEXT, BookDate TEXT, BookLang TEXT, BookAdded TEXT, ' +
+                              'Status TEXT DEFAULT "Skipped", ' +
                               'WorkPage TEXT, Manual TEXT, SeriesDisplay TEXT, BookLibrary TEXT, ' +
-                              'AudioFile TEXT, AudioLibrary TEXT, AudioStatus TEXT, WorkID TEXT, ' +
+                              'AudioFile TEXT, AudioLibrary TEXT, ' +
+                              'AudioStatus TEXT DEFAULT "Skipped", WorkID TEXT, ' +
                               'ScanResult TEXT, OriginalPubDate TEXT, Requester TEXT, AudioRequester TEXT, ' +
                               'LT_WorkID TEXT, Narrator TEXT)')
                     db.action(
@@ -1591,6 +1593,15 @@ def update_schema(db, upgradelog):
         # URL rather than trying to parse out just the ID, since the slug portion isn't
         # reliably derivable and the full URL works as-is.
         db.action('ALTER TABLE authors ADD COLUMN AmazonAuthorURL TEXT')
+
+    if db_version < 97:
+        changes += 1
+        nulls = db.match("SELECT COUNT(*) as cnt FROM books WHERE Status IS NULL OR AudioStatus IS NULL")
+        if nulls and nulls['cnt']:
+            lazylibrarian.UPDATE_MSG = f"Setting {nulls['cnt']} NULL Status/AudioStatus rows to Skipped"
+            upgradelog.write(f"{time.ctime()} v97: {lazylibrarian.UPDATE_MSG}\n")
+            db.action("UPDATE books SET Status='Skipped' WHERE Status IS NULL")
+            db.action("UPDATE books SET AudioStatus='Skipped' WHERE AudioStatus IS NULL")
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
