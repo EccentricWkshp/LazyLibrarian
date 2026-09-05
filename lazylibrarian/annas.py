@@ -25,7 +25,7 @@ from html import unescape as html_unescape
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, Tag
-from requests import get
+from requests import Session, get
 from requests.exceptions import JSONDecodeError
 
 import lazylibrarian
@@ -188,12 +188,39 @@ def extract_publish_info(raw: str) -> tuple[str, str]:
     return publisher, date
 
 
+ANNAS_SESSION = Session()
+_annas_logged_in = set()
+
+
+def annas_login(host: str) -> bool:
+    downloadlogger = logging.getLogger('special.dlcomms')
+    if host in _annas_logged_in:
+        return True
+    key = CONFIG['ANNA_KEY']
+    if not key:
+        downloadlogger.debug("No ANNA_KEY set, searching anonymously")
+        return False
+    try:
+        resp = ANNAS_SESSION.post(urljoin(host, "/account/"), data={'key': key},
+                                  timeout=30, allow_redirects=False)
+    except Exception as e:
+        downloadlogger.error(f"{host}: error logging in to Anna's Archive: {e}")
+        return False
+    if 'aa_account_id2' in ANNAS_SESSION.cookies.get_dict():
+        downloadlogger.debug(f"Signed in to Anna's Archive at {host}")
+        _annas_logged_in.add(host)
+        return True
+    downloadlogger.error(f"{host}: Anna's Archive login did not set a session cookie "
+                         f"(http status {resp.status_code}); check your ANNAS key")
+    return False
+
+
 # noinspection PyDefaultArgument
 def html_parser(url: str, params: dict = None) -> BeautifulSoup:
     if not params:
         params = {}
     params = dict(filter(lambda i: i[1], params.items()))
-    response = get(url, params=params)
+    response = ANNAS_SESSION.get(url, params=params)
     if response.status_code >= 400:
         raise HTTPFailedError(f"server returned http status {response.status_code}")
     html = response.text.replace("<!--", "").replace("-->", "")
@@ -241,6 +268,7 @@ def annas_search(
         if not host.startswith('http'):
             prefix = "https://"
         try:
+            annas_login(prefix + host)
             soup = html_parser(urljoin(prefix + host, "search"), params)
             if soup:
                 # got some results, prefer this host next time
