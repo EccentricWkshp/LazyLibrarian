@@ -1390,7 +1390,8 @@ def isbnlang(isbn):
 
 
 def language_from_words(words, source='ms'):
-    # Since yesterday (24 Aug 2026) google now reports everything as English, 1.0
+    # Since 24 Aug 2026 google now reports everything as English, 1.0
+    # Fixed 31 August, working normally again
     if not words:
         return 'None', 0
     logger = logging.getLogger(__name__)
