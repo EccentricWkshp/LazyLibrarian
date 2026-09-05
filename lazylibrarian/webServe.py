@@ -3930,7 +3930,7 @@ class WebInterface:
                     if not target:
                         target = os.path.join(DIRS.DATADIR, bookimg)
                     if path_isfile(target):
-                        return self.send_file(target, name=res['BookName'] + splitext(bookimg)[1])
+                        return self.send_file(target, name=res['BookName'] + splitext(bookimg)[1], perm_check=False)
                 else:
                     res = db.match('SELECT Title,Cover from issues WHERE IssueID=?', (itemid,))
                     if res:
@@ -3940,7 +3940,7 @@ class WebInterface:
                         if not target:
                             target = os.path.join(DIRS.DATADIR, res['Cover'])
                         if path_isfile(target):
-                            return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1])
+                            return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1], perm_check=False)
                     else:
                         try:
                             comicid, issueid = itemid.split('_')
@@ -3956,12 +3956,12 @@ class WebInterface:
                             if not target:
                                 target = os.path.join(DIRS.DATADIR, res['Cover'])
                             if path_isfile(target):
-                                return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1])
+                                return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1], perm_check=False)
 
             logger.debug(f"Itemid {itemid} no match")
             target = os.path.join(DIRS.PROG_DIR, 'data', 'images', 'll192.png')
             if path_isfile(target):
-                return self.send_file(target, name='lazylibrarian.png')
+                return self.send_file(target, name='lazylibrarian.png', perm_check=False)
 
         elif ftype == 'comic':
             try:
@@ -3977,7 +3977,7 @@ class WebInterface:
                 target = res['IssueFile']
                 if target and path_isfile(target):
                     logger.debug(f'Opening {ftype} {target}')
-                    return self.send_file(target, name=f"{res['Title']} {issueid}{splitext(target)[1]}")
+                    return self.send_file(target, name=f"{res['Title']} {issueid}{splitext(target)[1]}", perm_check=False)
 
         elif ftype == 'audio':
             res = db.match('SELECT AudioFile,BookName from books WHERE BookID=?', (itemid,))
@@ -3996,11 +3996,11 @@ class WebInterface:
                     target = zip_audio(os.path.dirname(myfile), res['BookName'], itemid)
                     if target and path_isfile(target):
                         logger.debug(f'Opening {ftype} {target}')
-                        return self.send_file(target, name=res['BookName'] + '.zip')
+                        return self.send_file(target, name=res['BookName'] + '.zip', perm_check=False)
 
                 if myfile and path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile)
+                    return self.send_file(myfile, perm_check=False)
 
         elif ftype == 'book':
             res = db.match('SELECT BookFile,BookName from books WHERE BookID=?', (itemid,))
@@ -4021,7 +4021,7 @@ class WebInterface:
                 myfile = fname + '.' + extn
                 if path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile)
+                    return self.send_file(myfile, perm_check=False)
 
         elif ftype == 'issue':
             res = db.match('SELECT Title,IssueFile from issues WHERE IssueID=?', (itemid,))
@@ -4029,7 +4029,7 @@ class WebInterface:
                 myfile = res['IssueFile']
                 if myfile and path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile, name=f"{res['Title']} {itemid}{splitext(myfile)[1]}")
+                    return self.send_file(myfile, name=f"{res['Title']} {itemid}{splitext(myfile)[1]}", perm_check=False)
         db.close()
         logger.warning(f"No file found for {ftype} {itemid}")
         return None
@@ -9573,9 +9573,11 @@ class WebInterface:
         data = op.fetch_data()
         return data
 
-    def send_file(self, myfile, name=None, email=False):
+    def send_file(self, myfile, name=None, email=False, perm_check=True):
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_download, redirect_unauth=True)
+        # serve_item() may have already validated the embedded feed token and perm_download
+        if perm_check:
+            self.check_permitted(lazylibrarian.perm_download, redirect_unauth=True)
         userid = ''
         if CONFIG.get_bool('USER_ACCOUNTS'):
             cookie = cherrypy.request.cookie
