@@ -2703,6 +2703,11 @@ class Api:
                 self.data = f"Missing parameter: {item}"
                 return
         item = CONFIG.get_item(kwargs['name'])
+        if not item:
+            self.data = f"{kwargs['name']} not found in config"
+            if kwargs['name'].split('_')[0].upper() in ['NEWZNAB', 'TORZNAB', 'RSS', 'IRC', 'GEN']:
+                self.data += " use changeProvider"
+            return
         value = CONFIG.get_item(kwargs['value'])
         if item == 'BOOK_API':
             if value not in lazylibrarian.INFOSOURCES.keys():
