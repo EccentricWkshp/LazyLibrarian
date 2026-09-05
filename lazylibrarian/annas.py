@@ -193,6 +193,7 @@ _annas_logged_in = set()
 
 
 def annas_login(host: str) -> bool:
+    """Sign in to `host` with ANNA_KEY so /search skips the DDoS-Guard check."""
     downloadlogger = logging.getLogger('special.dlcomms')
     if host in _annas_logged_in:
         return True
@@ -217,12 +218,16 @@ def annas_login(host: str) -> bool:
 
 # noinspection PyDefaultArgument
 def html_parser(url: str, params: dict = None) -> BeautifulSoup:
+    downloadlogger = logging.getLogger('special.dlcomms')
     if not params:
         params = {}
     params = dict(filter(lambda i: i[1], params.items()))
     response = ANNAS_SESSION.get(url, params=params)
     if response.status_code >= 400:
-        raise HTTPFailedError(f"server returned http status {response.status_code}")
+        uri = urlparse(url)
+        _annas_logged_in.discard(f"{uri.scheme}://{uri.netloc}")
+        downloadlogger.error(f"{url} returned http status {response.status_code}")
+        return None
     html = response.text.replace("<!--", "").replace("-->", "")
     return BeautifulSoup(html, "html5lib")
 
