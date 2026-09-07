@@ -2705,6 +2705,12 @@
                 </fieldset>
                 <fieldset>
                   <div class="checkbox">
+                    <% checked = 'checked="checked"' if CONFIG['PREF_EBOOKOPF'] else '' %>
+                    <label for="pref_ebookopf" class="control-label">
+                      <input type="checkbox" id="pref_ebookopf" name="pref_ebookopf" value="1" ${checked} />
+                      Prefer data in opf files over embedded ebook data</label>
+                  </div>
+                  <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['IMP_EBOOKOPF'] else '' %>
                     <label for="imp_ebookopf" class="control-label">
                       <input type="checkbox" id="imp_ebookopf" name="imp_ebookopf" value="1" ${checked} />

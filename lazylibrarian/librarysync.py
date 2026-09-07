@@ -878,7 +878,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                 logger.debug(f"Reading info from {metafile}")
                                 res2 = get_book_info(metafile)
                                 opf_author = res2.get('creator', '')
-                                if pre_opf_author and opf_author and \
+                                if not CONFIG.get_bool('PREF_EBOOKOPF') and pre_opf_author and opf_author and \
                                         collate_fuzzy(pre_opf_author, opf_author) != 0:
                                     logger.warning(
                                         f"OPF {metafile} author [{opf_author}] disagrees with "
