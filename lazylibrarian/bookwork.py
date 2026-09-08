@@ -23,6 +23,7 @@ import requests
 from rapidfuzz import fuzz
 
 import lazylibrarian
+from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian import database
 from lazylibrarian.cache import fetch_url, gr_xml_request, json_request
 from lazylibrarian.config2 import CONFIG
@@ -1390,8 +1391,6 @@ def isbnlang(isbn):
 
 
 def language_from_words(words, source='ms'):
-    # Since 24 Aug 2026 google now reports everything as English, 1.0
-    # Fixed 31 August, working normally again
     if not words:
         return 'None', 0
     logger = logging.getLogger(__name__)
@@ -1402,6 +1401,22 @@ def language_from_words(words, source='ms'):
     # couldn't be loaded, or configured off
     if not Translator or not CONFIG.get_bool('GOOGLE_TRANS_ID'):
         return 'Disabled', 0
+
+    # Since 24 Aug 2026 google now reports everything as English, 1.0
+    # Fixed 31 August, working normally again
+    # Check if not already checked in the last hour
+    if int(time.time()) > lazylibrarian.TIMERS['LAST_GLANG'] + 3600:
+        lazylibrarian.TIMERS['LAST_GLANG'] = int(time.time())    
+        detected_lang, _ = language_from_words("le chien blanc", source="google")
+        if detected_lang == "en":
+            # google is lying to us, block for an hour
+            BLOCKHANDLER.block_provider("glang", "Invalid en result", delay=3600)
+        elif detected_lang == "fr":
+            # it's working ok
+            BLOCKHANDLER.remove_provider_entry("glang")
+
+    if BLOCKHANDLER.is_blocked("glang"):
+        return "Blocked", 0
 
     logging.getLogger('googletrans').setLevel(logging.CRITICAL)
     logging.getLogger('asyncio').setLevel(logging.CRITICAL)

@@ -270,6 +270,7 @@ class StartupLazyLibrarian:
         lazylibrarian.TIMERS['SLEEP_BOK'] = 0.0
         lazylibrarian.TIMERS['LAST_HC'] = time_now
         lazylibrarian.TIMERS['SLEEP_HC'] = 0.0
+        lazylibrarian.TIMERS['LAST_GLANG'] = 0
 
     def init_database(self):
         # Initialize the database
