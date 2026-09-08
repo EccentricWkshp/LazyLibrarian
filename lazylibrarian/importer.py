@@ -1006,7 +1006,7 @@ def update_totals(authorid, quiet=False):
         db.close()
         if not quiet:
             logger.debug(
-                f"Updated totals for [{authorname}] {new_value_dict['HaveBooks']}/{new_value_dict['TotalBooks']}")
+                f"Updated totals for [{authorname}] Have {new_value_dict['HaveBooks']}/{new_value_dict['TotalBooks']} Total")
     except Exception as e:
         logger.error(str(e))
         db.close()
