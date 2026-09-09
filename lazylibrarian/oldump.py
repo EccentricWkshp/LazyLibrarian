@@ -5,13 +5,14 @@ import os
 import shutil
 import sqlite3
 import time
+from operator import itemgetter
 
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
-from lazylibrarian.formatter import thread_name
+from lazylibrarian.formatter import format_author_name, get_list, thread_name
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ STOP_CHECK_STEP = 10000
 # space the indexed sqlite database will need on top of the two dump files it's built from -
 # not exact (depends on how many rows have usable ISBN/cover data), just enough to catch
 # "this clearly won't fit" before committing to a multi-GB download.
-DB_SIZE_ESTIMATE_MULTIPLIER = 1.5
+DB_SIZE_ESTIMATE_MULTIPLIER = 2
 
 AUTHORS_DUMP_URL = "https://openlibrary.org/data/ol_dump_authors_latest.txt.gz"
 WORKS_DUMP_URL = "https://openlibrary.org/data/ol_dump_works_latest.txt.gz"
@@ -58,9 +59,9 @@ def _local_footprint(dump_dir):
     total = 0
     for name in ('ol_dump_authors.txt.gz', 'ol_dump_authors.txt.gz.part',
                  'ol_dump_works.txt.gz', 'ol_dump_works.txt.gz.part'):
-        path = os.path.join(dump_dir, name)
-        if os.path.exists(path):
-            total += os.path.getsize(path)
+        src_path = os.path.join(dump_dir, name)
+        if os.path.exists(src_path):
+            total += os.path.getsize(src_path)
     db_path = get_dump_db_path()
     if os.path.exists(db_path):
         total += os.path.getsize(db_path)
@@ -101,6 +102,12 @@ def get_dump_dir():
 def get_dump_db_path():
     return os.path.join(get_dump_dir(), 'ol_catalog.sqlite3')
 
+def has_column(cursor, table, column):
+    columns = cursor.execute(f'PRAGMA table_info({table})').fetchall()
+    if not columns:  # no such table
+        return False
+    return any(item[1] == column for item in columns)
+
 def init_dump_db(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -118,11 +125,22 @@ def init_dump_db(db_path):
             author_id TEXT,
             title TEXT COLLATE NOCASE,
             first_publish_year TEXT,
-            isbn TEXT,
             cover_i TEXT,
             FOREIGN KEY(author_id) REFERENCES ol_authors(author_id)
         );
     """)
+
+    # schema changes
+    for column in ['birth_date', 'death_date', 'bio', 'photos']:
+        if not has_column(cur, 'ol_authors', column):
+            cur.execute(f"ALTER TABLE ol_authors ADD COLUMN {column} TEXT")
+
+    # There is no data in the works dump file for isbn, asin, publisher, rating, language
+    # language and isbn are available for some books using search.json?author=author_id
+    for column in ['contributors', 'genres','subtitle','description']:
+        if not has_column(cur, 'ol_works', column):
+            cur.execute(f"ALTER TABLE ol_works ADD COLUMN {column} TEXT")
+
     cur.execute("DROP INDEX IF EXISTS idx_ol_authors_name;")
     cur.execute("DROP INDEX IF EXISTS idx_ol_works_author;")
     cur.execute("DROP INDEX IF EXISTS idx_ol_works_title;")
@@ -280,11 +298,19 @@ def update_openlibrary_dump():
                         data = json.loads(parts[4])
                         name = data.get('name', '')
                         if key and name:
-                            batch.append((key, name))
-                    except Exception:
-                        pass
+                            birth_date = data.get('birth_date', '')
+                            death_date = data.get('death_date', '')
+                            bio = data.get('bio', '')
+                            if bio and isinstance(bio, dict):
+                                bio = bio.get('value', '')
+                            photos = data.get('photos', '')
+                            if photos and isinstance(photos, list):
+                                photos = photos[0]
+                            batch.append((key, name, birth_date, death_date, bio, str(photos)))
+                    except Exception as e:
+                        logger.debug(f"Exception: {e}")
                 if len(batch) >= STOP_CHECK_STEP:
-                    cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
+                    cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name, birth_date, death_date, bio, photos) VALUES (?, ?, ?, ?, ?, ?)", batch)
                     indexed += len(batch)
                     batch = []
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
@@ -296,7 +322,7 @@ def update_openlibrary_dump():
                         break
 
         if batch and not authors_stopped:
-            cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name) VALUES (?, ?)", batch)
+            cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name, birth_date, death_date, bio, photos) VALUES (?, ?, ?, ?, ?, ?)", batch)
             indexed += len(batch)
         logger.info(f"Imported {indexed} authors total{' (stopped early)' if authors_stopped else ''}")
         cur.execute("END TRANSACTION;")
@@ -326,18 +352,43 @@ def update_openlibrary_dump():
                         authors = data.get('authors', [])
                         author_id = ''
                         if authors:
-                            a_ref = authors[0].get('author', {}).get('key', '')
+                            try:
+                                a_ref = authors[0].get('author', {}).get('key', '')
+                            except AttributeError:
+                                a_ref = authors[0].get('author', {})
                             if a_ref:
                                 author_id = a_ref.split('/')[-1]
+                        try:
+                            description = data.get('description', '').get('value', '')
+                        except AttributeError:
+                            description = ''
+                        subtitle = data.get('subtitle', '')
+                        genres = data.get('subjects', '')
+                        if genres:
+                            genres = ','.join(genres)
+                        secondaries = []
+                        if len(authors) > 1:
+                            others = authors[1:]
+                            for author in others:
+                                try:
+                                    a_ref = author.get('author', {}).get('key', '')
+                                except AttributeError:
+                                    a_ref = author.get('author', {})
+                                if a_ref:
+                                    secondaries.append(a_ref.split('/')[-1])
+                        contributors = ','.join(secondaries)
+
                         covers = data.get('covers', [])
                         cover_i = str(covers[0]) if covers else ''
                         first_publish_date = str(data.get('created', {}).get('value', ''))[:4]
                         if key and title and author_id:
-                            batch.append((key, author_id, title, first_publish_date, '', cover_i))
-                    except Exception:
-                        pass
+                            batch.append((key, author_id, title, first_publish_date, cover_i, contributors, genres, subtitle, description))
+                    except Exception as e:
+                        logger.debug(f"Exception: {e}")
+
                 if len(batch) >= STOP_CHECK_STEP:
-                    cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
+                    cur.executemany("""INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, cover_i,
+                                        contributors, genres, subtitle, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch)
                     indexed += len(batch)
                     batch = []
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
@@ -349,7 +400,8 @@ def update_openlibrary_dump():
                         break
 
         if batch and not works_stopped:
-            cur.executemany("INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, isbn, cover_i) VALUES (?, ?, ?, ?, ?, ?)", batch)
+            cur.executemany("""INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, cover_i,
+                                contributors, genres, subtitle, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch)
             indexed += len(batch)
         logger.info(f"Imported {indexed} works total{' (stopped early)' if works_stopped else ''}")
         cur.execute("END TRANSACTION;")
@@ -358,23 +410,78 @@ def update_openlibrary_dump():
         else:
             logger.info("OpenLibrary Bulk Dump importing complete successfully.")
 
+        logger.info("OpenLibrary Bulk Dump indexing started.")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
+        logger.info("OpenLibrary Bulk Dump indexing complete.")
+
     except Exception as e:
         logger.error(f"Error updating OpenLibrary bulk dump: {e}")
     finally:
         if conn:
-            logger.info("OpenLibrary Bulk Dump indexing started.")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
             conn.close()
-            logger.info("OpenLibrary Bulk Dump indexing complete.")
         logger.debug(f"Storing finish time for {thread_name()}")
         jobdb.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
         jobdb.close()
         thread_name(incoming_threadname)
 
-def query_local_dump_author(author_name):
-    """Search local dump database for author ID by name."""
+def query_local_dump_authorid_of_book(author_name, title):
+    """Search local dump database for author ID by name and book title."""
+    logger.debug(f"Query local dump for {author_name}:{title}")
+    db_path = get_dump_db_path()
+    if not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cmd = "SELECT ol_authors.author_id, author_name FROM ol_authors,ol_works WHERE "
+        cmd += "ol_authors.author_id = ol_works.author_id and "
+        cmd += "author_name = ? COLLATE NOCASE and title = ? COLLATE NOCASE"
+        cur.execute(cmd, (author_name, title))
+        res = cur.fetchone()
+        conn.close()
+        if res:
+            logger.debug(f"Local dump returning {res[0]}:{res[1]}")
+            return {'authorid': res[0], 'authorname': res[1]}
+    except Exception as e:
+        logger.error(f"Local dump bookauthor query error: {e}")
+    return None
+
+
+def query_local_dump_author_info(author_id):
+    """Search local dump database for author by ID."""
+    logger.debug(f"Query local dump info for {author_id}")
+    db_path = get_dump_db_path()
+    if not os.path.exists(db_path):
+        return {}
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT author_id, author_name, birth_date, death_date, bio, photos FROM ol_authors WHERE author_id = ?", (author_id,))
+        res = cur.fetchone()
+        books = cur.execute("SELECT count(*) as counter FROM ol_works WHERE author_id = ?", (author_id,)).fetchone()
+        conn.close()
+        if res:
+            d = {
+            'authorid': res[0],
+            'authorlink': '/'.join([CONFIG['OL_URL'], "authors", res[0]]),
+            'authorimg': res[5],
+            'authorborn': res[2],
+            'authordeath': res[3],
+            'about': res[4],
+            'totalbooks': str(books[0]),
+            'authorname': format_author_name(res[1], postfix=get_list(CONFIG.get_csv('NAME_POSTFIX')))
+            }
+            logger.debug(f"Local dump returning {d}")
+            return d
+    except Exception as e:
+        logger.error(f"Local dump authorid query error: {e}")
+    return {}
+
+def query_local_dump_authorid(author_name, all=False):
+    """Search local dump database for author ID by name """
+    logger.debug(f"Query local dump authorid for {author_name}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
         return None
@@ -382,16 +489,30 @@ def query_local_dump_author(author_name):
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute("SELECT author_id, author_name FROM ol_authors WHERE author_name = ? COLLATE NOCASE", (author_name,))
-        res = cur.fetchone()
+        res = cur.fetchall()
+        if not res:
+            conn.close()
+            return None
+
+        # Return the one with the most books
+        authors = []
+        for auth in res:
+            books = cur.execute("SELECT count(*) as counter FROM ol_works WHERE author_id = ?", (auth[0],)).fetchone()
+            authors.append((auth[0], auth[1], books[0]))
         conn.close()
-        if res:
-            return {'authorid': res[0], 'authorname': res[1]}
+        authors = sorted(authors, key=itemgetter(2), reverse=True)
+        if all:
+            logger.debug(f"Local dump returning {authors}")
+            return authors
+        logger.debug(f"Local dump returning {authors[0][0]}:{authors[0][1]}")
+        return {'authorid': authors[0][0], 'authorname': authors[0][1]}
     except Exception as e:
         logger.error(f"Local dump author query error: {e}")
     return None
 
 def query_local_dump_books(author_id):
     """Query local dump database for all works belonging to an author ID."""
+    logger.debug(f"Query local dump books for {author_id}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
         return []
@@ -399,17 +520,23 @@ def query_local_dump_books(author_id):
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        cur.execute("SELECT work_id, title, first_publish_year, cover_i FROM ol_works WHERE author_id = ?", (author_id,))
+        cur.execute("SELECT work_id, title, first_publish_year, cover_i, contributors, genres, subtitle, description FROM ol_works WHERE author_id = ?", (author_id,))
         rows = cur.fetchall()
         conn.close()
         for r in rows:
+            # make it look like the results from search.json
             docs.append({
                 'key': f"/works/{r[0]}",
                 'title': r[1],
                 'first_publish_year': r[2],
                 'cover_i': r[3],
+                'contributors': r[4],
+                'genres': r[5],
+                'subtitle': r[6],
+                'description': r[7],
                 'author_key': [author_id]
             })
     except Exception as e:
         logger.error(f"Local dump books query error: {e}")
+    logger.debug(f"Local dump returning {len(docs)}")
     return docs
