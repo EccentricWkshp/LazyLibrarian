@@ -120,7 +120,11 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
     if headers is None:
         # some sites insist on having a user-agent, default is to add one
         # if you don't want any headers, pass headers={}
-        headers = {'User-Agent': get_user_agent()}
+        if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
+            # higher requests per second if identified
+            headers = {'User-Agent': f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})"}
+        else:
+            headers = {'User-Agent': get_user_agent()}
 
     proxies = proxy_list()
 
