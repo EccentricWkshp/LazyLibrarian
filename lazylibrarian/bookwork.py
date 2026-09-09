@@ -1413,7 +1413,8 @@ def language_from_words(words, source='ms'):
             BLOCKHANDLER.block_provider("glang", "Invalid en result", delay=3600)
         elif detected_lang == "fr":
             # it's working ok
-            BLOCKHANDLER.remove_provider_entry("glang")
+            if BLOCKHANDLER.is_blocked("glang"):
+                BLOCKHANDLER.remove_provider_entry("glang")
 
     if BLOCKHANDLER.is_blocked("glang"):
         return "Blocked", 0
