@@ -125,6 +125,12 @@ from lazylibrarian.multiauth import (
     get_authors_from_hc,
     get_authors_from_ol,
 )
+from lazylibrarian.oldump import(
+    query_local_dump_authorid,
+    query_local_dump_authorid_of_book,
+    query_local_dump_author_info,
+    query_local_dump_books
+)
 from lazylibrarian.postprocess import (
     process_dir,
     process_img,
@@ -345,7 +351,11 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
             'isbnwords': (0, 'find an isbn for a title'),
             'langwords': (0, '[&source=] find language from a title (source is ms or google)'),
             'getDownloadProgress': (0, '[&source=] [&downloadid=] [&limit=] show active download progress'),
-            'cleanMagLibrary': (0, 'Clean the library, removing entries for missing issues')
+            'cleanMagLibrary': (0, 'Clean the library, removing entries for missing issues'),
+            'olLocalDumpAuthorID': (0, '&name= get OL authorid(s) from local dump'),
+            'olLocalDumpAuthorInfo': (0, '&id= get OL author info from local dump'),
+            'olLocalDumpAuthorOfBook': (0, '&name= &title= get OL authorID from local dump'),
+            'olLocalDumpAuthorBooks': (0, '&id= get OL author books from local dump')
             }
 
 
@@ -3263,4 +3273,39 @@ class Api:
             self.data = 'Missing parameter: id'
             return
         res = get_all_author_details(kwargs['id'], kwargs.get('name'))
+        self.data = str(res)
+
+    def _ollocaldumpauthorid(self, **kwargs):
+        TELEMETRY.record_usage_data()
+        if 'name' not in kwargs:
+            self.data = 'Missing parameter: name'
+            return
+        res = query_local_dump_authorid(kwargs['name'], all=True)
+        self.data = str(res)
+
+    def _ollocaldumpauthorinfo(self, **kwargs):
+        TELEMETRY.record_usage_data()
+        if 'id' not in kwargs:
+            self.data = 'Missing parameter: id'
+            return
+        res = query_local_dump_author_info(kwargs['id'])
+        self.data = str(res)
+
+    def _ollocaldumpauthorofbook(self, **kwargs):
+        TELEMETRY.record_usage_data()
+        if 'name' not in kwargs:
+            self.data = 'Missing parameter: name'
+            return
+        if 'title' not in kwargs:
+            self.data = 'Missing parameter: title'
+            return
+        res = query_local_dump_authorid_of_book(kwargs['name'], kwargs['title'])
+        self.data = str(res)
+
+    def _ollocaldumpauthorbooks(self, **kwargs):
+        TELEMETRY.record_usage_data()
+        if 'id' not in kwargs:
+            self.data = 'Missing parameter: id'
+            return
+        res = query_local_dump_books(kwargs['id'])
         self.data = str(res)
