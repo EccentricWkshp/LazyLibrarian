@@ -125,11 +125,11 @@ from lazylibrarian.multiauth import (
     get_authors_from_hc,
     get_authors_from_ol,
 )
-from lazylibrarian.oldump import(
+from lazylibrarian.oldump import (
+    query_local_dump_author_info,
     query_local_dump_authorid,
     query_local_dump_authorid_of_book,
-    query_local_dump_author_info,
-    query_local_dump_books
+    query_local_dump_books,
 )
 from lazylibrarian.postprocess import (
     process_dir,
@@ -3280,7 +3280,7 @@ class Api:
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
-        res = query_local_dump_authorid(kwargs['name'], all=True)
+        res = query_local_dump_authorid(kwargs['name'], full=True)
         self.data = str(res)
 
     def _ollocaldumpauthorinfo(self, **kwargs):
