@@ -479,7 +479,7 @@ def query_local_dump_author_info(author_id):
         logger.error(f"Local dump authorid query error: {e}")
     return {}
 
-def query_local_dump_authorid(author_name, all=False):
+def query_local_dump_authorid(author_name, full=False):
     """Search local dump database for author ID by name """
     logger.debug(f"Query local dump authorid for {author_name}")
     db_path = get_dump_db_path()

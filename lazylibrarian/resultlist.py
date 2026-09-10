@@ -17,6 +17,7 @@ import logging
 import traceback
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 from lazylibrarian import database
 from lazylibrarian.common import only_punctuation
@@ -74,7 +75,7 @@ def find_best_result(resultlist, book, searchtype, source):
                     ':': '', '!': '', '-': ' ', r'\s\s': ' '}
 
         dic = {'...': '', '.': ' ', ' & ': ' ', ' = ': ' ', '?': '', '$': 's', ' + ': ' ', '"': '',
-               ',': '', '*': '', ':': '.', ';': '', '\'': ''}
+               ',': '', '*': '', ':': '.', ';': '', '\'': '', '-': ' '}
 
         if source == 'rss':
             author, title = get_searchterm(book, searchtype)
@@ -168,15 +169,15 @@ def find_best_result(resultlist, book, searchtype, source):
             result_title = ' '.join(result_title.split())  # remove extra whitespace
             only_title = result_title.replace(author, '')
             if not only_title or only_punctuation(only_title):
-                book_match = fuzz.token_set_ratio(title, result_title)
+                book_match = fuzz.token_set_ratio(title, result_title, processor=default_process)
             else:
-                book_match = fuzz.token_set_ratio(title.replace(author, ''), only_title)
+                book_match = fuzz.token_set_ratio(title.replace(author, ''), only_title, processor=default_process)
             if 'booksearch' in res and res['booksearch'] == 'bibliotik':
                 # bibliotik only returns book title, not author name
                 fuzzlogger.debug("bibliotik, ignoring author fuzz")
                 author_match = 100
             else:
-                author_match = fuzz.token_set_ratio(author, result_title)
+                author_match = fuzz.token_set_ratio(author, result_title, processor=default_process)
 
             fuzzlogger.debug(f"{source.upper()} author/book Match: {author_match}/{book_match} {result_title} "
                              f"at {res[prefix + 'prov']}")

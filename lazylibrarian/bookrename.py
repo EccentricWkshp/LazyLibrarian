@@ -18,6 +18,7 @@ import shutil
 import traceback
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 from lazylibrarian import database
 from lazylibrarian.common import multibook, only_punctuation
@@ -333,12 +334,12 @@ def audio_parts(folder, bookname, authorname):
             book = parts[0][1]
             author = parts[0][2]
             for part in parts:
-                match = fuzz.partial_ratio(part[1], book)
+                match = fuzz.partial_ratio(part[1], book, processor=default_process)
                 if match < 95:
                     logger.warning(f"{bookname}: Inconsistent title: [{part[1]}][{book}] ({round(match, 2)}%)")
                     failed = True
 
-                match = fuzz.partial_ratio(part[2], author)
+                match = fuzz.partial_ratio(part[2], author, processor=default_process)
                 if match < 95:
                     logger.warning(f"{bookname}: Inconsistent author: [{part[2]}][{author} ({round(match, 2)}%)]")
                     failed = True

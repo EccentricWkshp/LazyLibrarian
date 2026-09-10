@@ -18,6 +18,7 @@ import unicodedata
 from urllib.parse import quote, quote_plus, urlencode
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
@@ -180,19 +181,19 @@ class GoodReads:
                             book_title = ""
 
                         if searchauthorname:
-                            author_fuzz = fuzz.token_sort_ratio(author_name_result, searchauthorname)
+                            author_fuzz = fuzz.token_sort_ratio(author_name_result, searchauthorname, processor=default_process)
                         else:
-                            author_fuzz = fuzz.token_sort_ratio(author_name_result, searchterm)
+                            author_fuzz = fuzz.token_sort_ratio(author_name_result, searchterm, processor=default_process)
                         if searchtitle:
                             if book_title.endswith(')'):
                                 book_title = book_title.rsplit(' (', 1)[0]
-                            book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchtitle.lower())
+                            book_fuzz = fuzz.token_set_ratio(book_title, searchtitle, processor=default_process)
                             # lose a point for each extra word in the fuzzy matches so we get the closest match
                             words = len(get_list(book_title))
                             words -= len(get_list(searchtitle))
                             book_fuzz -= abs(words)
                         else:
-                            book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchterm.lower())
+                            book_fuzz = fuzz.token_set_ratio(book_title, searchterm, processor=default_process)
                             words = len(get_list(book_title))
                             words -= len(get_list(searchterm))
                             book_fuzz -= abs(words)
@@ -327,11 +328,11 @@ class GoodReads:
             authorname = res.find('name').text
             authorname = format_author_name(unaccented(authorname, only_ascii=False),
                                             postfix=get_list(CONFIG.get_csv('NAME_POSTFIX')))
-            match = fuzz.ratio(author, authorname)
+            match = fuzz.ratio(author, authorname, processor=default_process)
             if match >= CONFIG.get_int('NAME_RATIO'):
                 return self.get_author_info(authorid)
 
-            match = fuzz.partial_ratio(author, authorname)
+            match = fuzz.partial_ratio(author, authorname, processor=default_process)
             if match >= CONFIG.get_int('NAME_PARTNAME'):
                 return self.get_author_info(authorid)
             self.logger.debug(f"Fuzz failed: {round(match, 2)} [{author}][{authorname}]")

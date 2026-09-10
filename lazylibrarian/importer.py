@@ -24,6 +24,7 @@ from queue import Queue
 from urllib.parse import unquote_plus
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
@@ -87,7 +88,7 @@ def get_preferred_author(author, authorid=''):
     for item in res:
         aname = item['AuthorName']
         if aname:
-            match_fuzz = fuzz.ratio(aname.lower().replace('.', ''), match_name)
+            match_fuzz = fuzz.ratio(aname, match_name, processor=default_process)
             if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
                 logger.debug(f"Fuzzy match [{item['AuthorName']}] {round(match_fuzz, 2)}% for [{author}]")
                 author = item['AuthorName']
@@ -96,7 +97,7 @@ def get_preferred_author(author, authorid=''):
         akas = get_list(item['AKA'], ',')
         if akas:
             for aka in akas:
-                match_fuzz = fuzz.token_set_ratio(aka.lower().replace('.', '').replace(',', ''), match_name)
+                match_fuzz = fuzz.token_set_ratio(aka, match_name, processor=default_process)
                 if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
                     logger.debug(f"Fuzzy AKA match [{aka}] {round(match_fuzz, 2)}% for [{author}]")
                     author = item['AuthorName']
@@ -207,10 +208,10 @@ def add_author_name_to_db(author=None, refresh=False, addbooks=None, reason=None
                     # filename may have the accented or un-accented version of the character
                     # We stored GoodReads/OpenLibrary author name in author_info, so store in LL db under that
                     # fuzz.ratio doesn't lowercase for us
-                    match_fuzz = fuzz.ratio(match_auth.lower(), match_name.lower())
+                    match_fuzz = fuzz.ratio(match_auth, match_name, processor=default_process)
                     if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
                         break
-                    match_fuzz = fuzz.partial_ratio(match_auth.lower(), match_name.lower())
+                    match_fuzz = fuzz.partial_ratio(match_auth, match_name, processor=default_process)
                     if match_fuzz >= CONFIG.get_int('NAME_PARTNAME'):
                         break
                     logger.debug(
@@ -741,16 +742,10 @@ def collate_fuzzy(string1, string2):
     for entry in title_translates:
         string1 = string1.replace(entry[0], entry[1])
         string2 = string2.replace(entry[0], entry[1])
-    # strip all punctuation so things like "it's" matches "its"
-    str1 = string1.translate(str.maketrans('', '', string.punctuation))
-    str2 = string2.translate(str.maketrans('', '', string.punctuation))
-    if str1 == str2:
-        fuzzlogger.debug(f"[{string1}][{string2}] match")
-        return 0
 
     # make sure "The Lord of the Rings" matches "Lord of the Rings"
-    set1 = set(str1.split())
-    set2 = set(str2.split())
+    set1 = set(string1.split())
+    set2 = set(string2.split())
     for word in get_list(CONFIG.get_csv('NAME_DEFINITE')):
         set1.discard(word)
         set2.discard(word)
@@ -758,7 +753,7 @@ def collate_fuzzy(string1, string2):
         fuzzlogger.debug(f"[{set1}][{set2}] match")
         return 0
 
-    match_fuzz = fuzz.ratio(str1, str2)
+    match_fuzz = fuzz.ratio(string1, string2, processor=default_process)
     fuzzlogger.debug(f"[{string1}][{string2}]{match_fuzz}")
     if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
         # if it's a close enough match, check for purely number differences
@@ -783,7 +778,7 @@ def collate_fuzzy(string1, string2):
         if num1 == num2:
             return 0
         return 1
-    if str1 < str2:
+    if string1 < string2:
         return -1
     return 1
 

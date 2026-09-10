@@ -13,6 +13,7 @@ from queue import Queue
 import cherrypy
 import requests
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
@@ -626,7 +627,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
             series_name = results['data']['series_by_pk']['name']
             # primary_books_count = results['data']['series_by_pk']['primary_books_count']
             if series_name != series_title:
-                match = fuzz.partial_ratio(series_name, series_title)
+                match = fuzz.partial_ratio(series_name, series_title, processor=default_process)
                 if match < 95:
                     self.logger.debug(f"Series name mismatch for {series_id}, "
                                       f"{round(match, 2)}% {series_name}/{series_title}")
@@ -781,21 +782,21 @@ query FindAuthor { authors_by_pk(id: [authorid])
                     bookdict = self.build_bookdict(book_data)
 
                 if searchauthorname:
-                    author_fuzz = fuzz.token_sort_ratio(bookdict['authorname'], searchauthorname)
+                    author_fuzz = fuzz.token_sort_ratio(bookdict['authorname'], searchauthorname, processor=default_process)
                 else:
-                    author_fuzz = fuzz.token_sort_ratio(bookdict['authorname'], searchterm)
+                    author_fuzz = fuzz.token_sort_ratio(bookdict['authorname'], searchterm, processor=default_process)
                 book_title = bookdict['bookname']
                 if book_title:
                     if searchtitle:
                         if book_title.endswith(')'):
                             book_title = book_title.rsplit(' (', 1)[0]
-                        book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchtitle.lower())
+                        book_fuzz = fuzz.token_set_ratio(book_title, searchtitle, processor=default_process)
                         # lose a point for each extra word in the fuzzy matches, so we get the closest match
                         words = len(get_list(book_title))
                         words -= len(get_list(searchtitle))
                         book_fuzz -= abs(words)
                     else:
-                        book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchterm.lower())
+                        book_fuzz = fuzz.token_set_ratio(book_title, searchterm, processor=default_process)
                         words = len(get_list(book_title))
                         words -= len(get_list(searchterm))
                         book_fuzz -= abs(words)
@@ -860,7 +861,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
                         altnames = item['document']['alternate_names']
                         books_count = item['document']['books_count']
                         author_id = item['document']['id']
-                        if fuzz.ratio(authorname, name) >= CONFIG.get_int('NAME_RATIO') or authorname in altnames:
+                        if fuzz.ratio(authorname, name, processor=default_process) >= CONFIG.get_int('NAME_RATIO') or authorname in altnames:
                             matches.append([books_count, author_id, name, altnames])
                     matches = sorted(matches, reverse=True)
                     authorid = matches[0][1]
@@ -920,15 +921,15 @@ query FindAuthor { authors_by_pk(id: [authorid])
                         author_name = contrib['author']['name']
                         authorid = str(contrib['author']['id'])
                         res = None
-                        match = fuzz.ratio(author_name.lower(), authorname.lower())
+                        match = fuzz.ratio(author_name, authorname, processor=default_process)
                         if match >= CONFIG.get_int('NAME_RATIO'):
                             res = self.get_author_info(authorid)
                         if not res:
-                            match = fuzz.token_sort_ratio(author_name.lower(), authorname.lower())
+                            match = fuzz.token_sort_ratio(author_name, authorname, processor=default_process)
                             if match >= CONFIG.get_int('NAME_RATIO'):
                                 res = self.get_author_info(authorid)
                         if not res:
-                            match = fuzz.partial_ratio(author_name.lower(), authorname.lower())
+                            match = fuzz.partial_ratio(author_name, authorname, processor=default_process)
                             if match >= CONFIG.get_int('NAME_PARTNAME'):
                                 res = self.get_author_info(authorid)
                         if res:
@@ -1231,7 +1232,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
                     # not our author, might be a contributor to an anthology?
                     # Check all contributions (already filtered in build_bookdict) for name match
                     for contrib in book_data['contributions']:
-                        if (fuzz.token_set_ratio(contrib['author']['name'], authorname) >=
+                        if (fuzz.token_set_ratio(contrib['author']['name'], authorname, processor=default_process) >=
                                 CONFIG.get_int('NAME_RATIO')):
                             bookdict['authorname'] = " ".join(contrib['author']['name'].split())
                             bookdict['authorid'] = str(contrib['author']['id'])

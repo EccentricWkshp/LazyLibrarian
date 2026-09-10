@@ -35,6 +35,7 @@ from deluge_client import DelugeRPCClient
 from mako import exceptions
 from mako.lookup import TemplateLookup
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import (
@@ -2994,7 +2995,9 @@ class WebInterface:
                 matchname = unaccented(matchname).lower()
                 for itm in listdir(libdir):
                     match = fuzz.ratio(format_author_name(unaccented(itm),
-                                                          get_list(CONFIG.get_csv('NAME_POSTFIX'))).lower(), matchname)
+                                                            get_list(CONFIG.get_csv('NAME_POSTFIX'))),
+                                                            matchname,
+                                                            processor=default_process)
                     if match >= CONFIG.get_int('NAME_RATIO'):
                         authordir = os.path.join(libdir, itm)
                         fuzzlogger.debug(f"Fuzzy match folder {round(match, 2)}% {itm} for {author_name}")
@@ -5974,17 +5977,17 @@ class WebInterface:
             cvres = cv_identify(title, best=False)
             if title.startswith('CV'):
                 for itm in cvres:
-                    itm['fuzz'] = fuzz.token_sort_ratio(title, itm['seriesid'])
+                    itm['fuzz'] = fuzz.token_sort_ratio(title, itm['seriesid'], processor=default_process)
                     comicresults.append(itm)
             else:
                 cxres = cx_identify(title, best=False)
                 words = name_words(title)
                 titlewords = ' '.join(title_words(words))
                 for itm in cvres:
-                    itm['fuzz'] = fuzz.token_sort_ratio(titlewords, itm['title'])
+                    itm['fuzz'] = fuzz.token_sort_ratio(titlewords, itm['title'], processor=default_process)
                     comicresults.append(itm)
                 for itm in cxres:
-                    itm['fuzz'] = fuzz.token_sort_ratio(titlewords, itm['title'])
+                    itm['fuzz'] = fuzz.token_sort_ratio(titlewords, itm['title'], processor=default_process)
                     comicresults.append(itm)
                 comicresults = sorted(comicresults, key=lambda x: -(check_int(x["fuzz"], 0)))
             comicids = db.select("SELECT ComicID from comics")

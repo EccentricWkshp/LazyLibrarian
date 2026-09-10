@@ -32,6 +32,7 @@ except ImportError:
 import contextlib
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
@@ -973,20 +974,20 @@ class DNB:
                             continue
 
                     if authorname:
-                        author_fuzz = fuzz.token_sort_ratio(book['authorname'], authorname)
+                        author_fuzz = fuzz.token_sort_ratio(book['authorname'], authorname, processor=default_process)
                     else:
-                        author_fuzz = fuzz.token_sort_ratio(book['authorname'], fullterm)
+                        author_fuzz = fuzz.token_sort_ratio(book['authorname'], fullterm, processor=default_process)
 
                     if title:
                         if title.endswith(')'):
                             title = title.rsplit('(', 1)[0]
-                        book_fuzz = fuzz.token_set_ratio(book['bookname'].lower(), title.lower())
+                        book_fuzz = fuzz.token_set_ratio(book['bookname'].lower(), title, processor=default_process)
                         # lose a point for each extra word in the fuzzy matches so we get the closest match
                         words = len(get_list(book['bookname']))
                         words -= len(get_list(title))
                         book_fuzz -= abs(words)
                     else:
-                        book_fuzz = fuzz.token_set_ratio(book['bookname'].lower(), fullterm.lower())
+                        book_fuzz = fuzz.token_set_ratio(book['bookname'].lower(), fullterm, processor=default_process)
                     isbn_fuzz = 0
                     if is_valid_isbn(fullterm):
                         isbn_fuzz = 100

@@ -88,6 +88,7 @@ import time
 import traceback
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
@@ -524,8 +525,10 @@ def add_author_books_to_db(resultqueue, bookstatus, audiostatus, entrystatus, en
             logger.debug(f"Aborting {threadname}")
             break
         summary['total'] += 1
-        bookdict['status'] = bookstatus
-        bookdict['audiostatus'] = audiostatus
+        if not bookdict.get('status'):
+            bookdict['status'] = bookstatus
+        if not bookdict.get('audiostatus'):
+            bookdict['audiostatus'] = audiostatus
         # since we're using this in a loop, pass a preconfigured db
         # to save opening a new cursor and setting fuzzy collation for each entry
         bookdict, rejected = validate_bookdict(bookdict, current_db=db)
@@ -878,8 +881,7 @@ def add_series_entries(bookdict, bookstatus, audiostatus, get_series_members, ge
                 exists = db.match(cmd, (auth_name, member[3]))
                 if exists:
                     auth_id = exists['AuthorID']
-                    if fuzz.ratio(auth_name.lower().replace('.', ''),
-                                  member[2].lower().replace('.', '')) < 95:
+                    if fuzz.ratio(auth_name, member[2], processor=default_process) < 95:
                         akas = get_list(exists['AKA'], ',')
                         if member[2] not in akas:
                             akas.append(member[2])

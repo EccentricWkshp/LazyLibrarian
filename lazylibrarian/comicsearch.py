@@ -17,6 +17,7 @@ import time
 import traceback
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
@@ -155,8 +156,7 @@ def search_item(comicid=None):
             # strip any trailing words that are just digits
             while part_title and part_title[-1].isdigit():
                 part_title = part_title[:-1].strip()
-            searchmatch = searchterm.replace('+', ' ')
-            score = fuzz.token_set_ratio(searchmatch, part_title)
+            score = fuzz.token_set_ratio(searchterm, part_title, processor=default_process)
 
             # lose a point for each extra word in the title, so we get the closest match
             words = len(get_list(searchterm))

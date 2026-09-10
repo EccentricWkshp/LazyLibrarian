@@ -24,6 +24,7 @@ import zipfile
 from xml.etree import ElementTree
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
@@ -427,12 +428,12 @@ def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_bo
                     a_book_lower = a_book_lower.replace(entry[1], entry[0])
             #
             # token sort ratio allows "Lord Of The Rings, The"   to match  "The Lord Of The Rings"
-            ratio = fuzz.token_sort_ratio(book_lower, a_book_lower)
+            ratio = fuzz.token_sort_ratio(book_lower, a_book_lower, processor=default_process)
             # partial ratio allows "Lord Of The Rings"   to match  "The Lord Of The Rings"
-            partial = fuzz.partial_ratio(book_lower, a_book_lower)
+            partial = fuzz.partial_ratio(book_lower, a_book_lower, processor=default_process)
             if book_partname:
                 # partname allows "Lord Of The Rings (illustrated edition)"   to match  "The Lord Of The Rings"
-                partname = fuzz.partial_ratio(book_partname, a_book_lower)
+                partname = fuzz.partial_ratio(book_partname, a_book_lower, processor=default_process)
 
             # lose points if the difference is just numbers so we don't match "book 2" and "book 3"
             # eg "He Who Fights With Monsters #7" is not the same as "He Who Fights With Monsters 05"

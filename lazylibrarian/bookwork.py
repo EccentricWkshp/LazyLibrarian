@@ -21,10 +21,11 @@ from urllib.parse import quote, quote_plus, urlencode
 
 import requests
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
-from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian import database
+from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import fetch_url, gr_xml_request, json_request
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import (
@@ -674,7 +675,7 @@ def get_series_authors(seriesid):
                                     booktitle = replace_all(booktitle, lazylibrarian.DICTS.get('apostrophe_dict', {}))
                                 except (KeyError, AttributeError):
                                     booktitle = ""
-                                book_fuzz = fuzz.token_set_ratio(booktitle, bookname)
+                                book_fuzz = fuzz.token_set_ratio(booktitle, bookname, processor=default_process)
                                 if book_fuzz >= 98:
                                     try:
                                         author = item.find('./best_book/author/name').text
@@ -706,7 +707,7 @@ def get_series_authors(seriesid):
                                 for item in resultxml:
                                     booktitle = item.find('./best_book/title').text
                                     booktitle = replace_all(booktitle, lazylibrarian.DICTS.get('apostrophe_dict', {}))
-                                    book_fuzz = fuzz.token_set_ratio(booktitle, bookname)
+                                    book_fuzz = fuzz.token_set_ratio(booktitle, bookname, processor=default_process)
                                     if book_fuzz >= 98:
                                         try:
                                             author = item.find('./best_book/author/name').text
@@ -933,8 +934,8 @@ def get_gb_info(isbn=None, author=None, title=None, expire=True):
             high_parts = []
             for item in results['items']:
                 res = google_book_dict(item)
-                book_fuzz = fuzz.token_set_ratio(res['name'], title)
-                auth_fuzz = fuzz.token_set_ratio(res['author'], author)
+                book_fuzz = fuzz.token_set_ratio(res['name'], title, processor=default_process)
+                auth_fuzz = fuzz.token_set_ratio(res['author'], author, processor=default_process)
                 total_fuzz = int(book_fuzz + auth_fuzz) / 2
                 if total_fuzz > high_fuzz:
                     high_fuzz = total_fuzz
@@ -1406,15 +1407,13 @@ def language_from_words(words, source='ms'):
     # Fixed 31 August, working normally again
     # Check if not already checked in the last hour
     if int(time.time()) > lazylibrarian.TIMERS['LAST_GLANG'] + 3600:
-        lazylibrarian.TIMERS['LAST_GLANG'] = int(time.time())    
+        lazylibrarian.TIMERS['LAST_GLANG'] = int(time.time())
         detected_lang, _ = language_from_words("le chien blanc", source="google")
         if detected_lang == "en":
             # google is lying to us, block for an hour
             BLOCKHANDLER.block_provider("glang", "Invalid en result", delay=3600)
-        elif detected_lang == "fr":
-            # it's working ok
-            if BLOCKHANDLER.is_blocked("glang"):
-                BLOCKHANDLER.remove_provider_entry("glang")
+        elif detected_lang == "fr" and BLOCKHANDLER.is_blocked("glang"):
+            BLOCKHANDLER.remove_provider_entry("glang")
 
     if BLOCKHANDLER.is_blocked("glang"):
         return "Blocked", 0

@@ -19,6 +19,7 @@ from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
@@ -149,19 +150,19 @@ class OpenLibrary:
                         workid = workid[0]
 
                     if searchauthorname:
-                        author_fuzz = fuzz.token_sort_ratio(author_name, searchauthorname)
+                        author_fuzz = fuzz.token_sort_ratio(author_name, searchauthorname, processor=default_process)
                     else:
-                        author_fuzz = fuzz.token_sort_ratio(author_name, searchterm)
+                        author_fuzz = fuzz.token_sort_ratio(author_name, searchterm, processor=default_process)
                     if searchtitle:
                         if book_title.endswith(')'):
                             book_title = book_title.rsplit(' (', 1)[0]
-                        book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchtitle.lower())
+                        book_fuzz = fuzz.token_set_ratio(book_title, searchtitle, processor=default_process)
                         # lose a point for each extra word in the fuzzy matches so we get the closest match
                         words = len(get_list(book_title))
                         words -= len(get_list(searchtitle))
                         book_fuzz -= abs(words)
                     else:
-                        book_fuzz = fuzz.token_set_ratio(book_title.lower(), searchterm.lower())
+                        book_fuzz = fuzz.token_set_ratio(book_title, searchterm, processor=default_process)
                         words = len(get_list(book_title))
                         words -= len(get_list(searchterm))
                         book_fuzz -= abs(words)
@@ -225,7 +226,7 @@ class OpenLibrary:
             while cnt < len(book['author_name']):
                 author_name = format_author_name(book['author_name'][cnt],
                                                  postfix=get_list(CONFIG.get_csv('NAME_POSTFIX')))
-                if fuzz.token_set_ratio(author_name, authorname) >= CONFIG.get_int('NAME_RATIO'):
+                if fuzz.token_set_ratio(author_name, authorname, processor=default_process) >= CONFIG.get_int('NAME_RATIO'):
                     key = book.get('author_key')[cnt]
                     if key:
                         key = key.split('/')[-1]
@@ -318,7 +319,7 @@ class OpenLibrary:
                     if not authorinfo:
                         self.logger.debug(f"No info found for redirect {authorid}")
                         return {}
-            except (IndexError, KeyError):
+            except (IndexError, KeyError, TypeError):
                 pass
         if not authorinfo:
             self.logger.debug(f"No info found for {authorid}:{authorname}")
@@ -393,7 +394,7 @@ class OpenLibrary:
                     except IndexError:
                         seriesname = ''
                 if seriesname:
-                    match = fuzz.partial_ratio(seriesname, series_name)
+                    match = fuzz.partial_ratio(seriesname, series_name, processor=default_process)
                     if match < 95:
                         self.logger.debug(f"Series name mismatch for {series_id}, "
                                           f"{round(match, 2)}% {seriesname}/{series_name}")
@@ -593,7 +594,7 @@ class OpenLibrary:
             match = db.match('SELECT authorid,ol_id,authorname FROM authors where authorid=? or ol_id=?', (authorid, authorid))
             if match:
                 ol_id = match['ol_id']
-                authorid = match['authorid']                
+                authorid = match['authorid']
             if not ol_id and authorid.startswith('OL'):
                 ol_id = authorid
 
@@ -1061,8 +1062,7 @@ class OpenLibrary:
                                                 exists = db.match(cmd, (auth_name,))
                                                 if exists:
                                                     auth_key = exists['AuthorID']
-                                                    if fuzz.ratio(auth_name.lower().replace('.', ''),
-                                                                  member[2].lower().replace('.', '')) < 95:
+                                                    if fuzz.ratio(auth_name, member[2], processor=default_process) < 95:
                                                         akas = get_list(exists['AKA'], ',')
                                                         if member[2] not in akas:
                                                             akas.append(member[2])

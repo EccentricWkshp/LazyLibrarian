@@ -20,6 +20,7 @@ import traceback
 from urllib.parse import quote, quote_plus, urlencode
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
@@ -173,20 +174,20 @@ class GoogleBooks:
                                     continue
 
                             if authorname:
-                                author_fuzz = fuzz.token_sort_ratio(book['author'], authorname)
+                                author_fuzz = fuzz.token_sort_ratio(book['author'], authorname, processor=default_process)
                             else:
-                                author_fuzz = fuzz.token_sort_ratio(book['author'], fullterm)
+                                author_fuzz = fuzz.token_sort_ratio(book['author'], fullterm, processor=default_process)
 
                             if title:
                                 if title.endswith(')'):
                                     title = title.rsplit('(', 1)[0]
-                                book_fuzz = fuzz.token_set_ratio(book['name'].lower(), title.lower())
+                                book_fuzz = fuzz.token_set_ratio(book['name'], title, processor=default_process)
                                 # lose a point for each extra word in the fuzzy matches so we get the closest match
                                 words = len(get_list(book['name']))
                                 words -= len(get_list(title))
                                 book_fuzz -= abs(words)
                             else:
-                                book_fuzz = fuzz.token_set_ratio(book['name'].lower(), fullterm.lower())
+                                book_fuzz = fuzz.token_set_ratio(book['name'], fullterm, processor=default_process)
 
                             isbn_fuzz = 0
                             if is_valid_isbn(fullterm):

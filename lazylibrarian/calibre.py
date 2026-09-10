@@ -19,6 +19,7 @@ import traceback
 
 import cherrypy
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 from lazylibrarian import database
 from lazylibrarian.common import get_readinglist, run_script, set_readinglist
@@ -195,7 +196,7 @@ def sync_calibre_list(col_read=None, col_toread=None, userid=None):
                             highid = ''
                             for item in calibrelist:
                                 if item['authors'] == author['AuthorName']:
-                                    n = fuzz.token_sort_ratio(item['title'], book['BookName'])
+                                    n = fuzz.token_sort_ratio(item['title'], book['BookName'], processor=default_process)
                                     if n > high:
                                         high = n
                                         highname = item['title']
