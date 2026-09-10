@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from rapidfuzz import fuzz
+from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
@@ -971,7 +972,7 @@ def _extract_best_match_from_collection(
             filename_stem, _ = _tokenize_file(f)
             normalized_fname = _normalize_title(filename_stem)
 
-            match_percent = fuzz.token_set_ratio(target_title, normalized_fname)
+            match_percent = fuzz.token_set_ratio(target_title, normalized_fname, processor=default_process)
             is_match = match_percent >= match_threshold
             fuzzlogger.debug(
                 f"{round(match_percent, 2)}% match {target_title} : {normalized_fname}"
@@ -1110,7 +1111,7 @@ def _calculate_fuzzy_match(title1: str, title2: str, fuzzlogger: logging.Logger=
     Returns:
         Match percentage (0-100)
     """
-    match_fuzz = fuzz.token_set_ratio(title1, title2)
+    match_fuzz = fuzz.token_set_ratio(title1, title2, processor=default_process)
 
     if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
         # if it's a close enough match, check for purely number differences
