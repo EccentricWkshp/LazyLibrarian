@@ -14,7 +14,6 @@ from lazylibrarian import qbittorrent
 from lib.qbittorrent import Client
 from unittests.unittesthelpers import LLTestCase
 
-
 EXISTING_HASH = '329df5974a730b22e6a9a5d873399014dae7ea83'
 
 # a hybrid torrent, as qBittorrent 5.2.3 reports it: the id is the truncated v2
@@ -84,9 +83,9 @@ class ClientGetTorrent404Test(unittest.TestCase):
         response.url = 'http://localhost:1/api/v2/torrents/properties?hash=deadbeef'
         response._content = b''
 
-        with mock.patch.object(client._session, 'get', return_value=response):
-            with self.assertRaises(requests.HTTPError) as ctx:
-                client.get_torrent('deadbeef')
+        with mock.patch.object(client._session, 'get', return_value=response), \
+             self.assertRaises(requests.HTTPError) as ctx:
+            client.get_torrent('deadbeef')
 
         self.assertIsNotNone(ctx.exception.response)
         self.assertEqual(ctx.exception.response.status_code, 404)
@@ -685,6 +684,56 @@ class GetProgressTest(LLTestCase):
         progress, _msg, finished = qbittorrent.get_progress(EXISTING_HASH)
         self.assertEqual(progress, -1)
         self.assertFalse(finished)
+
+
+class SkipLoginTest(LLTestCase):
+
+    def test_skip_login_sets_basic_auth(self):
+        client = Client.__new__(Client)
+        client._username = 'user'
+        client._password = 'pass'
+        client._skip_login = True
+        client._verify = True
+        client._timeout = 10.0
+        client._proxies = {}
+        client._max_attempts_on_403 = 3
+        client._session = None
+        client._is_authenticated = False
+        client.login()
+        self.assertEqual(client._session.auth, ('user', 'pass'))
+
+    def test_skip_login_no_credentials(self):
+        client = Client.__new__(Client)
+        client._username = ''
+        client._password = ''
+        client._skip_login = True
+        client._verify = True
+        client._timeout = 10.0
+        client._proxies = {}
+        client._max_attempts_on_403 = 3
+        client._session = None
+        client._is_authenticated = False
+        client.login()
+        self.assertIsNone(client._session.auth)
+
+    def test_skip_login_no_403_retry(self):
+        client = Client.__new__(Client)
+        client._username = 'user'
+        client._password = 'pass'
+        client._skip_login = True
+        client._verify = True
+        client._timeout = 10.0
+        client._proxies = {}
+        client._max_attempts_on_403 = 3
+        client._url = 'http://localhost:8080/api/v2/'
+        client._session = mock.MagicMock()
+        client._is_authenticated = False
+        resp = mock.MagicMock()
+        resp.status_code = 403
+        resp.raise_for_status.side_effect = requests.HTTPError(response=resp)
+        client._session.get.return_value = resp
+        with self.assertRaises(requests.HTTPError):
+            client._request('test', 'get')
 
 
 if __name__ == '__main__':
