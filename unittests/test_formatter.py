@@ -359,16 +359,71 @@ class FormatterTest(LLTestCaseWithStartup):
             self.assertEqual(formatter.md5_utf8(teststr[0]), teststr[1])
 
     def test_make_utf8bytes(self):
+        # Inputs are plain strings (encoded via make_bytestr internally) except where a
+        # test needs an exact, otherwise-unreachable byte sequence -- those pass bytes
+        # directly, which make_bytestr also accepts unchanged.
         strings = [
             ("", b'', ""),
             ("This is a test", b'This is a test', ''),
+            # This string's UTF-8 encoding is genuinely detected as UTF-8 (every lead byte
+            # here is 0xC3 or 0xC2, both always-recognised even before the 2026-09 fix
+            # below) -- kept as the original coverage for the "already worked" lead bytes.
+            # Its expected value changed with that fix: the un-fixed code returned this
+            # same UTF-8 byte string double-encoded as if it were ISO-8859-15 mojibake
+            # (b'\xc3\x83\xc2\x86...', label 'ISO-8859-15') -- itself an instance of the
+            # bug being fixed, just not one anybody had noticed. See test_make_utf8bytes_*
+            # below for the case that was actually reported (a lead byte the un-fixed code
+            # never recognised at all, e.g. 0xC5).
             ("ÆØÅ, æøå and ½é",
-             b'\xc3\x83\xc2\x86\xc3\x83\xc2\x98\xc3\x83\xc2\x85, \xc3\x83\xc5\xa0\xc3\x83\xc5\xbe\xc3\x83\xc2\xa5'
-             b' and \xc3\x82\xc5\x93\xc3\x83\xc2\xa9', 'ISO-8859-15'),
+             "ÆØÅ, æøå and ½é".encode('utf-8'), 'UTF-8'),
         ]
         for teststr in strings:
             encoded, name = formatter.make_utf8bytes(teststr[0])
             self.assertEqual((encoded, name), (teststr[1], teststr[2]))
+
+    def test_make_utf8bytes_multibyte_lead_bytes(self):
+        # Regression coverage for the 2026-09 fix: make_utf8bytes() used to chr()-wrap each
+        # raw byte before comparing it against the UTF-8 lead-byte range, which -- because
+        # Python compares those chr() code points as Unicode text, not raw byte values --
+        # only ever matched the two lead bytes 0xC2/0xC3 (U+0080-U+00FF, Latin-1
+        # supplement). Any other valid two-byte UTF-8 lead byte (0xC4-0xDF) fell through to
+        # the ISO-8859-15 branch and got double-encoded into mojibake. Real-world trigger:
+        # an author name containing "Kondō" (macron-o, U+014D -> UTF-8 lead byte 0xC5)
+        # turned into a permanent import-failure loop because the corrupted name got
+        # re-processed on every later pass.
+        strings = [
+            # The actual reported case.
+            ("Kondō", "Kondō".encode('utf-8'), 'UTF-8'),
+            # Two more lead bytes from within the widened 0xC2-0xDF range, to confirm the
+            # fix isn't a one-off special case for 0xC5 specifically.
+            ("Ā", "Ā".encode('utf-8'), 'UTF-8'),  # U+0100, lead byte 0xC4
+            ("ڠ", "ڠ".encode('utf-8'), 'UTF-8'),  # U+06A0, lead byte 0xDA
+            # Upper boundary of the widened range: U+07FF is the last code point encodable
+            # in two UTF-8 bytes, lead byte 0xDF.
+            ("߿", "߿".encode('utf-8'), 'UTF-8'),
+        ]
+        for teststr in strings:
+            encoded, name = formatter.make_utf8bytes(teststr[0])
+            self.assertEqual((encoded, name), (teststr[1], teststr[2]))
+
+    def test_make_utf8bytes_invalid_continuation_byte(self):
+        # A lead byte in the widened 0xC2-0xDF range is only a genuine UTF-8 sequence if
+        # followed by a valid continuation byte (0x80-0xBF). This wasn't reachable via a
+        # real encoded string (encode() never produces an invalid pairing), so it's built
+        # directly as bytes -- make_bytestr() passes bytes input through unchanged. Confirms
+        # the fix checks the continuation byte too, not just the lead byte: 0xC5 followed
+        # by 'A' (0x41, not a continuation byte) must fall through to the ISO-8859-15
+        # branch exactly as it did before the fix, not be misdetected as UTF-8.
+        encoded, name = formatter.make_utf8bytes(b'\xc5A')
+        self.assertEqual((encoded, name), (b'\xc3\x85A', 'ISO-8859-15'))
+
+    def test_make_utf8bytes_cp850_unaffected(self):
+        # The fix changed chr()-wrapped code-point comparisons to raw byte comparisons
+        # throughout the function, including in the CP850 branch -- mathematically a no-op
+        # there (single byte vs single code point, same numeric range), but worth locking
+        # in explicitly rather than relying on that reasoning alone.
+        encoded, name = formatter.make_utf8bytes(b'\x81A')
+        self.assertEqual((encoded, name), (b'\xc3\xbcA', 'CP850'))
 
     def test_make_unicode(self):
         strings = [
