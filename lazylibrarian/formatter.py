@@ -730,19 +730,37 @@ def make_utf8bytes(txt):
     # parse to detect if CP850/ISO-8859-15 is used
     # and return tuple of bytestring encoded in utf-8, detected encoding
     for idx in range(len(name)):
-        # /!\ detection is done 2char by 2char for UTF-8 special character
-        ch = chr(name[idx])
+        # /!\ detection is done byte by byte for UTF-8 special character.
+        # NOTE: name[idx] on a bytes object is already an int (0-255) in
+        # Python 3 -- wrapping it in chr() turns it into a Unicode code point
+        # in that same numeric range, and the byte-range literals below
+        # ('\xC2'..'\xFF') are then compared as *Unicode* code points rather
+        # than raw bytes. That's harmless for the CP850/ISO-8859-15 checks
+        # (single code point vs single byte, same range), but it breaks the
+        # UTF-8 lead-byte check: it only recognised '\xC2'/'\xC3' (the lead
+        # bytes for U+0080-U+00FF, i.e. Latin-1 supplement), so any valid
+        # UTF-8 sequence starting with a *different* two-byte lead byte
+        # (0xC4-0xDF, e.g. the 0xC5 in 'ō' -> b'\xc5\x8d') fell through to
+        # the ISO-8859-15 branch below and got double-encoded into mojibake
+        # (seen live as "Kondo" -> "KondÅ" -> "KondÃ\x85Â\x8d" on repeated
+        # postprocessing passes, causing a permanent import-failure loop for
+        # any author/title with such characters). Compare raw byte values
+        # instead of chr()-wrapping them, and widen the lead-byte check to
+        # the full two-byte UTF-8 lead range (0xC2-0xDF) with a proper
+        # continuation-byte check (0x80-0xBF), so genuine multi-byte UTF-8
+        # is detected regardless of which lead byte it uses.
+        ch = name[idx]
         if idx < (len(name) - 1):
-            chx = chr(name[idx + 1])
+            chx = name[idx + 1]
             # Detect UTF-8
-            if ((ch == '\xC2') | (ch == '\xC3')) & ((chx >= '\xA0') & (chx <= '\xFF')):
+            if (0xC2 <= ch <= 0xDF) and (0x80 <= chx <= 0xBF):
                 return name, 'UTF-8'
         # Detect CP850 or Windows CP1252 (latin-1)
-        if (ch >= '\x80') & (ch <= '\xA5'):
+        if 0x80 <= ch <= 0xA5:
             name = name.decode('cp850')
             return name.encode('utf-8'), 'CP850'
         # Detect ISO-8859-15 (latin-9)
-        if (ch >= '\xA6') & (ch <= '\xFF'):
+        if 0xA6 <= ch <= 0xFF:
             name = name.decode('iso-8859-15')
             return name.encode('utf-8'), 'ISO-8859-15'
     return name, ''
