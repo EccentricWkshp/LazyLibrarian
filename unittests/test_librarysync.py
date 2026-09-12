@@ -6,6 +6,7 @@
 import os
 
 from lazylibrarian import librarysync
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import get_directory
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
@@ -52,3 +53,38 @@ class LibrarySyncTest(LLTestCaseWithConfigandDIRS):
     def testLibraryScan(self):
         # Test library_scan, first with an invalid dir:
         self.assertEqual(librarysync.library_scan("Invalid Start Dir"), 0)
+
+    def test_skip_already_scanned_directory_respects_imp_singlebook(self):
+        # Regression coverage: _skip_already_scanned_directory() used to be inlined in
+        # library_scan() as `library == 'eBook' and IMP_SINGLEBOOK and already_processed) or
+        # (library == 'AudioBook' and already_processed)` -- so AudioBook always skipped an
+        # already-processed subdirectory unconditionally, with no way to opt out, unlike
+        # eBook which only skips when the user ticks "Import one book per directory"
+        # (IMP_SINGLEBOOK). The extracted helper takes no `library` argument at all now:
+        # both library types share the exact same IMP_SINGLEBOOK-gated behavior.
+        original = CONFIG.get_bool('IMP_SINGLEBOOK')
+        try:
+            processed = ['/library/SomeAuthor/SomeBook']
+            not_yet_processed = '/library/SomeAuthor/AnotherBook'
+            already_processed = '/library/SomeAuthor/SomeBook'
+
+            # A subdirectory not yet in processed_subdirectories is never skipped,
+            # regardless of IMP_SINGLEBOOK.
+            for imp_singlebook in (False, True):
+                CONFIG.set_bool('IMP_SINGLEBOOK', imp_singlebook)
+                self.assertFalse(
+                    librarysync._skip_already_scanned_directory(not_yet_processed, processed))
+
+            # An already-processed subdirectory: skip iff IMP_SINGLEBOOK is set -- this is
+            # the actual bug. Previously an AudioBook scan had no way to reach "don't skip"
+            # for an already-processed subdirectory at all; this helper has no library
+            # parameter precisely because the fix makes both types behave identically.
+            CONFIG.set_bool('IMP_SINGLEBOOK', False)
+            self.assertFalse(
+                librarysync._skip_already_scanned_directory(already_processed, processed))
+
+            CONFIG.set_bool('IMP_SINGLEBOOK', True)
+            self.assertTrue(
+                librarysync._skip_already_scanned_directory(already_processed, processed))
+        finally:
+            CONFIG.set_bool('IMP_SINGLEBOOK', original)
