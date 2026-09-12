@@ -2501,8 +2501,10 @@ class WebInterface:
                             except Exception as e:
                                 logger.error(f"Error deleting: {e}")
                         if action == "Delete+Ignore":
-                            db.action("UPDATE books SET BookFile='', AudioFile='' WHERE AuthorID=?",
+                            db.action("UPDATE books SET BookFile='', AudioFile='', Status='Skipped', \
+                                      AudioStatus='Skipped', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
                                       (authorid,))
+                            update_totals(authorid)
                             db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
                             logger.info(f"Author {check['AuthorName']} set to Ignored")
                         else:
