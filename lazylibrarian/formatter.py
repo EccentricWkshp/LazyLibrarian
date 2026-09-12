@@ -1040,7 +1040,7 @@ def unaccented_bytes(str_or_unicode, only_ascii=True):
 
     # replace all non-ascii quotes/apostrophes with ascii ones eg "Collector's"
     stripped = replace_all(cleaned, lazylibrarian.DICTS.get('apostrophe_dict', {}))
-    if only_ascii:
+    if only_ascii:  # True or special replace character
         stripped = ''.join([c for c in stripped if not unicodedata.combining(c)])
         # Other characters not converted by unicodedata.combining
         # c6 Ae, d0 Eth, d7 multiply, d8 Ostroke, de Thorn, df sharpS
@@ -1048,11 +1048,13 @@ def unaccented_bytes(str_or_unicode, only_ascii=True):
         dic = {'\xc6': 'A', '\xd0': 'D', '\xd7': '*', '\xd8': 'O', '\xde': 'P', '\xdf': 's',
                 '\xe6': 'a', '\xf0': 'o', '\xf7': '/', '\xf8': 'o', '\xfe': 'p'}
         stripped = replace_all(stripped, dic)
+    if only_ascii is True:
         stripped = stripped.encode('ASCII', 'ignore')
+    elif only_ascii is False:
+        stripped = unicodedata.normalize('NFC', stripped).encode('utf-8')
     else:  # replace with specified char (use '_' for goodreads author names)
         stripped = stripped.encode('ASCII', 'replace')  # replaces with '?'
-        if not isinstance(only_ascii, bool):
-            stripped = stripped.replace(b'?', make_bytestr(str(only_ascii)[0]))
+        stripped = stripped.replace(b'?', make_bytestr(str(only_ascii)[0]))
     stripped = stripped.strip()
     if not stripped:
         stripped = str_or_unicode
