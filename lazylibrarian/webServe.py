@@ -2480,7 +2480,7 @@ class WebInterface:
                         passed += 1
                     elif action in ("Delete", "Delete+Ignore"):
                         logger.info(f"{action} author and media files for {check['AuthorName']}")
-                        cmd = "SELECT BookFile,AudioFile from books WHERE AuthorID=? and "
+                        cmd = "SELECT BookFile,AudioFile,BookID from books WHERE AuthorID=? and "
                         cmd += "((BookFile IS NOT NULL AND BookFile != '') or (AudioFile IS NOT NULL AND AudioFile != ''))"
                         books = db.select(cmd, (authorid,))
                         logger.debug(f"Located {len(books)} books for author {authorid}")
@@ -2491,9 +2491,11 @@ class WebInterface:
                                         try:
                                             foldername = os.path.dirname(location)
                                             logger.debug(f"Deleting folder: {foldername}")
-                                            rmtree(foldername, ignore_errors=True)
+                                            rmtree(foldername)
                                         except Exception as e:
                                             logger.warning(f'rmtree failed on {location}, {type(e).__name__} {str(e)}')
+                                for table in ['wanted', 'readinglists']:
+                                    db.action(f"DELETE from {table} WHERE BookID=?", (book['BookID'],))
                             try:
                                 logger.debug("Deleting empty folders")
                                 delete_empty_folders(CONFIG['EBOOK_DIR'])
@@ -2501,8 +2503,8 @@ class WebInterface:
                             except Exception as e:
                                 logger.error(f"Error deleting: {e}")
                         if action == "Delete+Ignore":
-                            db.action("UPDATE books SET BookFile='', AudioFile='', Status='Skipped', \
-                                      AudioStatus='Skipped', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
+                            db.action("UPDATE books SET BookFile='', AudioFile='', Status='Ignored', \
+                                      AudioStatus='Ignored', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
                                       (authorid,))
                             update_totals(authorid)
                             db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
@@ -5168,9 +5170,9 @@ class WebInterface:
                         failed += 1
                 elif action == "NoDelay":
                     if 'eBook' in library:
-                        db.action("delete from failedsearch WHERE BookID=? AND Library=?", (bookid, 'eBook'))
+                        db.action("delete from failedsearch WHERE BookID=? AND Library='eBook'", (bookid,))
                     if 'AudioBook' in library:
-                        db.action("delete from failedsearch WHERE BookID=? AND Library=?", (bookid, 'AudioBook'))
+                        db.action("delete from failedsearch WHERE BookID=? AND Library='AudioBook'", (bookid,))
                     logger.debug(f'{library} delay set to zero for {bookid}')
                     passed += 1
                 elif action in ["Remove", "Delete"]:
@@ -5187,9 +5189,9 @@ class WebInterface:
                                 bookfile = bookdata['AudioFile']
                                 if bookfile and path_isfile(bookfile):
                                     try:
-                                        rmtree(os.path.dirname(bookfile), ignore_errors=True)
+                                        rmtree(os.path.dirname(bookfile))
                                         logger.info(f'AudioBook {os.path.dirname(bookfile)} deleted from disc')
-                                        passed += 1
+                                        db.action("UPDATE books SET AudioFile='' WHERE BookID=?", (bookid,))
                                     except Exception as e:
                                         logger.warning(f'rmtree failed on {bookfile}, {type(e).__name__} {str(e)}')
                                         failed += 1
@@ -5197,43 +5199,32 @@ class WebInterface:
                                 bookfile = bookdata['BookFile']
                                 if bookfile and path_isfile(bookfile):
                                     try:
-                                        rmtree(os.path.dirname(bookfile), ignore_errors=True)
+                                        rmtree(os.path.dirname(bookfile))
                                         logger.info(f'eBook {os.path.dirname(bookfile)} deleted from disc')
-                                        deleted = True
-                                        passed += 1
+                                        db.action("UPDATE books SET BookFile='' WHERE BookID=?", (bookid,))
+                                        if CONFIG['IMP_CALIBREDB'] and \
+                                            CONFIG.get_bool('IMP_CALIBRE_EBOOK'):
+                                            self.delete_from_calibre(bookdata)
                                     except Exception as e:
                                         logger.warning(f'rmtree failed on {bookfile}, {type(e).__name__} {str(e)}')
-                                        deleted = False
                                         failed += 1
 
-                                    if deleted:
-                                        logger.info(f'eBook {bookname} deleted from disc')
-                                        if CONFIG['IMP_CALIBREDB'] and \
-                                                CONFIG.get_bool('IMP_CALIBRE_EBOOK'):
-                                            self.delete_from_calibre(bookdata)
+                        if 'eBook' in library:
+                            db.upsert("books", {"Status": "Ignored", "ScanResult": f"User {action}d ebook"}, {"BookID": bookid})
+                            logger.debug(f'Status set to Ignored for "{bookname}"')
+                            passed += 1
+                        if 'AudioBook' in library:
+                            db.upsert("books", {"AudioStatus": "Ignored", "ScanResult": f"User {action}d audiobook"}, {"BookID": bookid})
+                            logger.debug(f'AudioStatus set to Ignored for "{bookname}"')
+                            passed += 1
 
-                        authorcheck = db.match('SELECT Status from authors WHERE AuthorID=?', (authorid,))
-                        if authorcheck:
-                            if authorcheck['Status'] not in ['Active', 'Wanted']:
+                        if action == 'Delete':
+                            bookcheck = db.match('SELECT Status,AudioStatus from books WHERE BookID=?', (bookid,))
+                            if bookcheck['Status'] == bookcheck['AudioStatus'] == 'Ignored':
                                 for table in ['books', 'wanted', 'readinglists']:
                                     db.action(f"DELETE from {table} WHERE BookID=?", (bookid,))
-                                logger.info(f'Removed "{bookname}" from database')
-                                passed += 1
-                            elif 'eBook' in library:
-                                db.upsert("books", {"Status": "Ignored", "ScanResult": "User deleted"},
-                                          {"BookID": bookid})
-                                logger.debug(f'Status set to Ignored for "{bookname}"')
-                                passed += 1
-                            elif 'AudioBook' in library:
-                                db.upsert("books", {"AudioStatus": "Ignored", "ScanResult": "User deleted"},
-                                          {"BookID": bookid})
-                                logger.debug(f'AudioStatus set to Ignored for "{bookname}"')
-                                passed += 1
-                        else:
-                            for table in ['books', 'wanted', 'readinglists']:
-                                db.action(f"DELETE from {table} WHERE BookID=?", (bookid,))
-                            logger.info(f'Removed "{bookname}" from database')
-                            passed += 1
+
+                        update_totals(authorid)
 
             if action in reading_lists and userid:
                 set_readinglist("ToRead", userid, to_read)
