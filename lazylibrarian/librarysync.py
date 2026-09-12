@@ -610,6 +610,49 @@ def _skip_already_scanned_directory(subdirectory, processed_subdirectories):
     return subdirectory in processed_subdirectories and CONFIG.get_bool('IMP_SINGLEBOOK')
 
 
+def _derive_fallback_authorname(rootdir, files, destdir):
+    """Guess an author name from a book's path when metadata/id lookups found no match.
+
+    The on-disk convention is always <library root>/<Author>/<Title (id)>, and we're
+    looking for the <Author> segment -- but "does this segment look like a name" can't be
+    reliably determined by shape alone (an earlier version checked for a space, but plenty
+    of real book titles contain one too, e.g. "Some Book (123)", and some real author names
+    don't). Instead, check each path segment between destdir (the configured library root)
+    and the book's own directory against authors already known in the database, preferring
+    whichever one matches -- outermost (closest to destdir) first, since that's where the
+    author segment normally lives.
+
+    Uses destdir rather than library_scan()'s own startdir for finding these segments:
+    startdir only equals destdir for a full-library scan, and forceLibraryScan's documented
+    dir= parameter lets a scan be scoped to a subdirectory instead (e.g. a single author's
+    folder, to avoid the cost of a full scan) -- in that case startdir *is* the author
+    folder, so segments taken relative to it would start from the title folder instead.
+
+    Falls back to the first segment under destdir (the normal case for a genuinely new
+    author not yet in the database) if no segment matches an existing author.
+    """
+    book_filename = os.path.join(rootdir, files)
+    relpath = book_filename[len(destdir.rstrip(os.sep)) + 1:]
+    segments = relpath.split(os.sep)[:-1]  # directory segments only, drop the filename
+
+    db = database.DBConnection()
+    try:
+        for segment in segments:
+            match = db.match('SELECT AuthorName FROM authors WHERE AuthorName=? COLLATE NOCASE',
+                             (segment,))
+            if match:
+                return match['AuthorName']
+    finally:
+        db.close()
+
+    newauthorname = segments[0] if segments else ''
+    newauthorname = make_unicode(newauthorname)
+    # calibre replaces trailing periods with _ e.g. Smith Jr. -> Smith Jr_
+    if newauthorname.endswith('_'):
+        newauthorname = f"{newauthorname[:-1]}."
+    return newauthorname
+
+
 def library_scan(startdir=None, library='eBook', authid=None, remove=True):
     """ Scan a directory tree adding new books into database
         Return how many books you added """
@@ -1150,14 +1193,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                                 if not bookid:
                                     # get author name from (grand)parent directory of this book directory
-                                    book_filename = os.path.join(rootdir, files)
-                                    newauthorname = book_filename[len(startdir.rstrip(os.sep)) + 1:].split(os.sep)[0]
-                                    if ' ' not in newauthorname:
-                                        newauthorname = os.path.basename(os.path.dirname(rootdir))
-                                    newauthorname = make_unicode(newauthorname)
-                                    # calibre replaces trailing periods with _ e.g. Smith Jr. -> Smith Jr_
-                                    if newauthorname.endswith('_'):
-                                        newauthorname = f"{newauthorname[:-1]}."
+                                    newauthorname = _derive_fallback_authorname(rootdir, files, destdir)
                                     if author.lower() != newauthorname.lower():
                                         logger.debug(f"Trying authorname [{newauthorname}]")
                                         bookid, mtype = find_book_in_db(newauthorname, book, ignored=False,
