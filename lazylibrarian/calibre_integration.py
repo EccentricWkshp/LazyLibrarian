@@ -561,7 +561,7 @@ def send_ebook_to_calibre(data):
     logger.debug(f"Calibre ID does not exist: {data['AuthorName']} {data['BookName']}")
     global_name = os.path.splitext(os.path.basename(data["BookFile"]))[0]
     with tempfile.TemporaryDirectory() as temp_dir:
-        sourcedir = os.path.dirname(data["IssueFile"])
+        sourcedir = os.path.dirname(data["BookFile"])
         for item in listdir(sourcedir):
             if item.startswith(global_name):
                 logger.debug(f"Copy file [{item}]")
