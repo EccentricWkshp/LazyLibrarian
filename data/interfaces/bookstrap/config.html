@@ -1493,6 +1493,17 @@
                           </div>
                         </div>
                       </div>
+                      <div class="row">
+                        <div class="col-md-12">
+                          <div class="checkbox">
+                            <% checked = 'checked="checked"' if CONFIG['QBITTORRENT_NOAUTH'] else '' %>
+                            <label for="qbittorrent_noauth" class="control-label">
+                              <input type="checkbox" id="qbittorrent_noauth" name="qbittorrent_noauth" value="1" ${checked} />
+                              Skip qBittorrent login (use HTTP basic auth only)
+                            </label>
+                          </div>
+                        </div>
+                      </div>
                     </fieldset>
                     <div class="checkbox">
                       <% checked = 'checked="checked"' if CONFIG['TOR_DOWNLOADER_BLACKHOLE'] else '' %>
