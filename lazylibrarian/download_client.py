@@ -80,6 +80,37 @@ def is_archive_file(fname):
     return extn in ARCHIVE_EXTENSIONS or bool(ARCHIVE_PART_RE.match(extn))
 
 
+def _identify_other_library_types(seen_extensions, booktype):
+    """If every recognised extension belongs to a different library type, return
+    that type name so the caller can reject with a clear message. Returns empty
+    string when the extensions are ambiguous or unrecognised.
+
+    Archive extensions and extensions that belong to multiple library types
+    (like pdf, which can be an ebook or a magazine) are skipped: they are
+    commonly bundled as companions and do not indicate a format mismatch."""
+    type_map = {
+        "ebook": [e.lower() for e in get_list(CONFIG["EBOOK_TYPE"])],
+        "audiobook": [e.lower() for e in get_list(CONFIG["AUDIOBOOK_TYPE"])],
+        "magazine": [e.lower() for e in get_list(CONFIG["MAG_TYPE"])],
+        "comic": [e.lower() for e in get_list(CONFIG["COMIC_TYPE"])],
+    }
+    found_types = set()
+    for extn in seen_extensions:
+        if is_archive_file(f"dummy.{extn}"):
+            continue
+        matching_types = set()
+        for tname, tlist in type_map.items():
+            if tlist and extn in tlist:
+                matching_types.add(tname)
+        if len(matching_types) != 1:
+            continue
+        other = matching_types - {booktype.lower()}
+        found_types.update(other)
+    if found_types and len(found_types) <= 2:
+        return ", ".join(sorted(found_types))
+    return ""
+
+
 def check_contents(source, downloadid, booktype, title):
     """Check contents list of a download against various reject criteria
     name, size, filetype, banned words
@@ -213,7 +244,10 @@ def check_contents(source, downloadid, booktype, title):
             # wrong format release out of the library instead of leaving it to
             # fail at postprocessing time.
             rejected = f"{title} has no {booktype} files"
-            if seen_extensions:
+            other_types = _identify_other_library_types(seen_extensions, booktype)
+            if other_types:
+                rejected = f"{title} contains {other_types} files instead of {booktype}"
+            elif seen_extensions:
                 rejected = f"{rejected} ({', '.join(seen_extensions[:5])})"
             logger.warning(f"{rejected}. Rejecting download")
     if matched and not rejected:

@@ -16,6 +16,8 @@ EBOOK_CONFIG = {
     'BANNED_EXT': 'exe, bat, iso',
     'EBOOK_TYPE': 'epub, mobi, pdf',
     'AUDIOBOOK_TYPE': 'mp3, m4b',
+    'MAG_TYPE': 'pdf',
+    'COMIC_TYPE': 'cbz, cbr',
     'REJECT_WORDS': 'audiobook, mp3',
     'REJECT_AUDIO': 'epub, mobi',
     'REJECT_MAXSIZE': 0,
@@ -84,8 +86,8 @@ class CheckContentsTest(LLTestCase):
         # accepted because no reject word happened to be in any filename, and
         # only fell over at postprocessing time
         rejected = self.check(_files('The Book/The Book.m4b'))
-        self.assertIn('no ebook files', rejected)
-        self.assertIn('m4b', rejected)
+        self.assertIn('audiobook', rejected)
+        self.assertIn('instead of', rejected)
 
     def test_ebook_only_release_is_rejected_for_an_audiobook(self):
         # azw3 is not in the audiobook reject words either, so the file list is
@@ -173,6 +175,16 @@ class CheckContentsTest(LLTestCase):
                                FakeConfig(AUDIOBOOK_TYPE='mp3, m4b, m4a', REJECT_AUDIO='')):
             rejected = self.check(_files('The Book/The Book.M4A'), booktype='audiobook')
         self.assertEqual(rejected, '')
+
+    def test_wrong_type_without_archive_shows_type_name(self):
+        # when there is no archive to inspect, the rejection message should
+        # name the mismatched type rather than just listing extensions
+        rejected = self.check(
+            _files('The Book/The Book.epub'),
+            booktype='audiobook',
+        )
+        self.assertIn('ebook', rejected)
+        self.assertIn('instead of', rejected)
 
     def test_files_without_sizes_are_still_matched(self):
         # rtorrent and some deluge versions report a file list with no sizes
