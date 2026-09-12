@@ -596,6 +596,20 @@ def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_bo
     return 0, ''
 
 
+def _skip_already_scanned_directory(subdirectory, processed_subdirectories):
+    """Whether library_scan() should skip a subdirectory it has already found a book in.
+
+    Governed by IMP_SINGLEBOOK ("Import one book per directory" in the config UI) for both
+    eBook and AudioBook libraries. Previously this only applied to library == 'eBook' --
+    AudioBook always skipped an already-processed subdirectory unconditionally, with no way
+    for a user who keeps multiple different audiobooks (or an audiobook split into
+    differently-titled part files) in one folder to opt out, unlike eBook users. The
+    IMP_SINGLEBOOK setting's own documented intent isn't eBook-specific, so apply it
+    uniformly to both library types.
+    """
+    return subdirectory in processed_subdirectories and CONFIG.get_bool('IMP_SINGLEBOOK')
+
+
 def library_scan(startdir=None, library='eBook', authid=None, remove=True):
     """ Scan a directory tree adding new books into database
         Return how many books you added """
@@ -813,9 +827,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                 # Added new code to skip if we've done this directory before.
                 # Made this conditional with a switch in config.ini
                 # in case user keeps multiple different books in the same subdirectory
-                if (library == 'eBook' and CONFIG.get_bool('IMP_SINGLEBOOK') and
-                        (subdirectory in processed_subdirectories) or library == 'AudioBook'
-                        and (subdirectory in processed_subdirectories)):
+                if _skip_already_scanned_directory(subdirectory, processed_subdirectories):
                     libsynclogger.debug(f"[{subdirectory}] already scanned")
                 elif not path_isdir(rootdir):
                     logger.debug(f"Directory {repr(rootdir)} missing (renamed?)")
