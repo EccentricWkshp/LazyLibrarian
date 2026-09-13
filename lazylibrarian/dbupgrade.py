@@ -563,6 +563,15 @@ def check_db(upgradelog=None):
                     for table in ['books', 'wanted', 'readinglists']:
                         db.action(f"DELETE from {table} WHERE BookID=?", (book['BookID'],))
 
+            # add any missing bookauthors rows
+            books = db.select("SELECT * FROM books b WHERE NOT EXISTS (SELECT 1 FROM bookauthors ba WHERE ba.BookID = b.BookID)")
+            if books:
+                cnt += len(books)
+                msg = f"Adding bookauthors rows for {len(books)} {plural(len(books), 'book')} "
+                logger.warning(msg)
+                db.action("INSERT OR IGNORE INTO bookauthors (AuthorID, BookID, Role) SELECT b.AuthorID, b.BookID, 1"
+                          " FROM books b WHERE NOT EXISTS (SELECT 1 FROM bookauthors ba WHERE ba.BookID = b.BookID);")
+
             # remove authors with no authorid
             lazylibrarian.UPDATE_MSG = 'Removing authors with no authorid'
             authors = db.select("SELECT * FROM authors WHERE AuthorID IS NULL or AuthorID=''")

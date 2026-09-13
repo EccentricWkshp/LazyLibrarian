@@ -1638,6 +1638,9 @@ class GoodReads:
                 }
                 db.upsert("books", new_value_dict, control_value_dict)
                 added = True
+                db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
+                          (author_id, bookid, ROLE['PRIMARY']), suppress='UNIQUE')
+                self.logger.debug(f'Added {author_id} as primary')
                 # get_book_cover needs the bookid to already exist in db
                 if 'nocover' in bookimg or 'nophoto' in bookimg:
                     # infodict (Google Books), if fetched above for the description, may
@@ -1670,9 +1673,6 @@ class GoodReads:
 
                 set_genres(get_list(bookgenre, ','), bookid)
 
-                db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
-                          (author_id, bookid, ROLE['PRIMARY']), suppress='UNIQUE')
-                self.logger.debug(f'Added {author_id} as primary')
                 lazylibrarian.importer.update_totals(author_id)
 
                 if CONFIG.get_bool('CONTRIBUTING_AUTHORS'):

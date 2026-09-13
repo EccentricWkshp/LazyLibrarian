@@ -814,6 +814,9 @@ class GoogleBooks:
                 "gb_id": bookid
             }
             db.upsert("books", new_value_dict, control_value_dict)
+            db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
+                      (author_id, bookid, ROLE['PRIMARY']), suppress='UNIQUE')
+            self.logger.debug(f'Added {author_id} as primary')
 
             if 'nocover' in book['img'] or 'nophoto' in book['img']:
                 # try to get a cover from another source
