@@ -501,7 +501,7 @@ def query_local_dump_authorid(author_name, full=False):
             authors.append((auth[0], auth[1], books[0]))
         conn.close()
         authors = sorted(authors, key=itemgetter(2), reverse=True)
-        if all:
+        if full:
             logger.debug(f"Local dump returning {authors}")
             return authors
         logger.debug(f"Local dump returning {authors[0][0]}:{authors[0][1]}")
