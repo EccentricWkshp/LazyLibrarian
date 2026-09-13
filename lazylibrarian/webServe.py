@@ -2479,6 +2479,7 @@ class WebInterface:
                         logger.info(f'Status set to "{action}" for "{check["AuthorName"]}"')
                         passed += 1
                     elif action in ("Delete", "Delete+Ignore"):
+                        failure_list = []
                         logger.info(f"{action} author and media files for {check['AuthorName']}")
                         cmd = "SELECT BookFile,AudioFile,BookID from books WHERE AuthorID=? and "
                         cmd += "((BookFile IS NOT NULL AND BookFile != '') or (AudioFile IS NOT NULL AND AudioFile != ''))"
@@ -2493,7 +2494,7 @@ class WebInterface:
                                             logger.debug(f"Deleting folder: {foldername}")
                                             rmtree(foldername)
                                         except Exception as e:
-                                            logger.warning(f'rmtree failed on {location}, {type(e).__name__} {str(e)}')
+                                            failure_list.append(f'rmtree failed on {location}, {type(e).__name__} {str(e)}')
                                 for table in ['wanted', 'readinglists']:
                                     db.action(f"DELETE from {table} WHERE BookID=?", (book['BookID'],))
                             try:
@@ -2501,7 +2502,7 @@ class WebInterface:
                                 delete_empty_folders(CONFIG['EBOOK_DIR'])
                                 delete_empty_folders(CONFIG['AUDIO_DIR'])
                             except Exception as e:
-                                logger.error(f"Error deleting: {e}")
+                                failure_list.append(f"Error deleting: {e}")
                         if action == "Delete+Ignore":
                             db.action("UPDATE books SET BookFile='', AudioFile='', Status='Ignored', \
                                       AudioStatus='Ignored', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
@@ -2512,7 +2513,11 @@ class WebInterface:
                         else:
                             db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
                             logger.info(f"Author {check['AuthorName']} deleted")
-                        passed += 1
+                        if failure_list:
+                            logger.warning(f"Failures while {action} {check['AuthorName']}: {failure_list}")
+                            failed += 1
+                        else:
+                            passed += 1
                     elif action == "Remove":
                         logger.info(f"Removing author: {check['AuthorName']}")
                         db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
