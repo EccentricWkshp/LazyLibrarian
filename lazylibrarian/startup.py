@@ -669,7 +669,7 @@ class StartupLazyLibrarian:
                 self.logger.warning(
                     f"Unrecognised version [{CONFIG['CURRENT_VERSION']}] to force upgrade delete {version_file}")
 
-        if not path_isfile(version_file) and CONFIG['INSTALL_TYPE'] == 'source':
+        if not path_isfile(version_file) and CONFIG['INSTALL_TYPE'] == 'source' and CONFIG.get_bool('AUTO_UPDATE'):
             # User may be running an old source zip, so try to force update
             CONFIG.set_int('COMMITS_BEHIND', 1)
             lazylibrarian.SIGNAL = 'update'
