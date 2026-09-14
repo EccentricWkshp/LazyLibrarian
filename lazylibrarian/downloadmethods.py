@@ -498,7 +498,7 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
         return True, ''
 
     # libgen...
-    headers = {'Accept-encoding': 'gzip', 'User-Agent': get_user_agent()}
+    headers = {'Accept-encoding': 'gzip', 'User-Agent': get_user_agent(), 'Referer': dl_url}
     dl_url = make_unicode(dl_url)
     s = requests.Session()
     proxies = proxy_list()
@@ -630,7 +630,7 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
             # see if there is a redirect...
             redirect = False
             if 'text/html' in r.headers['Content-Type']:
-                result, success = fetch_url(dl_url)
+                result, success = r.text, True
                 if success:
                     newsoup = BeautifulSoup(result, 'html5lib')
                     data = newsoup.find_all('a')
