@@ -131,6 +131,7 @@ from lazylibrarian.oldump import (
     query_local_dump_authorid_of_book,
     query_local_dump_books,
 )
+from lazylibrarian.orphanfiles import list_orphan_books
 from lazylibrarian.postprocess import (
     process_dir,
     process_img,
@@ -355,7 +356,8 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
             'olLocalDumpAuthorID': (0, '&name= get OL authorid(s) from local dump'),
             'olLocalDumpAuthorInfo': (0, '&id= get OL author info from local dump'),
             'olLocalDumpAuthorOfBook': (0, '&name= &title= get OL authorID from local dump'),
-            'olLocalDumpAuthorBooks': (0, '&id= get OL author books from local dump')
+            'olLocalDumpAuthorBooks': (0, '&id= get OL author books from local dump'),
+            'listOrphanBooks': (0, 'List all books in the library folder that are not referenced in the database')
             }
 
 
@@ -1643,6 +1645,10 @@ class Api:
             if not path_isfile(row['BookFile']):
                 rows_as_dic.append(dict(row))
         self.data = rows_as_dic
+
+    def _listorphanbooks(self):
+        TELEMETRY.record_usage_data()
+        self.data = list_orphan_books()
 
     def _listnolang(self):
         TELEMETRY.record_usage_data()
