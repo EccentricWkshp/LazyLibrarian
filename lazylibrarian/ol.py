@@ -1454,7 +1454,7 @@ class OpenLibrary:
             bookdict['bookisbn'] = workinfo.get('isbn_10', '')
         if isinstance(bookdict['bookisbn'], list):
             bookdict['bookisbn'] = ', '.join(bookdict['bookisbn'])
-        else:
+        if not bookdict['bookisbn'] and CONFIG.get_bool('ISBN_LOOKUP'):
             try:
                 res = isbn_from_words(f"{bookdict['bookname']} {unaccented(bookdict['authorname'], only_ascii=False)}")
             except Exception as e:
