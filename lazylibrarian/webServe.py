@@ -187,6 +187,7 @@ from lazylibrarian.scheduling import (
 from lazylibrarian.searchbook import search_book
 from lazylibrarian.searchmag import download_maglist, search_magazines
 from lazylibrarian.searchrss import search_wishlist
+from lazylibrarian.startup import prioritized_infosources
 from lazylibrarian.telemetry import TELEMETRY
 
 lastauthor = ''
@@ -801,13 +802,16 @@ class WebInterface:
                     # Same source-badge convention as author.html/editauthor.html: prefer
                     # the explicitly-confirmed PrimarySource (linked, so AuthorLink is
                     # guaranteed to match); otherwise fall back to priority order among
-                    # whatever's linked, shown as plain text since there's no verified
-                    # matching URL for an inferred guess.
+                    # whatever's linked (the user's configured CONFIG['BOOK_API'] first,
+                    # via prioritized_infosources()), shown as plain text since there's no
+                    # verified matching URL for an inferred guess.
                     primarysource = arow[13]
+                    link_values = arow[14:14 + len(author_link_sources)]
+                    fallback_map = dict(zip((name for name, _ in author_link_sources), link_values))
                     badge_source = primarysource
                     if not badge_source:
-                        for idx, (fb_name, _) in enumerate(author_link_sources):
-                            if arow[14 + idx]:
+                        for fb_name, _ in prioritized_infosources():
+                            if fallback_map.get(fb_name):
                                 badge_source = fb_name
                                 break
                     if primarysource:
