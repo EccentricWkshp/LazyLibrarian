@@ -26,6 +26,7 @@ from lazylibrarian.formatter import (
     plural,
     replace_all,
     strip_quotes,
+    thread_name,
     unaccented,
 )
 from lazylibrarian.provider_utils import get_hashed_filename, is_in_cache, read_from_cache
@@ -485,7 +486,7 @@ class RanobeDB:
         # Add book to database using bookdict
         bookdict['status'] = bookstatus
         bookdict['audiostatus'] = audiostatus
-        bookdict['reason'] = reason
+        bookdict['reason'] = f"[{thread_name()}] {reason}"
         res = add_bookdict_to_db(bookdict)
         lazylibrarian.importer.update_totals(bookdict['authorid'])
         return res
