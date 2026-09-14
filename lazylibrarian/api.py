@@ -2469,11 +2469,11 @@ class Api:
         api = this_source['api']
         api = api()
         if 'wait' in kwargs:
-            self.data = api.add_bookid_to_db(kwargs['id'], None, None, "Added by API")
+            self.data = api.add_bookid_to_db(kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWBOOK_AUDIO'], "Added by API")
         else:
             threading.Thread(target=api.add_bookid_to_db,
                              name=f"API-{this_source['src']}RESULTS",
-                             args=[kwargs['id'], None, None, "Added by API"]).start()
+                             args=[kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWBOOK_AUDIO'], "Added by API"]).start()
 
     def _movebook(self, **kwargs):
         TELEMETRY.record_usage_data()
