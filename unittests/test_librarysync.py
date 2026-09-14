@@ -5,10 +5,10 @@
 
 import os
 
-from lazylibrarian import librarysync
+from lazylibrarian import database, librarysync
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import get_directory
-from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
+from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS, LLTestCaseWithStartup
 
 
 class LibrarySyncTest(LLTestCaseWithConfigandDIRS):
@@ -88,3 +88,69 @@ class LibrarySyncTest(LLTestCaseWithConfigandDIRS):
                 librarysync._skip_already_scanned_directory(already_processed, processed))
         finally:
             CONFIG.set_bool('IMP_SINGLEBOOK', original)
+
+
+class DeriveFallbackAuthornameTest(LLTestCaseWithStartup):
+    # _derive_fallback_authorname() always looks authors up in the database now (see below),
+    # so these need the heavier LLTestCaseWithStartup fixture rather than the plain
+    # LLTestCaseWithConfigandDIRS the rest of this file uses -- same split as
+    # ImporterTest/MoveBookToAuthorTest in test_importer.py.
+
+    def _add_author(self, name):
+        db = database.DBConnection()
+        try:
+            db.action("INSERT OR REPLACE INTO authors (AuthorID, AuthorName, Status) VALUES (?, ?, ?)",
+                      (name, name, 'Active'))
+        finally:
+            db.close()
+
+    def test_matches_existing_author_over_positional_guess(self):
+        # Regression coverage, reproducing the exact scenario that created a bogus author
+        # entity live: "William Gibson" is already a known author, but the previous fix
+        # (destdir-based, still purely positional) would have derived "Aidoru (1078)" here
+        # since that's the first segment under destdir -- a title folder, not an author.
+        # Checking segments against known authors instead of guessing by position/shape
+        # finds "William Gibson" correctly regardless of which segment position it's in.
+        self._add_author('William Gibson')
+        destdir = os.path.join('library')
+        rootdir = os.path.join('library', 'William Gibson', 'Aidoru (1078)')
+        files = 'Aidoru - William Gibson.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir), 'William Gibson')
+
+    def test_uses_library_root_not_scan_startdir(self):
+        # Regression coverage: an earlier version of this function took its offset from
+        # library_scan()'s own startdir, which only equals the library root (destdir) for a
+        # full-library scan. forceLibraryScan's documented dir= parameter lets a scan be
+        # scoped to a subdirectory instead (e.g. a single author's folder, to avoid the cost
+        # of a full scan) -- in that case startdir is itself the author folder, so an
+        # offset taken from it would start from the title folder instead. This case has no
+        # matching author in the database, so it falls through to the positional guess --
+        # which must still be relative to destdir, not startdir, to land on "Some Author"
+        # regardless of how deep into the tree a scan started.
+        destdir = os.path.join('library')
+        rootdir = os.path.join('library', 'Some Author', 'Some Title (123)')
+        files = 'Some Title - Some Author.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir), 'Some Author')
+
+    def test_no_match_falls_back_to_first_segment(self):
+        # No segment matches a known author (a genuinely new author, not yet in the
+        # database) -- falls back to the first segment under destdir, same as the normal
+        # <library root>/<Author>/<Title> convention.
+        destdir = os.path.join('library')
+        rootdir = os.path.join('library', 'Brand New Author', 'Some Title (123)')
+        files = 'Some Title - Brand New Author.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir),
+            'Brand New Author')
+
+    def test_calibre_trailing_underscore_restored_on_fallback(self):
+        # calibre replaces a trailing period in a folder name with an underscore
+        # (e.g. "Smith Jr." -> "Smith Jr_"); restore the period. Only applies on the
+        # positional-guess fallback path -- an exact database match is returned as-is.
+        destdir = os.path.join('library')
+        rootdir = os.path.join('library', 'Smith Jr_', 'Some Title (123)')
+        files = 'Some Title - Smith Jr_.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir), 'Smith Jr.')
