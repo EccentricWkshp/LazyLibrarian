@@ -9,6 +9,7 @@ import unittest
 
 from unittests.unittesthelpers import LLTestCase
 from lazylibrarian.bookwork import language_from_words
+from lazylibrarian import TIMERS
 
 TESTS = [
     ("Why Didn't they ask Evans?", 'en'),
@@ -23,8 +24,8 @@ TESTS = [
 
 
 class LanguageTest(LLTestCase):
-
     def test_correct_detection(self):
+        TIMERS['LAST_GLANG'] = 0
         for title in TESTS:
             lang, confidence = language_from_words(title[0])
             self.assertEqual(lang, title[1])

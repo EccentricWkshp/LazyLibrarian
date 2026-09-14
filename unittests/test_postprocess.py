@@ -361,7 +361,7 @@ class PostprocessHelperTest(LLTestCaseWithStartup):
         test_cases = [
             ("Test_Book_Title", "Test Book Title"),
             ("Book LL.(12345)", "Book"),
-            ("Über_Book_Name", "Uber Book Name"),
+            ("Über_Book_Name", "Über Book Name"),
             ("  Spaces   Everywhere  ", "Spaces   Everywhere"),
             ("Book/With:Special*Chars", "Book_WithSpecialChars"),
             # Test extension stripping (new behavior)
