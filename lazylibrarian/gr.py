@@ -914,13 +914,24 @@ class GoodReads:
                             self.logger.debug(f"Rejected {bookid}:{reason}:{rejected}")
                         else:
                             cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
-                                   "OriginalPubDate,BookDesc,BookGenre,ScanResult FROM books WHERE BookID=?")
+                                   "OriginalPubDate,BookDesc,BookGenre,BookImg,ScanResult FROM books WHERE BookID=?")
                             existing = db.match(cmd, (bookid,))
                             if existing:
                                 book_status = existing['Status']
                                 audio_status = existing['AudioStatus']
                                 bookdesc = existing['BookDesc']
                                 bookgenre = existing['BookGenre']
+                                # GoodReads' bulk author/list response frequently has no real
+                                # cover for indie/self-published books (returns its own generic
+                                # nocover/nophoto placeholder) - don't let that blank out a real
+                                # cover this book already has from an earlier successful lookup
+                                # (GoodReads itself, Google Books, or the keyword-search fallback
+                                # further below). The nocover/nophoto branch below still runs and
+                                # can replace this with something better if it finds one.
+                                if ('nocover' in bookimg or 'nophoto' in bookimg) and existing['BookImg'] \
+                                        and 'nocover' not in existing['BookImg'] \
+                                        and 'nophoto' not in existing['BookImg']:
+                                    bookimg = existing['BookImg']
                                 if CONFIG['FOUND_STATUS'] == 'Open':
                                     if book_status == 'Have' and existing['BookFile']:
                                         book_status = 'Open'
