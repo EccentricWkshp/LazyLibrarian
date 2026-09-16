@@ -1415,7 +1415,13 @@ class GoodReads:
         bookname = rootxml.find('./book/title').text
 
         try:
-            bookimg = rootxml.find('./book/img_url').text
+            # 'img_url' doesn't exist in GoodReads' book/show response - confirmed live
+            # against the real XML, the field is 'image_url' (same name get_bookdict() uses
+            # elsewhere in this file). This always raised AttributeError and fell to the
+            # except branch below, meaning single-book refresh never once used GoodReads'
+            # own cover even when it had a real one, relying entirely on the fallback
+            # search further down instead.
+            bookimg = rootxml.find('./book/image_url').text
             if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
                 bookimg = 'images/nocover.png'
         except (KeyError, AttributeError):
@@ -1633,6 +1639,22 @@ class GoodReads:
                 self.logger.warning(f"Authorid {author_id} not found in database, unable to add {bookname}")
             else:
                 control_value_dict = {"BookID": bookid}
+                if not bookdate:
+                    bookdate = '0000'
+                # Same fix as get_author_books(): don't let this refresh's own nocover/
+                # nophoto placeholder (bookimg defaults to it above whenever this book's
+                # single-book XML has no real cover - true unconditionally right now due to
+                # a separate field-name bug reading 'img_url', which doesn't exist in
+                # GoodReads' response, instead of 'image_url') overwrite a real cover this
+                # book already has, in the window before the fallback search below runs
+                # (and if that search fails or is only intermittently reliable - confirmed
+                # live this session it can be - the wipe was never corrected).
+                if 'nocover' in bookimg or 'nophoto' in bookimg:
+                    existing_book = db.match("SELECT BookImg FROM books WHERE BookID=?", (bookid,))
+                    if existing_book and existing_book['BookImg'] \
+                            and 'nocover' not in existing_book['BookImg'] \
+                            and 'nophoto' not in existing_book['BookImg']:
+                        bookimg = existing_book['BookImg']
                 new_value_dict = {
                     "AuthorID": author_id,
                     "BookName": bookname,
