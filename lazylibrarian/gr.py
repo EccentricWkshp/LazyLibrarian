@@ -544,6 +544,16 @@ class GoodReads:
                         workid = bookdict['workid']
                         isbn13 = bookdict['isbn13']
                         isbn10 = bookdict['isbn10']
+                        # bookisbn (the BookIsbn column) used to stay '' for every book unless
+                        # the ISBN_LOOKUP name-search fallback further down happened to run and
+                        # find something - it never picked up isbn13/isbn10 even when GoodReads'
+                        # own bulk author/list response already had them right here (confirmed
+                        # live: this exact field is populated in that response for books that
+                        # have an ISBN). The name-search fallback below still overrides this with
+                        # a fuzzy-matched result if ISBN_LOOKUP is enabled and finds one - that's
+                        # existing behaviour, unchanged - but a real GoodReads-reported ISBN is a
+                        # sane starting point rather than leaving it empty by default.
+                        bookisbn = isbn13 or isbn10
                         bookdate = bookdict['pub_year']
                         if check_year(bookdate, past=1800, future=0):
                             mn = check_int(bookdict['pub_month'], 0)
@@ -669,7 +679,7 @@ class GoodReads:
                             except Exception as e:
                                 self.logger.error(f"Goodreads language search failed: {type(e).__name__} {str(e)}")
 
-                        if not isbnhead and CONFIG.get_bool('ISBN_LOOKUP') and bookname or shortname:
+                        if not isbnhead and CONFIG.get_bool('ISBN_LOOKUP') and (bookname or shortname):
                             # try lookup by name
                             if shortname:
                                 name = replace_all(shortname, {':': ' ', '"': '', '\'': ''}).strip()
