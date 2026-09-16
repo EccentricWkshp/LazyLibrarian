@@ -975,7 +975,15 @@ class GoodReads:
                                     pubdate_lookups_this_refresh += 1
                                     time.sleep(2)
 
-                            if originalpubdate:
+                            # Only let this override bookdate with a genuine date - '0000' is
+                            # get_book_pubdate()'s own not-found placeholder (a non-empty string,
+                            # so `if originalpubdate:` alone is always true for it), and was
+                            # unconditionally clobbering any real date already found earlier in
+                            # this same pass (GoodReads' own extraction, or the HardCover/local-
+                            # dump fallbacks below) with a worse '0000' every time GoodReads
+                            # itself had nothing - silently discarding those fallbacks' results
+                            # before they ever reached the database.
+                            if originalpubdate and originalpubdate != '0000':
                                 bookdate = originalpubdate
 
                             # Leave alone if locked
