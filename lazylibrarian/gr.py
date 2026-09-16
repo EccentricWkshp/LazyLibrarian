@@ -709,7 +709,22 @@ class GoodReads:
                         if not book_language:
                             book_language = 'Unknown'
 
-                        if "All" not in valid_langs and book_language not in valid_langs:
+                        # Don't reject a book just because nothing could determine its
+                        # language - that's not the same claim as "we checked and it's the
+                        # wrong language". Detection here depends on an unofficial Google
+                        # Translate client that's proven unreliable (it has a known failure
+                        # mode where it reports every language as English, with its own
+                        # self-protecting block kicking in when that happens - see
+                        # language_from_words()) plus an ISBN-based lookup that's useless for
+                        # the ~97% of this kind of library that has no ISBN at all. Rejecting
+                        # "Unknown" here means any book neither path could identify gets
+                        # permanently frozen out of all future refreshes (including its cover)
+                        # the moment either dependency has a bad day - confirmed live: an
+                        # entire 67-book author catalog stuck exactly this way while the
+                        # translate service was mid-outage. A confirmed, specific wrong
+                        # language still rejects as before.
+                        if "All" not in valid_langs and book_language != 'Unknown' \
+                                and book_language not in valid_langs:
                             rejected.append(['lang', f'Invalid language [{book_language}]'])
 
                         if CONFIG.get_bool('NO_FUTURE') and bookdate and bookdate > today()[:len(bookdate)]:
@@ -1452,7 +1467,10 @@ class GoodReads:
         # Ignore book if adding as part of a series, else just warn and include it
         #
         valid_langs = get_list(CONFIG['IMP_PREFLANG'])
-        if book_language not in valid_langs and 'All' not in valid_langs:
+        # "Unknown" means detection couldn't determine a language at all, not that we
+        # confirmed the wrong one - see the matching comment in get_author_books(). Don't
+        # block a series import over that; only a specific, confirmed mismatch should.
+        if book_language != 'Unknown' and book_language not in valid_langs and 'All' not in valid_langs:
             msg = f'Book {bookname} Language [{book_language}] does not match preference'
             self.logger.warning(msg)
             if reason.startswith("Series:") or threadname.startswith('SERIES'):
