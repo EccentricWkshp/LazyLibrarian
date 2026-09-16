@@ -136,6 +136,7 @@ from lazylibrarian.postprocess import (
     process_dir,
     process_img,
 )
+from lazylibrarian.postprocess_metadata import BookType
 from lazylibrarian.preprocessor import preprocess_audio, preprocess_ebook, preprocess_magazine
 from lazylibrarian.processcontrol import get_cpu_use, get_process_memory, get_threads
 from lazylibrarian.providers import get_capabilities
@@ -363,6 +364,20 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
 
 def get_case_insensitive_key_value(input_dict, key):
     return next((value for dict_key, value in input_dict.items() if dict_key.lower() == key.lower()), None)
+
+
+def normalize_library_param(library):
+    # API callers naturally reach for "AudioBook" (the display string used elsewhere
+    # in the codebase, eg postprocess.py's book_type_aux) rather than the internal
+    # literal "Audio" this and related commands actually expect -- accept any
+    # recognizable spelling instead of silently passing an unrecognized value
+    # through. Falls back to the original value unchanged if it's not a recognized
+    # book type at all, so the downstream function's own error handling still fires.
+    try:
+        book_type = BookType.from_string(library)
+    except ValueError:
+        return library
+    return "Audio" if book_type == BookType.AUDIOBOOK else "eBook" if book_type == BookType.EBOOK else library
 
 
 class Api:
@@ -1440,7 +1455,7 @@ class Api:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
                 return
-        library = kwargs.get('library', 'eBook')
+        library = normalize_library_param(kwargs.get('library', 'eBook'))
         self.data = process_book_from_dir(kwargs['dir'], library, kwargs['id'])
 
     def _importmag(self, **kwargs):
@@ -2970,7 +2985,7 @@ class Api:
     def _importalternate(self, **kwargs):
         TELEMETRY.record_usage_data()
         usedir = kwargs.get('dir', CONFIG.get_str('ALTERNATE_DIR'))
-        library = kwargs.get('library', 'eBook')
+        library = normalize_library_param(kwargs.get('library', 'eBook'))
         if 'wait' in kwargs:
             self.data = process_alternate(usedir, library)
         else:

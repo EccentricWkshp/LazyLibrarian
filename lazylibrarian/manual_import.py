@@ -254,6 +254,23 @@ def process_book_from_dir(source_dir=None, library="eBook", bookid=None):
     if not source_dir or not path_isdir(source_dir):
         logger.warning(f"{source_dir} is not a directory")
         return False
+
+    # Accept any recognizable spelling of ebook/audiobook (eg "AudioBook", the value
+    # used elsewhere in the codebase for display/logging) rather than only the two
+    # exact internal literals "eBook"/"Audio" this function historically required.
+    # Every other caller of process_book_from_dir has to know that undocumented
+    # distinction or their import silently fails with a misleading "not implemented"
+    # error even though the book type is perfectly well understood everywhere else
+    # (get_directory() already special-cases "AudioBook", for example).
+    try:
+        book_type = BookType.from_string(library)
+    except ValueError:
+        book_type = None
+    if book_type not in (BookType.EBOOK, BookType.AUDIOBOOK):
+        logger.error(f"book_from_dir not implemented for {library}")
+        return False
+    library = "Audio" if book_type == BookType.AUDIOBOOK else "eBook"
+
     if source_dir.startswith(get_directory(library)):
         logger.warning("Source directory must not be the same as or inside library")
         return False
@@ -262,10 +279,6 @@ def process_book_from_dir(source_dir=None, library="eBook", bookid=None):
     reject = multibook(source_dir)
     if reject:
         logger.debug(f"Not processing {source_dir}, found multiple {reject}")
-        return False
-
-    if library not in ["eBook", "Audio"]:
-        logger.error(f"book_from_dir not implemented for {library}")
         return False
 
     db = database.DBConnection()
