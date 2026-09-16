@@ -914,13 +914,22 @@ class GoodReads:
                             self.logger.debug(f"Rejected {bookid}:{reason}:{rejected}")
                         else:
                             cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
-                                   "OriginalPubDate,BookDesc,BookGenre,BookImg,ScanResult FROM books WHERE BookID=?")
+                                   "OriginalPubDate,BookDesc,BookGenre,BookImg,BookPub,BookPages,"
+                                   "ScanResult FROM books WHERE BookID=?")
                             existing = db.match(cmd, (bookid,))
                             if existing:
                                 book_status = existing['Status']
                                 audio_status = existing['AudioStatus']
                                 bookdesc = existing['BookDesc']
                                 bookgenre = existing['BookGenre']
+                                # GoodReads' bulk author/list response commonly leaves publisher
+                                # and page-count blank for indie/self-published books, same class
+                                # of gap as the cover fix above - don't let a blank fresh value
+                                # wipe a real one this book already has.
+                                if not bookpub and existing['BookPub']:
+                                    bookpub = existing['BookPub']
+                                if not bookpages and existing['BookPages']:
+                                    bookpages = existing['BookPages']
                                 # GoodReads' bulk author/list response frequently has no real
                                 # cover for indie/self-published books (returns its own generic
                                 # nocover/nophoto placeholder) - don't let that blank out a real
