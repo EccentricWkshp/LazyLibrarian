@@ -53,6 +53,9 @@ class BookType(str, Enum):
 
         mapping = {  # Allows flexibility as we get new variants
             "audiobook": cls.AUDIOBOOK,
+            "audio": cls.AUDIOBOOK,  # the internal "library" literal used by
+                                      # get_directory()/process_book_from_dir(),
+                                      # distinct from the "AudioBook" display string
             "ebook": cls.EBOOK,
             "magazine": cls.MAGAZINE,
             "mag": cls.MAGAZINE,
