@@ -131,7 +131,12 @@ from lazylibrarian.oldump import (
     query_local_dump_authorid_of_book,
     query_local_dump_books,
 )
-from lazylibrarian.orphanfiles import list_orphan_books
+from lazylibrarian.orphanfiles import (
+    list_orphan_books,
+    list_orphan_audio,
+    list_orphan_comics,
+    list_orphan_magazines,
+)
 from lazylibrarian.postprocess import (
     process_dir,
     process_img,
@@ -357,7 +362,10 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
             'olLocalDumpAuthorInfo': (0, '&id= get OL author info from local dump'),
             'olLocalDumpAuthorOfBook': (0, '&name= &title= get OL authorID from local dump'),
             'olLocalDumpAuthorBooks': (0, '&id= get OL author books from local dump'),
-            'listOrphanBooks': (0, 'List all books in the library folder that are not referenced in the database')
+            'listOrphanBooks': (0, 'List all books in the library folder that are not referenced in the database'),
+            'listOrphanAudio': (0, 'List all audiobooks in the library folder that are not referenced in the database'),
+            'listOrphanComics': (0, 'List all comic issues in the library folder that are not referenced in the database'),
+            'listOrphanMags': (0, 'List all magazine issues in the library folder that are not referenced in the database'),
             }
 
 
@@ -1649,6 +1657,18 @@ class Api:
     def _listorphanbooks(self):
         TELEMETRY.record_usage_data()
         self.data = list_orphan_books()
+
+    def _listorphanaudio(self):
+        TELEMETRY.record_usage_data()
+        self.data = list_orphan_audio()
+
+    def _listorphancomics(self):
+        TELEMETRY.record_usage_data()
+        self.data = list_orphan_comics()
+
+    def _listorphanmagazines(self):
+        TELEMETRY.record_usage_data()
+        self.data = list_orphan_magazines()
 
     def _listnolang(self):
         TELEMETRY.record_usage_data()
