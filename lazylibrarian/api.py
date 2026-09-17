@@ -976,7 +976,7 @@ class Api:
                 empty_slot['API'] = kwargs[arg]
             elif arg == 'enabled':
                 hit.append(arg)
-                empty_slot['ENABLED'] = kwargs[arg] == 'true'
+                empty_slot.set_bool('ENABLED', kwargs[arg] in ['1', 1, True, 'True', 'true'])
             elif arg in ['altername', 'name']:
                 for existing in providers:
                     if kwargs[arg] and existing['DISPNAME'] == kwargs[arg]:
@@ -1009,7 +1009,7 @@ class Api:
                 hit.append(arg)
             elif arg.upper() in providers[0]:
                 hit.append(arg)
-                empty_slot[arg.upper()] = kwargs[arg]
+                # empty_slot[arg.upper()] = kwargs[arg]
                 if arg.upper() in ['EXTENDED', 'APICOUNT', 'APILIMIT', 'RATELIMIT', 'DLPRIORITY', 'LASTUSED',
                                    'SEEDERS', 'SEED_DURATION']:
                     empty_slot.set_int(arg.upper(), kwargs[arg])

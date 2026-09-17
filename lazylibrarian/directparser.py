@@ -489,11 +489,16 @@ def direct_gen(book=None, prov=None, test=False):
                                     output = link.get('href')
                                     if output:
                                         if ('/get.php' in output or '/download/' in output
-                                                or '/book/' in output or '/fiction/' in output
-                                                or '/main/' in output) and output.startswith('http'):
+                                            or '/book/' in output or '/fiction/' in output
+                                            or '/main/' in output) and output.startswith('http'):
                                             url = output
                                             break
                                         nhost = urlparse(url)
+                                        # fix for libgen.li where the first anchor on the page is not the link
+                                        # issue #3088
+                                        if 'get.php' not in output and nhost.netloc == 'libgen.li':
+                                            continue
+
                                         nurl = urlparse(output)
                                         # noinspection PyProtectedMember
                                         nurl = nurl._replace(scheme=nhost.scheme)
