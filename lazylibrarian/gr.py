@@ -599,9 +599,11 @@ class GoodReads:
                             try:
                                 if book.find(find_field).text:
                                     if find_field == 'id':
+                                        # Use path-based .xml format: book/show?id=X returns HTTP 202
+                                        # (Cloudfront WAF challenge) but book/show/X.xml returns 200 XML
                                         book_url = '/'.join([CONFIG['GR_URL'],
-                                                             f"book/show?id={book.find(find_field).text}"
-                                                             f"&{urlencode(self.params)}"])
+                                                             f"book/show/{book.find(find_field).text}.xml"
+                                                             f"?{urlencode(self.params)}"])
                                     else:
                                         book_url = '/'.join([CONFIG['GR_URL'],
                                                              f"book/isbn/{book.find(find_field).text}"
@@ -640,6 +642,8 @@ class GoodReads:
                                             try:
                                                 bookdate = book_rootxml.find(
                                                     './book/work/original_publication_year').text
+                                                if not bookdate:
+                                                    bookdate = '0000'
                                                 if check_year(bookdate, past=1800, future=0):
                                                     try:
                                                         mn = check_int(book_rootxml.find(
@@ -1053,6 +1057,8 @@ class GoodReads:
                                 threadname = thread_name()
                                 reason = f"[{threadname}] {reason}"
                                 control_value_dict = {"BookID": bookid}
+                                if not bookdate:
+                                    bookdate = '0000'
                                 new_value_dict = {
                                     "AuthorID": authorid,
                                     "BookName": bookname,
@@ -1384,7 +1390,8 @@ class GoodReads:
         bulk author/list one - see get_author_books' rate-limited, capped use of this
         below. Returns '' on any failure (not found, blocked, network error) rather
         than raising - callers treat "no ASIN found" as a normal, expected outcome. """
-        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        # Use .xml extension: without it, book/show/{id}?key= returns HTTP 202 (WAF challenge)
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}.xml?{urlencode(self.params)}"])
         try:
             rootxml, _ = gr_xml_request(url)
         except Exception as e:
@@ -1403,7 +1410,9 @@ class GoodReads:
         return asin or ''
 
     def add_bookid_to_db(self, bookid=None, bookstatus=None, audiostatus=None, reason='gr.add_bookid'):
-        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        # Use .xml extension: book/show/{id}?key= returns HTTP 202 (WAF challenge)
+        # but book/show/{id}.xml?key= returns HTTP 200 with valid XML
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}.xml?{urlencode(self.params)}"])
         try:
             self.searchinglogger.debug(url)
             rootxml, _ = gr_xml_request(url)
