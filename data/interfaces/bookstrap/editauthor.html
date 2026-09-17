@@ -2,6 +2,7 @@
 <%!
     import lazylibrarian
     from lazylibrarian.config2 import CONFIG
+    from lazylibrarian.startup import prioritized_infosources
 %>
 <%def name="headerIncludes()">
     <div id="subhead_container">
@@ -70,7 +71,7 @@
 <%def name="body()">
 <%
     linkable_sources = [(name, src['author_key'], src['enabled'])
-                        for name, src in lazylibrarian.INFOSOURCES.items() if src.get('author_link')]
+                        for name, src in prioritized_infosources() if src.get('author_link')]
 %>
 <button class="hidden" onclick="" id="myAlert" title=""><i class="fa fa-circle-notch fa-spin"></i> Searching, please wait...</button>
 <form accept-charset="UTF-8" action="author_update" method="post">

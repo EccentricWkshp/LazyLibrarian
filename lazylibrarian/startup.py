@@ -54,6 +54,16 @@ from lazylibrarian.scheduling import (
 )
 
 
+def prioritized_infosources():
+    """lazylibrarian.INFOSOURCES items with the user's configured primary metadata
+    source (CONFIG['BOOK_API']) moved to the front - the fallback priority order used
+    wherever no author has an explicit PrimarySource set (editauthor.html/author.html/
+    author_detail.html's linkable_sources, webServe.py's author-list badge). Preserves
+    INFOSOURCES' own relative order for everything else."""
+    book_api = CONFIG.get_str('BOOK_API')
+    return sorted(lazylibrarian.INFOSOURCES.items(), key=lambda kv: kv[0] != book_api)
+
+
 class StartupLazyLibrarian:
     logger: logging.Logger
 
