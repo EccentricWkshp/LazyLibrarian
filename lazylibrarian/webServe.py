@@ -3515,6 +3515,9 @@ class WebInterface:
                 elif sortcolumn in [2]:  # title
                     filtered.sort(key=lambda y: y[sortcolumn].lower() if y[sortcolumn] is not None else '',
                                   reverse=sSortDir_0 == "desc")
+                elif sortcolumn in [3]:  # stars
+                    filtered.sort(key=lambda y: float(y[sortcolumn]) if y[sortcolumn] is not None else 0.0,
+                                  reverse=sSortDir_0 == "desc")
                 else:
                     filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                   reverse=sSortDir_0 == "desc")
