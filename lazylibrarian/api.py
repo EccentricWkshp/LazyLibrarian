@@ -132,8 +132,8 @@ from lazylibrarian.oldump import (
     query_local_dump_books,
 )
 from lazylibrarian.orphanfiles import (
-    list_orphan_books,
     list_orphan_audio,
+    list_orphan_books,
     list_orphan_comics,
     list_orphan_magazines,
 )
