@@ -454,6 +454,18 @@ def add_author_to_db(authorname=None, refresh=False, authorid='', addbooks=True,
                         authorid = dbauthor['AuthorID']
                         authorname = dbauthor['AuthorName']
                         break
+        if not new_author and refresh and authorid:
+            # Mark this visible *before* the slow multi-provider fetch below, not after it
+            # returns - get_all_author_details() can take several seconds (one HTTP round
+            # trip per configured source), and author.html's "Fetching information for this
+            # author..." banner only renders when Status is already 'Loading' at page-render
+            # time. refresh_author() redirects to author_page essentially instantly after
+            # starting this as a background thread, so if Status only flips to 'Loading'
+            # after the fetch completes (as it used to, further down), the page has already
+            # rendered without ever seeing it - the refresh was running the whole time, just
+            # invisibly.
+            db.action("UPDATE authors SET Status='Loading' WHERE AuthorID=?", (authorid,))
+
         if new_author or refresh:
             current_author = get_all_author_details(authorid, authorname)
             if authorid:

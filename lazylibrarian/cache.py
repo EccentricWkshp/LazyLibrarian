@@ -60,7 +60,7 @@ class ImageType(Enum):
     TEST = 'test'
 
 
-service_blocked = ['GoodReads', 'LibraryThing', 'Google', 'OpenLibrary', 'HardCover', 'DNB', 'RanobeDB', 'ISBN']
+service_blocked = ['GoodReads', 'LibraryThing', 'googleapis', 'OpenLibrary', 'HardCover', 'DNB', 'RanobeDB', 'ISBN']
 
 
 def gr_api_sleep():
@@ -209,7 +209,12 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
 
     elif 'googleapis' in url or 'google.com/search?q=ISBN' in url:
         prov = 'googleapis' if 'googleapis' in url else 'ISBN'
-        if 'Limit Exceeded' in msg:
+        # Google's actual wording for a daily-quota block is "Quota exceeded for quota metric
+        # 'Queries' and limit 'Queries per day'" - "Limit Exceeded" alone never matched this in
+        # practice, so a real daily-quota exhaustion fell through to the generic 429 branch below
+        # (60 second retry) and kept re-hitting the same exhausted daily quota all day instead of
+        # actually waiting for the midnight reset.
+        if 'Limit Exceeded' in msg or ('Quota exceeded' in msg and 'per day' in msg):
             # how long until midnight Pacific Time when google reset the quotas
             delay = seconds_to_midnight() + 28800  # PT is 8hrs behind UTC
             if delay > 86400:
@@ -221,7 +226,12 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
             # eg "Cannot determine user location for geographically restricted operation"
             delay = 3600
 
-        logger.debug(f'Request denied, {r.status_code}, blocking {prov} for {delay} seconds: {msg}')
+        # A day-long silent block on Google Books (our main pubdate/description/genre fallback
+        # for books GoodReads has no data for) is worth surfacing above DEBUG - previously this
+        # was invisible unless DEBUG logging was already on, so a quota exhaustion could (and did)
+        # go unnoticed indefinitely.
+        logmethod = logger.warning if delay > 300 else logger.debug
+        logmethod(f'Request denied, {r.status_code}, blocking {prov} for {delay} seconds: {msg}')
         BLOCKHANDLER.replace_provider_entry(prov, delay, msg)
     else:
         logger.debug(f"Error {r.status_code} url={url}")
@@ -536,7 +546,7 @@ class JSONCacheRequest(CacheRequest):
                 json.dump(source, outfile)
             return source, True
         except Exception as e:
-            self.logger.error(f"Exception {e} writing {outfile}")
+            self.logger.error(f"Exception {e} writing {filename}")
             return source, False
 
 def clean_cache():
