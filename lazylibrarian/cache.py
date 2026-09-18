@@ -536,7 +536,7 @@ class JSONCacheRequest(CacheRequest):
                 json.dump(source, outfile)
             return source, True
         except Exception as e:
-            self.logger.error(f"Exception {e} writing {outfile}")
+            self.logger.error(f"Exception {e} writing {filename}")
             return source, False
 
 def clean_cache():
