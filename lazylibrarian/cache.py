@@ -114,7 +114,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
     url = make_unicode(url)
 
     for blk in service_blocked:
-        if blk in url and BLOCKHANDLER.is_blocked(blk.split('.')[0]):
+        if blk.lower() in url.lower() and BLOCKHANDLER.is_blocked(blk):
             return 'Blocked', False
 
     if headers is None:
@@ -197,7 +197,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
     if '503' in msg:
         to_block = ''
         for blk in service_blocked:
-            if blk in url:
+            if blk.lower() in url.lower():
                 to_block = blk
                 break
         if to_block:

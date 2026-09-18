@@ -31,15 +31,31 @@ class BlockHandler:
         self._newznab = newznab
         self._torznab = torznab
 
+    def _find_key(self, name: str) -> str:
+        """ Return existing matching key in _provider_list (case-insensitive) or name """
+        if name in self._provider_list:
+            return name
+        name_lower = name.lower()
+        for k in self._provider_list:
+            if k.lower() == name_lower:
+                return k
+        return name
+
     def remove_provider_entry(self, name: str) -> None:
-        self._provider_list.pop(name, None)
+        key = self._find_key(name)
+        self._provider_list.pop(key, None)
 
     def add_provider_entry(self, name: str, delay: int, reason: str) -> None:
-        self._provider_list[name] = {"resume": int(time.time()) + delay, "reason": reason}
+        key = self._find_key(name)
+        self._provider_list[key] = {"resume": int(time.time()) + delay, "reason": reason}
 
     def replace_provider_entry(self, name: str, delay: int, reason: str) -> None:
-        # self.remove_provider_entry(name)
-        self.add_provider_entry(name, delay, reason)
+        new_resume = int(time.time()) + delay
+        key = self._find_key(name)
+        existing = self._provider_list.get(key)
+        if existing and existing.get("resume", 0) > new_resume:
+            return
+        self._provider_list[key] = {"resume": new_resume, "reason": reason}
 
     def block_provider(self, who: str, why: str, delay: int | None = None) -> int:
         """ Block provider 'who' for reason 'why'. Returns number of seconds block will last """
@@ -91,11 +107,12 @@ class BlockHandler:
         self.check_day()
 
         timenow = int(time.time())
-        if name in self._provider_list:
-            entry = self._provider_list[name]
+        key = self._find_key(name)
+        if key in self._provider_list:
+            entry = self._provider_list[key]
             if timenow < int(entry['resume']):
                 return True
-            self._provider_list.pop(name, None)
+            self._provider_list.pop(key, None)
         return False
 
     def get_text_list_of_blocks(self) -> str:
