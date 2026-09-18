@@ -63,7 +63,16 @@ try:
     # Restrict langid's candidate languages to common library languages to reduce
     # false positives on short titles where compound words can otherwise match
     # rare or low-precedence languages.
-    LANGID.set_languages(['en', 'fr', 'de', 'es', 'it', 'pt', 'ja', 'sv', 'oc'])
+    # Includes Western European, Slavic, East Asian, and South/Southeast Asian scripts
+    # that appear regularly in library catalogues.
+    LANGID.set_languages([
+        'en', 'fr', 'de', 'es', 'it', 'pt', 'nl',  # major Western European
+        'sv', 'da', 'no', 'fi',                      # Nordic/Finnish
+        'pl', 'cs', 'ru',                             # Slavic
+        'ja', 'zh', 'ko',                             # East Asian
+        'ar', 'bn',                                   # Arabic, Bengali
+        'oc',                                         # Occitan (kept: reduces fr/es confusion)
+    ])
 except (ModuleNotFoundError, ImportError):
     LANGID = None
 
