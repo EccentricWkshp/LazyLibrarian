@@ -527,6 +527,7 @@ class GoodReads:
                         book_language = "Unknown"
                         find_field = "id"
                         bookisbn = ""
+                        bookasin = ""
                         isbnhead = ""
                         originalpubdate = ""
                         bookgenre = ''
@@ -544,12 +545,49 @@ class GoodReads:
                         workid = bookdict['workid']
                         isbn13 = bookdict['isbn13']
                         isbn10 = bookdict['isbn10']
+                        # bookisbn (the BookIsbn column) used to stay '' for every book unless
+                        # the ISBN_LOOKUP name-search fallback further down happened to run and
+                        # find something - it never picked up isbn13/isbn10 even when GoodReads'
+                        # own bulk author/list response already had them right here (confirmed
+                        # live: this exact field is populated in that response for books that
+                        # have an ISBN). The name-search fallback below still overrides this with
+                        # a fuzzy-matched result if ISBN_LOOKUP is enabled and finds one - that's
+                        # existing behaviour, unchanged - but a real GoodReads-reported ISBN is a
+                        # sane starting point rather than leaving it empty by default.
+                        bookisbn = isbn13 or isbn10
                         bookdate = bookdict['pub_year']
                         if check_year(bookdate, past=1800, future=0):
                             mn = check_int(bookdict['pub_month'], 0)
                             dy = check_int(bookdict['pub_day'], 0)
                             if mn and dy:
                                 bookdate = f"{bookdate}-{mn:02d}-{dy:02d}"
+
+                        cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
+                               "OriginalPubDate,BookDate,BookDesc,BookGenre,BookImg,BookPub,BookPages,"
+                               "BookLang,ASIN,BookIsbn,ScanResult FROM books WHERE BookID=?")
+                        existing = db.match(cmd, (bookid,))
+                        if existing:
+                            if (not bookdesc or bookdesc == 'No Description') and existing['BookDesc'] and existing['BookDesc'] != 'No Description':
+                                bookdesc = existing['BookDesc']
+                            if not bookgenre and existing['BookGenre']:
+                                bookgenre = existing['BookGenre']
+                            if not bookpub and existing['BookPub']:
+                                bookpub = existing['BookPub']
+                            if not bookpages and existing['BookPages']:
+                                bookpages = existing['BookPages']
+                            if (not bookdate or bookdate == '0000') and existing['BookDate'] and existing['BookDate'] != '0000':
+                                bookdate = existing['BookDate']
+                            if (not originalpubdate or originalpubdate == '0000') and existing['OriginalPubDate'] and existing['OriginalPubDate'] != '0000':
+                                originalpubdate = existing['OriginalPubDate']
+                            if (not book_language or book_language == 'Unknown') and existing['BookLang'] and existing['BookLang'] != 'Unknown':
+                                book_language = existing['BookLang']
+                            if not bookasin and existing['ASIN']:
+                                bookasin = existing['ASIN']
+                            if not bookisbn and existing['BookIsbn']:
+                                bookisbn = existing['BookIsbn']
+                            if existing['BookImg'] and 'nocover' not in existing['BookImg'] and 'nophoto' not in existing['BookImg']:
+                                if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
+                                    bookimg = existing['BookImg']
 
                         if not bookname:
                             self.logger.debug(f'Rejecting bookid {bookid} for {author_name_result}, no bookname')
@@ -589,9 +627,11 @@ class GoodReads:
                             try:
                                 if book.find(find_field).text:
                                     if find_field == 'id':
+                                        # Use path-based .xml format: book/show?id=X returns HTTP 202
+                                        # (Cloudfront WAF challenge) but book/show/X.xml returns 200 XML
                                         book_url = '/'.join([CONFIG['GR_URL'],
-                                                             f"book/show?id={book.find(find_field).text}"
-                                                             f"&{urlencode(self.params)}"])
+                                                             f"book/show/{book.find(find_field).text}.xml"
+                                                             f"?{urlencode(self.params)}"])
                                     else:
                                         book_url = '/'.join([CONFIG['GR_URL'],
                                                              f"book/isbn/{book.find(find_field).text}"
@@ -630,6 +670,8 @@ class GoodReads:
                                             try:
                                                 bookdate = book_rootxml.find(
                                                     './book/work/original_publication_year').text
+                                                if not bookdate:
+                                                    bookdate = '0000'
                                                 if check_year(bookdate, past=1800, future=0):
                                                     try:
                                                         mn = check_int(book_rootxml.find(
@@ -669,7 +711,7 @@ class GoodReads:
                             except Exception as e:
                                 self.logger.error(f"Goodreads language search failed: {type(e).__name__} {str(e)}")
 
-                        if not isbnhead and CONFIG.get_bool('ISBN_LOOKUP') and bookname or shortname:
+                        if not isbnhead and CONFIG.get_bool('ISBN_LOOKUP') and (bookname or shortname):
                             # try lookup by name
                             if shortname:
                                 name = replace_all(shortname, {':': ' ', '"': '', '\'': ''}).strip()
@@ -913,14 +955,9 @@ class GoodReads:
                         if fatal:
                             self.logger.debug(f"Rejected {bookid}:{reason}:{rejected}")
                         else:
-                            cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
-                                   "OriginalPubDate,BookDesc,BookGenre,ScanResult FROM books WHERE BookID=?")
-                            existing = db.match(cmd, (bookid,))
                             if existing:
                                 book_status = existing['Status']
                                 audio_status = existing['AudioStatus']
-                                bookdesc = existing['BookDesc']
-                                bookgenre = existing['BookGenre']
                                 if CONFIG['FOUND_STATUS'] == 'Open':
                                     if book_status == 'Have' and existing['BookFile']:
                                         book_status = 'Open'
@@ -930,7 +967,7 @@ class GoodReads:
                                 added = existing['BookAdded']
                                 if locked is None:
                                     locked = False
-                                elif locked.isdigit():
+                                elif str(locked).isdigit():
                                     locked = bool(int(locked))
                                 if not originalpubdate:
                                     originalpubdate = existing['OriginalPubDate']
@@ -955,8 +992,17 @@ class GoodReads:
                                     pubdate_lookups_this_refresh += 1
                                     time.sleep(2)
 
-                            if originalpubdate:
-                                bookdate = originalpubdate
+                            # Only let this override bookdate with a genuine date - '0000' is
+                            # get_book_pubdate()'s own not-found placeholder (a non-empty string,
+                            # so `if originalpubdate:` alone is always true for it), and was
+                            # unconditionally clobbering any real date already found earlier in
+                            # this same pass (GoodReads' own extraction, or the HardCover/local-
+                            # dump fallbacks below) with a worse '0000' every time GoodReads
+                            # itself had nothing - silently discarding those fallbacks' results
+                            # before they ever reached the database.
+                            if originalpubdate and originalpubdate != '0000':
+                                if not bookdate or bookdate == '0000' or len(originalpubdate) > len(bookdate):
+                                    bookdate = originalpubdate
 
                             # Leave alone if locked
                             if locked:
@@ -1000,6 +1046,8 @@ class GoodReads:
                                 threadname = thread_name()
                                 reason = f"[{threadname}] {reason}"
                                 control_value_dict = {"BookID": bookid}
+                                if not bookdate:
+                                    bookdate = '0000'
                                 new_value_dict = {
                                     "AuthorID": authorid,
                                     "BookName": bookname,
@@ -1020,7 +1068,8 @@ class GoodReads:
                                     "WorkID": workid,
                                     "gr_id": bookid,
                                     "ScanResult": reason,
-                                    "OriginalPubDate": originalpubdate
+                                    "OriginalPubDate": originalpubdate,
+                                    "ASIN": bookasin or ''
                                 }
                                 db.upsert("books", new_value_dict, control_value_dict)
                                 db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
@@ -1331,7 +1380,8 @@ class GoodReads:
         bulk author/list one - see get_author_books' rate-limited, capped use of this
         below. Returns '' on any failure (not found, blocked, network error) rather
         than raising - callers treat "no ASIN found" as a normal, expected outcome. """
-        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        # Use .xml extension: without it, book/show/{id}?key= returns HTTP 202 (WAF challenge)
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}.xml?{urlencode(self.params)}"])
         try:
             rootxml, _ = gr_xml_request(url)
         except Exception as e:
@@ -1350,7 +1400,9 @@ class GoodReads:
         return asin or ''
 
     def add_bookid_to_db(self, bookid=None, bookstatus=None, audiostatus=None, reason='gr.add_bookid'):
-        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}?{urlencode(self.params)}"])
+        # Use .xml extension: book/show/{id}?key= returns HTTP 202 (WAF challenge)
+        # but book/show/{id}.xml?key= returns HTTP 200 with valid XML
+        url = '/'.join([CONFIG['GR_URL'], f"book/show/{bookid}.xml?{urlencode(self.params)}"])
         try:
             self.searchinglogger.debug(url)
             rootxml, _ = gr_xml_request(url)
@@ -1395,7 +1447,13 @@ class GoodReads:
         bookname = rootxml.find('./book/title').text
 
         try:
-            bookimg = rootxml.find('./book/img_url').text
+            # 'img_url' doesn't exist in GoodReads' book/show response - confirmed live
+            # against the real XML, the field is 'image_url' (same name get_bookdict() uses
+            # elsewhere in this file). This always raised AttributeError and fell to the
+            # except branch below, meaning single-book refresh never once used GoodReads'
+            # own cover even when it had a real one, relying entirely on the fallback
+            # search further down instead.
+            bookimg = rootxml.find('./book/image_url').text
             if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
                 bookimg = 'images/nocover.png'
         except (KeyError, AttributeError):
@@ -1613,6 +1671,34 @@ class GoodReads:
                 self.logger.warning(f"Authorid {author_id} not found in database, unable to add {bookname}")
             else:
                 control_value_dict = {"BookID": bookid}
+                if not bookdate:
+                    bookdate = '0000'
+                # Same fix as get_author_books(): don't let this refresh's own nocover/
+                # nophoto placeholder (bookimg defaults to it above whenever this book's
+                # single-book XML has no real cover - true unconditionally right now due to
+                # a separate field-name bug reading 'img_url', which doesn't exist in
+                # GoodReads' response, instead of 'image_url') overwrite a real cover this
+                # book already has, in the window before the fallback search below runs
+                # (and if that search fails or is only intermittently reliable - confirmed
+                # live this session it can be - the wipe was never corrected).
+                existing_book = db.match("SELECT BookImg,BookDate,BookDesc,BookLang,ASIN,BookPub,BookPages FROM books WHERE BookID=?", (bookid,))
+                if existing_book:
+                    if ('nocover' in bookimg or 'nophoto' in bookimg) and existing_book['BookImg'] \
+                            and 'nocover' not in existing_book['BookImg'] \
+                            and 'nophoto' not in existing_book['BookImg']:
+                        bookimg = existing_book['BookImg']
+                    if (not bookdesc or bookdesc == 'No Description') and existing_book['BookDesc'] and existing_book['BookDesc'] != 'No Description':
+                        bookdesc = existing_book['BookDesc']
+                    if (not bookdate or bookdate == '0000') and existing_book['BookDate'] and existing_book['BookDate'] != '0000':
+                        bookdate = existing_book['BookDate']
+                    if (not book_language or book_language == 'Unknown') and existing_book['BookLang'] and existing_book['BookLang'] != 'Unknown':
+                        book_language = existing_book['BookLang']
+                    if not bookasin and existing_book['ASIN']:
+                        bookasin = existing_book['ASIN']
+                    if not bookpub and existing_book['BookPub']:
+                        bookpub = existing_book['BookPub']
+                    if not bookpages and existing_book['BookPages']:
+                        bookpages = existing_book['BookPages']
                 new_value_dict = {
                     "AuthorID": author_id,
                     "BookName": bookname,
