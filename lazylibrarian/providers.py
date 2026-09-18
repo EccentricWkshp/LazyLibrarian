@@ -2150,8 +2150,9 @@ def newznab_plus(book: dict, provider: ConfigDict, search_type: str, search_mode
 
     if not success:
         if '429' in result:
-            # too many requests...
-            BLOCKHANDLER.block_provider(provider['HOST'], "Too Many Requests", delay=30)
+            # too many requests: was a fixed 30 seconds, which meant a provider that stays limited
+            # (or is disabled upstream, eg by Prowlarr) was asked again every 30 seconds indefinitely
+            BLOCKHANDLER.block_provider_backoff(provider['HOST'], "Too Many Requests")
         else:
             # maybe the host doesn't support the search type
             cancelled = cancel_search_type(search_type, result, provider)
@@ -2175,6 +2176,7 @@ def newznab_plus(book: dict, provider: ConfigDict, search_type: str, search_mode
             if search_type == 'book' and cancelled:
                 return newznab_plus(book, provider, 'generalbook', search_mode, test)
         else:
+            BLOCKHANDLER.reset_backoff(provider['HOST'])  # answered normally
             channel = rootxml.find('channel')
             if channel:
                 for item in channel:
