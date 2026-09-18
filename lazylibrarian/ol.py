@@ -898,10 +898,12 @@ class OpenLibrary:
                                     publishers = ', '.join(publishers)
                                 cover_link = cover
                                 if 'nocover' in cover or 'nophoto' in cover:
-                                    # infodict (Google Books) was already fetched a few lines
-                                    # above for date/desc/genre/etc - use its cover too before
-                                    # falling to the untrusted keyword image-search crawler. No
-                                    # extra API call either way.
+                                    # infodict['img'] (Google Books) was already fetched a few
+                                    # lines above for date/desc/genre - use it here too before
+                                    # falling to the untrusted keyword image-search crawler
+                                    # inside get_book_cover(). Mirrors the same fix in gr.py's
+                                    # get_author_books (see WI-010 item 2). Costs no extra API
+                                    # call since infodict is already in hand.
                                     gb_img = infodict.get('img') if infodict else ''
                                     if gb_img and gb_img.startswith('http') and \
                                             'nocover' not in gb_img and 'nophoto' not in gb_img:
@@ -1468,7 +1470,10 @@ class OpenLibrary:
             bookdict['bookpub'] = ', '.join(bookdict['bookpub'])
         bookdict['bookdate'] = date_format(workinfo.get('publish_date', ''),
                                            context=bookdict['bookname'], datelang=CONFIG['DATE_LANG'])
-        detected_lang, confidence = language_from_words(bookdict['bookname'])
+        desc = workinfo.get('description', '')
+        if isinstance(desc, dict):
+            desc = desc.get('value', '')
+        detected_lang, confidence = language_from_words(bookdict['bookname'], desc=desc)
         if detected_lang and confidence > 0.6:
             bookdict['booklang'] = detected_lang
         else:

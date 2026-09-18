@@ -62,6 +62,24 @@ from lazylibrarian.logconfig import LOGCONFIG
 reading_status = {'toread': 1, 'reading': 2, 'haveread': 3, 'read': 3, 'owned': 4, 'abandoned': 5, 'dnf': 5, }
 
 
+def is_valid_language(book_lang: str, valid_langs: list | set | None) -> bool:
+    """ Check if book_lang matches the user's preferred languages.
+    Treats 'Unknown' and empty as acceptable (never rejects unconfirmed language).
+    Also accepts English dialects (e.g. en-CA, en-US, en-GB, eng) if English is in valid_langs. """
+    if not book_lang or book_lang == 'Unknown':
+        return True
+    if not valid_langs or 'All' in valid_langs:
+        return True
+    if book_lang in valid_langs:
+        return True
+    bl = book_lang.lower()
+    en_codes = {'en', 'eng', 'english', 'en-us', 'en-gb', 'en-ca', 'en-au', 'en-nz'}
+    valid_lower = {v.lower() for v in valid_langs}
+    if (bl.startswith('en-') or bl in en_codes) and valid_lower.intersection(en_codes):
+        return True
+    return False
+
+
 def get_user_agent(configured=True) -> str:
     # Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36
     if configured and CONFIG['USER_AGENT']:
