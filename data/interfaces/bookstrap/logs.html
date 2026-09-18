@@ -84,7 +84,8 @@
                     { "sWidth": "60%", "aTargets": [ 6 ] }
                     %endif
                 ],
-                 "stateSave": true,
+                 "stateSave": true, 
+                 "stateDuration": 0,
                 "stateSaveParams": function (settings, data) { data.perm = ${perm}; },
                 "stateLoadParams": function (settings, data) { return data.perm === ${perm}; },
                 "order": [[ 0, 'desc' ]],
