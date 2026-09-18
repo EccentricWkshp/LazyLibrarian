@@ -527,6 +527,7 @@ class GoodReads:
                         book_language = "Unknown"
                         find_field = "id"
                         bookisbn = ""
+                        bookasin = ""
                         isbnhead = ""
                         originalpubdate = ""
                         bookgenre = ''
@@ -560,6 +561,33 @@ class GoodReads:
                             dy = check_int(bookdict['pub_day'], 0)
                             if mn and dy:
                                 bookdate = f"{bookdate}-{mn:02d}-{dy:02d}"
+
+                        cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
+                               "OriginalPubDate,BookDate,BookDesc,BookGenre,BookImg,BookPub,BookPages,"
+                               "BookLang,ASIN,BookIsbn,ScanResult FROM books WHERE BookID=?")
+                        existing = db.match(cmd, (bookid,))
+                        if existing:
+                            if (not bookdesc or bookdesc == 'No Description') and existing['BookDesc'] and existing['BookDesc'] != 'No Description':
+                                bookdesc = existing['BookDesc']
+                            if not bookgenre and existing['BookGenre']:
+                                bookgenre = existing['BookGenre']
+                            if not bookpub and existing['BookPub']:
+                                bookpub = existing['BookPub']
+                            if not bookpages and existing['BookPages']:
+                                bookpages = existing['BookPages']
+                            if (not bookdate or bookdate == '0000') and existing['BookDate'] and existing['BookDate'] != '0000':
+                                bookdate = existing['BookDate']
+                            if (not originalpubdate or originalpubdate == '0000') and existing['OriginalPubDate'] and existing['OriginalPubDate'] != '0000':
+                                originalpubdate = existing['OriginalPubDate']
+                            if (not book_language or book_language == 'Unknown') and existing['BookLang'] and existing['BookLang'] != 'Unknown':
+                                book_language = existing['BookLang']
+                            if not bookasin and existing['ASIN']:
+                                bookasin = existing['ASIN']
+                            if not bookisbn and existing['BookIsbn']:
+                                bookisbn = existing['BookIsbn']
+                            if existing['BookImg'] and 'nocover' not in existing['BookImg'] and 'nophoto' not in existing['BookImg']:
+                                if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
+                                    bookimg = existing['BookImg']
 
                         if not bookname:
                             self.logger.debug(f'Rejecting bookid {bookid} for {author_name_result}, no bookname')
@@ -942,34 +970,9 @@ class GoodReads:
                         if fatal:
                             self.logger.debug(f"Rejected {bookid}:{reason}:{rejected}")
                         else:
-                            cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,"
-                                   "OriginalPubDate,BookDesc,BookGenre,BookImg,BookPub,BookPages,"
-                                   "ScanResult FROM books WHERE BookID=?")
-                            existing = db.match(cmd, (bookid,))
                             if existing:
                                 book_status = existing['Status']
                                 audio_status = existing['AudioStatus']
-                                bookdesc = existing['BookDesc']
-                                bookgenre = existing['BookGenre']
-                                # GoodReads' bulk author/list response commonly leaves publisher
-                                # and page-count blank for indie/self-published books, same class
-                                # of gap as the cover fix above - don't let a blank fresh value
-                                # wipe a real one this book already has.
-                                if not bookpub and existing['BookPub']:
-                                    bookpub = existing['BookPub']
-                                if not bookpages and existing['BookPages']:
-                                    bookpages = existing['BookPages']
-                                # GoodReads' bulk author/list response frequently has no real
-                                # cover for indie/self-published books (returns its own generic
-                                # nocover/nophoto placeholder) - don't let that blank out a real
-                                # cover this book already has from an earlier successful lookup
-                                # (GoodReads itself, Google Books, or the keyword-search fallback
-                                # further below). The nocover/nophoto branch below still runs and
-                                # can replace this with something better if it finds one.
-                                if ('nocover' in bookimg or 'nophoto' in bookimg) and existing['BookImg'] \
-                                        and 'nocover' not in existing['BookImg'] \
-                                        and 'nophoto' not in existing['BookImg']:
-                                    bookimg = existing['BookImg']
                                 if CONFIG['FOUND_STATUS'] == 'Open':
                                     if book_status == 'Have' and existing['BookFile']:
                                         book_status = 'Open'
@@ -979,7 +982,7 @@ class GoodReads:
                                 added = existing['BookAdded']
                                 if locked is None:
                                     locked = False
-                                elif locked.isdigit():
+                                elif str(locked).isdigit():
                                     locked = bool(int(locked))
                                 if not originalpubdate:
                                     originalpubdate = existing['OriginalPubDate']
@@ -1013,7 +1016,8 @@ class GoodReads:
                             # itself had nothing - silently discarding those fallbacks' results
                             # before they ever reached the database.
                             if originalpubdate and originalpubdate != '0000':
-                                bookdate = originalpubdate
+                                if not bookdate or bookdate == '0000' or len(originalpubdate) > len(bookdate):
+                                    bookdate = originalpubdate
 
                             # Leave alone if locked
                             if locked:
@@ -1079,7 +1083,8 @@ class GoodReads:
                                     "WorkID": workid,
                                     "gr_id": bookid,
                                     "ScanResult": reason,
-                                    "OriginalPubDate": originalpubdate
+                                    "OriginalPubDate": originalpubdate,
+                                    "ASIN": bookasin or ''
                                 }
                                 db.upsert("books", new_value_dict, control_value_dict)
                                 db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
@@ -1694,12 +1699,24 @@ class GoodReads:
                 # book already has, in the window before the fallback search below runs
                 # (and if that search fails or is only intermittently reliable - confirmed
                 # live this session it can be - the wipe was never corrected).
-                if 'nocover' in bookimg or 'nophoto' in bookimg:
-                    existing_book = db.match("SELECT BookImg FROM books WHERE BookID=?", (bookid,))
-                    if existing_book and existing_book['BookImg'] \
+                existing_book = db.match("SELECT BookImg,BookDate,BookDesc,BookLang,ASIN,BookPub,BookPages FROM books WHERE BookID=?", (bookid,))
+                if existing_book:
+                    if ('nocover' in bookimg or 'nophoto' in bookimg) and existing_book['BookImg'] \
                             and 'nocover' not in existing_book['BookImg'] \
                             and 'nophoto' not in existing_book['BookImg']:
                         bookimg = existing_book['BookImg']
+                    if (not bookdesc or bookdesc == 'No Description') and existing_book['BookDesc'] and existing_book['BookDesc'] != 'No Description':
+                        bookdesc = existing_book['BookDesc']
+                    if (not bookdate or bookdate == '0000') and existing_book['BookDate'] and existing_book['BookDate'] != '0000':
+                        bookdate = existing_book['BookDate']
+                    if (not book_language or book_language == 'Unknown') and existing_book['BookLang'] and existing_book['BookLang'] != 'Unknown':
+                        book_language = existing_book['BookLang']
+                    if not bookasin and existing_book['ASIN']:
+                        bookasin = existing_book['ASIN']
+                    if not bookpub and existing_book['BookPub']:
+                        bookpub = existing_book['BookPub']
+                    if not bookpages and existing_book['BookPages']:
+                        bookpages = existing_book['BookPages']
                 new_value_dict = {
                     "AuthorID": author_id,
                     "BookName": bookname,
