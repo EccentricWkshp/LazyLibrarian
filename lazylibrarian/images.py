@@ -544,7 +544,10 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                             return coverlink, 'openlibrary'
                 else:
                     logger.debug(f"OpenLibrary error: {result}")
-                    BLOCKHANDLER.block_provider("openlibrary", result)
+                    # 404 (or 400) means book/cover was not found for this ISBN, NOT a service outage
+                    if '404' not in result and '400' not in result:
+                        delay = 60 if ('429' in result or '503' in result) else None
+                        BLOCKHANDLER.block_provider("openlibrary", result, delay=delay)
             if src:
                 return None, src
 
