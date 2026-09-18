@@ -615,6 +615,21 @@ def datecompare(nzbdate, control_date):
         return 0
 
 
+def elapsed_time(seconds):
+    # given a seconds count, return a message showing days,hours,minutes,seconds
+    days = seconds // 86400
+    hours = seconds // 3600 % 24
+    mins = seconds // 60 % 60
+    secs = seconds % 60
+    timestr = f"{days} {plural(days, 'day')}" if days else ''
+    timestr += f"{hours} {plural(hours, 'hour')}" if hours else ''
+    timestr += f"{mins} {plural(mins, 'minute')}" if mins else ''
+    timestr += f"{secs} {plural(secs, 'second')}" if secs else ''
+    if timestr.endswith(', '):
+        timestr = timestr[:-2]
+    return timestr
+
+
 def plural(var, phrase=""):
     """
     Convenience function for pluralising log messages
