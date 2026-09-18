@@ -807,7 +807,7 @@ class WebInterface:
                     # verified matching URL for an inferred guess.
                     primarysource = arow[13]
                     link_values = arow[14:14 + len(author_link_sources)]
-                    fallback_map = dict(zip((name for name, _ in author_link_sources), link_values))
+                    fallback_map = dict(zip((name for name, _ in author_link_sources), link_values, strict=False))
                     badge_source = primarysource
                     if not badge_source:
                         for fb_name, _ in prioritized_infosources():
