@@ -1051,8 +1051,10 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
 
         _handle_aborted_download(book_state, 12, mock_db, mock_logger)
 
-        # Should delete from client
-        mock_delete_task.assert_called_once_with("QBITTORRENT", "dl123", True)
+        # Should delete from client, and not be held for seeding it never did
+        mock_delete_task.assert_called_once_with(
+            "QBITTORRENT", "dl123", True, abandoned=True
+        )
 
     @mock.patch("lazylibrarian.postprocess.schedule_job")
     def test_check_and_schedule_next_run_stop_when_empty(self, mock_schedule):

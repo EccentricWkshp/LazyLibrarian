@@ -200,6 +200,28 @@ class DeleteTaskSeedingTest(LLTestCaseWithConfigandDIRS):
         self.qbittorrent.remove_torrent.assert_called_once_with(
             HASHID, True, expect_category='books')
 
+    def test_an_abandoned_download_is_removed_whatever_it_owes(self):
+        # a download we gave up on never completed, so there is nothing to seed
+        # back. Holding it for seeding it can never do leaves a dead task in the
+        # client for ever while the request is marked failed.
+        self.qbittorrent.seed_state.return_value = (-1.0, 0)
+        with self.provider_config(ratio=1.0, duration=5):
+            self.assertTrue(delete_task('QBITTORRENT', HASHID, True, abandoned=True))
+        self.qbittorrent.remove_torrent.assert_called_once_with(
+            HASHID, True, expect_category='books')
+
+    def test_an_abandoned_download_still_needs_to_be_ours(self):
+        # abandoned skips the seeding hold only. Removing someone else's torrent
+        # is still refused.
+        db = DBConnection()
+        try:
+            db.action("UPDATE wanted SET Origin='adopted' WHERE DownloadID=?", (HASHID,))
+        finally:
+            db.close()
+        with self.provider_config(ratio=1.0, duration=5):
+            self.assertTrue(delete_task('QBITTORRENT', HASHID, True, abandoned=True))
+        self.qbittorrent.remove_torrent.assert_not_called()
+
     def test_a_usenet_download_is_not_held_up_by_a_seed_requirement(self):
         # seeding is a torrent idea. Nothing should be able to wedge sab or
         # nzbget cleanup behind a ratio.
