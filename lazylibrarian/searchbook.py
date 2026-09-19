@@ -20,7 +20,7 @@ import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import check_int, plural, thread_name
+from lazylibrarian.formatter import check_int, get_list, plural, thread_name
 from lazylibrarian.providers import (
     iterate_over_direct_sites,
     iterate_over_irc_sites,
@@ -42,6 +42,26 @@ def cron_search_book():
 
 def good_enough(match):
     return bool(match and int(match[0]) >= CONFIG.get_int('MATCH_RATIO'))
+
+
+def _has_comic_genre(book):
+    """Whether a book's genre matches the configurable comic genre list.
+
+    Splits the book's genre string on commas and compares each token against
+    the configured terms, so 'comic' does not false-positive on 'Economics'."""
+    genre = (book.get('genre') or '').lower()
+    if not genre:
+        return False
+    comic_genres = [g.strip() for g in get_list(CONFIG['COMIC_GENRES'], ',') if g.strip()]
+    if not comic_genres:
+        return False
+    genre_tokens = [g.strip() for g in genre.split(',') if g.strip()]
+    for term in comic_genres:
+        term_lower = term.lower()
+        for token in genre_tokens:
+            if term_lower == token or term_lower in token.split():
+                return True
+    return False
 
 
 def warn_mode(mode):
@@ -110,9 +130,9 @@ def search_book(books=None, library=None):
 
         if not books:
             # We are performing a backlog search
-            cmd = ("SELECT BookID, AuthorName, Bookname, BookSub, BookAdded, books.Status, AudioStatus "
-                   "from books,authors WHERE (books.Status='Wanted' OR AudioStatus='Wanted') and "
-                   "books.AuthorID = authors.AuthorID order by BookAdded desc")
+            cmd = ("SELECT BookID, AuthorName, Bookname, BookSub, BookAdded, books.Status, AudioStatus, "
+                   "BookGenre from books,authors WHERE (books.Status='Wanted' OR AudioStatus='Wanted') "
+                   "and books.AuthorID = authors.AuthorID order by BookAdded desc")
             results = db.select(cmd)
             for terms in results:
                 searchbooks.append(terms)
@@ -123,8 +143,8 @@ def search_book(books=None, library=None):
                 searchinglogger.debug(f"{books}")
             for book in books:
                 if book['bookid'] not in ['booklang', 'library', 'ignored']:
-                    cmd = ("SELECT BookID, AuthorName, BookName, BookSub, books.Status, AudioStatus "
-                           "from books,authors WHERE BookID=? AND books.AuthorID = authors.AuthorID")
+                    cmd = ("SELECT BookID, AuthorName, BookName, BookSub, books.Status, AudioStatus, "
+                           "BookGenre from books,authors WHERE BookID=? AND books.AuthorID = authors.AuthorID")
                     results = db.select(cmd, (book['bookid'],))
                     if results:
                         for terms in results:
@@ -209,7 +229,8 @@ def search_book(books=None, library=None):
                          "bookSub": searchbook['BookSub'],
                          "authorName": searchbook['AuthorName'],
                          "library": "eBook",
-                         "searchterm": searchterm})
+                         "searchterm": searchterm,
+                         "genre": (searchbook['BookGenre'] if 'BookGenre' in searchbook.keys() else '')})
 
             if searchbook['AudioStatus'] == "Wanted":
                 cmd = "SELECT BookID from wanted WHERE BookID=? and AuxInfo='AudioBook' and Status='Snatched'"
@@ -225,7 +246,8 @@ def search_book(books=None, library=None):
                          "bookSub": searchbook['BookSub'],
                          "authorName": searchbook['AuthorName'],
                          "library": "AudioBook",
-                         "searchterm": searchterm})
+                         "searchterm": searchterm,
+                         "genre": (searchbook['BookGenre'] if 'BookGenre' in searchbook.keys() else '')})
 
         # only get rss results once per run, as they are not search specific
         rss_resultlist = None
@@ -521,6 +543,35 @@ def search_book(books=None, library=None):
                                 f"Found RSS result: {searchtype} {round(match[0], 2)}%, {match[1]['NZBprov']} "
                                 f"priority {match[3]}")
                             matches.append(match)
+
+                # if still not found and the book's genre suggests it is a graphic novel
+                # or comic, also try comic provider categories
+                if not matches and book.get('library') == 'eBook' and _has_comic_genre(book):
+                    logger.info(
+                        f"Genre [{book.get('genre', '')}] matches comic genres, "
+                        f"trying comic categories for {book['searchterm']}")
+                    if CONFIG.use_nzb():
+                        resultlist, nprov = iterate_over_znab_sites(book, 'comic')
+                        if not nprov:
+                            logger.debug("No NZB providers have comic categories enabled")
+                        elif resultlist:
+                            match = find_best_result(resultlist, book, searchtype, 'nzb')
+                            if good_enough(match):
+                                logger.info(
+                                    f"Found NZB comic result: {round(match[0], 2)}%, "
+                                    f"{match[1]['NZBprov']} priority {match[3]}")
+                                matches.append(match)
+                    if CONFIG.use_tor():
+                        resultlist, nprov = iterate_over_torrent_sites(book, 'comic')
+                        if not nprov:
+                            logger.debug("No torrent providers have comic categories enabled")
+                        elif resultlist:
+                            match = find_best_result(resultlist, book, searchtype, 'tor')
+                            if good_enough(match):
+                                logger.info(
+                                    f"Found Torrent comic result: {round(match[0], 2)}%, "
+                                    f"{match[1]['NZBprov']} priority {match[3]}")
+                                matches.append(match)
 
             if matches:
                 # Try candidates best-first, falling through to the next one if a download
