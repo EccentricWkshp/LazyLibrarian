@@ -173,6 +173,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('General', 'CACHE_AGE', 30),
     ConfigInt('General', 'BACKUP_DB', 30),
     ConfigInt('General', 'TASK_AGE', 2),
+    ConfigInt('General', 'STALL_AGE', 72),
+    ConfigInt('General', 'MIN_SEEDERS', 1),
     ConfigBool('General', 'OPF_TAGS', 1),
     ConfigBool('General', 'GENRE_TAGS', 0),
     ConfigBool('General', 'WISHLIST_TAGS', 1),

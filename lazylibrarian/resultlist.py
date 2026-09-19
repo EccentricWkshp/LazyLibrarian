@@ -312,6 +312,13 @@ def find_best_result(resultlist, book, searchtype, source):
                 logger.debug(f"Rejecting {result_title}, too small ({size}Mb)")
 
             if not rejected:
+                min_seeders = CONFIG.get_int('MIN_SEEDERS')
+                seeders = check_int(res.get('seeders', -1), -1)
+                if min_seeders and seeders >= 0 and seeders < min_seeders:
+                    rejected = True
+                    logger.debug(f"Rejecting {result_title}, only {seeders} seeders (minimum {min_seeders})")
+
+            if not rejected:
                 bookid = book['bookid']
 
                 if source == 'nzb':
@@ -375,10 +382,12 @@ def find_best_result(resultlist, book, searchtype, source):
                         for i in [i for i, x in enumerate(preferwords) if x == word]:
                             score += i + 1
 
-                matches.append([score, new_value_dict, control_value_dict, res['priority']])
+                matches.append([score, new_value_dict, control_value_dict, res['priority'],
+                                check_int(res.get('seeders', 0), 0)])
 
         if matches:
-            highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0)))
+            highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0),
+                                                   check_int(s[4], 0)))
             score = highest[0]
             new_value_dict = highest[1]
             # controlValueDict = highest[2]

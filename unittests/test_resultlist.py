@@ -11,8 +11,8 @@ from unittests.unittesthelpers import LLTestCaseWithStartup
 
 
 def _make_tor_result(title, url="http://test.com/book.torrent", size="50000000",
-                     prov="TestProvider", priority=0):
-    return {
+                     prov="TestProvider", priority=0, seeders=None):
+    result = {
         "tor_title": title,
         "tor_url": url,
         "tor_size": size,
@@ -20,6 +20,9 @@ def _make_tor_result(title, url="http://test.com/book.torrent", size="50000000",
         "tor_type": "torrent",
         "priority": priority,
     }
+    if seeders is not None:
+        result["seeders"] = seeders
+    return result
 
 
 def _make_book(author, title, bookid="test_001", library="eBook"):
@@ -28,6 +31,7 @@ def _make_book(author, title, bookid="test_001", library="eBook"):
         "bookName": title,
         "bookid": bookid,
         "library": library,
+        "searchterm": f"{author} {title}",
     }
 
 
@@ -127,3 +131,50 @@ class CrossFormatRejectionTest(LLTestCaseWithStartup):
         results = [_make_tor_result("Some Author - Some Book")]
         match = find_best_result(results, book, "book", "tor")
         self.assertIsNotNone(match, "No format tokens should not trigger rejection")
+
+
+class SeederFilterTest(LLTestCaseWithStartup):
+
+    def test_zero_seeders_rejected_with_min_seeders_1(self):
+        book = _make_book("Some Author", "Some Book")
+        results = [_make_tor_result("Some Author - Some Book", seeders=0)]
+        with mock.patch.object(CONFIG, 'get_int',
+                               side_effect=lambda k: 1 if k == 'MIN_SEEDERS' else CONFIG.__class__.get_int(CONFIG, k)):
+            match = find_best_result(results, book, "book", "tor")
+        self.assertIsNone(match, "0-seeder result should be rejected when MIN_SEEDERS=1")
+
+    def test_one_seeder_accepted_with_min_seeders_1(self):
+        book = _make_book("Some Author", "Some Book")
+        results = [_make_tor_result("Some Author - Some Book", seeders=1)]
+        with mock.patch.object(CONFIG, 'get_int',
+                               side_effect=lambda k: 1 if k == 'MIN_SEEDERS' else CONFIG.__class__.get_int(CONFIG, k)):
+            match = find_best_result(results, book, "book", "tor")
+        self.assertIsNotNone(match, "1-seeder result should be accepted when MIN_SEEDERS=1")
+
+    def test_no_seeder_data_not_rejected(self):
+        book = _make_book("Some Author", "Some Book")
+        results = [_make_tor_result("Some Author - Some Book")]
+        with mock.patch.object(CONFIG, 'get_int',
+                               side_effect=lambda k: 5 if k == 'MIN_SEEDERS' else CONFIG.__class__.get_int(CONFIG, k)):
+            match = find_best_result(results, book, "book", "tor")
+        self.assertIsNotNone(match, "Result without seeder data should not be rejected")
+
+    def test_seeder_filter_disabled_when_zero(self):
+        book = _make_book("Some Author", "Some Book")
+        results = [_make_tor_result("Some Author - Some Book", seeders=0)]
+        with mock.patch.object(CONFIG, 'get_int',
+                               side_effect=lambda k: 0 if k == 'MIN_SEEDERS' else CONFIG.__class__.get_int(CONFIG, k)):
+            match = find_best_result(results, book, "book", "tor")
+        self.assertIsNotNone(match, "0-seeder result should pass when MIN_SEEDERS=0")
+
+    def test_higher_seeders_preferred_as_tiebreaker(self):
+        book = _make_book("Some Author", "Some Book")
+        results = [
+            _make_tor_result("Some Author - Some Book", url="http://a/1", seeders=2),
+            _make_tor_result("Some Author - Some Book", url="http://b/2", seeders=50),
+        ]
+        with mock.patch.object(CONFIG, 'get_int',
+                               side_effect=lambda k: 0 if k == 'MIN_SEEDERS' else CONFIG.__class__.get_int(CONFIG, k)):
+            match = find_best_result(results, book, "book", "tor")
+        self.assertIsNotNone(match)
+        self.assertIn("http://b/2", match[2]["NZBurl"])
