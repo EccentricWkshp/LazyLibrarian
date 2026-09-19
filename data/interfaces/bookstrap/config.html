@@ -908,6 +908,11 @@
                     <span class="help-block">Comma separated file extensions</span>
                   </div>
                   %endif
+                  <div class="form-group">
+                    <label for="comic_genres" class="control-label">Comic Genres:</label>
+                    <input type="text" id="comic_genres" name="comic_genres" value="${CONFIG['COMIC_GENRES']}" class="form-control" placeholder="graphic novel, comics, manga">
+                    <span class="help-block">eBooks with these genres also search comic provider categories (clear to disable)</span>
+                  </div>
                   <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['NO_FUTURE'] else '' %>
                     <label for="no_future">

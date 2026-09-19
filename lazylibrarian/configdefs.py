@@ -435,9 +435,11 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('Comics', 'COMIC_TAB', 0),
     ConfigBool('Comics', 'COMIC_RELATIVE', 1),
     ConfigBool('Comics', 'COMIC_DELFOLDER', 1),
-    ConfigCSV('Comics', 'COMIC_TYPE', 'cbr, cbz', force_lower=True),
+    ConfigCSV('Comics', 'COMIC_TYPE', 'cbr, cbz, epub, pdf', force_lower=True),
     ConfigBool('Comics', 'COMIC_SINGLE', 1),
-    ConfigCSV('Comics', 'REJECT_COMIC', 'epub, mobi', force_lower=True),
+    ConfigCSV('Comics', 'REJECT_COMIC', '', force_lower=True),
+    ConfigCSV('Comics', 'COMIC_GENRES', 'graphic novel, comics, comic, manga, graphic novels, bandes dessinees',
+              force_lower=True),
     ConfigInt('Comics', 'REJECT_MAXCOMIC', 0),
     ConfigInt('Comics', 'REJECT_MINCOMIC', 0),
     ConfigStr('Comics', 'CV_APIKEY', ''),  # ComicVine API key
