@@ -65,8 +65,8 @@ from lazylibrarian.auth import (
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
-from lazylibrarian.bookwork import add_series_members, delete_empty_series, language_from_words, set_series
-from lazylibrarian.cache import ImageType, cache_img, gr_api_sleep, gr_xml_request
+from lazylibrarian.bookwork import add_series_members, delete_empty_series, set_series
+from lazylibrarian.cache import ImageType, cache_img, gr_xml_request
 from lazylibrarian.calibre import calibre_test, calibredb, get_calibre_id, sync_calibre_list
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
 from lazylibrarian.comicid import cv_identify, cx_identify, name_words, title_words
@@ -76,7 +76,6 @@ from lazylibrarian.common import (
     delete_empty_folders,
     get_readinglist,
     is_valid_email,
-    is_valid_language,
     log_header,
     mime_type,
     pwd_check,
@@ -148,10 +147,7 @@ from lazylibrarian.images import (
 from lazylibrarian.importer import (
     add_author_name_to_db,
     add_author_to_db,
-    find_duplicate_candidates,
     get_preferred_author,
-    merge_book_copies,
-    normalize_title_for_matching,
     search_for,
     update_totals,
 )
@@ -231,174 +227,6 @@ def clear_our_cookies():
     cookie['ll_prefs']['path'] = '/'
     cookie['ll_prefs']['expires'] = 0
     cookie['ll_prefs']['max-age'] = 0
-
-
-def fetch_asin_from_goodreads(gr_id):
-    """ Fetch a book's ASIN/kindle_asin from GoodReads' single-book endpoint
-    (book/show/{id}.xml - the bulk author-book-list endpoint used during normal refresh
-    doesn't carry this field). Returns '' if not found. Raises on network/parse failure -
-    callers decide how to report that. """
-    api = lazylibrarian.INFOSOURCES['GoodReads']['api']()
-    url = '/'.join([CONFIG['GR_URL'], f"book/show/{gr_id}.xml?{urlencode(api.params)}"])
-    rootxml, _ = gr_xml_request(url)
-    asin = ''
-    if rootxml is not None:
-        book_el = rootxml.find('book')
-        if book_el is not None:
-            asin_el = book_el.find('asin')
-            asin = asin_el.text if asin_el is not None and asin_el.text else ''
-            if not asin:
-                kasin_el = book_el.find('kindle_asin')
-                asin = kasin_el.text if kasin_el is not None and kasin_el.text else ''
-    return asin
-
-
-def backfill_book_asins():
-    """ Background job (see force_asin_backfill() and scheduling): look up and save an ASIN for every book
-    that has a GoodReads id but a blank ASIN, one GoodReads request at a time, paced the same
-    way as every other GoodReads single-book fetch (gr_api_sleep()) so this doesn't hammer
-    GoodReads any harder than a normal refresh would. Interruptible via STOPTHREADS/restart,
-    same convention as oldump.py's dump sync - safe to stop and re-run later, it just picks
-    up wherever books still have a blank ASIN. """
-    logger = logging.getLogger(__name__)
-    incoming_threadname = thread_name()
-    thread_name('ASINBACKFILL')
-
-    def stop_requested():
-        return lazylibrarian.STOPTHREADS and thread_name() == 'ASINBACKFILL'
-
-    db = database.DBConnection()
-    try:
-        db.upsert("jobs", {"Start": time.time()}, {"Name": "ASINBACKFILL"})
-        rows = db.select("SELECT BookID, gr_id FROM books WHERE gr_id IS NOT NULL AND TRIM(gr_id) != '' "
-                         "AND (ASIN IS NULL OR TRIM(ASIN) = '')")
-        total = len(rows)
-        lazylibrarian.ASIN_BACKFILL_STATUS = {'checked': 0, 'found': 0, 'total': total}
-        logger.info(f"ASIN backfill: {total} book{plural(total)} with blank ASIN to check")
-        checked = 0
-        found = 0
-        for row in rows:
-            if stop_requested():
-                logger.info(f"ASIN backfill: stopped after checking {checked}/{total}")
-                break
-            try:
-                asin = fetch_asin_from_goodreads(row['gr_id'])
-            except Exception as e:
-                logger.debug(f"ASIN backfill: lookup failed for {row['BookID']}: {e}")
-                asin = ''
-            if asin:
-                db.action("UPDATE books SET ASIN=? WHERE BookID=? AND (ASIN IS NULL OR TRIM(ASIN) = '')",
-                          (asin, row['BookID']))
-                found += 1
-            checked += 1
-            lazylibrarian.ASIN_BACKFILL_STATUS['checked'] = checked
-            lazylibrarian.ASIN_BACKFILL_STATUS['found'] = found
-            if checked % 250 == 0:
-                logger.info(f"ASIN backfill: checked {checked}/{total}, found {found} so far")
-            gr_api_sleep()
-        else:
-            logger.info(f"ASIN backfill: complete, checked {checked}/{total}, found {found}")
-    finally:
-        db.upsert("jobs", {"Finish": time.time()}, {"Name": "ASINBACKFILL"})
-        db.close()
-        thread_name(incoming_threadname)
-
-
-def refresh_book_languages():
-    """ Background job: re-evaluates language for books in the database.
-    Corrects short-title false positives (e.g. English titles misidentified as German/French/Spanish),
-    normalizes English dialects (e.g. en-CA), resolves 'Unknown' languages, and automatically
-    un-ignores books that were falsely marked Ignored due to invalid language. """
-    logger = logging.getLogger(__name__)
-    incoming_threadname = thread_name()
-    thread_name('LANGREFRESH')
-
-    def stop_requested():
-        return lazylibrarian.STOPTHREADS and thread_name() == 'LANGREFRESH'
-
-    db = database.DBConnection()
-    try:
-        db.upsert("jobs", {"Start": time.time()}, {"Name": "LANGREFRESH"})
-        rows = db.select(
-            "SELECT BookID, BookName, BookLang, BookDesc, Status, ScanResult, AuthorID FROM books "
-            "WHERE (Status = 'Ignored' AND ScanResult LIKE '%Invalid language%') "
-            "OR BookLang = 'Unknown' OR BookLang IS NULL OR BookLang = '' "
-            "OR BookLang NOT IN ('en', 'eng', 'en-US', 'en-GB')"
-        )
-        total = len(rows)
-        lazylibrarian.LANG_REFRESH_STATUS = {'checked': 0, 'updated': 0, 'unignored': 0, 'total': total}
-        logger.info(f"Language refresh: {total} candidate book{plural(total)} to check")
-
-        valid_langs = get_list(CONFIG['IMP_PREFLANG'])
-        checked = 0
-        updated = 0
-        unignored = 0
-        authors_to_update = set()
-
-        for row in rows:
-            if stop_requested():
-                logger.info(f"Language refresh: stopped after checking {checked}/{total}")
-                break
-
-            bookid = row['BookID']
-            name = row['BookName'] or ''
-            old_lang = row['BookLang'] or 'Unknown'
-            desc = row['BookDesc'] or ''
-            status = row['Status']
-            scan_res = row['ScanResult'] or ''
-            author_id = row['AuthorID']
-
-            new_lang, conf = language_from_words(name, desc=desc)
-            if new_lang and new_lang not in ['None', 'Disabled', 'Blocked'] and conf > 0.5:
-                lang_to_set = new_lang
-            else:
-                lang_to_set = old_lang
-
-            lang_changed = (lang_to_set != old_lang and lang_to_set != 'Unknown')
-            was_ignored_for_lang = (status == 'Ignored' and 'Invalid language' in scan_res)
-            is_valid_now = is_valid_language(lang_to_set, valid_langs)
-
-            if lang_changed or (was_ignored_for_lang and is_valid_now):
-                updates = {}
-                if lang_changed:
-                    updates['BookLang'] = lang_to_set
-                if was_ignored_for_lang and is_valid_now:
-                    new_status = CONFIG['NEWBOOK_STATUS'] if CONFIG['NEWBOOK_STATUS'] != 'Ignored' else 'Skipped'
-                    updates['Status'] = new_status
-                    updates['ScanResult'] = f"[LangRefresh] Restored: {old_lang} -> {lang_to_set}"
-                    unignored += 1
-                    if author_id:
-                        authors_to_update.add(author_id)
-                elif lang_changed and not was_ignored_for_lang:
-                    updates['ScanResult'] = f"[LangRefresh] Language: {old_lang} -> {lang_to_set}"
-
-                if updates:
-                    set_clause = ', '.join(f"{k}=?" for k in updates.keys())
-                    values = list(updates.values()) + [bookid]
-                    db.action(f"UPDATE books SET {set_clause} WHERE BookID=?", values)
-                    updated += 1
-
-            checked += 1
-            lazylibrarian.LANG_REFRESH_STATUS['checked'] = checked
-            lazylibrarian.LANG_REFRESH_STATUS['updated'] = updated
-            lazylibrarian.LANG_REFRESH_STATUS['unignored'] = unignored
-
-            if checked % 250 == 0:
-                db.commit()
-                logger.info(f"Language refresh: checked {checked}/{total}, updated {updated}, restored {unignored}")
-
-        db.commit()
-        for auth_id in authors_to_update:
-            try:
-                lazylibrarian.importer.update_totals(auth_id)
-            except Exception:
-                pass
-
-        logger.info(f"Language refresh: complete, checked {checked}/{total}, updated {updated}, restored {unignored}")
-    finally:
-        db.upsert("jobs", {"Finish": time.time()}, {"Name": "LANGREFRESH"})
-        db.close()
-        thread_name(incoming_threadname)
 
 
 def serve_template(templatename, **kwargs):
@@ -891,7 +719,6 @@ class WebInterface:
             cmd += " order by AuthorName COLLATE NOCASE"
             serversidelogger.debug(f"get_index {cmd}")
 
-
             rowlist = db.select(cmd)
             # At his point we want to sort and filter _before_ adding the html as it's much quicker
             # turn the sqlite rowlist into a list of lists
@@ -1008,15 +835,8 @@ class WebInterface:
                 elif sortcolumn > 2:
                     sortcolumn -= 1
                 serversidelogger.debug(f"sortcolumn {sortcolumn}")
-                if sortcolumn == 4:
-                    filtered.sort(key=lambda y: (y[4] if y[4] is not None else 0,
-                                                 y[8] if y[8] is not None else 0,
-                                                 y[9] if y[9] is not None else 0),
-                                  reverse=sSortDir_0 == "desc")
-                else:
-                    filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
-                                  reverse=sSortDir_0 == "desc")
-
+                filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                              reverse=sSortDir_0 == "desc")
 
                 if displaylength < 0:  # display = all
                     rows = filtered
@@ -2435,8 +2255,8 @@ class WebInterface:
                 value = kwargs[key.lower()]
                 # validate entries here...
                 if value:
-                    if key.lower() in ['bok_host', 'fallback_proxy', 'proxy_host']:
-                        tokens = ['<', '>', '"', "'", '(', ')']
+                    if key.lower() in ['bok_host']:
+                        tokens = ['<', '>', '"', "'", '+', '(', ')']
                     elif (key.lower() in ['user_agent', 'fmt_series'] or key.lower().endswith('_folder')
                           or key.lower().endswith('_file')):
                         tokens = ['<', '&', '>', '=', '"', "'", '+']
@@ -2640,223 +2460,6 @@ class WebInterface:
 
     # AUTHOR ############################################################
 
-    def delete_single_book(self, bookid, db, delete_files=True):
-        """
-        Permanently delete a single book from the database, and optionally delete
-        its media files, book folder, and cached cover from disk.
-        """
-        logger = logging.getLogger(__name__)
-        cmd = ("SELECT AuthorName, BookName, BookFile, AudioFile, BookImg, books.AuthorID from books "
-               "LEFT JOIN authors ON books.AuthorID = authors.AuthorID WHERE BookID=?")
-        bookdata = db.match(cmd, (bookid,))
-        authorid = None
-        bookname = bookid
-        if bookdata:
-            authorid = bookdata['AuthorID']
-            bookname = bookdata['BookName'] or bookid
-
-            if delete_files:
-                # Remove from Calibre if enabled
-                if CONFIG['IMP_CALIBREDB'] and CONFIG.get_bool('IMP_CALIBRE_EBOOK'):
-                    try:
-                        self.delete_from_calibre(bookdata)
-                    except Exception as e:
-                        logger.debug(f"Calibre delete failed for {bookid}: {e}")
-
-                # Delete eBook and AudioBook files / directories
-                for fld, lib_name, conf_dir in [
-                    ('BookFile', 'eBook', CONFIG['EBOOK_DIR']),
-                    ('AudioFile', 'AudioBook', CONFIG['AUDIO_DIR'])
-                ]:
-                    fpath = bookdata[fld]
-                    if fpath and path_exists(fpath):
-                        try:
-                            f_dir = os.path.dirname(fpath)
-                            if f_dir and f_dir not in [conf_dir, '/', ''] and path_exists(f_dir):
-                                rmtree(f_dir, ignore_errors=True)
-                                logger.info(f"{lib_name} directory {f_dir} deleted from disk")
-                            elif path_isfile(fpath):
-                                os.remove(fpath)
-                                logger.info(f"{lib_name} file {fpath} deleted from disk")
-                        except Exception as e:
-                            logger.warning(f"Failed deleting {fpath}: {e}")
-
-                # Delete cached cover
-                if bookdata['BookImg'] and str(bookdata['BookImg']).startswith('cache/'):
-                    cache_img = os.path.join(DIRS.DATADIR, bookdata['BookImg'])
-                    if path_isfile(cache_img):
-                        try:
-                            os.remove(cache_img)
-                        except Exception:
-                            pass
-
-        # Complete deletion from all database tables
-        for table in ['wanted', 'readinglists', 'failedsearch', 'genrebooks', 'member', 'bookauthors']:
-            db.action(f"DELETE FROM {table} WHERE BookID=?", (bookid,))
-        try:
-            db.action("DELETE FROM duplicate_exclusions WHERE BookID1=? OR BookID2=?", (bookid, bookid))
-        except Exception:
-            pass
-        db.action("DELETE FROM subscribers WHERE Type='ebook' AND WantID=?", (bookid,))
-        db.action("DELETE FROM books WHERE BookID=?", (bookid,))
-
-        logger.info(f"Book '{bookname}' ({bookid}) permanently deleted from database" +
-                    (" and disk" if delete_files else ""))
-        return True, authorid
-
-    def delete_author_and_media(self, authorid, db, delete_files=True):
-        """
-        Permanently delete an author, all of their books, related database records,
-        and (if delete_files=True) all matching media files and author folders from disk.
-        """
-        logger = logging.getLogger(__name__)
-        authorsearch = db.match('SELECT AuthorName, AuthorImg from authors WHERE AuthorID=?', (authorid,))
-        if not authorsearch:
-            logger.warning(f"AuthorID {authorid} not found in database to delete")
-            return False
-        author_name = authorsearch['AuthorName']
-        logger.info(f"Permanently deleting author '{author_name}' ({authorid}) and all their books (delete_files={delete_files})")
-
-        # 1. Locate ALL books belonging to this author
-        books = db.select('SELECT BookID, BookName, BookFile, AudioFile, BookImg from books WHERE AuthorID=?', (authorid,))
-        book_ids = [b['BookID'] for b in books]
-        logger.debug(f"Located {len(books)} books for author {authorid} to delete")
-
-        # Keep track of co-authors to update their totals later
-        co_authors = set()
-
-        for book in books:
-            bid = book['BookID']
-            other_authors = db.select("SELECT AuthorID FROM bookauthors WHERE BookID=? AND AuthorID != ?", (bid, authorid))
-            for oa in other_authors:
-                if oa['AuthorID']:
-                    co_authors.add(oa['AuthorID'])
-
-            if delete_files:
-                # Remove from Calibre if enabled
-                if CONFIG['IMP_CALIBREDB'] and CONFIG.get_bool('IMP_CALIBRE_EBOOK'):
-                    try:
-                        self.delete_from_calibre(book)
-                    except Exception as e:
-                        logger.debug(f"Calibre delete failed for {bid}: {e}")
-
-                # Delete eBook / AudioBook files and folders
-                for location, conf_dir in [(book['BookFile'], CONFIG['EBOOK_DIR']), (book['AudioFile'], CONFIG['AUDIO_DIR'])]:
-                    if location and path_exists(location):
-                        try:
-                            foldername = os.path.dirname(location)
-                            if foldername and foldername not in [conf_dir, '/', ''] and path_exists(foldername):
-                                logger.debug(f"Deleting book folder: {foldername}")
-                                rmtree(foldername, ignore_errors=True)
-                            elif path_isfile(location):
-                                os.remove(location)
-                        except Exception as e:
-                            logger.warning(f"Failed deleting {location}: {e}")
-
-                # Delete cached book cover if present
-                if book['BookImg'] and str(book['BookImg']).startswith('cache/'):
-                    cache_img = os.path.join(DIRS.DATADIR, book['BookImg'])
-                    if path_isfile(cache_img):
-                        try:
-                            os.remove(cache_img)
-                        except Exception:
-                            pass
-
-            # Clean up database records for this book
-            for table in ['wanted', 'readinglists', 'failedsearch', 'genrebooks', 'member', 'bookauthors']:
-                db.action(f"DELETE FROM {table} WHERE BookID=?", (bid,))
-            try:
-                db.action("DELETE FROM duplicate_exclusions WHERE BookID1=? OR BookID2=?", (bid, bid))
-            except Exception:
-                pass
-            db.action("DELETE FROM subscribers WHERE Type='ebook' AND WantID=?", (bid,))
-            db.action("DELETE FROM books WHERE BookID=?", (bid,))
-
-        # 2. If delete_files, also remove author folders in EBOOK_DIR and AUDIO_DIR if they exist
-        if delete_files:
-            if author_name:
-                for base_dir in [CONFIG['EBOOK_DIR'], CONFIG['AUDIO_DIR']]:
-                    if base_dir and path_exists(base_dir):
-                        author_dir = os.path.join(base_dir, author_name)
-                        if path_exists(author_dir) and author_dir != base_dir:
-                            try:
-                                logger.debug(f"Deleting author folder: {author_dir}")
-                                rmtree(author_dir, ignore_errors=True)
-                            except Exception as e:
-                                logger.warning(f"Failed to delete author folder {author_dir}: {e}")
-
-            # Delete cached author image
-            if authorsearch['AuthorImg'] and str(authorsearch['AuthorImg']).startswith('cache/'):
-                cache_img = os.path.join(DIRS.DATADIR, authorsearch['AuthorImg'])
-                if path_isfile(cache_img):
-                    try:
-                        os.remove(cache_img)
-                    except Exception:
-                        pass
-
-            try:
-                delete_empty_folders(CONFIG['EBOOK_DIR'])
-                delete_empty_folders(CONFIG['AUDIO_DIR'])
-            except Exception as e:
-                logger.warning(f"Error cleaning empty folders: {e}")
-
-        # 3. Clean up database records for the author
-        db.action("DELETE FROM books WHERE AuthorID=?", (authorid,))
-        db.action("DELETE FROM bookauthors WHERE AuthorID=?", (authorid,))
-        db.action("DELETE FROM seriesauthors WHERE AuthorID=?", (authorid,))
-        db.action("DELETE FROM subscribers WHERE Type='author' AND WantID=?", (authorid,))
-        db.action("DELETE FROM authors WHERE AuthorID=?", (authorid,))
-
-        # 4. Clean up orphaned series
-        try:
-            delete_empty_series()
-        except Exception as e:
-            logger.debug(f"Orphan series cleanup error: {e}")
-
-        # 5. Update totals for any affected co-authors
-        for ca in co_authors:
-            try:
-                update_totals(ca)
-            except Exception:
-                pass
-
-        logger.info(f"Author '{author_name}' and all {len(book_ids)} books completely deleted from database" +
-                    (" and disk" if delete_files else ""))
-        return True
-
-    def delete_author_background(self, authorid, delete_files):
-        """ Thread target for start_author_deletion() - opens and closes its own DB
-        connection since it outlives the web request that triggered it. """
-        logger = logging.getLogger(__name__)
-        db = database.DBConnection()
-        try:
-            self.delete_author_and_media(authorid, db, delete_files=delete_files)
-        except Exception as e:
-            logger.error(f"Background author deletion failed for {authorid}: {e}")
-            logger.error(traceback.format_exc())
-        finally:
-            db.close()
-
-    def start_author_deletion(self, authorid, delete_files):
-        """ Delete an author and all their books in the background rather than blocking
-        the request until it's done - some authors have thousands of books (this codebase
-        has a real example, 2940 books for one author), and deleting one synchronously in a
-        single HTTP request left the page looking hung with no feedback for however long
-        that took, with nothing stopping a second impatient click from starting a second,
-        fully redundant deletion of the same author racing the first (harmless - every
-        database write already goes through a single shared lock - but pure wasted work).
-        Returns True if a deletion is now running (whether just started here, or already
-        under way from an earlier call) - the caller doesn't need to distinguish the two,
-        the end state is the same either way. """
-        logger = logging.getLogger(__name__)
-        threadname = f'DELETEAUTHOR_{authorid}'
-        if threadname in [n.name for n in list(threading.enumerate())]:
-            logger.debug(f"Author deletion for {authorid} already in progress")
-            return True
-        threading.Thread(target=self.delete_author_background, name=threadname,
-                         args=[authorid, delete_files]).start()
-        return True
-
     @cherrypy.expose
     @require_auth()
     @cherrypy.tools.json_out()
@@ -2879,17 +2482,7 @@ class WebInterface:
                         db.upsert("authors", {'Status': action}, {'AuthorID': authorid})
                         logger.info(f'Status set to "{action}" for "{check["AuthorName"]}"')
                         passed += 1
-                    elif action == "Delete":
-                        if self.start_author_deletion(authorid, delete_files=True):
-                            passed += 1
-                        else:
-                            failed += 1
-                    elif action == "Remove":
-                        if self.start_author_deletion(authorid, delete_files=False):
-                            passed += 1
-                        else:
-                            failed += 1
-                    elif action == "Delete+Ignore":
+                    elif action in ("Delete", "Delete+Ignore"):
                         failure_list = []
                         logger.info(f"{action} author and media files for {check['AuthorName']}")
                         cmd = "SELECT BookFile,AudioFile,BookID from books WHERE AuthorID=? and "
@@ -2914,17 +2507,25 @@ class WebInterface:
                                 delete_empty_folders(CONFIG['AUDIO_DIR'])
                             except Exception as e:
                                 failure_list.append(f"Error deleting: {e}")
-                        db.action("UPDATE books SET BookFile='', AudioFile='', Status='Ignored', \
-                                  AudioStatus='Ignored', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
-                                  (authorid,))
-                        update_totals(authorid)
-                        db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
-                        logger.info(f"Author {check['AuthorName']} set to Ignored")
+                        if action == "Delete+Ignore":
+                            db.action("UPDATE books SET BookFile='', AudioFile='', Status='Ignored', \
+                                      AudioStatus='Ignored', Scanresult='User Delete+Ignore' WHERE AuthorID=?",
+                                      (authorid,))
+                            update_totals(authorid)
+                            db.upsert("authors", {'Status': 'Ignored'}, {'AuthorID': authorid})
+                            logger.info(f"Author {check['AuthorName']} set to Ignored")
+                        else:
+                            db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
+                            logger.info(f"Author {check['AuthorName']} deleted")
                         if failure_list:
                             logger.warning(f"Failures while {action} {check['AuthorName']}: {failure_list}")
                             failed += 1
                         else:
                             passed += 1
+                    elif action == "Remove":
+                        logger.info(f"Removing author: {check['AuthorName']}")
+                        db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
+                        passed += 1
                     elif action == 'Subscribe':
                         cookie = cherrypy.request.cookie
                         if cookie and 'll_uid' in list(cookie.keys()):
@@ -3063,11 +2664,11 @@ class WebInterface:
     def amazon_search_link(authorname):
         """ Amazon has no free author-lookup API (PA-API needs an Associates account with
         real sales volume) and scraping product pages for the byline's own p_27 author-facet
-        value would carry the same ban risk already ruled out elsewhere (GR_SCRAPE_HTML,
-        the pubdate-scrape removal). This is the unauthenticated version of that same p_27
-        facet search Amazon's own byline links use - built from the plain author name, no
-        fetch/scrape involved, same unverified-search-link status as gb_search_link. Useful
-        for self-published authors (see ASIN work) who often have nothing else to search by. """
+        value would carry the same ban risk already ruled out elsewhere. This is the
+        unauthenticated version of that same p_27 facet search Amazon's own byline links
+        use - built from the plain author name, no fetch/scrape involved, same
+        unverified-search-link status as gb_search_link. Useful for self-published authors
+        (see ASIN work) who often have nothing else to search by. """
         if not authorname:
             return ''
         # The whole "p_27:Name" refinement value needs encoding as one unit (colon -> %3A)
@@ -3230,9 +2831,19 @@ class WebInterface:
     @require_auth()
     def remove_author(self, authorid):
         self.check_permitted(lazylibrarian.perm_edit)
-        self.start_author_deletion(authorid, delete_files=True)
+        logger = logging.getLogger(__name__)
+        db = database.DBConnection()
+        authorsearch = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
+        if authorsearch:  # to stop error if try to remove an author while they are still loading
+            author_name = authorsearch['AuthorName']
+            logger.info(f"Removing all references to author: {author_name}")
+            db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
+            # if the author was the only remaining contributor to a series, remove the series
+            orphans = db.select('select seriesid from series except select seriesid from seriesauthors')
+            for orphan in orphans:
+                db.action('DELETE from series where seriesid=?', (orphan[0],))
+        db.close()
         raise cherrypy.HTTPRedirect("authors")
-
 
     @cherrypy.expose
     @require_auth()
@@ -5009,9 +4620,8 @@ class WebInterface:
         """ AJAX: on-demand fetch of a book's ASIN from GoodReads' single-book endpoint
         (book/show/{id}.xml - has asin/kindle_asin; the bulk author-book-list endpoint
         used during normal refresh doesn't, so this can't be backfilled for free the way
-        author source links were - see gr.py's add_bookid_to_db). Normally only run when
-        the detail page is viewed and asks for it - see backfill_book_asins() below for
-        the bulk equivalent covering every book at once. """
+        author source links were - see gr.py's add_bookid_to_db). Not run automatically
+        for every book, only when the detail page is actually viewed and asks for it. """
         self.check_permitted(lazylibrarian.perm_ebook)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -5019,74 +4629,29 @@ class WebInterface:
         if not book or not book['gr_id']:
             db.close()
             return {'error': 'No GoodReads id linked to this book'}
+        api = lazylibrarian.INFOSOURCES['GoodReads']['api']()
         try:
-            asin = fetch_asin_from_goodreads(book['gr_id'])
+            url = '/'.join([CONFIG['GR_URL'], f"book/show/{book['gr_id']}.xml?{urlencode(api.params)}"])
+            rootxml, _ = gr_xml_request(url)
         except Exception as e:
             logger.error(f"lookup_book_asin error for book {bookid}: {e}")
             db.close()
             return {'error': 'Lookup failed, check the logs'}
+        asin = ''
+        if rootxml is not None:
+            book_el = rootxml.find('book')
+            if book_el is not None:
+                asin_el = book_el.find('asin')
+                asin = asin_el.text if asin_el is not None and asin_el.text else ''
+                if not asin:
+                    kasin_el = book_el.find('kindle_asin')
+                    asin = kasin_el.text if kasin_el is not None and kasin_el.text else ''
         if not asin:
             db.close()
             return {'found': False}
         db.action('UPDATE books SET ASIN=? WHERE BookID=?', (asin, bookid))
         db.close()
         return {'found': True, 'asin': asin, 'link': f'https://www.amazon.com/dp/{asin}'}
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def force_asin_backfill(self):
-        """ AJAX: kick off backfill_book_asins() in the background for every book that's
-        missing an ASIN, instead of the user clicking "Look up on GoodReads" one book at a
-        time on each book_detail page. """
-        self.check_permitted(lazylibrarian.perm_force)
-        logger = logging.getLogger(__name__)
-        if 'ASINBACKFILL' in [n.name for n in list(threading.enumerate())]:
-            return {'error': 'ASIN backfill is already running'}
-        threading.Thread(target=backfill_book_asins, name='ASINBACKFILL', args=[]).start()
-        logger.info("Manually triggered ASIN backfill")
-        return {'success': True}
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def asin_backfill_status(self):
-        """ AJAX: is a backfill currently running, and where did the last one leave off. """
-        running = 'ASINBACKFILL' in [n.name for n in list(threading.enumerate())]
-        return {
-            'running': running,
-            'checked': lazylibrarian.ASIN_BACKFILL_STATUS.get('checked', 0),
-            'found': lazylibrarian.ASIN_BACKFILL_STATUS.get('found', 0),
-            'total': lazylibrarian.ASIN_BACKFILL_STATUS.get('total', 0),
-        }
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def force_language_refresh(self):
-        """ AJAX: kick off refresh_book_languages() in the background to re-evaluate
-        languages across candidate books in the database. """
-        self.check_permitted(lazylibrarian.perm_force)
-        logger = logging.getLogger(__name__)
-        if 'LANGREFRESH' in [n.name for n in list(threading.enumerate())]:
-            return {'error': 'Language refresh is already running'}
-        threading.Thread(target=refresh_book_languages, name='LANGREFRESH', args=[]).start()
-        logger.info("Manually triggered book language refresh")
-        return {'success': True}
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def language_refresh_status(self):
-        """ AJAX: is a language refresh currently running, and progress counters. """
-        running = 'LANGREFRESH' in [n.name for n in list(threading.enumerate())]
-        return {
-            'running': running,
-            'checked': lazylibrarian.LANG_REFRESH_STATUS.get('checked', 0),
-            'updated': lazylibrarian.LANG_REFRESH_STATUS.get('updated', 0),
-            'unignored': lazylibrarian.LANG_REFRESH_STATUS.get('unignored', 0),
-            'total': lazylibrarian.LANG_REFRESH_STATUS.get('total', 0),
-        }
 
     @cherrypy.expose
     @require_auth()
@@ -5531,69 +5096,6 @@ class WebInterface:
             check_totals = [authorid]
         reading_lists = ["Unread", "Read", "ToRead", "Reading", "Abandoned"]
         if action:
-            if action == "Merge":
-                bookids = list(args.keys())
-                if len(bookids) < 2:
-                    db.close()
-                    return {
-                        'success': False,
-                        'action': action,
-                        'passed': 0,
-                        'failed': len(bookids),
-                        'total': len(bookids),
-                        'summary': "Merge requires selecting at least 2 books.",
-                        'redirect': redirect
-                    }
-
-                placeholders = ','.join(['?'] * len(bookids))
-                copys = db.select(f"SELECT * FROM books WHERE BookID IN ({placeholders})", bookids)
-                if not copys or len(copys) < 2:
-                    db.close()
-                    return {
-                        'success': False,
-                        'action': action,
-                        'passed': 0,
-                        'failed': len(bookids),
-                        'total': len(bookids),
-                        'summary': "Could not find at least 2 matching books in database to merge.",
-                        'redirect': redirect
-                    }
-
-                copys = [dict(c) for c in copys]
-                author_ids = set(c['AuthorID'] for c in copys if c.get('AuthorID'))
-                merged_count = merge_book_copies(copys, pass_msg='ui_manual', db=db, force=True)
-                db.close()
-
-                for aid in author_ids:
-                    update_totals(aid)
-
-                if redirect == "author":
-                    auth_id = authorid or (next(iter(author_ids)) if author_ids else None)
-                    if 'AudioBook' in library:
-                        redirect = f"author_page?authorid={auth_id}&library=AudioBook"
-                    else:
-                        redirect = f"author_page?authorid={auth_id}&library=eBook"
-                elif redirect in ["books", "audio"]:
-                    redirect = redirect
-                elif redirect == "members":
-                    redirect = f"series_members?seriesid={seriesid}&ignored=False"
-                elif 'AudioBook' in library:
-                    redirect = "manage?library=AudioBook"
-                else:
-                    redirect = "manage?library=eBook"
-                if book_filter:
-                    redirect = f"{redirect}&book_filter={book_filter}"
-
-                return {
-                    'success': True,
-                    'action': action,
-                    'passed': len(copys),
-                    'failed': 0,
-                    'total': len(copys),
-                    'summary': f"Successfully merged {len(copys)} books into one entry.",
-                    'redirect': redirect
-                }
-
             if action in reading_lists:
                 cookie = cherrypy.request.cookie
                 if cookie and 'll_uid' in list(cookie.keys()):
@@ -5685,23 +5187,56 @@ class WebInterface:
                         db.action("delete from failedsearch WHERE BookID=? AND Library='AudioBook'", (bookid,))
                     logger.debug(f'{library} delay set to zero for {bookid}')
                     passed += 1
-                elif action == "Delete":
-                    success, authorid = self.delete_single_book(bookid, db, delete_files=True)
-                    if success:
-                        passed += 1
-                        if authorid and authorid not in check_totals:
+                elif action in ["Remove", "Delete"]:
+                    cmd = ("SELECT AuthorName,Bookname,BookFile,AudioFile,books.AuthorID from books,authors "
+                           "WHERE BookID=? and books.AuthorID = authors.AuthorID")
+                    bookdata = db.match(cmd, (bookid,))
+                    if bookdata:
+                        authorid = bookdata['AuthorID']
+                        bookname = bookdata['BookName']
+                        if authorid not in check_totals:
                             check_totals.append(authorid)
-                    else:
-                        failed += 1
-                elif action == "Remove":
-                    success, authorid = self.delete_single_book(bookid, db, delete_files=False)
-                    if success:
-                        passed += 1
-                        if authorid and authorid not in check_totals:
-                            check_totals.append(authorid)
-                    else:
-                        failed += 1
+                        if action == "Delete":
+                            if 'AudioBook' in library:
+                                bookfile = bookdata['AudioFile']
+                                if bookfile and path_isfile(bookfile):
+                                    try:
+                                        rmtree(os.path.dirname(bookfile))
+                                        logger.info(f'AudioBook {os.path.dirname(bookfile)} deleted from disc')
+                                        db.action("UPDATE books SET AudioFile='' WHERE BookID=?", (bookid,))
+                                    except Exception as e:
+                                        logger.warning(f'rmtree failed on {bookfile}, {type(e).__name__} {str(e)}')
+                                        failed += 1
+                            if 'eBook' in library:
+                                bookfile = bookdata['BookFile']
+                                if bookfile and path_isfile(bookfile):
+                                    try:
+                                        rmtree(os.path.dirname(bookfile))
+                                        logger.info(f'eBook {os.path.dirname(bookfile)} deleted from disc')
+                                        db.action("UPDATE books SET BookFile='' WHERE BookID=?", (bookid,))
+                                        if CONFIG['IMP_CALIBREDB'] and \
+                                            CONFIG.get_bool('IMP_CALIBRE_EBOOK'):
+                                            self.delete_from_calibre(bookdata)
+                                    except Exception as e:
+                                        logger.warning(f'rmtree failed on {bookfile}, {type(e).__name__} {str(e)}')
+                                        failed += 1
 
+                        if 'eBook' in library:
+                            db.upsert("books", {"Status": "Ignored", "ScanResult": f"User {action}d ebook"}, {"BookID": bookid})
+                            logger.debug(f'Status set to Ignored for "{bookname}"')
+                            passed += 1
+                        if 'AudioBook' in library:
+                            db.upsert("books", {"AudioStatus": "Ignored", "ScanResult": f"User {action}d audiobook"}, {"BookID": bookid})
+                            logger.debug(f'AudioStatus set to Ignored for "{bookname}"')
+                            passed += 1
+
+                        if action == 'Delete':
+                            bookcheck = db.match('SELECT Status,AudioStatus from books WHERE BookID=?', (bookid,))
+                            if bookcheck['Status'] == bookcheck['AudioStatus'] == 'Ignored':
+                                for table in ['books', 'wanted', 'readinglists']:
+                                    db.action(f"DELETE from {table} WHERE BookID=?", (bookid,))
+
+                        update_totals(authorid)
 
             if action in reading_lists and userid:
                 set_readinglist("ToRead", userid, to_read)
@@ -5710,21 +5245,9 @@ class WebInterface:
                 set_readinglist("Abandoned", userid, abandoned)
         db.close()
 
-        if action == "Delete":
-            try:
-                delete_empty_folders(CONFIG['EBOOK_DIR'])
-                delete_empty_folders(CONFIG['AUDIO_DIR'])
-            except Exception:
-                pass
-            try:
-                delete_empty_series()
-            except Exception:
-                pass
-
         if check_totals:
             for author in check_totals:
                 update_totals(author)
-
 
         # start searchthreads
         if CONFIG.use_any() and check_int(CONFIG['SEARCH_BOOKINTERVAL'], 0):
@@ -9488,8 +9011,7 @@ class WebInterface:
 
     @staticmethod
     def valid_source(source=None):
-        if str(source).lower() in ['books', 'audio', 'magazines', 'comics', 'author', 'manage', 'series',
-                                    'members', 'duplicates']:
+        if str(source).lower() in ['books', 'audio', 'magazines', 'comics', 'author', 'manage', 'series', 'members']:
             return True
         logger = logging.getLogger(__name__)
         program, method, lineno = get_info_on_caller(depth=1)
@@ -9584,205 +9106,6 @@ class WebInterface:
             which_status = "Wanted"
         return serve_template(templatename="managebooks.html", title=f"Manage {library}s",
                               books=[], types=types, library=library, whichStatus=which_status)
-
-    @cherrypy.expose
-    @require_auth()
-    def duplicates(self, filter_type='all', **kwargs):
-        self.check_permitted(lazylibrarian.perm_managebooks, redirect_unauth=True)
-        types = []
-        if CONFIG.get_bool('EBOOK_TAB'):
-            types.append('eBook')
-        if CONFIG.get_bool('AUDIO_TAB'):
-            types.append('AudioBook')
-
-        valid_filters = ['all', 'same_author', 'cross_author', 'ebook_audio', 'has_files']
-        if filter_type not in valid_filters:
-            filter_type = 'all'
-
-        candidates = find_duplicate_candidates(filter_type=filter_type, max_groups=200)
-
-        # Count stats for badge counters
-        db = database.DBConnection()
-        all_candidates = find_duplicate_candidates(db=db, filter_type='all', max_groups=0)
-        db.close()
-
-        stats = {
-            'all': len(all_candidates),
-            'same_author': sum(1 for g in all_candidates if g['is_same_author']),
-            'cross_author': sum(1 for g in all_candidates if not g['is_same_author']),
-            'ebook_audio': sum(1 for g in all_candidates if g['has_ebook_and_audio']),
-            'has_files': sum(1 for g in all_candidates if g['has_files'])
-        }
-
-        return serve_template(templatename="duplicates.html", title="Duplicate Books Finder & Review",
-                              candidates=candidates, filter_type=filter_type, stats=stats, types=types)
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def exclude_duplicate(self, **kwargs):
-        """
-        Mark a book pair (or all pairs in a group) as NOT duplicates.
-        Stores the exclusion so find_duplicate_candidates skips them in future scans.
-        Accepts: bookids (comma-separated list of BookIDs to exclude as a group)
-                 reason (optional explanation)
-        """
-        self.check_permitted(lazylibrarian.perm_status)
-        logger = logging.getLogger(__name__)
-
-        bookids_raw = kwargs.get('bookids', '')
-        reason = kwargs.get('reason', 'User marked as not duplicate')
-
-        bookids = [b.strip() for b in bookids_raw.split(',') if b.strip()]
-        if len(bookids) < 2:
-            return {'success': False, 'message': 'At least 2 book IDs are required to exclude a pair.'}
-
-        db = database.DBConnection()
-        added = 0
-        try:
-            # Ensure table exists
-            db.action("""
-                CREATE TABLE IF NOT EXISTS duplicate_exclusions (
-                    BookID1 TEXT NOT NULL,
-                    BookID2 TEXT NOT NULL,
-                    AddedDate TEXT DEFAULT "",
-                    Reason TEXT DEFAULT "",
-                    PRIMARY KEY (BookID1, BookID2)
-                )
-            """)
-            # Store all pair combinations (canonical: smaller ID first)
-            from datetime import datetime
-            now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-            for i in range(len(bookids)):
-                for j in range(i + 1, len(bookids)):
-                    b1, b2 = sorted([bookids[i], bookids[j]])
-                    try:
-                        db.action(
-                            "INSERT OR IGNORE INTO duplicate_exclusions (BookID1, BookID2, AddedDate, Reason) VALUES (?, ?, ?, ?)",
-                            (b1, b2, now, reason)
-                        )
-                        added += 1
-                    except Exception:
-                        pass
-            logger.info(f"Excluded {added} book pairs from duplicate matching (reason: {reason})")
-            return {
-                'success': True,
-                'added': added,
-                'message': f"Marked {len(bookids)} books as not duplicates. {added} pair(s) excluded."
-            }
-        except Exception as e:
-            logger.error(f"Failed to exclude duplicate pairs: {e}")
-            return {'success': False, 'message': str(e)}
-        finally:
-            db.close()
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def clear_duplicate_exclusion(self, bookids=None, **kwargs):
-        """Remove an exclusion so the books appear again as candidates."""
-        self.check_permitted(lazylibrarian.perm_status)
-        logger = logging.getLogger(__name__)
-        if not bookids:
-            return {'success': False, 'message': 'bookids required'}
-        book_list = [b.strip() for b in bookids.split(',') if b.strip()]
-        db = database.DBConnection()
-        try:
-            removed = 0
-            for i in range(len(book_list)):
-                for j in range(i + 1, len(book_list)):
-                    b1, b2 = sorted([book_list[i], book_list[j]])
-                    db.action("DELETE FROM duplicate_exclusions WHERE BookID1=? AND BookID2=?", (b1, b2))
-                    removed += 1
-            logger.info(f"Cleared {removed} duplicate exclusions for books: {book_list}")
-            return {'success': True, 'removed': removed, 'message': f"Cleared {removed} exclusion(s)."}
-        except Exception as e:
-            return {'success': False, 'message': str(e)}
-        finally:
-            db.close()
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def merge_duplicate_pair(self, bookid1=None, bookid2=None, **kwargs):
-        self.check_permitted(lazylibrarian.perm_status)
-        logger = logging.getLogger(__name__)
-        if not bookid1 or not bookid2:
-            return {'success': False, 'message': 'Both book IDs are required to merge.'}
-
-        db = database.DBConnection()
-        copys = db.select("SELECT * FROM books WHERE BookID IN (?, ?)", (bookid1, bookid2))
-        if not copys or len(copys) < 2:
-            db.close()
-            return {'success': False, 'message': 'One or both books could not be found in the database.'}
-
-        copys = [dict(c) for c in copys]
-        author_ids = set(c['AuthorID'] for c in copys if c.get('AuthorID'))
-        try:
-            merged = merge_book_copies(copys, pass_msg='ui_duplicate_pair', db=db, force=True)
-            db.close()
-            for aid in author_ids:
-                update_totals(aid)
-            logger.info(f"Merged duplicate books {bookid1} and {bookid2}")
-            return {
-                'success': True,
-                'message': f"Successfully merged {len(copys)} books into one entry."
-            }
-        except Exception as e:
-            db.close()
-            logger.error(f"Failed to merge duplicate pair {bookid1}, {bookid2}: {e}")
-            return {'success': False, 'message': str(e)}
-
-    @cherrypy.expose
-    @require_auth()
-    @cherrypy.tools.json_out()
-    def auto_merge_duplicates(self, filter_type='same_author', **kwargs):
-        self.check_permitted(lazylibrarian.perm_status)
-        logger = logging.getLogger(__name__)
-        db = database.DBConnection()
-        candidates = find_duplicate_candidates(db=db, filter_type='same_author', max_groups=0)
-
-        merged_groups = 0
-        total_merged_books = 0
-        affected_authors = set()
-
-        for group in candidates:
-            books = group['books']
-            if len(books) < 2:
-                continue
-
-            # Safety checks for automatic merging:
-            # 1. Must be same author
-            if not group['is_same_author']:
-                continue
-
-            # 2. Must not have multiple different physical eBook files or multiple different Audio files
-            ebook_files = [b['BookFile'] for b in books if b.get('BookFile')]
-            audio_files = [b['AudioFile'] for b in books if b.get('AudioFile')]
-            if len(ebook_files) > 1 or len(audio_files) > 1:
-                # Ambiguous files: keep for manual review
-                continue
-
-            # Safe to auto-merge!
-            count = merge_book_copies(books, pass_msg='auto_merge', db=db, force=True)
-            if count > 0:
-                merged_groups += 1
-                total_merged_books += count
-                for b in books:
-                    if b.get('AuthorID'):
-                        affected_authors.add(b['AuthorID'])
-
-        db.close()
-        for aid in affected_authors:
-            update_totals(aid)
-
-        logger.info(f"Auto-merge completed: merged {merged_groups} duplicate groups ({total_merged_books} books)")
-        return {
-            'success': True,
-            'merged_groups': merged_groups,
-            'total_merged_books': total_merged_books,
-            'message': f"Auto-merged {merged_groups} duplicate groups ({total_merged_books} duplicate books removed)."
-        }
 
     @cherrypy.expose
     @require_auth()
