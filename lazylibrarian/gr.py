@@ -10,11 +10,14 @@
 #  You should have received a copy of the GNU General Public License
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import logging
 import re
+import requests
 import time
 import traceback
 import unicodedata
+from datetime import datetime, timezone
 from urllib.parse import quote, quote_plus, urlencode
 
 from rapidfuzz import fuzz
@@ -58,6 +61,7 @@ from lazylibrarian.formatter import (
     unaccented,
 )
 from lazylibrarian.images import cache_bookimg, get_book_cover
+from lazylibrarian.common import fallback_proxy, proxy_list
 
 
 class GoodReads:
@@ -69,6 +73,84 @@ class GoodReads:
         if not CONFIG['GR_API']:
             self.logger.warning('No Goodreads API key, check config')
         self.params = {"key": CONFIG['GR_API']}
+
+    def get_gr_web_info(self, bookid):
+        """ Fallback scraper for GoodReads Next.js data when the legacy XML API
+        returns missing/empty description, cover, pubdate, or ASIN (especially post-2020 KDP books).
+        Uses Python requests with browser-like headers.
+        Tries direct request (or configured primary proxy) first.
+        Only if blocked by WAF (403/429/503) and a fallback/bypass proxy is configured (e.g. Tor/Byparr),
+        retries via the fallback proxy.
+        Only called when the XML API returns nothing useful, so request rate is low. """
+        url = f"https://www.goodreads.com/book/show/{bookid}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+        }
+
+        html = ''
+        waf_blocked = False
+        try:
+            r = requests.get(url, headers=headers, proxies=proxy_list(), timeout=15, verify=False)
+            if r.status_code == 200 and '__NEXT_DATA__' in r.text:
+                html = r.text
+            elif r.status_code in (403, 429, 503):
+                waf_blocked = True
+                self.logger.debug(f"GoodReads web fetch challenged ({r.status_code}) for {bookid}")
+        except Exception as e:
+            self.logger.debug(f"GoodReads web fetch error for {bookid}: {e}")
+
+        # If challenged by WAF and a fallback/bypass proxy is configured, retry via that proxy
+        if waf_blocked and not html:
+            fb_proxy = fallback_proxy()
+            if fb_proxy:
+                try:
+                    self.logger.debug(f"Retrying GoodReads web fetch for {bookid} via fallback proxy")
+                    r = requests.get(url, headers=headers, proxies=fb_proxy, timeout=15, verify=False)
+                    if r.status_code == 200 and '__NEXT_DATA__' in r.text:
+                        html = r.text
+                except Exception as e:
+                    self.logger.debug(f"GoodReads fallback proxy fetch error for {bookid}: {e}")
+
+        if not html:
+            return {}
+
+        match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+        if not match:
+            return {}
+
+        try:
+            data = json.loads(match.group(1))
+            apollo = data.get('props', {}).get('pageProps', {}).get('apolloState', {})
+            result = {}
+            for k, v in apollo.items():
+                if k.startswith('Book:'):
+                    desc = v.get('description', '')
+                    if isinstance(desc, dict):
+                        desc = desc.get('html', '')
+                    if desc:
+                        desc = re.sub(r'<[^>]+>', ' ', str(desc)).strip()
+                    result['desc'] = desc or ''
+                    result['img'] = v.get('imageUrl') or ''
+                    details = v.get('details') or {}
+                    if isinstance(details, dict):
+                        result['asin'] = details.get('asin') or ''
+                        result['format'] = details.get('format') or ''
+                        result['pages'] = details.get('numPages') or ''
+                        pub_time = details.get('publicationTime')
+                        if pub_time:
+                            try:
+                                dt = datetime.fromtimestamp(pub_time / 1000.0, tz=timezone.utc)
+                                result['date'] = dt.strftime('%Y-%m-%d')
+                            except Exception:
+                                pass
+                    break
+            return result
+        except Exception as e:
+            self.logger.debug(f"Error parsing GoodReads Next.js data for {bookid}: {e}")
+            return {}
+
 
     def find_results(self, searchterm=None, queue=None):
         # noinspection PyBroadException
@@ -992,14 +1074,6 @@ class GoodReads:
                                     pubdate_lookups_this_refresh += 1
                                     time.sleep(2)
 
-                            # Only let this override bookdate with a genuine date - '0000' is
-                            # get_book_pubdate()'s own not-found placeholder (a non-empty string,
-                            # so `if originalpubdate:` alone is always true for it), and was
-                            # unconditionally clobbering any real date already found earlier in
-                            # this same pass (GoodReads' own extraction, or the HardCover/local-
-                            # dump fallbacks below) with a worse '0000' every time GoodReads
-                            # itself had nothing - silently discarding those fallbacks' results
-                            # before they ever reached the database.
                             if originalpubdate and originalpubdate != '0000':
                                 if not bookdate or bookdate == '0000' or len(originalpubdate) > len(bookdate):
                                     bookdate = originalpubdate
@@ -1042,6 +1116,34 @@ class GoodReads:
                                     if title_match and check_year(title_match.group(1), past=1800, future=1):
                                         bookdate = title_match.group(1)
                                         self.logger.debug(f"Extracted pubdate {bookdate} from title for {bookid}")
+
+                                need_desc = not bookdesc or bookdesc == 'No Description'
+                                need_img = not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg
+                                need_date = not bookdate or bookdate == '0000'
+                                need_asin = not bookasin
+                                if need_desc or need_img or need_date or need_asin:
+                                    web_info = self.get_gr_web_info(bookid)
+                                    if web_info:
+                                        if need_desc and web_info.get('desc'):
+                                            bookdesc = web_info['desc']
+                                            self.logger.debug(f"Got description from GoodReads web for {bookid}")
+                                        if need_img and web_info.get('img'):
+                                            bookimg = web_info['img']
+                                            self.logger.debug(f"Got cover from GoodReads web for {bookid}")
+                                        if need_date and web_info.get('date'):
+                                            bookdate = web_info['date']
+                                            self.logger.debug(f"Got pubdate {bookdate} from GoodReads web for {bookid}")
+                                        if need_asin and web_info.get('asin'):
+                                            bookasin = web_info['asin']
+                                            self.logger.debug(f"Got ASIN {bookasin} from GoodReads web for {bookid}")
+                                        if not bookpages and web_info.get('pages'):
+                                            bookpages = str(web_info['pages'])
+
+                                if (not book_language or book_language == 'Unknown') and bookdesc and bookdesc != 'No Description':
+                                    det_lang, det_conf = language_from_words(bookname, desc=bookdesc)
+                                    if det_lang and det_conf > 0.5 and det_lang not in ['None', 'Disabled', 'Blocked']:
+                                        book_language = det_lang
+                                        self.logger.debug(f"Detected language [{book_language}] ({det_conf:.2f}) from description for {bookname}")
 
                                 threadname = thread_name()
                                 reason = f"[{threadname}] {reason}"
@@ -1664,12 +1766,58 @@ class GoodReads:
                         else:
                             bookgenre = 'Unknown'
 
+            need_desc = not bookdesc or bookdesc == 'No Description'
+            need_img = not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg
+            need_date = not bookdate or bookdate == '0000'
+            need_asin = not bookasin
+            if need_desc or need_img or need_date or need_asin:
+                web_info = self.get_gr_web_info(bookid)
+                if web_info:
+                    if need_desc and web_info.get('desc'):
+                        bookdesc = web_info['desc']
+                        self.logger.debug(f"Got description from GoodReads web for {bookid}")
+                    if need_img and web_info.get('img'):
+                        bookimg = web_info['img']
+                        self.logger.debug(f"Got cover from GoodReads web for {bookid}")
+                    if need_date and web_info.get('date'):
+                        bookdate = web_info['date']
+                        self.logger.debug(f"Got pubdate {bookdate} from GoodReads web for {bookid}")
+                    if need_asin and web_info.get('asin'):
+                        bookasin = web_info['asin']
+                        self.logger.debug(f"Got ASIN {bookasin} from GoodReads web for {bookid}")
+                    if not bookpages and web_info.get('pages'):
+                        bookpages = str(web_info['pages'])
+
+            if book_language == 'Unknown' and bookdesc and bookdesc != 'No Description':
+                det_lang, det_conf = language_from_words(bookname, desc=bookdesc)
+                if det_lang and det_conf > 0.5 and det_lang not in ['None', 'Disabled', 'Blocked']:
+                    book_language = det_lang
+                    self.logger.debug(f"Detected language [{book_language}] ({det_conf:.2f}) from description for {bookname}")
+
             threadname = thread_name()
             reason = f"[{threadname}] {reason}"
             match = db.match("SELECT * from authors where AuthorID=?", (author_id,))
             if not match:
                 self.logger.warning(f"Authorid {author_id} not found in database, unable to add {bookname}")
             else:
+                existing_book = db.match("SELECT BookImg,BookDate,BookDesc,BookLang,ASIN,BookPub,BookPages FROM books WHERE BookID=?", (bookid,))
+                if existing_book:
+                    if ('nocover' in bookimg or 'nophoto' in bookimg) and existing_book['BookImg'] \
+                            and 'nocover' not in existing_book['BookImg'] \
+                            and 'nophoto' not in existing_book['BookImg']:
+                        bookimg = existing_book['BookImg']
+                    if (not bookdesc or bookdesc == 'No Description') and existing_book['BookDesc'] and existing_book['BookDesc'] != 'No Description':
+                        bookdesc = existing_book['BookDesc']
+                    if (not bookdate or bookdate == '0000') and existing_book['BookDate'] and existing_book['BookDate'] != '0000':
+                        bookdate = existing_book['BookDate']
+                    if (not book_language or book_language == 'Unknown') and existing_book['BookLang'] and existing_book['BookLang'] != 'Unknown':
+                        book_language = existing_book['BookLang']
+                    if not bookasin and existing_book['ASIN']:
+                        bookasin = existing_book['ASIN']
+                    if not bookpub and existing_book['BookPub']:
+                        bookpub = existing_book['BookPub']
+                    if not bookpages and existing_book['BookPages']:
+                        bookpages = existing_book['BookPages']
                 control_value_dict = {"BookID": bookid}
                 if not bookdate:
                     bookdate = '0000'

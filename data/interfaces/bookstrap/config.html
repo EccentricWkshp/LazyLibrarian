@@ -305,6 +305,11 @@
                       <input type="text" id="proxy_type" name="proxy_type" value="${CONFIG['PROXY_TYPE']}" class="form-control" placeholder="Proxy Types">
                       <span class="help-block">Comma separated list http, https, etc</span>
                     </div>
+                    <div class="form-group">
+                      <label for="fallback_proxy" class="control-label">Fallback / Bypass Proxy:</label>
+                      <input type="text" id="fallback_proxy" name="fallback_proxy" value="${CONFIG['FALLBACK_PROXY']}" class="form-control" placeholder="e.g. socks5h://127.0.0.1:9050">
+                      <span class="help-block">Optional secondary proxy (e.g. Tor socks5, Byparr, FlareSolverr) used as a fallback when direct requests receive a WAF challenge (HTTP 403/429/503)</span>
+                    </div>
                   </fieldset>
                     <fieldset id=rss_options>
                     <legend>rss Server</legend>
@@ -856,6 +861,14 @@
                       </div>
                     </fieldset>
                   </div>
+                  </fieldset>
+                  <fieldset id="asin_backfill_options">
+                    <label class="control-label">Amazon ASIN Backfill:</label>
+                    <div class="form-group">
+                      <button class="button btn btn-sm btn-primary" type="button" value="Backfill ASINs" id="asin_backfill_now"><i class="fa fa-amazon"></i> Backfill ASINs Now</button>
+                      <span id="config_asinbackfillstatus" class="text-muted" style="margin-left: 10px;"></span>
+                      <span class="help-block">Backfills missing Amazon ASINs from GoodReads for books that have a blank ASIN as a background job. Operates strictly on books with blank ASIN only, respects API rate limits, and is safe to interrupt.</span>
+                    </div>
                   </fieldset>
                   <div class="form-group">
                     <label for="lt_devkey" class="control-label">LibraryThing Developer Key:</label>
@@ -3851,6 +3864,14 @@
                     <label for="bok_search_lang" class="control=label">Z-Library Search Languages:</label>
                     <input type="text" placeholder="eg spanish, german" id="bok_search_lang" name="bok_search_lang" value="${CONFIG['BOK_SEARCH_LANG']}" class="form-control">
                     <span class="help-block">Comma separated languages for ZLibrary:<br/>e.g: spanish, german<br/></span>
+                  </div>
+                  <div class="form-group" id="lang_refresh_options">
+                    <label class="control-label">Language Maintenance:</label>
+                    <div>
+                      <button class="button btn btn-sm btn-primary" type="button" value="Refresh Languages" id="lang_refresh_now"><i class="fa fa-language"></i> Refresh Book Languages Now</button>
+                      <span id="config_langrefreshstatus" class="text-muted" style="margin-left: 10px;"></span>
+                      <span class="help-block">Re-evaluates book languages across the database using title, description, and smart language heuristics. Corrects false-positive foreign assignments on English titles (e.g. English titles misclassified as German/French/Spanish), normalizes English dialects (e.g. en-CA), resolves "Unknown" entries, and automatically restores books that were falsely ignored due to incorrect language detection. Runs safely in the background.</span>
+                    </div>
                   </div>
                   <legend>Display Date Formats</legend>
                    <div class="form-group">
