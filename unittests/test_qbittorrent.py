@@ -573,15 +573,39 @@ class AddDuplicateTest(LLTestCase):
         self.assertTrue(status)
         self.assertEqual(res, '')
 
-    def test_duplicate_under_different_name_category_and_path(self):
+    def test_duplicate_in_foreign_category_is_declined(self):
         self.qbclient.download_from_file.side_effect = _http_error(409)
         self.qbclient.torrents.return_value = [_torrent(name='The Great Courses (2011)',
                                                         category='lectures',
                                                         content_path='/elsewhere/lectures')]
+        with _label('books'):
+            status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {})
 
-        status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {})
+        self.assertFalse(status)
+        self.assertFalse(adopted)
+        self.assertIn('Skipping', res)
+
+    def test_duplicate_in_alternate_configured_category_is_adopted(self):
+        self.qbclient.download_from_file.side_effect = _http_error(409)
+        self.qbclient.torrents.return_value = [_torrent(name='The Great Courses (2011)',
+                                                        category='audiobooks',
+                                                        content_path='/downloads/audiobooks')]
+        with _label('books,audiobooks'):
+            status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {})
 
         self.assertTrue(status)
+        self.assertTrue(adopted)
+
+    def test_duplicate_in_any_category_adopted_when_no_label_configured(self):
+        self.qbclient.download_from_file.side_effect = _http_error(409)
+        self.qbclient.torrents.return_value = [_torrent(name='The Great Courses (2011)',
+                                                        category='lectures',
+                                                        content_path='/elsewhere/lectures')]
+        with _label(''):
+            status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {})
+
+        self.assertTrue(status)
+        self.assertTrue(adopted)
 
     def test_genuine_conflict_without_matching_hash_stays_failed(self):
         self.qbclient.download_from_file.side_effect = _http_error(409, 'Unable to add torrent')

@@ -589,11 +589,17 @@ def handle_add_http_error(qbclient, dlcommslogger, err, hashid, label):
         found = torrent_id(torrent, hashid)
         logger.info(f"Torrent already exists in qBittorrent; using existing hash {found}")
         category = torrent.get('category') or ''
-        if category != CONFIG['QBITTORRENT_LABEL']:
-            # taking on a torrent outside our own category is the point of this
-            # lookup, but say so: we may end up removing it later
-            logger.info(f"Existing torrent is in category [{category}], "
-                        f"not [{CONFIG['QBITTORRENT_LABEL']}]")
+        our_label = CONFIG['QBITTORRENT_LABEL']
+        if our_label and category != our_label:
+            mismatch = category_mismatch(category)
+            if mismatch:
+                res = (f"Torrent {found} is in category [{category}], not [{our_label}]. "
+                       f"Skipping to avoid a snatch loop (the postprocessor would not "
+                       f"find the files and the book would be re-searched indefinitely)")
+                logger.info(res)
+                return False, res, False
+            logger.info(f"Existing torrent is in category [{category}] "
+                        f"(accepted alternate for [{our_label}])")
         dlcommslogger.debug(f"Existing torrent: name=[{torrent.get('name')}] state={torrent.get('state')} "
                             f"category=[{category}] progress={torrent.get('progress')}")
         return found, '', True
