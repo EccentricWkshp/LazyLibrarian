@@ -96,6 +96,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigCSV('Postprocess', 'SKIPPED_EXT', 'fail, part, bts, !ut, torrent, magnet, nzb, unpack'),
     ConfigCSV('Postprocess', 'BANNED_EXT', 'avi, mp4, mov, iso, m4v', force_lower=True),
     ConfigCSV('General', 'IMP_PREFLANG', 'en, eng, en-US, en-GB, English', onchange=ImportPrefs.lang_changed),
+    ConfigCSV('General', 'LANGID_LANGUAGES', 'en, fr, de, es, it, pt, nl, sv, da, no, fi, pl, cs, ru, ja, zh, ko, ar, bn, oc'),
     ConfigStr('General', 'PREF_MAGLANG', 'en'),
     ConfigStr('General', 'ISS_FORMAT', '$Y-$m-$d'),
     ConfigStr('General', 'DATE_FORMAT', '$Y-$m-$d'),

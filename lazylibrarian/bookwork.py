@@ -57,24 +57,55 @@ import asyncio
 # comments further down). Installed via a custom-cont-init.d script (persists across
 # restarts/image updates without needing a custom Docker build) rather than baked into this
 # repo's own dependency list, since this deployment doesn't build its own image.
+DEFAULT_LANGID_LANGUAGES = [
+    'en', 'fr', 'de', 'es', 'it', 'pt', 'nl',  # major Western European
+    'sv', 'da', 'no', 'fi',                      # Nordic/Finnish
+    'pl', 'cs', 'ru',                             # Slavic
+    'ja', 'zh', 'ko',                             # East Asian
+    'ar', 'bn',                                   # Arabic, Bengali
+    'oc',                                         # Occitan (kept: reduces fr/es confusion)
+]
+
 try:
     from langid.langid import LanguageIdentifier, model as _langid_model
     LANGID = LanguageIdentifier.from_modelstring(_langid_model, norm_probs=True)
     # Restrict langid's candidate languages to common library languages to reduce
     # false positives on short titles where compound words can otherwise match
-    # rare or low-precedence languages.
-    # Includes Western European, Slavic, East Asian, and South/Southeast Asian scripts
-    # that appear regularly in library catalogues.
-    LANGID.set_languages([
-        'en', 'fr', 'de', 'es', 'it', 'pt', 'nl',  # major Western European
-        'sv', 'da', 'no', 'fi',                      # Nordic/Finnish
-        'pl', 'cs', 'ru',                             # Slavic
-        'ja', 'zh', 'ko',                             # East Asian
-        'ar', 'bn',                                   # Arabic, Bengali
-        'oc',                                         # Occitan (kept: reduces fr/es confusion)
-    ])
+    # rare or low-precedence languages. Can be overridden via LANGID_LANGUAGES in config.ini.
+    LANGID.set_languages(DEFAULT_LANGID_LANGUAGES)
 except (ModuleNotFoundError, ImportError):
     LANGID = None
+
+_current_langid_languages = None
+
+
+def apply_langid_languages(custom_csv=None):
+    """ Configure or update langid candidate languages from CONFIG or explicit CSV.
+        Passing an empty string or 'All' resets langid to all 97 languages. """
+    global LANGID, _current_langid_languages
+    if LANGID is None:
+        return
+    try:
+        if custom_csv is None:
+            if 'LANGID_LANGUAGES' in CONFIG:
+                custom_csv = CONFIG.get_csv('LANGID_LANGUAGES')
+            else:
+                return
+        custom_csv = (custom_csv or '').strip()
+        if not custom_csv or custom_csv.lower() == 'all':
+            if _current_langid_languages != 'ALL':
+                LANGID.set_languages(None)
+                _current_langid_languages = 'ALL'
+            return
+
+        langs = [x.strip().lower() for x in custom_csv.split(',') if x.strip() and len(x.strip()) <= 5]
+        if langs and langs != _current_langid_languages:
+            LANGID.set_languages(langs)
+            _current_langid_languages = langs
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Failed to apply langid languages: {e}")
+
 
 
 def detect_language_ms(text):
@@ -1479,6 +1510,7 @@ def language_from_words(words, source='ms', desc=None):
     # only for the internal "is Google currently lying to us" canary probe (source="google"),
     # which deliberately needs to reach the real Google path to keep testing it.
     if source != 'google' and LANGID is not None:
+        apply_langid_languages()
         if sample:
             lang, conf = LANGID.classify(sample)
             logger.debug(f"langid (with desc) detected {lang}:{conf:.3f} for {words}")
