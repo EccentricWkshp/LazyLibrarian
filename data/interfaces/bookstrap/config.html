@@ -2643,6 +2643,20 @@
                     </div>
                   </div>
                   <div class="form-group">
+                    <label for="stall_age" class="control-label">Abort stalled downloads after:</label>
+                    <div class="input-group">
+                      <input type="number" id="stall_age" name="stall_age" value="${CONFIG['STALL_AGE']}" min="0" class="form-control" placeholder="0 to disable">
+                      <span class="input-group-addon">Hours (0% progress)</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="min_seeders" class="control-label">Minimum seeders for torrent results:</label>
+                    <div class="input-group">
+                      <input type="number" id="min_seeders" name="min_seeders" value="${CONFIG['MIN_SEEDERS']}" min="0" class="form-control" placeholder="0 to disable">
+                      <span class="input-group-addon">Seeders</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
                     <label for="match_ratio">Search Match Ratio:</label>
                     <div class="input-group">
                       <input type="number" id="match_ratio" name="match_ratio" value="${CONFIG['MATCH_RATIO']}" class="form-control" placeholder="Search Match Ratio (percent)">

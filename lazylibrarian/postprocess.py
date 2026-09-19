@@ -2596,6 +2596,15 @@ def _handle_snatched_timeout(
             )
             should_abort = True
 
+    stall_hours = CONFIG.get_int('STALL_AGE')
+    progress_is_zero = not isinstance(book_state.progress, bool) and check_int(book_state.progress, -1) == 0
+    if stall_hours and hours >= stall_hours and progress_is_zero:
+        logger.warning(
+            f"{book_state.download_title} stalled at 0% for {hours} "
+            f"{plural(hours, 'hour')}, aborting"
+        )
+        should_abort = True
+
     if max_hours and hours >= max_hours:
         # SAB can report 100% (or more) and not finished if missing blocks and needs repair
         # For torrents, check if download is complete before timing out
@@ -2617,8 +2626,12 @@ def _handle_snatched_timeout(
             )
 
         elif check_int(book_state.progress, 0) < 95:
-            # Less than 95% after timeout - likely stuck
-            should_abort = True
+            if progress_is_zero and stall_hours and hours < stall_hours:
+                logger.debug(
+                    f"{book_state.download_title} at 0% but STALL_AGE ({stall_hours}h) not reached, waiting"
+                )
+            else:
+                should_abort = True
 
         elif (
             hours >= max_hours + 1

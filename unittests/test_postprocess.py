@@ -968,6 +968,91 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
         )
         self.assertTrue(should_abort)  # Now abort
 
+    def test_stall_detection_aborts_zero_progress_after_stall_age(self):
+        book_state = BookState(
+            download_title="Test Book",
+            source="QBITTORRENT",
+            download_id="dl123",
+            progress=0,
+            aux_type="eBook",
+            book_id="book123",
+        )
+        mock_logger = mock.Mock()
+        with mock.patch("lazylibrarian.postprocess.CONFIG") as mock_config:
+            mock_config.get_int.side_effect = lambda k: {'STALL_AGE': 72, 'TASK_AGE': 0}[k]
+            should_abort, _ = _handle_snatched_timeout(
+                book_state, 73, 4380, 0, mock_logger
+            )
+        self.assertTrue(should_abort)
+
+    def test_stall_detection_does_not_abort_before_stall_age(self):
+        book_state = BookState(
+            download_title="Test Book",
+            source="QBITTORRENT",
+            download_id="dl123",
+            progress=0,
+            aux_type="eBook",
+            book_id="book123",
+        )
+        mock_logger = mock.Mock()
+        with mock.patch("lazylibrarian.postprocess.CONFIG") as mock_config:
+            mock_config.get_int.side_effect = lambda k: {'STALL_AGE': 72, 'TASK_AGE': 0}[k]
+            should_abort, _ = _handle_snatched_timeout(
+                book_state, 48, 2880, 0, mock_logger
+            )
+        self.assertFalse(should_abort)
+
+    def test_stall_detection_ignores_nonzero_progress(self):
+        book_state = BookState(
+            download_title="Test Book",
+            source="QBITTORRENT",
+            download_id="dl123",
+            progress=5,
+            aux_type="eBook",
+            book_id="book123",
+        )
+        mock_logger = mock.Mock()
+        with mock.patch("lazylibrarian.postprocess.CONFIG") as mock_config:
+            mock_config.get_int.side_effect = lambda k: {'STALL_AGE': 72, 'TASK_AGE': 0}[k]
+            should_abort, _ = _handle_snatched_timeout(
+                book_state, 73, 4380, 0, mock_logger
+            )
+        self.assertFalse(should_abort)
+
+    def test_stall_detection_disabled_when_zero(self):
+        book_state = BookState(
+            download_title="Test Book",
+            source="QBITTORRENT",
+            download_id="dl123",
+            progress=0,
+            aux_type="eBook",
+            book_id="book123",
+        )
+        mock_logger = mock.Mock()
+        with mock.patch("lazylibrarian.postprocess.CONFIG") as mock_config:
+            mock_config.get_int.side_effect = lambda k: {'STALL_AGE': 0, 'TASK_AGE': 0}[k]
+            should_abort, _ = _handle_snatched_timeout(
+                book_state, 200, 12000, 0, mock_logger
+            )
+        self.assertFalse(should_abort)
+
+    def test_stall_age_overrides_task_age_for_zero_progress(self):
+        book_state = BookState(
+            download_title="Test Book",
+            source="QBITTORRENT",
+            download_id="dl123",
+            progress=0,
+            aux_type="eBook",
+            book_id="book123",
+        )
+        mock_logger = mock.Mock()
+        with mock.patch("lazylibrarian.postprocess.CONFIG") as mock_config:
+            mock_config.get_int.side_effect = lambda k: {'STALL_AGE': 72, 'TASK_AGE': 2}[k]
+            should_abort, _ = _handle_snatched_timeout(
+                book_state, 3, 180, 2, mock_logger
+            )
+        self.assertFalse(should_abort)
+
     @mock.patch("lazylibrarian.postprocess.custom_notify_snatch")
     @mock.patch("lazylibrarian.postprocess.notify_snatch")
     @mock.patch("lazylibrarian.postprocess.CONFIG.get_bool")
