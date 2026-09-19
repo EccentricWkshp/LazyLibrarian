@@ -359,6 +359,41 @@
             });
         });
 
+        function pollConfigLangRefreshStatus() {
+            $.get('language_refresh_status', function(data) {
+                if (data && data.running) {
+                    $('#config_langrefreshstatus').text('Running: checked ' + data.checked + ' of ' + data.total + ' (' + data.updated + ' updated, ' + data.unignored + ' restored)');
+                    setTimeout(pollConfigLangRefreshStatus, 2000);
+                } else if (data && data.total) {
+                    $('#config_langrefreshstatus').text('Done: checked ' + data.total + ', ' + data.updated + ' updated, ' + data.unignored + ' restored');
+                }
+            }, 'json');
+        }
+        pollConfigLangRefreshStatus();
+
+        $('#lang_refresh_now').on('click', function() {
+            bootbox.confirm({
+                title: "Refresh Book Languages",
+                message: "Re-evaluate languages across candidate books in the database using title, description, and smart language heuristics. " +
+                         "This fixes short-title false positives (e.g. English books misclassified as German/French/Spanish), resolves Unknown languages, " +
+                         "and restores books falsely marked Ignored due to invalid language. Runs safely as a background job.",
+                buttons: {
+                    confirm: { label: "Start", className: "btn-primary" },
+                    cancel: { label: "Cancel", className: "btn-default" }
+                },
+                callback: function(result) {
+                    if (!result) return;
+                    $.get('force_language_refresh', function(data) {
+                        if (data.error) {
+                            bootbox.alert(data.error);
+                        } else {
+                            pollConfigLangRefreshStatus();
+                        }
+                    }, 'json');
+                }
+            });
+        });
+
         $('#test_synology').on('click', function() {
             let host = $.trim($("#synology_host").val());
             let port = $.trim($("#synology_port").val());

@@ -61,6 +61,7 @@ TIMERS = {
         }
 IGNORED_AUTHORS = 0
 PRIMARY_AUTHORS = 1
+LANG_REFRESH_STATUS = {'checked': 0, 'updated': 0, 'unignored': 0, 'total': 0}
 CACHE_HIT = 0
 CACHE_MISS = 0
 IRC_CACHE_EXPIRY = 2 * 3600

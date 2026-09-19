@@ -51,6 +51,62 @@ else:
     Translator = None
 import asyncio
 
+# Local, fully offline language detection (see language_from_words() below) - no network
+# call, no dependency on Google's unofficial/reverse-engineered translate client, which has
+# already been caught more than once reporting every language as English (see the dated
+# comments further down). Installed via a custom-cont-init.d script (persists across
+# restarts/image updates without needing a custom Docker build) rather than baked into this
+# repo's own dependency list, since this deployment doesn't build its own image.
+DEFAULT_LANGID_LANGUAGES = [
+    'en', 'fr', 'de', 'es', 'it', 'pt', 'nl',  # major Western European
+    'sv', 'da', 'no', 'fi',                      # Nordic/Finnish
+    'pl', 'cs', 'ru',                             # Slavic
+    'ja', 'zh', 'ko',                             # East Asian
+    'ar', 'bn',                                   # Arabic, Bengali
+    'oc',                                         # Occitan (kept: reduces fr/es confusion)
+]
+
+try:
+    from langid.langid import LanguageIdentifier, model as _langid_model
+    LANGID = LanguageIdentifier.from_modelstring(_langid_model, norm_probs=True)
+    # Restrict langid's candidate languages to common library languages to reduce
+    # false positives on short titles where compound words can otherwise match
+    # rare or low-precedence languages. Can be overridden via LANGID_LANGUAGES in config.ini.
+    LANGID.set_languages(DEFAULT_LANGID_LANGUAGES)
+except (ModuleNotFoundError, ImportError):
+    LANGID = None
+
+_current_langid_languages = None
+
+
+def apply_langid_languages(custom_csv=None):
+    """ Configure or update langid candidate languages from CONFIG or explicit CSV.
+        Passing an empty string or 'All' resets langid to all 97 languages. """
+    global LANGID, _current_langid_languages
+    if LANGID is None:
+        return
+    try:
+        if custom_csv is None:
+            if 'LANGID_LANGUAGES' in CONFIG:
+                custom_csv = CONFIG.get_csv('LANGID_LANGUAGES')
+            else:
+                return
+        custom_csv = (custom_csv or '').strip()
+        if not custom_csv or custom_csv.lower() == 'all':
+            if _current_langid_languages != 'ALL':
+                LANGID.set_languages(None)
+                _current_langid_languages = 'ALL'
+            return
+
+        langs = [x.strip().lower() for x in custom_csv.split(',') if x.strip() and len(x.strip()) <= 5]
+        if langs and langs != _current_langid_languages:
+            LANGID.set_languages(langs)
+            _current_langid_languages = langs
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Failed to apply langid languages: {e}")
+
+
 
 def detect_language_ms(text):
     """
@@ -1391,10 +1447,93 @@ def isbnlang(isbn):
     return book_language, cache_hit, thing_hit
 
 
-def language_from_words(words, source='ms'):
+EN_MULTI_STOPS = {
+    'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
+    'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'could', 'did',
+    'do', 'does', 'doing', 'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'has', 'have',
+    'having', 'he', 'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'if', 'in',
+    'into', 'is', 'it', 'its', 'itself', 'me', 'more', 'most', 'my', 'myself', 'no', 'nor', 'not', 'of',
+    'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own',
+    'same', 'she', 'should', 'so', 'some', 'such', 'than', 'that', 'the', 'their', 'theirs', 'them',
+    'themselves', 'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to', 'too', 'under',
+    'until', 'up', 'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom',
+    'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves', 'still', 'just', 'like'
+}
+NON_EN_STOPS = {
+    # German
+    'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einer', 'eines', 'einem', 'einen', 'und',
+    'mit', 'sich', 'auf', 'für', 'ist', 'im', 'nicht', 'von', 'wie', 'bei', 'oder', 'aber', 'vor', 'am',
+    'nach', 'über', 'aus', 'durch', 'wenn', 'beim',
+    # French
+    'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'à', 'au', 'aux', 'pour', 'dans', 'sur', 'avec',
+    'par', 'ce', 'ces', 'cette', 'sont', 'qui', 'que', 'votre', 'notre',
+    # Spanish
+    'el', 'los', 'las', 'unos', 'unas', 'del', 'por', 'para', 'con', 'sus', 'como', 'pero', 'este', 'esta',
+    # Portuguese
+    'um', 'uma', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas',
+    # Italian
+    'il', 'lo', 'gli', 'della', 'dello', 'degli', 'delle', 'nel', 'nella', 'sul', 'sulla'
+}
+COMMON_EN_WORDS = {
+    'story', 'stories', 'tales', 'tale', 'book', 'books', 'guide', 'handbook', 'manual',
+    'history', 'world', 'life', 'journey', 'adventure', 'adventures', 'chronicles', 'complete',
+    'series', 'collection', 'collected', 'edition', 'volume', 'secret', 'secrets', 'night', 'day',
+    'days', 'year', 'years', 'time', 'times', 'heart', 'mind', 'power', 'nature', 'light', 'dark',
+    'darkness', 'shadow', 'shadows', 'house', 'home', 'island', 'city', 'land', 'river', 'sea',
+    'death', 'dead', 'living', 'love', 'lessons', 'first', 'last', 'one', 'two', 'three', 'four',
+    'five', 'best', 'great', 'little', 'big', 'short', 'long', 'young', 'younger', 'old', 'older',
+    'man', 'men', 'woman', 'women', 'girl', 'girls', 'boy', 'boys', 'children', 'child', 'mother',
+    'father', 'sister', 'brother', 'family', 'friend', 'friends', 'king', 'queen', 'prince',
+    'princess', 'lord', 'war', 'battle', 'peace', 'fall', 'rise', 'rising', 'lost', 'found',
+    'silent', 'echo', 'storm', 'fire', 'ice', 'water', 'wind', 'blood', 'bone', 'dream', 'dreams',
+    'truth', 'lies', 'song', 'road', 'path', 'summer', 'winter', 'spring', 'autumn', 'moon',
+    'sun', 'star', 'stars', 'art', 'work', 'works', 'fun', 'learning', 'colorful', 'contract',
+    'executive', 'boardroom', 'masked', 'gala', 'rival', 'vow', 'ash', 'video', 'issue', 'monthly',
+    'super', 'alien', 'teachers', 'publisher', 'camera', 'flash', 'portraits', 'photography'
+}
+
+
+def language_from_words(words, source='ms', desc=None):
     if not words:
         return 'None', 0
     logger = logging.getLogger(__name__)
+
+    desc_clean = (desc or '').strip()
+    if desc_clean and desc_clean != 'No Description' and len(desc_clean) > 30:
+        sample = f"{words}. {desc_clean[:500]}"
+    else:
+        sample = None
+
+    # Try local, offline detection first - no network call, nothing to rate-limit or go
+    # down, and nothing for an upstream service to ever misreport (see the Google outage
+    # documented below, which this sidesteps entirely rather than working around). Skipped
+    # only for the internal "is Google currently lying to us" canary probe (source="google"),
+    # which deliberately needs to reach the real Google path to keep testing it.
+    if source != 'google' and LANGID is not None:
+        apply_langid_languages()
+        if sample:
+            lang, conf = LANGID.classify(sample)
+            logger.debug(f"langid (with desc) detected {lang}:{conf:.3f} for {words}")
+            return lang, conf
+
+        # Short title heuristics before raw langid classification:
+        # N-gram models easily misclassify short titles lacking stopwords.
+        tokens = set(re.findall(r'[a-zA-Z]+', words.lower()))
+        en_stops = tokens.intersection(EN_MULTI_STOPS)
+        non_en_stops = tokens.intersection(NON_EN_STOPS)
+
+        if en_stops and not non_en_stops:
+            logger.debug(f"Title stopword heuristic detected en:1.000 for {words}")
+            return 'en', 1.0
+
+        en_vocab = tokens.intersection(COMMON_EN_WORDS)
+        if (len(en_stops) + len(en_vocab)) >= max(1, len(tokens) * 0.4) and not non_en_stops:
+            logger.debug(f"Title vocab heuristic detected en:0.950 for {words}")
+            return 'en', 0.95
+
+        lang, conf = LANGID.classify(words)
+        logger.debug(f"langid detected {lang}:{conf:.3f} for {words}")
+        return lang, conf
 
     if source == 'ms' and CONFIG['MS_TRANS_ID']:
         return detect_language_ms(words)

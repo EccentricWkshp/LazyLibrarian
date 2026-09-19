@@ -112,6 +112,7 @@ from lazylibrarian.formatter import (
     unaccented,
 )
 from lazylibrarian.images import cache_bookimg, get_book_cover
+from lazylibrarian.common import is_valid_language
 
 id_key = {'DNB': 'dnb_id', 'RanobeDB': 'ran_id', 'HardCover': 'hc_id', 'GoodReads': 'gr_id',
           'GoogleBooks': 'gb_id', 'OpenLibrary': 'ol_id'}
@@ -158,12 +159,12 @@ def validate_bookdict(bookdict, current_db=None):
             lang = ''
             languages = get_list(bookdict.get('booklang'))
             if not languages:
-                detected_lang, confidence = language_from_words(bookdict['bookname'])
+                detected_lang, confidence = language_from_words(bookdict['bookname'], desc=bookdict.get('bookdesc', ''))
                 if detected_lang and confidence > 0.6:
                     languages = [detected_lang]
             if languages:
                 for item in languages:
-                    if item in wantedlanguages:
+                    if is_valid_language(item, wantedlanguages):
                         lang = item
                         break
             if not lang and bookdict.get('bookisbn'):

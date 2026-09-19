@@ -65,7 +65,7 @@ from lazylibrarian.auth import (
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
-from lazylibrarian.bookwork import add_series_members, delete_empty_series, set_series
+from lazylibrarian.bookwork import add_series_members, delete_empty_series, language_from_words, set_series
 from lazylibrarian.cache import ImageType, cache_img, gr_xml_request
 from lazylibrarian.calibre import calibre_test, calibredb, get_calibre_id, sync_calibre_list
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
@@ -76,6 +76,7 @@ from lazylibrarian.common import (
     delete_empty_folders,
     get_readinglist,
     is_valid_email,
+    is_valid_language,
     log_header,
     mime_type,
     pwd_check,
@@ -227,6 +228,103 @@ def clear_our_cookies():
     cookie['ll_prefs']['path'] = '/'
     cookie['ll_prefs']['expires'] = 0
     cookie['ll_prefs']['max-age'] = 0
+
+
+def refresh_book_languages():
+    """ Background job: re-evaluates language for books in the database.
+    Corrects short-title false positives (e.g. English titles misidentified as German/French/Spanish),
+    normalizes English dialects (e.g. en-CA), resolves 'Unknown' languages, and automatically
+    un-ignores books that were falsely marked Ignored due to invalid language. """
+    logger = logging.getLogger(__name__)
+    incoming_threadname = thread_name()
+    thread_name('LANGREFRESH')
+
+    def stop_requested():
+        return lazylibrarian.STOPTHREADS and thread_name() == 'LANGREFRESH'
+
+    db = database.DBConnection()
+    try:
+        db.upsert("jobs", {"Start": time.time()}, {"Name": "LANGREFRESH"})
+        rows = db.select(
+            "SELECT BookID, BookName, BookLang, BookDesc, Status, ScanResult, AuthorID FROM books "
+            "WHERE (Status = 'Ignored' AND ScanResult LIKE '%Invalid language%') "
+            "OR BookLang = 'Unknown' OR BookLang IS NULL OR BookLang = '' "
+            "OR BookLang NOT IN ('en', 'eng', 'en-US', 'en-GB')"
+        )
+        total = len(rows)
+        lazylibrarian.LANG_REFRESH_STATUS = {'checked': 0, 'updated': 0, 'unignored': 0, 'total': total}
+        logger.info(f"Language refresh: {total} candidate book{plural(total)} to check")
+
+        valid_langs = get_list(CONFIG['IMP_PREFLANG'])
+        checked = 0
+        updated = 0
+        unignored = 0
+        authors_to_update = set()
+
+        for row in rows:
+            if stop_requested():
+                logger.info(f"Language refresh: stopped after checking {checked}/{total}")
+                break
+
+            bookid = row['BookID']
+            name = row['BookName'] or ''
+            old_lang = row['BookLang'] or 'Unknown'
+            desc = row['BookDesc'] or ''
+            status = row['Status']
+            scan_res = row['ScanResult'] or ''
+            author_id = row['AuthorID']
+
+            new_lang, conf = language_from_words(name, desc=desc)
+            if new_lang and new_lang not in ['None', 'Disabled', 'Blocked'] and conf > 0.5:
+                lang_to_set = new_lang
+            else:
+                lang_to_set = old_lang
+
+            lang_changed = (lang_to_set != old_lang and lang_to_set != 'Unknown')
+            was_ignored_for_lang = (status == 'Ignored' and 'Invalid language' in scan_res)
+            is_valid_now = is_valid_language(lang_to_set, valid_langs)
+
+            if lang_changed or (was_ignored_for_lang and is_valid_now):
+                updates = {}
+                if lang_changed:
+                    updates['BookLang'] = lang_to_set
+                if was_ignored_for_lang and is_valid_now:
+                    new_status = CONFIG['NEWBOOK_STATUS'] if CONFIG['NEWBOOK_STATUS'] != 'Ignored' else 'Skipped'
+                    updates['Status'] = new_status
+                    updates['ScanResult'] = f"[LangRefresh] Restored: {old_lang} -> {lang_to_set}"
+                    unignored += 1
+                    if author_id:
+                        authors_to_update.add(author_id)
+                elif lang_changed and not was_ignored_for_lang:
+                    updates['ScanResult'] = f"[LangRefresh] Language: {old_lang} -> {lang_to_set}"
+
+                if updates:
+                    set_clause = ', '.join(f"{k}=?" for k in updates.keys())
+                    values = list(updates.values()) + [bookid]
+                    db.action(f"UPDATE books SET {set_clause} WHERE BookID=?", values)
+                    updated += 1
+
+            checked += 1
+            lazylibrarian.LANG_REFRESH_STATUS['checked'] = checked
+            lazylibrarian.LANG_REFRESH_STATUS['updated'] = updated
+            lazylibrarian.LANG_REFRESH_STATUS['unignored'] = unignored
+
+            if checked % 250 == 0:
+                db.commit()
+                logger.info(f"Language refresh: checked {checked}/{total}, updated {updated}, restored {unignored}")
+
+        db.commit()
+        for auth_id in authors_to_update:
+            try:
+                lazylibrarian.importer.update_totals(auth_id)
+            except Exception:
+                pass
+
+        logger.info(f"Language refresh: complete, checked {checked}/{total}, updated {updated}, restored {unignored}")
+    finally:
+        db.upsert("jobs", {"Finish": time.time()}, {"Name": "LANGREFRESH"})
+        db.close()
+        thread_name(incoming_threadname)
 
 
 def serve_template(templatename, **kwargs):
@@ -4652,6 +4750,34 @@ class WebInterface:
         db.action('UPDATE books SET ASIN=? WHERE BookID=?', (asin, bookid))
         db.close()
         return {'found': True, 'asin': asin, 'link': f'https://www.amazon.com/dp/{asin}'}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def force_language_refresh(self):
+        """ AJAX: kick off refresh_book_languages() in the background to re-evaluate
+        languages across candidate books in the database. """
+        self.check_permitted(lazylibrarian.perm_force)
+        logger = logging.getLogger(__name__)
+        if 'LANGREFRESH' in [n.name for n in list(threading.enumerate())]:
+            return {'error': 'Language refresh is already running'}
+        threading.Thread(target=refresh_book_languages, name='LANGREFRESH', args=[]).start()
+        logger.info("Manually triggered book language refresh")
+        return {'success': True}
+
+    @cherrypy.expose
+    @require_auth()
+    @cherrypy.tools.json_out()
+    def language_refresh_status(self):
+        """ AJAX: is a language refresh currently running, and progress counters. """
+        running = 'LANGREFRESH' in [n.name for n in list(threading.enumerate())]
+        return {
+            'running': running,
+            'checked': lazylibrarian.LANG_REFRESH_STATUS.get('checked', 0),
+            'updated': lazylibrarian.LANG_REFRESH_STATUS.get('updated', 0),
+            'unignored': lazylibrarian.LANG_REFRESH_STATUS.get('unignored', 0),
+            'total': lazylibrarian.LANG_REFRESH_STATUS.get('total', 0),
+        }
 
     @cherrypy.expose
     @require_auth()
