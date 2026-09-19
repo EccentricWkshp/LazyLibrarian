@@ -62,6 +62,27 @@ from lazylibrarian.logconfig import LOGCONFIG
 reading_status = {'toread': 1, 'reading': 2, 'haveread': 3, 'read': 3, 'owned': 4, 'abandoned': 5, 'dnf': 5, }
 
 
+def is_valid_language(book_lang: str, valid_langs: list | set | None) -> bool:
+    """ Check if book_lang matches the user's preferred languages.
+    Accepts empty or None only if valid_langs is empty or contains 'All'.
+    Accepts 'Unknown' only if 'Unknown' or 'All' is in valid_langs.
+    Also accepts English dialects (e.g. en-CA, en-US, en-GB, eng) if English is in valid_langs. """
+    if not valid_langs or 'All' in valid_langs:
+        return True
+    if not book_lang:
+        return False
+    if book_lang == 'Unknown':
+        return 'Unknown' in valid_langs
+    if book_lang in valid_langs:
+        return True
+    bl = book_lang.lower()
+    en_codes = {'en', 'eng', 'english', 'en-us', 'en-gb', 'en-ca', 'en-au', 'en-nz'}
+    valid_lower = {v.lower() for v in valid_langs}
+    if (bl.startswith('en-') or bl in en_codes) and valid_lower.intersection(en_codes):
+        return True
+    return False
+
+
 def get_user_agent(configured=True) -> str:
     # Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36
     if configured and CONFIG['USER_AGENT']:
@@ -139,6 +160,18 @@ def proxy_list():
             if item in ['http', 'https']:
                 proxies.update({item: CONFIG['PROXY_HOST']})
     return proxies
+
+
+def fallback_proxy():
+    """ Return proxies dict for the configured fallback/bypass proxy, or None if not configured.
+        Used as a secondary fallback (e.g. Tor socks5, Byparr, FlareSolverr) when direct requests
+        receive a WAF / anti-bot challenge (HTTP 403, 429, 503). """
+    proxy = (CONFIG['FALLBACK_PROXY'] or '').strip()
+    if not proxy:
+        return None
+    if not re.match(r'^[a-zA-Z0-9+.-]+://', proxy):
+        proxy = f"http://{proxy}"
+    return {'http': proxy, 'https': proxy}
 
 
 def is_valid_email(emails):
