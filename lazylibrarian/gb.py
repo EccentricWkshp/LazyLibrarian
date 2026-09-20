@@ -24,6 +24,7 @@ from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
+from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookwork import (
     delete_empty_series,
     get_status,
@@ -71,6 +72,9 @@ class GoogleBooks:
             Lazylibrarian searches use <ll> to separate title from author in searchterm
             If this token isn't present, it's an isbn or searchterm as supplied by user
         """
+        if BLOCKHANDLER.is_blocked('googleapis'):
+            self.logger.debug("GoogleBooks search skipped: googleapis quota blocked")
+            return []
         try:
             resultlist = []
             # See if we should check ISBN field, otherwise ignore it
@@ -253,6 +257,9 @@ class GoogleBooks:
 
     def get_author_books(self, authorid=None, authorname=None, bookstatus="Skipped",
                          audiostatus="Skipped", entrystatus='Active', refresh=False, reason='gb.get_author_books'):
+        if BLOCKHANDLER.is_blocked('googleapis'):
+            self.logger.debug(f'[{authorname}] Skipping Google Books API: googleapis quota blocked')
+            return 0
         # noinspection PyBroadException
         self.logger.debug(f'[{authorname}] Now processing books with Google Books API')
         db = database.DBConnection()
@@ -689,6 +696,9 @@ class GoogleBooks:
             db.close()
 
     def add_bookid_to_db(self, bookid=None, bookstatus=None, audiostatus=None, reason='gb.add_bookid'):
+        if BLOCKHANDLER.is_blocked('googleapis'):
+            self.logger.debug(f'GoogleBooks add_bookid_to_db {bookid} skipped: googleapis quota blocked')
+            return False
         if not CONFIG['GB_API']:
             self.logger.warning('No GoogleBooks API key, check config')
             return False

@@ -1591,6 +1591,11 @@ def isbn_from_words(words):
             db.close()
             return res['ISBN']
 
+        if BLOCKHANDLER.is_blocked('googleapis') or BLOCKHANDLER.is_blocked('ISBN'):
+            logger.debug(f"Skipping Google search ISBN lookup for '{words}': Google is blocked")
+            db.close()
+            return None
+
         baseurl = "http://www.google.com/search?q=ISBN+"
         search_url = baseurl + quote(words.replace(' ', '+'))
 

@@ -551,7 +551,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
             if src:
                 return None, src
 
-        if not src or src == 'googleisbn' and 'googleapis' not in ignore:
+        if (not src or src == 'googleisbn') and 'googleapis' not in ignore and not BLOCKHANDLER.is_blocked('googleapis'):
             # try a google isbn page search...
             if item and item['BookISBN']:
                 url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{item['BookISBN']}"
@@ -592,7 +592,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
              res, src = crawl_image('flickr', src, cachedir, bookid, safeparams, imgid=imgid)
              if res:
                  return res, src
-            if (not src or src == 'googleimage') and 'googleapis' not in ignore:
+            if (not src or src == 'googleimage') and 'googleapis' not in ignore and not BLOCKHANDLER.is_blocked('googleapis'):
                 res, src = crawl_image('google', src, cachedir, bookid, safeparams, imgid=imgid)
                 if res:
                     return res, src
