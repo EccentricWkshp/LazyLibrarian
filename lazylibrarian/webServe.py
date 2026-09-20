@@ -65,7 +65,12 @@ from lazylibrarian.auth import (
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import name_vars
-from lazylibrarian.bookwork import add_series_members, delete_empty_series, language_from_words, set_series
+from lazylibrarian.bookwork import (
+    add_series_members,
+    delete_empty_series,
+    language_from_words,
+    set_series,
+)
 from lazylibrarian.cache import ImageType, cache_img, gr_xml_request
 from lazylibrarian.calibre import calibre_test, calibredb, get_calibre_id, sync_calibre_list
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
@@ -315,10 +320,8 @@ def refresh_book_languages():
 
         db.commit()
         for auth_id in authors_to_update:
-            try:
+            with contextlib.suppress(Exception):
                 lazylibrarian.importer.update_totals(auth_id)
-            except Exception:
-                pass
 
         logger.info(f"Language refresh: complete, checked {checked}/{total}, updated {updated}, restored {unignored}")
     finally:

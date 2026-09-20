@@ -100,6 +100,7 @@ from lazylibrarian.bookwork import (
     isbnlang,
     language_from_words,
 )
+from lazylibrarian.common import is_valid_language
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import (
     check_int,
@@ -112,7 +113,6 @@ from lazylibrarian.formatter import (
     unaccented,
 )
 from lazylibrarian.images import cache_bookimg, get_book_cover
-from lazylibrarian.common import is_valid_language
 
 id_key = {'DNB': 'dnb_id', 'RanobeDB': 'ran_id', 'HardCover': 'hc_id', 'GoodReads': 'gr_id',
           'GoogleBooks': 'gb_id', 'OpenLibrary': 'ol_id'}

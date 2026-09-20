@@ -67,7 +67,8 @@ DEFAULT_LANGID_LANGUAGES = [
 ]
 
 try:
-    from langid.langid import LanguageIdentifier, model as _langid_model
+    from langid.langid import LanguageIdentifier
+    from langid.langid import model as _langid_model
     LANGID = LanguageIdentifier.from_modelstring(_langid_model, norm_probs=True)
     # Restrict langid's candidate languages to common library languages to reduce
     # false positives on short titles where compound words can otherwise match
@@ -1465,12 +1466,12 @@ NON_EN_STOPS = {
     'mit', 'sich', 'auf', 'für', 'ist', 'im', 'nicht', 'von', 'wie', 'bei', 'oder', 'aber', 'vor', 'am',
     'nach', 'über', 'aus', 'durch', 'wenn', 'beim',
     # French
-    'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'à', 'au', 'aux', 'pour', 'dans', 'sur', 'avec',
+    'le', 'la', 'les', 'un', 'une', 'du', 'de', 'et', 'à', 'au', 'aux', 'pour', 'dans', 'sur', 'avec',
     'par', 'ce', 'ces', 'cette', 'sont', 'qui', 'que', 'votre', 'notre',
     # Spanish
     'el', 'los', 'las', 'unos', 'unas', 'del', 'por', 'para', 'con', 'sus', 'como', 'pero', 'este', 'esta',
     # Portuguese
-    'um', 'uma', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas',
+    'um', 'uma', 'do', 'da', 'dos', 'em', 'no', 'na', 'nos', 'nas',
     # Italian
     'il', 'lo', 'gli', 'della', 'dello', 'degli', 'delle', 'nel', 'nella', 'sul', 'sulla'
 }

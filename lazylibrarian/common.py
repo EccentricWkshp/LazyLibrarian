@@ -75,9 +75,7 @@ def is_valid_language(book_lang: str, valid_langs: list | set | None) -> bool:
     bl = book_lang.lower()
     en_codes = {'en', 'eng', 'english', 'en-us', 'en-gb', 'en-ca', 'en-au', 'en-nz'}
     valid_lower = {v.lower() for v in valid_langs}
-    if (bl.startswith('en-') or bl in en_codes) and valid_lower.intersection(en_codes):
-        return True
-    return False
+    return bool((bl.startswith('en-') or bl in en_codes) and valid_lower.intersection(en_codes))
 
 
 def get_user_agent(configured=True) -> str:

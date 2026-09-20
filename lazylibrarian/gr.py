@@ -1179,8 +1179,7 @@ class GoodReads:
                                     "ASIN": bookasin or '',
                                     "gr_id": bookid,
                                     "ScanResult": reason,
-                                    "OriginalPubDate": originalpubdate,
-                                    "ASIN": bookasin or ''
+                                    "OriginalPubDate": originalpubdate
                                 }
                                 db.upsert("books", new_value_dict, control_value_dict)
                                 db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',

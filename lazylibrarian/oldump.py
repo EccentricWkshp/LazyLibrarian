@@ -13,7 +13,7 @@ from lazylibrarian import database
 from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
-from lazylibrarian.formatter import format_author_name, get_list, thread_name
+from lazylibrarian.formatter import elapsed_time, format_author_name, get_list, thread_name
 
 logger = logging.getLogger(__name__)
 
@@ -285,7 +285,8 @@ def update_openlibrary_dump():
 
     jobdb = database.DBConnection()
     logger.debug(f"Storing start time for {thread_name()}")
-    jobdb.upsert("jobs", {"Start": time.time()}, {"Name": thread_name()})
+    start_time = time.time()
+    jobdb.upsert("jobs", {"Start": start_time}, {"Name": thread_name()})
 
     conn = None
     try:
@@ -454,9 +455,12 @@ def update_openlibrary_dump():
     finally:
         if conn:
             conn.close()
+        finish_time = time.time()
         logger.debug(f"Storing finish time for {thread_name()}")
-        jobdb.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
+        jobdb.upsert("jobs", {"Finish": finish_time}, {"Name": thread_name()})
         jobdb.close()
+        timestr = elapsed_time(finish_time - start_time)
+        logger.debug(f"{thread_name()} completed in {timestr}")
         thread_name(incoming_threadname)
 
 def query_local_dump_authorid_of_book(author_name, title):
