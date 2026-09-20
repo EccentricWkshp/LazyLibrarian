@@ -667,8 +667,8 @@ class GoodReads:
                                 bookasin = existing['ASIN']
                             if not bookisbn and existing['BookIsbn']:
                                 bookisbn = existing['BookIsbn']
-                            if existing['BookImg'] and 'nocover' not in existing['BookImg'] and 'nophoto' not in existing['BookImg']:
-                                if not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg:
+                            if (existing['BookImg'] and 'nocover' not in existing['BookImg'] and 'nophoto' not in existing['BookImg']) and \
+                                    (not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg):
                                     bookimg = existing['BookImg']
 
                         if not bookname:
@@ -1082,8 +1082,8 @@ class GoodReads:
                             # dump fallbacks below) with a worse '0000' every time GoodReads
                             # itself had nothing - silently discarding those fallbacks' results
                             # before they ever reached the database.
-                            if originalpubdate and originalpubdate != '0000':
-                                if not bookdate or bookdate == '0000' or len(originalpubdate) > len(bookdate):
+                            if (originalpubdate and originalpubdate != '0000') and \
+                                    (not bookdate or bookdate == '0000' or len(originalpubdate) > len(bookdate)):
                                     bookdate = originalpubdate
 
                             # Leave alone if locked

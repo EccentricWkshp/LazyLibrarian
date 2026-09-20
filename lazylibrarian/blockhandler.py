@@ -58,7 +58,7 @@ class BlockHandler:
             return
         logger = logging.getLogger(__name__)
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
             timenow = int(time.time())
             restored = 0
