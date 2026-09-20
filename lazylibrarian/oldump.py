@@ -2,6 +2,7 @@ import gzip
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import time
@@ -23,6 +24,8 @@ INDEX_PROGRESS_STEP = 500000
 # How often (in indexed rows) to check for a stop request - much more frequent than the
 # progress log above, since that can be minutes apart on a slow machine.
 STOP_CHECK_STEP = 10000
+# Commit transaction periodically during bulk ingest to prevent WAL bloat and ensure durability.
+COMMIT_STEP = 50000
 
 # Rough multiplier applied to the combined compressed download size to estimate the extra
 # space the indexed sqlite database will need on top of the two dump files it's built from -
@@ -111,8 +114,19 @@ def has_column(cursor, table, column):
 def init_dump_db(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute("PRAGMA journal_mode = OFF;")
-    cur.execute("PRAGMA synchronous = MEMORY;")
+    # journal_mode=OFF + synchronous=MEMORY (the previous settings here) have no protection
+    # at all against an unclean interruption - a killed process or container restart mid
+    # write can leave the file genuinely corrupted ("database disk image is malformed"),
+    # not just missing its most recent transaction. Confirmed live, twice, this session:
+    # this exact file corrupted after being interrupted by a container restart, on this
+    # host, where restarts happen often enough for that to matter. WAL + synchronous=NORMAL
+    # is the same durability tradeoff the main lazylibrarian.db already uses elsewhere in
+    # this codebase (see database.py) - safe against a killed process, still fast enough for
+    # bulk loading since it only fsyncs at WAL checkpoints rather than every write.
+    cur.execute("PRAGMA journal_mode = WAL;")
+    cur.execute("PRAGMA synchronous = NORMAL;")
+    cur.execute("PRAGMA cache_size = -65536;")  # 64MB cache (low memory footprint safe for Pi and low-RAM devices)
+    cur.execute("PRAGMA temp_store = MEMORY;")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ol_authors (
             author_id TEXT PRIMARY KEY,
@@ -199,7 +213,14 @@ def download_dump_file(url, local_path):
             logger.warning(f"Server rejected resume of {os.path.basename(local_path)}, restarting from scratch")
             os.remove(partial_path)
             return download_dump_file(url, local_path)
-        raise
+        logger.error(f"HTTP error downloading {url}: {e}")
+        return False
+    except urllib.error.URLError as e:
+        logger.error(f"Network connection error downloading {url}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error downloading {url}: {e}")
+        return False
 
     with resp:
         if resume_from and resp.status != 206:
@@ -288,7 +309,6 @@ def update_openlibrary_dump():
         batch = []
         indexed = 0
         authors_stopped = False
-        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(authors_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -313,6 +333,8 @@ def update_openlibrary_dump():
                     cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name, birth_date, death_date, bio, photos) VALUES (?, ?, ?, ?, ?, ?)", batch)
                     indexed += len(batch)
                     batch = []
+                    if indexed % COMMIT_STEP == 0:
+                        conn.commit()
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Imported {indexed} authors so far...")
                     if _stop_requested():
@@ -324,8 +346,8 @@ def update_openlibrary_dump():
         if batch and not authors_stopped:
             cur.executemany("INSERT OR REPLACE INTO ol_authors (author_id, author_name, birth_date, death_date, bio, photos) VALUES (?, ?, ?, ?, ?, ?)", batch)
             indexed += len(batch)
+        conn.commit()
         logger.info(f"Imported {indexed} authors total{' (stopped early)' if authors_stopped else ''}")
-        cur.execute("END TRANSACTION;")
 
         if authors_stopped:
             return
@@ -340,7 +362,6 @@ def update_openlibrary_dump():
         batch = []
         indexed = 0
         works_stopped = False
-        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(works_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -380,7 +401,17 @@ def update_openlibrary_dump():
 
                         covers = data.get('covers', [])
                         cover_i = str(covers[0]) if covers else ''
-                        first_publish_date = str(data.get('created', {}).get('value', ''))[:4]
+                        # 'created' is when this record was catalogued into OpenLibrary, not
+                        # when the book was published - OL's own dump was largely bulk-imported
+                        # from old MARC catalogs around 2009, so using 'created' silently stamps
+                        # a huge fraction of works with a meaningless ~2009 "publish year". The
+                        # real field is 'first_publish_date' (format varies - plain year, or a
+                        # fuller date like "March 1989" - extract the first 4-digit run either
+                        # way rather than assuming a fixed format).
+                        first_publish_date = ''
+                        year_match = re.search(r'\d{4}', data.get('first_publish_date', '') or '')
+                        if year_match:
+                            first_publish_date = year_match.group(0)
                         if key and title and author_id:
                             batch.append((key, author_id, title, first_publish_date, cover_i, contributors, genres, subtitle, description))
                     except Exception as e:
@@ -391,6 +422,8 @@ def update_openlibrary_dump():
                                         contributors, genres, subtitle, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch)
                     indexed += len(batch)
                     batch = []
+                    if indexed % COMMIT_STEP == 0:
+                        conn.commit()
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Imported {indexed} works so far...")
                     if _stop_requested():
@@ -403,8 +436,8 @@ def update_openlibrary_dump():
             cur.executemany("""INSERT OR REPLACE INTO ol_works (work_id, author_id, title, first_publish_year, cover_i,
                                 contributors, genres, subtitle, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch)
             indexed += len(batch)
+        conn.commit()
         logger.info(f"Imported {indexed} works total{' (stopped early)' if works_stopped else ''}")
-        cur.execute("END TRANSACTION;")
         if works_stopped:
             logger.info("OpenLibrary Bulk Dump importing stopped (shutdown requested).")
         else:
@@ -447,6 +480,33 @@ def query_local_dump_authorid_of_book(author_name, title):
     except Exception as e:
         logger.error(f"Local dump bookauthor query error: {e}")
     return None
+
+
+def query_local_dump_pubdate(author_name, title):
+    """ Look up a book's first_publish_year in the local OpenLibrary dump by author name +
+    title. Purely local (no network call, no rate limit, no daily quota) - worth trying before
+    any of the remote pubdate fallbacks (GoodReads/HardCover/GoogleBooks), not just as a last
+    resort, whenever OL_USE_DUMP is enabled and the dump has already been synced. Returns a
+    4-digit year string, or '' if not found / no dump available. """
+    db_path = get_dump_db_path()
+    if not os.path.exists(db_path):
+        return ''
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cmd = ("SELECT ol_works.first_publish_year FROM ol_authors, ol_works WHERE "
+               "ol_authors.author_id = ol_works.author_id AND "
+               "author_name = ? COLLATE NOCASE AND title = ? COLLATE NOCASE AND "
+               "first_publish_year IS NOT NULL AND first_publish_year != ''")
+        cur.execute(cmd, (author_name, title))
+        res = cur.fetchone()
+        conn.close()
+        if res and res[0]:
+            logger.debug(f"Local dump pubdate for {author_name}:{title} -> {res[0]}")
+            return res[0]
+    except Exception as e:
+        logger.error(f"Local dump pubdate query error: {e}")
+    return ''
 
 
 def query_local_dump_author_info(author_id):
