@@ -476,6 +476,12 @@ def get_capabilities(provider: ConfigDict, force=False):
                 item = provider.get_item(key)
                 if item:
                     item.reset_to_default()
+            # The category parsing below only fills a category that is still empty, but
+            # reset_to_default() gives the provider-type default (Torznab: 8000,8010, "Other"),
+            # so an indexer offering plain "Books" (7000) without an ebook subcategory was left
+            # searching the wrong category, and one with no audio category still got 3030.
+            for key in ['BOOKCAT', 'AUDIOCAT', 'COMICCAT', 'MAGCAT']:
+                provider[key] = ''
             search = data.find('searching/search')
             if search is not None and 'available' in search.attrib and search.attrib['available'] == 'yes':
                 provider['GENERALSEARCH'] = 'search'
