@@ -11,9 +11,14 @@ from lazylibrarian.formatter import plural, pretty_approx_time, today
 
 
 class BlockHandler:
+    # Seconds a provider is blocked for when it keeps answering "too many requests",
+    # escalating each time it is limited again soon after the previous block expired
+    RATE_LIMIT_LADDER = (30, 120, 600, 3600)
+
     def __init__(self):
         self._nab_apicount_day: str = today()
         self._provider_list: dict[str, dict] = {}  # {name: {resume, reason}} = {}
+        self._backoff: dict[str, dict] = {}  # {name: {level, when}} for block_provider_backoff
         self._gb_calls: int = 0
         self._config: ConfigDict | None = None
         self._newznab: ConfigDict | None = None
@@ -77,6 +82,31 @@ class BlockHandler:
             f"Provider Blocklist contains {len(self._provider_list)} {plural(len(self._provider_list), 'entry')}")
         return delay
 
+    def block_provider_backoff(self, who: str, why: str) -> int:
+        """ Block provider 'who' with a delay that escalates each time it rate-limits us again shortly
+        after its previous block expired (see RATE_LIMIT_LADDER). A provider that is down, or that has been
+        disabled upstream (eg by Prowlarr), is then asked less and less often instead of every 30 seconds.
+        A quiet spell of more than one further delay, or reset_backoff(), starts again at the shortest delay.
+        Returns the number of seconds the provider is blocked for. """
+        now = time.time()
+        previous = self._backoff.get(who)
+        if self.is_blocked(who):
+            # searches already in flight can all be rate-limited together: that is a single event
+            if previous:
+                return max(0, int(previous['when'] + self.RATE_LIMIT_LADDER[previous['level']] - now))
+            return 0
+
+        ladder = self.RATE_LIMIT_LADDER
+        level = 0
+        if previous and now - previous['when'] < ladder[previous['level']] * 2:
+            level = min(previous['level'] + 1, len(ladder) - 1)
+        self._backoff[who] = {'level': level, 'when': now}
+        return self.block_provider(who, why, delay=ladder[level])
+
+    def reset_backoff(self, who: str) -> None:
+        """ The provider answered normally, so forget any escalation of its rate-limit delay """
+        self._backoff.pop(who, None)
+
     def number_blocked(self) -> int:
         """ Number of blocked providers """
         return len(self._provider_list)
@@ -85,6 +115,7 @@ class BlockHandler:
         """ Clear all blocks, returning how many were on the list """
         num = self.number_blocked()
         self._provider_list.clear()
+        self._backoff.clear()
         return num
 
     def check_day(self, pretend_day: str | None = None) -> bool:
