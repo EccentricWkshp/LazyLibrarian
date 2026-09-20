@@ -104,6 +104,12 @@ def search_book(books=None, library=None):
     library is "eBook" or "AudioBook" or None to search all book types
     """
     TELEMETRY.record_usage_data('Search/Book')
+    # Only search the requested format. Previously `library` was only used in log messages, so every
+    # per-format caller (web UI, API type=, GoodReads/HardCover sync, wishlist) searched both formats
+    # whenever a book was Wanted in both, doubling the queries sent to every provider.
+    only = library.lower() if isinstance(library, str) else ''
+    search_ebook = only != 'audiobook'
+    search_audio = only != 'ebook'
     logger = logging.getLogger(__name__)
     searchinglogger = logging.getLogger('special.searching')
     searchinglogger.debug(f"search_book: {books}")
@@ -215,7 +221,7 @@ def search_book(books=None, library=None):
                     searchterm += ': '
                 searchterm += searchbook['BookSub']
 
-            if searchbook['Status'] == "Wanted":
+            if search_ebook and searchbook['Status'] == "Wanted":
                 cmd = "SELECT BookID from wanted WHERE BookID=? and AuxInfo='eBook' and Status='Snatched'"
                 snatched = db.match(cmd, (searchbook["BookID"],))
                 if snatched:
@@ -232,7 +238,7 @@ def search_book(books=None, library=None):
                          "searchterm": searchterm,
                          "genre": (searchbook['BookGenre'] if 'BookGenre' in searchbook.keys() else '')})
 
-            if searchbook['AudioStatus'] == "Wanted":
+            if search_audio and searchbook['AudioStatus'] == "Wanted":
                 cmd = "SELECT BookID from wanted WHERE BookID=? and AuxInfo='AudioBook' and Status='Snatched'"
                 snatched = db.match(cmd, (searchbook["BookID"],))
                 if snatched:
