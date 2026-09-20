@@ -113,6 +113,12 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
 
     url = make_unicode(url)
 
+    url_lower = url.lower()
+    if 'googleapis' in url_lower or 'books.google.' in url_lower or 'google.com/search' in url_lower:
+        if BLOCKHANDLER.is_blocked('googleapis') or BLOCKHANDLER.is_blocked('ISBN'):
+            logger.debug(f"Intercepted Google request ({url}): Provider is blocked due to quota exhaustion")
+            return 'Blocked: Google quota exhausted', False
+
     for blk in service_blocked:
         if blk.lower() in url.lower() and BLOCKHANDLER.is_blocked(blk):
             return 'Blocked', False
@@ -353,8 +359,13 @@ class CacheRequest(ABC):
                 return None, False
         else:
             lazylibrarian.CACHE_MISS += 1
+            url_lower = self.url.lower()
+            if 'googleapis' in url_lower or 'books.google.' in url_lower or 'google.com/search' in url_lower:
+                if BLOCKHANDLER.is_blocked('googleapis') or BLOCKHANDLER.is_blocked('ISBN'):
+                    return None, False
+
             for blk in service_blocked:
-                if blk in self.url and BLOCKHANDLER.is_blocked(blk):
+                if blk.lower() in self.url.lower() and BLOCKHANDLER.is_blocked(blk):
                     return None, False
 
             result, success = self.fetch_data()

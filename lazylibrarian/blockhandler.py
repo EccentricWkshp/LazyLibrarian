@@ -3,7 +3,9 @@
 # Purpose:
 #   Handle blocking behaviour, keep track of blocked providers, etc
 
+import json
 import logging
+import os
 import time
 
 from lazylibrarian.configtypes import ConfigDict
@@ -35,6 +37,56 @@ class BlockHandler:
         self._config = config  # So we don't need to import config2
         self._newznab = newznab
         self._torznab = torznab
+        self._load_persisted_blocks()
+
+    def _get_persist_file(self) -> str | None:
+        if self._config and hasattr(self._config, 'configfilename') and self._config.configfilename:
+            return os.path.join(os.path.dirname(self._config.configfilename), 'blocked_providers.json')
+        try:
+            from lazylibrarian.filesystem import DIRS
+            if DIRS and DIRS.DATADIR:
+                return os.path.join(DIRS.DATADIR, 'blocked_providers.json')
+        except Exception:
+            pass
+        if os.path.isdir('/config'):
+            return '/config/blocked_providers.json'
+        return None
+
+    def _load_persisted_blocks(self):
+        filepath = self._get_persist_file()
+        if not filepath or not os.path.isfile(filepath):
+            return
+        logger = logging.getLogger(__name__)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            timenow = int(time.time())
+            restored = 0
+            for name, entry in data.items():
+                if isinstance(entry, dict) and entry.get('resume', 0) > timenow:
+                    self._provider_list[name] = entry
+                    left = entry['resume'] - timenow
+                    logger.info(f"Restored active block for {name} ({pretty_approx_time(left)} remaining): {entry.get('reason', '')}")
+                    restored += 1
+            if restored:
+                logger.debug(f"Restored {restored} active provider blocks from {filepath}")
+        except Exception as e:
+            logger.debug(f"Failed to load persisted blocks from {filepath}: {e}")
+
+    def _save_persisted_blocks(self):
+        filepath = self._get_persist_file()
+        if not filepath:
+            return
+        try:
+            timenow = int(time.time())
+            active = {k: v for k, v in self._provider_list.items() if isinstance(v, dict) and v.get('resume', 0) > timenow}
+            tmp_path = filepath + '.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(active, f, indent=2)
+            os.replace(tmp_path, filepath)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Failed to save persisted blocks to {filepath}: {e}")
 
     def _find_key(self, name: str) -> str:
         """ Return existing matching key in _provider_list (case-insensitive) or name """
@@ -49,18 +101,15 @@ class BlockHandler:
     def remove_provider_entry(self, name: str) -> None:
         key = self._find_key(name)
         self._provider_list.pop(key, None)
+        self._save_persisted_blocks()
 
     def add_provider_entry(self, name: str, delay: int, reason: str) -> None:
         key = self._find_key(name)
         self._provider_list[key] = {"resume": int(time.time()) + delay, "reason": reason}
+        self._save_persisted_blocks()
 
     def replace_provider_entry(self, name: str, delay: int, reason: str) -> None:
-        new_resume = int(time.time()) + delay
-        key = self._find_key(name)
-        existing = self._provider_list.get(key)
-        if existing and existing.get("resume", 0) > new_resume:
-            return
-        self._provider_list[key] = {"resume": new_resume, "reason": reason}
+        self.add_provider_entry(name, delay, reason)
 
     def block_provider(self, who: str, why: str, delay: int | None = None) -> int:
         """ Block provider 'who' for reason 'why'. Returns number of seconds block will last """
@@ -144,6 +193,7 @@ class BlockHandler:
             if timenow < int(entry['resume']):
                 return True
             self._provider_list.pop(key, None)
+            self._save_persisted_blocks()
         return False
 
     def get_text_list_of_blocks(self) -> str:
