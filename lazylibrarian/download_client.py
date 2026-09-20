@@ -965,7 +965,15 @@ def download_providers(source, download_id):
     return [entry["NZBprov"] for entry in entries if entry["NZBprov"]]
 
 
-def delete_task(source, download_id, remove_data):
+def delete_task(source, download_id, remove_data, abandoned=False):
+    """ Remove a task from its downloader.
+
+    abandoned means we gave up on it before it completed. A provider's seeding
+    requirement is for data that was downloaded, so a task that stalled, or that
+    the client dropped, owes nothing and is not held for it. Holding it would
+    wait for seeding that can never happen and leave the dead task in the client
+    for ever while its request is marked failed.
+    """
     logger = logging.getLogger(__name__)
     owned, category = download_ownership(source, download_id)
     if source in ADOPTABLE_SOURCES and not owned:
@@ -978,7 +986,7 @@ def delete_task(source, download_id, remove_data):
         )
         return True
     try:
-        if source in ADOPTABLE_SOURCES:
+        if source in ADOPTABLE_SOURCES and not abandoned:
             owing = seeding_incomplete(source, download_id,
                                        download_providers(source, download_id))
             if owing:

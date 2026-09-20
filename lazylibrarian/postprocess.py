@@ -2701,7 +2701,7 @@ def _handle_aborted_download(
 
         if CONFIG.get_bool("DEL_FAILED"):
             logger.warning(f"{dlresult}, deleting failed task")
-            delete_task(book_state.source, book_state.download_id, True)
+            delete_task(book_state.source, book_state.download_id, True, abandoned=True)
 
 
 def _check_and_schedule_next_run(db, logger: logging.Logger, reset: bool) -> None:
