@@ -87,6 +87,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('Proxy', 'PROXY_HOST', ''),
     ConfigStr('Proxy', 'PROXY_TYPE', ''),
     ConfigStr('Proxy', 'PROXY_LOCAL', ''),
+    ConfigStr('Proxy', 'FALLBACK_PROXY', ''),
     ConfigBool('Proxy', 'PROXY_AUTH', 0),
     ConfigBool('Proxy', 'PROXY_REGISTER', 0),
     ConfigStr('Proxy', 'PROXY_AUTH_USER', 'X-WEBAUTH-USER'),

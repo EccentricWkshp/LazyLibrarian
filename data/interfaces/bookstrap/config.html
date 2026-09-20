@@ -305,6 +305,11 @@
                       <input type="text" id="proxy_type" name="proxy_type" value="${CONFIG['PROXY_TYPE']}" class="form-control" placeholder="Proxy Types">
                       <span class="help-block">Comma separated list http, https, etc</span>
                     </div>
+                    <div class="form-group">
+                      <label for="fallback_proxy" class="control-label">Fallback / Bypass Proxy:</label>
+                      <input type="text" id="fallback_proxy" name="fallback_proxy" value="${CONFIG['FALLBACK_PROXY']}" class="form-control" placeholder="e.g. socks5h://127.0.0.1:9050">
+                      <span class="help-block">Optional secondary proxy (e.g. Tor socks5, Byparr, FlareSolverr) used as a fallback when direct requests receive a WAF challenge (HTTP 403/429/503)</span>
+                    </div>
                   </fieldset>
                     <fieldset id=rss_options>
                     <legend>rss Server</legend>

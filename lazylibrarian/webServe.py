@@ -2353,7 +2353,7 @@ class WebInterface:
                 value = kwargs[key.lower()]
                 # validate entries here...
                 if value:
-                    if key.lower() in ['bok_host']:
+                    if key.lower() in ['bok_host', 'fallback_proxy', 'proxy_host']:
                         tokens = ['<', '>', '"', "'", '+', '(', ')']
                     elif (key.lower() in ['user_agent', 'fmt_series'] or key.lower().endswith('_folder')
                           or key.lower().endswith('_file')):

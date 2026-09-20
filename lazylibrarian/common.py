@@ -159,6 +159,19 @@ def proxy_list():
     return proxies
 
 
+def fallback_proxy():
+    """ Return proxies dict for the configured fallback/bypass proxy, or None if not configured.
+        Used as a secondary fallback (e.g. Tor socks5, Byparr, FlareSolverr) when direct requests
+        receive a WAF / anti-bot challenge (HTTP 403, 429, 503). """
+    proxy = (CONFIG['FALLBACK_PROXY'] or '').strip()
+    if not proxy:
+        return None
+    if not re.match(r'^[a-zA-Z0-9+.-]+://', proxy):
+        proxy = f"http://{proxy}"
+    return {'http': proxy, 'https': proxy}
+
+
+
 def is_valid_email(emails):
     if not emails:
         return False
