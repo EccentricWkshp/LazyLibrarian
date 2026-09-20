@@ -125,9 +125,8 @@ def init_dump_db(db_path):
     # bulk loading since it only fsyncs at WAL checkpoints rather than every write.
     cur.execute("PRAGMA journal_mode = WAL;")
     cur.execute("PRAGMA synchronous = NORMAL;")
-    cur.execute("PRAGMA cache_size = -262144;")  # 256MB cache
+    cur.execute("PRAGMA cache_size = -65536;")  # 64MB cache (low memory footprint safe for Pi and low-RAM devices)
     cur.execute("PRAGMA temp_store = MEMORY;")
-    cur.execute("PRAGMA mmap_size = 4294967296;")  # 4GB mmap
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ol_authors (
             author_id TEXT PRIMARY KEY,
@@ -214,7 +213,14 @@ def download_dump_file(url, local_path):
             logger.warning(f"Server rejected resume of {os.path.basename(local_path)}, restarting from scratch")
             os.remove(partial_path)
             return download_dump_file(url, local_path)
-        raise
+        logger.error(f"HTTP error downloading {url}: {e}")
+        return False
+    except urllib.error.URLError as e:
+        logger.error(f"Network connection error downloading {url}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error downloading {url}: {e}")
+        return False
 
     with resp:
         if resume_from and resp.status != 206:
@@ -303,7 +309,6 @@ def update_openlibrary_dump():
         batch = []
         indexed = 0
         authors_stopped = False
-        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(authors_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -330,7 +335,6 @@ def update_openlibrary_dump():
                     batch = []
                     if indexed % COMMIT_STEP == 0:
                         conn.commit()
-                        cur.execute("BEGIN TRANSACTION;")
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Imported {indexed} authors so far...")
                     if _stop_requested():
@@ -358,7 +362,6 @@ def update_openlibrary_dump():
         batch = []
         indexed = 0
         works_stopped = False
-        cur.execute("BEGIN TRANSACTION;")
         with gzip.open(works_gz, 'rt', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 parts = line.strip().split('\t')
@@ -421,7 +424,6 @@ def update_openlibrary_dump():
                     batch = []
                     if indexed % COMMIT_STEP == 0:
                         conn.commit()
-                        cur.execute("BEGIN TRANSACTION;")
                     if indexed % INDEX_PROGRESS_STEP < STOP_CHECK_STEP:
                         logger.info(f"Imported {indexed} works so far...")
                     if _stop_requested():
