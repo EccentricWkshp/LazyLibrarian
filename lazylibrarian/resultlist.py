@@ -363,6 +363,10 @@ def find_best_result(resultlist, book, searchtype, source):
                     words = [x for x in words if x not in get_list(CONFIG['AUDIOBOOK_TYPE'])]
                     typelist = get_list(CONFIG['AUDIOBOOK_TYPE'])
 
+                # Don't treat wanted language as noise, and ignore separator "words" (#3100)
+                preferred_tags = {w for w, langs in _LANG_TO_PREFLANG.items() if langs & preflang_lower}
+                words = [x for x in words if x not in preferred_tags and x not in ('by', '/', '-')]
+
                 score -= len(words)
                 # prioritise titles that include the ebook types we want
                 # add more points for booktypes nearer the left in the list
@@ -381,6 +385,13 @@ def find_best_result(resultlist, book, searchtype, source):
                     for word in wordlist:
                         for i in [i for i, x in enumerate(preferwords) if x == word]:
                             score += i + 1
+
+                # now do the same for words in preferred language list, not weighted, 1 point if match
+                if preferred_tags:
+                    for word in wordlist:
+                        if word in preferred_tags:
+                            score += 1
+                            break
 
                 matches.append([score, new_value_dict, control_value_dict, res['priority'],
                                 check_int(res.get('seeders', 0), 0)])
