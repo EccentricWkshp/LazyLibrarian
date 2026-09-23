@@ -55,7 +55,26 @@ def calibre_list(col_read, col_toread):
         return err
     logger = logging.getLogger(__name__)
     logger.debug(f"{res}")
-    return json.loads(res)
+    # Issue #2852: `calibredb list --for-machine` returned a complete, valid JSON array on a
+    # large real-world library, but with extra bytes trailing after it (the exact content was
+    # never pinned down across several debug rounds on the issue - only the "Extra data" symptom
+    # was, at a shifting offset as the reporter's library changed size, consistent with something
+    # genuinely appended after a valid array rather than a parse-position bug of ours). A plain
+    # json.loads() rejects the whole response outright over that trailing content, and did so
+    # uncaught here - contradicting this function's own documented "return an error message
+    # (not a dict) on failure" contract, which is what turned this into an unhandled exception
+    # instead of the graceful failure sync_calibre_list()'s caller already expects.
+    decoder = json.JSONDecoder()
+    try:
+        data, end = decoder.raw_decode(res.strip())
+    except json.JSONDecodeError as e:
+        logger.error(f"calibredb list returned unparseable JSON: {e}")
+        return str(e)
+    trailing = res.strip()[end:].strip()
+    if trailing:
+        logger.warning(f"calibredb list returned {len(trailing)} byte(s) of unexpected data "
+                       f"after its JSON list, ignored: {trailing[:200]!r}")
+    return data
 
 
 def sync_calibre_list(col_read=None, col_toread=None, userid=None):
