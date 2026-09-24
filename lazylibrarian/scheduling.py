@@ -17,6 +17,8 @@
 
 import datetime
 import logging
+import os
+import sqlite3
 import threading
 import time
 import traceback
@@ -32,7 +34,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.configtypes import ConfigScheduler
 from lazylibrarian.formatter import check_int, plural
 from lazylibrarian.importer import add_author_to_db
-from lazylibrarian.oldump import update_openlibrary_dump
+from lazylibrarian.oldump import get_dump_db_path, update_openlibrary_dump
 
 # This is to suppress ruff warning about unused import
 # If you remove it, the scheduler complains about missing ref
@@ -755,6 +757,17 @@ def show_stats(json=False):
     finally:
         db.close()
 
+    oldump_stats = []
+    db_path = get_dump_db_path()
+    if os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        author_count = cur.execute("SELECT count(*) from ol_authors").fetchone()
+        works_count = cur.execute("SELECT count(*) from ol_works").fetchone()
+        conn.close()
+        oldump_stats.append(['OL Authors', author_count[0]])
+        oldump_stats.append(['OL Works', works_count[0]])
+
     if json:
         return resultdict
 
@@ -768,4 +781,14 @@ def show_stats(json=False):
             result.append('')
             result.append(header)
             result.append(data)
+    if oldump_stats:
+        header = ''
+        data = ''
+        for item in oldump_stats:
+            header += f"{item[0]:<12s}"
+            data += f"{item[1]:<12d}"
+        result.append('')
+        result.append(header)
+        result.append(data)
+
     return result
