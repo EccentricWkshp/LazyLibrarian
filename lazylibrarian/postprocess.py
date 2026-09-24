@@ -826,7 +826,7 @@ def _is_recognised_extension(ext: str) -> bool:
     recognised = set(CONFIG.get_all_types_list()) if CONFIG else set()
     if CONFIG:
         recognised.update(get_list(CONFIG["SKIPPED_EXT"]))
-    recognised.update(("unpack", "cbr", "cbz"))
+    recognised.update(("unpack", "cbr", "cbz", "r00"))
     return ext in recognised
 
 
@@ -898,8 +898,8 @@ def _count_zipfiles_in_directory(directory_path: str) -> int:
         _, extn = _tokenize_file(f)
         extn = extn.lower()
 
-        # Skip ebook and comic book formats that happen to be zips
-        if extn not in [".epub", ".cbz"] and zipfile.is_zipfile(file_path):
+        # Skip ebook and comic book formats and rar indexes that happen to be zips
+        if extn not in [".epub", ".cbz", ".r00"] and zipfile.is_zipfile(file_path):
             zipcount += 1
     return zipcount
 
@@ -1088,7 +1088,7 @@ def _extract_archives_in_directory(
             extn = extn.lower()
 
             # Skip files that are ebooks/comics (they're already in zip format)
-            if item and extn not in [".epub", ".cbr", ".cbz"]:
+            if item and extn not in [".epub", ".cbr", ".cbz", ".r00"]:
                 if not os.path.exists(os.path.join(dirpath, item)):
                     continue
                 res = unpack_archive(os.path.join(dirpath, item), download_dir, title)
