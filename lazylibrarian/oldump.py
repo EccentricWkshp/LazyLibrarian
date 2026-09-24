@@ -41,6 +41,19 @@ def _stop_requested():
     return lazylibrarian.STOPTHREADS and thread_name() == "OLDUMPUPDATE"
 
 
+def _checkpoint(conn, mode='PASSIVE'):
+    """ An explicit WAL checkpoint, replacing SQLite's own frequent small automatic ones
+    (see init_dump_db's wal_autocheckpoint comment) with fewer, larger, controlled merges
+    at our own commit boundaries. PASSIVE never blocks a reader/writer and merges only what
+    it safely can; TRUNCATE (used once, after the whole import) forces a full merge and
+    shrinks the WAL file back down, since an unbounded leftover WAL would slow every future
+    lookup against this dump too, not just the import itself. """
+    try:
+        conn.execute(f"PRAGMA wal_checkpoint({mode});")
+    except sqlite3.Error as e:
+        logger.debug(f"WAL {mode} checkpoint failed (non-fatal, the next one will retry): {e}")
+
+
 def get_remote_size(url):
     """HEAD request for url's Content-Length. Returns 0 if it can't be determined."""
     import urllib.request
@@ -127,6 +140,19 @@ def init_dump_db(db_path):
     cur.execute("PRAGMA synchronous = NORMAL;")
     cur.execute("PRAGMA cache_size = -65536;")  # 64MB cache (low memory footprint safe for Pi and low-RAM devices)
     cur.execute("PRAGMA temp_store = MEMORY;")
+    # philborman, RPi4, 2026-09 (!1847/!1900): a 35-minute import on a laptop SSD takes over
+    # 24 hours on a Raspberry Pi - a disproportion far beyond raw storage speed alone. SQLite's
+    # default wal_autocheckpoint (1000 pages, ~4MB) auto-fires a WAL checkpoint - which merges
+    # back into the main db file with scattered, random writes, not sequential ones - roughly
+    # every 4MB written. Over a 15M+ row import that is thousands of forced checkpoints, and
+    # random writes are exactly what SD-card/eMMC storage handles catastrophically worse than
+    # an SSD (100-1000x slower), while sequential WAL appends themselves stay fast on either.
+    # Raised, not disabled outright: disabling auto-checkpoint entirely would let the WAL file
+    # itself grow to gigabytes for the whole import, risking exactly the disk-space exhaustion
+    # philborman already hit once on this same task (2026-08-25). Explicit PASSIVE checkpoints
+    # at our own COMMIT_STEP boundary below replace the frequent automatic ones with far fewer,
+    # larger, still-bounded merges instead.
+    cur.execute("PRAGMA wal_autocheckpoint = 100000;")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ol_authors (
             author_id TEXT PRIMARY KEY,
@@ -277,6 +303,7 @@ def update_openlibrary_dump():
         logger.debug("OpenLibrary local dump importing disabled in configuration")
         return
 
+    lazylibrarian.OL_UPDATING = True
     incoming_threadname = thread_name()
     thread_name('OLDUMPUPDATE')
     dump_dir = get_dump_dir()
@@ -442,13 +469,11 @@ def update_openlibrary_dump():
         if works_stopped:
             logger.info("OpenLibrary Bulk Dump importing stopped (shutdown requested).")
         else:
-            logger.info("OpenLibrary Bulk Dump importing complete successfully.")
-
-        logger.info("OpenLibrary Bulk Dump indexing started.")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
-        logger.info("OpenLibrary Bulk Dump indexing complete.")
+            logger.info("OpenLibrary Bulk Dump indexing started.")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_authors_name ON ol_authors(author_name);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
+            logger.info("OpenLibrary Bulk Dump indexing complete.")
 
     except Exception as e:
         logger.error(f"Error updating OpenLibrary bulk dump: {e}")
@@ -456,6 +481,7 @@ def update_openlibrary_dump():
         if conn:
             conn.close()
         finish_time = time.time()
+        lazylibrarian.OL_UPDATING = False
         logger.debug(f"Storing finish time for {thread_name()}")
         jobdb.upsert("jobs", {"Finish": finish_time}, {"Name": thread_name()})
         jobdb.close()
@@ -463,8 +489,13 @@ def update_openlibrary_dump():
         logger.debug(f"{thread_name()} completed in {timestr}")
         thread_name(incoming_threadname)
 
+
 def query_local_dump_authorid_of_book(author_name, title):
     """Search local dump database for author ID by name and book title."""
+    if lazylibrarian.OL_UPDATING or not CONFIG['OL_USE_DUMP']:
+        logger.debug(f"Not querying local dump for {author_name}:{title}{': updating' if lazylibrarian.OL_UPDATING else ': disabled'}")
+        return None
+
     logger.debug(f"Query local dump for {author_name}:{title}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
@@ -492,6 +523,10 @@ def query_local_dump_pubdate(author_name, title):
     any of the remote pubdate fallbacks (GoodReads/HardCover/GoogleBooks), not just as a last
     resort, whenever OL_USE_DUMP is enabled and the dump has already been synced. Returns a
     4-digit year string, or '' if not found / no dump available. """
+    if lazylibrarian.OL_UPDATING or not CONFIG['OL_USE_DUMP']:
+        logger.debug(f"Not querying local dump for {author_name}:{title}{': updating' if lazylibrarian.OL_UPDATING else ': disabled'}")
+        return ''
+
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
         return ''
@@ -515,6 +550,10 @@ def query_local_dump_pubdate(author_name, title):
 
 def query_local_dump_author_info(author_id):
     """Search local dump database for author by ID."""
+    if lazylibrarian.OL_UPDATING or not CONFIG['OL_USE_DUMP']:
+        logger.debug(f"Not querying local dump for {author_id}{': updating' if lazylibrarian.OL_UPDATING else ': disabled'}")
+        return {}
+
     logger.debug(f"Query local dump info for {author_id}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
@@ -545,6 +584,10 @@ def query_local_dump_author_info(author_id):
 
 def query_local_dump_authorid(author_name, full=False):
     """Search local dump database for author ID by name """
+    if lazylibrarian.OL_UPDATING or not CONFIG['OL_USE_DUMP']:
+        logger.debug(f"Not querying local dump for {author_name}{': updating' if lazylibrarian.OL_UPDATING else ': disabled'}")
+        return None
+
     logger.debug(f"Query local dump authorid for {author_name}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
@@ -576,6 +619,10 @@ def query_local_dump_authorid(author_name, full=False):
 
 def query_local_dump_books(author_id):
     """Query local dump database for all works belonging to an author ID."""
+    if lazylibrarian.OL_UPDATING or not CONFIG['OL_USE_DUMP']:
+        logger.debug(f"Not querying local dump for {author_id}{': updating' if lazylibrarian.OL_UPDATING else ': disabled'}")
+        return []
+
     logger.debug(f"Query local dump books for {author_id}")
     db_path = get_dump_db_path()
     if not os.path.exists(db_path):
