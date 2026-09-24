@@ -71,7 +71,7 @@ def unpack_multipart(source_dir, download_dir, title):
         for f in listdir(source_dir):
             archivename = os.path.join(source_dir, str(f))
             xtn = os.path.splitext(archivename)[1].lower()
-            if xtn not in [".epub", ".cbz"] and zipfile.is_zipfile(archivename):
+            if xtn not in [".epub", ".cbz", ".r00"] and zipfile.is_zipfile(archivename):
                 try:
                     z = zipfile.ZipFile(archivename)
                     for item in z.namelist():
@@ -135,7 +135,7 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
     # noinspection PyBroadException
     try:
         xtn = os.path.splitext(archivename)[1].lower()
-        if xtn not in [".epub", ".cbz"] and zipfile.is_zipfile(archivename):
+        if xtn not in [".epub", ".cbz", ".r00"] and zipfile.is_zipfile(archivename):
             TELEMETRY.record_usage_data("Process/Archive/Zip")
             postprocesslogger.debug(f"{archivename} is a zip file")
             try:
