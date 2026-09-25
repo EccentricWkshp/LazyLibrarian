@@ -23,7 +23,7 @@
     </div>
 </%def>
 <%def name="body()">
-%if book.get('ScanResult', '').startswith('[Refresh Failed'):
+%if book.get('ScanResult') and book['ScanResult'].startswith('[Refresh Failed'):
 <div class="row">
     <div class="col-md-12">
         <div class="alert alert-warning">${book['ScanResult']}</div>
