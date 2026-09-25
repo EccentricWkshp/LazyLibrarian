@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import traceback
 from shutil import move, rmtree
@@ -43,6 +44,7 @@ from lazylibrarian.dbupgrade import check_db, db_current_version, db_upgrade, up
 from lazylibrarian.filesystem import DIRS, path_isdir, path_isfile, remove_file, syspath
 from lazylibrarian.formatter import check_int, make_unicode, unaccented
 from lazylibrarian.logconfig import LOGCONFIG
+from lazylibrarian.oldump import set_global_ol_counters
 from lazylibrarian.notifiers import APPRISE_VER
 from lazylibrarian.providers import get_capabilities
 from lazylibrarian.scheduling import (
@@ -247,6 +249,7 @@ class StartupLazyLibrarian:
         else:
             logger.warning("Did not find Apprise notifications library")
             CONFIG.set_bool('HIDE_OLD_NOTIFIERS', False)
+        threading.Thread(target=set_global_ol_counters, name='OL_COUNTERS').start()
 
     def init_caches(self, config: LLConfigHandler):
         # override detected encoding if required

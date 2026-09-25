@@ -36,6 +36,8 @@ REQUESTSLOG = 0  # If 1, sets http.client.HTTPConnection.debuglevel=1.
 DOCKER = False  # Set to True if we discover LL is running inside of Docker
 STOPTHREADS = False  # Part of the scheduling state machine. Should move to a scheduling class?
 OL_UPDATING = False  # set if an openlibrary dump update is in progress
+OL_AUTHORS = 0
+OL_WORKS = 0
 
 # These are globals
 UPDATE_MSG = ''

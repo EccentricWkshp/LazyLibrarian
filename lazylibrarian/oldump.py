@@ -124,6 +124,18 @@ def has_column(cursor, table, column):
         return False
     return any(item[1] == column for item in columns)
 
+def set_global_ol_counters():
+    db_path = get_dump_db_path()
+    if not os.path.exists(db_path):
+        return
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    author_count = cur.execute("SELECT count(*) from ol_authors").fetchone()
+    works_count = cur.execute("SELECT count(*) from ol_works").fetchone()
+    lazylibrarian.OL_AUTHORS = author_count[0]
+    lazylibrarian.OL_WORKS = works_count[0]
+    conn.close()
+
 def init_dump_db(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -474,6 +486,10 @@ def update_openlibrary_dump():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_author ON ol_works(author_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ol_works_title ON ol_works(title);")
             logger.info("OpenLibrary Bulk Dump indexing complete.")
+            author_count = cur.execute("SELECT count(*) from ol_authors").fetchone()
+            works_count = cur.execute("SELECT count(*) from ol_works").fetchone()
+            lazylibrarian.OL_AUTHORS = author_count[0]
+            lazylibrarian.OL_WORKS = works_count[0]
 
     except Exception as e:
         logger.error(f"Error updating OpenLibrary bulk dump: {e}")
