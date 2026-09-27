@@ -44,8 +44,8 @@ from lazylibrarian.dbupgrade import check_db, db_current_version, db_upgrade, up
 from lazylibrarian.filesystem import DIRS, path_isdir, path_isfile, remove_file, syspath
 from lazylibrarian.formatter import check_int, make_unicode, unaccented
 from lazylibrarian.logconfig import LOGCONFIG
-from lazylibrarian.oldump import set_global_ol_counters
 from lazylibrarian.notifiers import APPRISE_VER
+from lazylibrarian.oldump import set_global_ol_counters
 from lazylibrarian.providers import get_capabilities
 from lazylibrarian.scheduling import (
     SchedulerCommand,

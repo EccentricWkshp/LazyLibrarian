@@ -358,9 +358,7 @@ def get_all_author_details(authorid='', authorname=None):
                 db.action(f"UPDATE authors SET {src[2]}=? WHERE authorid=?",
                           (aid['authorid'], authorid))
                 auth_id = aid['authorid']
-        if not auth_id and authorid:
-            auth_id = authorid
-        if auth_id:
+        if auth_id:  # does author_id for this source exist
             res = cl.get_author_info(authorid=auth_id, authorname=authorname)
             if res:
                 author_info[src[0]] = res
