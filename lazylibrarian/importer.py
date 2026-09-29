@@ -535,7 +535,7 @@ def add_author_to_db(authorname=None, refresh=False, authorid='', addbooks=True,
             return None
         if authorname and not current_author.get('authorname'):
             current_author['authorname'] = authorname
-        if not current_author['authorname']:
+        if not current_author.get('authorname'):
             logger.debug(
                 f"Unable to update author {current_author['authorid']}: Authorname missing: Entry name {authorname}, dbauthor {dict(dbauthor)}")
             return None

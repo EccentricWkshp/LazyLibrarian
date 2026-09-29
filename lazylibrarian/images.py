@@ -1042,8 +1042,8 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
         if len(CONFIG['IMP_CONVERT']):  # allow external convert to override libraries
             generator = f"external program: {CONFIG['IMP_CONVERT']}"
             if "gsconvert.py" in CONFIG['IMP_CONVERT']:
-                msg = "Use of gsconvert.py is deprecated, equivalent functionality is now built in. "
-                msg += "Support for gsconvert.py may be removed in a future release. See wiki for details."
+                msg = ("Use of gsconvert.py is deprecated, equivalent functionality is now built in. "
+                        "Support for gsconvert.py may be removed in a future release. See wiki for details.")
                 logger.warning(msg)
             converter = CONFIG['IMP_CONVERT']
             postfix = ''

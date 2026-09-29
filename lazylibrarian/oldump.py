@@ -519,9 +519,9 @@ def query_local_dump_authorid_of_book(author_name, title):
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        cmd = "SELECT ol_authors.author_id, author_name FROM ol_authors,ol_works WHERE "
-        cmd += "ol_authors.author_id = ol_works.author_id and "
-        cmd += "author_name = ? COLLATE NOCASE and title = ? COLLATE NOCASE"
+        cmd = ('SELECT ol_authors.author_id, author_name FROM ol_authors,ol_works WHERE '
+               'ol_authors.author_id = ol_works.author_id and author_name = ? COLLATE NOCASE '
+               'and title = ? COLLATE NOCASE')
         cur.execute(cmd, (author_name, title))
         res = cur.fetchone()
         conn.close()

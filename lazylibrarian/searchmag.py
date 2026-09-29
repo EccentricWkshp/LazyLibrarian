@@ -522,9 +522,8 @@ def search_magazines(mags=None, reset=False, backissues=False):
                     db.upsert("wanted", new_value_dict, control_value_dict)
                     logger.info(f"Added {control_value_dict['NZBtitle']} to wanted marked {new_value_dict['Status']}")
 
-                msg = f"Found {total_nzbs} {plural(total_nzbs, 'result')} for {bookid}. {new_date} new,{new_list}"
-                msg += f' {old_date} old, {bad_date} fail date, {bad_name} fail name,'
-                msg += f' {rejects} rejected: {len(wanted_list)} to download'
+                msg = (f"Found {total_nzbs} {plural(total_nzbs, 'result')} for {bookid}. {new_date} new{' ' + str(new_list) if new_list else ''},"
+                    f" {old_date} old, {bad_date} fail date, {bad_name} fail name, {rejects} rejected: {len(wanted_list)} to download")
                 logger.info(msg)
 
                 threading.Thread(target=download_maglist, name='DL-MAGLIST', args=[maglist, 'pastissues']).start()

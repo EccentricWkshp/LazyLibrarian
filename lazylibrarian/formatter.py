@@ -148,7 +148,10 @@ def sanitize(name, is_folder_or_file=False):
     filename = replace_all(filename, lazylibrarian.DICTS.get('apostrophe_dict', {}))
     # strip characters we don't want in a filename/foldername
     dic = lazylibrarian.DICTS.get('filename_dict', {}).copy()
-    if is_folder_or_file and os.path.__name__ == 'ntpath':
+    if is_folder_or_file:
+        dic.pop('\\')
+        dic['\\\\'] ,= '\\'
+    if os.path.__name__ == 'ntpath':
         dic.pop(':')
     filename = replace_all(filename, dic)
     # Remove all characters below code point 32

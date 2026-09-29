@@ -141,6 +141,7 @@ class SLSKD:
             self.logger.error("slskd_api module is not loaded")
             return
 
+        self.searchlogger = logging.getLogger('special.searching')
         self.api_key = CONFIG['SLSK_API']
         self.host_url = CONFIG['SLSK_HOST']
         self.download_dir = get_list(CONFIG['DOWNLOAD_DIR'])[0]
@@ -224,9 +225,10 @@ class SLSKD:
                             continue
 
                         if not CONFIG.is_valid_booktype(file_name, booktype=searchtype):
-                            rejects += 1  # self.logger.debug(f"Rejecting {file_name}")
+                            rejects += 1
+                            self.searchlogger.debug(f"Rejecting {file_name}: Not {searchtype}")
                             if rejects > 20:
-                                self.logger.debug(f"Ignoring {username}, too many rejects")
+                                self.searchlogger.debug(f"Ignoring {username}, too many rejects")
                                 self.ignored_users.append(username)
                                 break
                         else:
@@ -243,7 +245,7 @@ class SLSKD:
                                 extn = extn.lstrip('.').lower()
                                 if extn in extns:  # reject if multiple files of the same type
                                     new_files = []
-                                    self.logger.debug(f"Rejecting {title}, multiple {extn}")
+                                    self.searchlogger.debug(f"Rejecting {title}, multiple {extn}")
                                     self.ignored_users.append(username)
                                     break
                                 extns.append(extn)

@@ -490,8 +490,8 @@ def is_overdue(which="author") -> (int, int, str, str, int):
         logger = logging.getLogger(__name__)
         try:
             if which == 'author':
-                cmd = "SELECT AuthorName,AuthorID,Updated from authors WHERE Status='Active' or Status='Loading'"
-                cmd += " or Status='Wanted' and AuthorID !='' order by Updated ASC"
+                cmd = ("SELECT AuthorName,AuthorID,Updated from authors WHERE Status='Active' or Status='Loading'"
+                        " or Status='Wanted' and AuthorID !='' order by Updated ASC")
                 res = db.select(cmd)
                 total = len(res)
                 if total:

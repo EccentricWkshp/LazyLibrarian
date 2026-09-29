@@ -2184,7 +2184,7 @@ def newznab_plus(book: dict, provider: ConfigDict, search_type: str, search_mode
         else:
             BLOCKHANDLER.reset_backoff(provider['HOST'])  # answered normally
             channel = rootxml.find('channel')
-            if channel:
+            if channel is not None:
                 for item in channel:
                     if 'apilimits' in str(item):
                         limits = item

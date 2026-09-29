@@ -457,8 +457,8 @@ def serve_template(templatename, **kwargs):
                                            'SendTo, Perms) VALUES (?, ?, ?, ?, ?, ?, ?)')
                                     db.action(cmd, (pwd_generator(), user, fullname, md5_utf8(new_pwd),
                                                     email, '', lazylibrarian.perm_friend))
-                                    msg = f"New user added from proxy auth: {user}: Friend"
-                                    msg += f"<br>Email sent to {email}"
+                                    msg = (f"New user added from proxy auth: {user}: Friend"
+                                            f"<br>Email sent to {email}")
                                     cnt = db.match("select count(*) as counter from users")
                                     if cnt['counter'] > 1:
                                         lazylibrarian.SHOWLOGOUT = 1
@@ -468,8 +468,7 @@ def serve_template(templatename, **kwargs):
                                     db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                               (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                                 else:
-                                    msg = "New user NOT added"
-                                    msg += f"<br>Failed to send email to {email}"
+                                    msg = f"New user NOT added<br>Failed to send email to {email}"
                                 logger.debug(msg)
 
                 if not res:
@@ -1427,14 +1426,12 @@ class WebInterface:
                 db.action(cmd, (pwd_generator(), kwargs['username'], kwargs['fullname'],
                                 md5_utf8(kwargs['password']), kwargs['email'], kwargs['sendto'], perms,
                                 kwargs.get('hc_token', '')))
-                msg = f"New user added: {kwargs['username']}: {perm_msg}"
-                msg += f"<br>Email sent to {kwargs['email']}"
+                msg = f"New user added: {kwargs['username']}: {perm_msg}<br>Email sent to {kwargs['email']}"
                 cnt = db.match("select count(*) as counter from users")
                 if cnt['counter'] > 1:
                     lazylibrarian.SHOWLOGOUT = 1
             else:
-                msg = "New user NOT added"
-                msg += f"<br>Failed to send email to {kwargs['email']}"
+                msg = (f"New user NOT added<br>Failed to send email to {kwargs['email']}")
             db.close()
             return msg
 

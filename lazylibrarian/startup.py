@@ -439,9 +439,9 @@ class StartupLazyLibrarian:
         return themelist
 
     def build_logintemplate(self):
-        default_msg = "Your lazylibrarian username is {username}\nYour password is {password}\n"
-        default_msg += "You can log in to lazylibrarian and change these to something more memorable\n"
-        default_msg += "You have been given {permission} access\n"
+        default_msg = ("Your lazylibrarian username is {username}\nYour password is {password}\n"
+                        "You can log in to lazylibrarian and change these to something more memorable\n"
+                        "You have been given {permission} access\n")
         msg_file = os.path.join(DIRS.DATADIR, 'logintemplate.text')
         if path_isfile(msg_file):
             try:
