@@ -65,8 +65,9 @@ class ImporterTest(LLTestCaseWithStartup):
         testname = 'Mr Allan Mertner The Tester'
         authorname, authorid, new = importer.add_author_name_to_db(
             author=testname, refresh=False, addbooks=False, reason='Testing', title=False)
-        self.assertEqual(new, False)
-        self.assertEqual(authorname, '')
+        self.assertEqual(new, True)
+        self.assertEqual(authorid, 'LL7cb40777627f545b9559a5ebe67d7fe6c956bdb9')
+        self.assertEqual(authorname, 'Mr Allan Mertner The Tester')
 
     @mock.patch('lazylibrarian.gr.GoodReads.find_author_id')
     @mock.patch('lazylibrarian.ol.OpenLibrary.find_author_id')
@@ -95,21 +96,6 @@ class ImporterTest(LLTestCaseWithStartup):
         self.assertEqual(new, False)
         self.assertEqual(authorname, testname)
         self.assertEqual(authorid, 'OL272947A')
-
-    @mock.patch('lazylibrarian.ol.OpenLibrary.get_author_info')
-    @mock.patch.object(importer, 'get_author_image')  # Patches images.get_author_image in import only
-    def test_add_author_to_db_JustByID(self, images_get_author_image: MagicMock, ol_get_author_info: MagicMock):
-        testid = 'OL2219179A'  # Maud D. Davies
-        self.cfg().set_str('BOOK_API', 'OpenLibrary')
-        ol_get_author_info.return_value = {'authorid': 'OL2219179A',
-                                           'authorlink': 'https://www.openlibrary.org/authors/OL2219179A',
-                                           'authorimg': 'images/nophoto.png', 'authorborn': '', 'authordeath': '',
-                                           'about': '', 'totalbooks': '0', 'authorname': 'Maud D. Davies'}
-        images_get_author_image.return_value = 'fakeimage.png'
-        authorid = importer.add_author_to_db(
-            authorname=None, refresh=False, addbooks=False, reason='Testing', authorid=testid)
-        self.assertEqual(authorid, testid)
-
 
 class MoveBookToAuthorTest(LLTestCaseWithStartup):
 

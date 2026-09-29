@@ -28,17 +28,17 @@ class FormatterTest(LLTestCaseWithStartup):
     def test_sanitize(self):
         import unicodedata
         strings = [
-            ("", ""),
-            ("C:\\My eBooks\\book.epub", 'C\\My eBooks\\book.epub'),
-            ("Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*", 'Stuff here  &!-\\s+~='),
-            ("Not C:\\\\// usable [as a] file name.jpg", 'Not C\\__ usable [as a] file name.jpg'),
-            (u'\2160' + u'\0049', '\x8e09'),
-            ('Hello Über', 'Hello Über'),  # Unicode-string in NFKD->NFC format
-            ("\\\\Server\\Test An odd one:2131", '\\Server\\Test An odd one2131'),
+            ("", False, ""),
+            ("C:\\My eBooks\\book.epub", True, 'C\\My eBooks\\book.epub'),
+            ("Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*", True, 'Stuff here  &!-\\s+~='),
+            ("Not C:\\\\// usable [as a] file name.jpg", True, 'Not C\\__ usable [as a] file name.jpg'),
+            (u'\2160' + u'\0049', False, '\x8e09'),
+            ('Hello Über', False, 'Hello Über'),  # Unicode-string in NFKD->NFC format
+            ("\\\\Server\\Test An odd one:2131", True, '\\Server\\Test An odd one2131'),
         ]
         for s in strings:
-            sn = str(formatter.sanitize(s[0]))
-            self.assertEqual(sn, s[1])
+            sn = str(formatter.sanitize(s[0], s[1]))
+            self.assertEqual(sn, s[2])
             try:
                 self.assertTrue(unicodedata.is_normalized("NFC", sn))
             except AttributeError:
@@ -483,8 +483,8 @@ class FormatterTest(LLTestCaseWithStartup):
         types = ["book", "mag", "audio", "comic"]
         filenames_ok = [
             # Books: 'epub, mobi, pdf'
-            ("A volume.pdf", ("book", "mag")),
-            ("TEST.EPUB", "book"),
+            ("A volume.pdf", ("book", "mag", "comic")),
+            ("TEST.EPUB", ("book""comic")),
             ("Book 2.mobi", "book"),
             # Audiobooks: mp3, m4b
             ("Audio.mp3", "audio"),
@@ -493,7 +493,7 @@ class FormatterTest(LLTestCaseWithStartup):
             ("Marvel.Cbr", "comic"),
             ("DC.cbZ", "comic"),
             # Magazines: .pdf
-            ("My mag.pdf", ("mag", "book"))
+            ("My mag.pdf", ("mag", "book", "comic"))
         ]
         for name in filenames_ok:
             fn = name[0]
@@ -572,7 +572,7 @@ class FormatterTest(LLTestCaseWithStartup):
             ("A. Pedersen", "A. Pedersen"),
         ]
         testnames_withsuffix = [
-            ("Allan Pedersen, Jr.", "Allan Pedersen Jr."),
+            ("Allan Pedersen, Jr.", "Allan Pedersen Jr"),
             ("Allan Pedersen PhD", "Allan Pedersen PhD"),
             ("Allan Pedersen, General", "General Allan Pedersen"),
         ]

@@ -284,7 +284,8 @@ class BookStateTest(LLTestCaseWithStartup):
                 book_state.enrich_with_download_info(db)
 
             # Verify enrichment
-            self.assertEqual(book_state.download_folder, "/downloads/test_folder")
+            # enrich to parent folder for single file torrent
+            self.assertEqual(book_state.download_folder, "/downloads")
             self.assertIn("test author", book_state.book_title.lower())
             self.assertIn("test book", book_state.book_title.lower())
         finally:

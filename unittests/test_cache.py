@@ -76,7 +76,7 @@ class TestCache(LLTestCaseWithConfigandDIRS):
         BLOCKHANDLER.add_provider_entry('googleapis', 100, 'testing')
         msg, res = cache.fetch_url('googleapis', {}, False, False)
         self.assertFalse(res, 'Expect blank URL to fail')
-        self.assertEqual(msg, 'Blocked')
+        self.assertEqual(msg, 'Blocked: Google quota exhausted')
 
     # This method will be used by the mock to replace requests.get
     def mocked_requests_get(*args, **kwargs):
@@ -146,7 +146,7 @@ class TestCache(LLTestCaseWithConfigandDIRS):
         self.assertEqual(msg, 'Response status 403: Forbidden')
         self.assertTrue(BLOCKHANDLER.is_blocked('googleapis'), 'Expected blockage')
         self.assertListEqual(logmsg.output, [
-            'DEBUG:lazylibrarian.cache:Request denied, 403, blocking googleapis for 3600 seconds: Error 403'
+            'WARNING:lazylibrarian.cache:Request denied, 403, blocking googleapis for 3600 seconds: Error 403'
         ])
         BLOCKHANDLER.clear_all()
 
