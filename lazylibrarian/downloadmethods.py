@@ -1082,7 +1082,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
                         db.action("UPDATE wanted SET status='Failed',DLResult=?,Source=?,DownloadID=?,"
                                   "Origin=?,Category=? WHERE NZBurl=?",
                                   (rejected, source, download_id, origin, snatch_category, full_url))
-                        if CONFIG.get_bool('DEL_FAILED'):
+                        if CONFIG.get_bool('DEL_FAILED') and not adopted:
                             delete_task(source, download_id, True)
                         return False, rejected
                     logger.debug(f"{source} setting torrent name to [{tor_title}]")

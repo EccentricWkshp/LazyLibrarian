@@ -40,6 +40,7 @@ from lazylibrarian.calibre_integration import send_to_calibre
 from lazylibrarian.common import multibook, run_script
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import (
+    ADOPTABLE_SOURCES,
     check_contents,
     delete_task,
     get_download_content_path,
@@ -2819,6 +2820,78 @@ def _manage_download_status(db, logger: logging.Logger) -> None:
                 )
 
 
+def _cleanup_orphaned_failed_downloads(db, logger: logging.Logger) -> None:
+    """Remove torrents left in the download client for failed downloads.
+
+    When a download is marked Failed but its torrent is still sitting in the
+    client at 0% progress, it is an orphan that will never complete. This
+    happens when check_contents rejects a torrent after it was added, or when
+    a stalled torrent is marked Failed but not removed from the client.
+    """
+    if not CONFIG.get_bool('DEL_FAILED'):
+        return
+    stall_hours = CONFIG.get_int('STALL_AGE')
+    if not stall_hours:
+        return
+
+    failed = db.select(
+        "SELECT * from wanted WHERE Status='Failed' AND Source IS NOT NULL "
+        "AND DownloadID IS NOT NULL AND DownloadID != '' AND Origin='new' "
+        "AND (DLResult IS NULL OR DLResult != 'Orphan cleaned')"
+    )
+    seen = set()
+    cleaned = 0
+    for row in failed:
+        try:
+            row_dict = dict(row)
+            source = row_dict.get('Source', '')
+            download_id = row_dict.get('DownloadID', '')
+            if not source or not download_id or source not in ADOPTABLE_SOURCES:
+                continue
+            key = (source, download_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            other_origin = db.match(
+                "SELECT BookID from wanted WHERE DownloadID=? AND Source=? AND Origin != 'new'",
+                (download_id, source),
+            )
+            if other_origin:
+                continue
+            active = db.match(
+                "SELECT BookID from wanted WHERE DownloadID=? AND Source=? "
+                "AND Status NOT IN ('Failed', 'Processed')",
+                (download_id, source),
+            )
+            if active:
+                continue
+            progress, _finished = get_download_progress(source, download_id)
+            if isinstance(progress, bool) or not isinstance(progress, int | float) or progress != 0:
+                continue
+            nzb_date = row_dict.get('NZBDate') or row_dict.get('NZBdate', '')
+            if not nzb_date:
+                continue
+            hours, _mins, _ = _calculate_download_age(nzb_date)
+            if hours < stall_hours:
+                continue
+            title = row_dict.get('NZBtitle') or download_id
+            logger.warning(
+                f"Removing orphaned torrent {title} "
+                f"from {source}: failed and stuck at 0% for {hours} hours"
+            )
+            if delete_task(source, download_id, False, abandoned=True):
+                db.action(
+                    "UPDATE wanted SET DLResult='Orphan cleaned' "
+                    "WHERE DownloadID=? AND Source=? AND Status='Failed'",
+                    (download_id, source),
+                )
+                cleaned += 1
+        except Exception as e:
+            logger.warning(f"Error cleaning up orphaned download: {e}")
+    if cleaned:
+        logger.info(f"Cleaned up {cleaned} orphaned torrent(s)")
+
+
 def _search_in_known_location(
     book_state: BookState,
     ignoreclient: bool,
@@ -3213,6 +3286,7 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
         postprocesslogger.info("Third pass: Download status management")
 
         _manage_download_status(db, postprocesslogger)
+        _cleanup_orphaned_failed_downloads(db, postprocesslogger)
 
         # Cleanup and scheduling
         logger.debug(f"Storing finish time for {thread_name()}")
