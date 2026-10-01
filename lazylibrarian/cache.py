@@ -25,6 +25,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 import requests
+from curl_cffi import requests as requests_cffi
 
 import lazylibrarian
 from lazylibrarian import database
@@ -97,7 +98,7 @@ def init_hex_caches() -> bool:
 
 
 def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
-              raw: bool = False) -> tuple[str | bytes, bool]:
+              raw: bool = False, impersonate=None) -> tuple[str | bytes, bool]:
     """ Return the result of fetching a URL and True if success
         Otherwise return error message and False
         Return data as raw/bytes, if raw == True
@@ -153,7 +154,10 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         if CONFIG['SSL_CERTS']:
             verify = CONFIG['SSL_CERTS']
     try:
-        r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
+        if impersonate:
+            r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+        else:
+            r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
     except requests.exceptions.TooManyRedirects as e:
         # This is to work around an oddity (bug??) with verified https goodreads requests
         # Goodreads sometimes redirects back to the same page in a loop using code 301,
@@ -165,7 +169,10 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
             return f"TooManyRedirects {str(e)}", False
         logger.debug(f"Retrying - got TooManyRedirects on {url}")
         try:
-            r = requests.get(url, verify=False, headers=headers, **req_kwargs)
+            if impersonate:
+                r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+            else:
+                r = requests.get(url, verify=False, headers=headers, **req_kwargs)
             logger.debug(f"TooManyRedirects retry status code {r.status_code}")
         except Exception as e:
             return f"Exception {type(e).__name__}: {str(e)}", False
@@ -175,7 +182,10 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
             return f"Timeout {str(e)}", False
         logger.debug(f"fetch_url: retrying - got timeout on {url}")
         try:
-            r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
+            if impersonate:
+                r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+            else:
+                r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
         except Exception as e:
             return f"Exception {type(e).__name__}: {str(e)}", False
     except Exception as e:
@@ -185,7 +195,10 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         h = r.headers
         cachelogger.debug(f"{h}")
         logger.debug(f"{r.status_code} {len(r.content)}, {h.get('X-Cache')}")
-        r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
+        if impersonate:
+            r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+        else:
+            r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
         logger.debug(f"Retry: {r.status_code} {len(r.content)}, {h.get('X-Cache')}")
     if r.status_code == 200:
         if raw:
