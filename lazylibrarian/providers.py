@@ -1151,7 +1151,7 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     if not dispname:
         dispname = provider
 
-    result, success = fetch_url(url)
+    result, success = fetch_url(url, impersonate='chrome')
 
     if not success:
         logger.error(f'Error fetching data from {url}: {result}')

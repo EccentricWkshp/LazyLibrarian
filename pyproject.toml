@@ -43,6 +43,7 @@ dependencies = [
     'xmltodict',
     'googletrans',
     'langid',
+    'curl_cffi',
 ]
 
 [project.urls]
