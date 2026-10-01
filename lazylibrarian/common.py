@@ -482,7 +482,17 @@ def log_header(online=True) -> str:
     except Exception:
         vers = "not found"
     header += f"iso639: {vers}\n"
-
+    try:
+        import curl_cffi
+        vers = getattr(curl_cffi, "__version__", None)
+    except Exception:
+        vers = "not found"
+    header += f"curl_cffi: {vers}\n"
+    if vers:
+        vers = getattr(curl_cffi, "__curl_version__", "")
+        vers = vers.split(' ')[0]
+        if vers:
+            header += f"curl: {vers}\n"
     return header
 
 
