@@ -674,8 +674,9 @@ def add_author_to_db(authorname=None, refresh=False, authorid='', addbooks=True,
                                                   bookstatus=bookstatus,
                                                   audiostatus=audiostatus, entrystatus=entry_status,
                                                   refresh=refresh, reason=reason)
-                de_duplicate(current_author['authorid'])
-                update_totals(current_author['authorid'])
+                cnt = de_duplicate(current_author['authorid'])
+                if not cnt:  # if duplicates found, totals have already been updated
+                    update_totals(current_author['authorid'])
 
             if lazylibrarian.STOPTHREADS and thread_name() == "AUTHORUPDATE":
                 logger.debug(f"STOPTHREADS [{current_author['authorname']}] Author update aborted, status {entry_status}")
@@ -949,9 +950,10 @@ def de_duplicate(authorid):
         logger.warning(msg)
     finally:
         db.close()
-    if total > 0:
+    if total:
         update_totals(authorid)
     logger.info(f"Deleted {total} duplicate {plural(total, 'entry')} for {authorname}")
+    return total
 
 
 def update_totals(authorid, quiet=False):

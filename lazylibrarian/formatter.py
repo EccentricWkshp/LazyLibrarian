@@ -149,10 +149,10 @@ def sanitize(name, is_folder_or_file=False):
     # strip characters we don't want in a filename/foldername
     dic = lazylibrarian.DICTS.get('filename_dict', {}).copy()
     if is_folder_or_file:
-        dic.pop('\\')
+        dic.pop('\\', None)
         dic['\\\\'] ,= '\\'
     if os.path.__name__ == 'ntpath':
-        dic.pop(':')
+        dic.pop(':', None)
     filename = replace_all(filename, dic)
     # Remove all characters below code point 32
     filename = "".join(c for c in filename if ord(c) > 31)

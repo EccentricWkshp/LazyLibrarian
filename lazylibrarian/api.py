@@ -2965,8 +2965,8 @@ class Api:
             self.data = 'Missing parameter: id'
             return
         if 'wait' in kwargs:
-            de_duplicate(kwargs['id'])
-            self.data = 'Completed. See log for details'
+            cnt = de_duplicate(kwargs['id'])
+            self.data = f'Removed {cnt} See log for details'
         else:
             threading.Thread(target=de_duplicate, name=f"API-DEDUPLICATE_{kwargs['id']}",
                              args=[kwargs['id']]).start()
