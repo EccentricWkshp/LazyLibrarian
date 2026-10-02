@@ -23,6 +23,8 @@ import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
+from requests.auth import HTTPDigestAuth
+
 from lazylibrarian import database
 from lazylibrarian.common import get_readinglist, run_script, set_readinglist
 from lazylibrarian.config2 import CONFIG
@@ -46,9 +48,20 @@ def calibre_server_request(endpoint, params=None, method='GET', data=None, timeo
     server = (CONFIG['CALIBRE_SERVER'] or '').strip().rstrip('/')
     if not server:
         return None, "No CALIBRE_SERVER configured"
+    # CALIBRE_SERVER may carry a "#library" fragment (the calibredb --with-library convention).
+    # In a REST URL everything after "#" is never sent to the server, which would silently
+    # swallow the endpoint, so split the fragment off and pass it as ?library= instead.
+    library = None
+    if '#' in server:
+        server, library = server.split('#', 1)
+        library = library.strip()
     if not server.startswith('http'):
         scheme = 'https://' if CONFIG.get_bool('HTTPS_ENABLED') else 'http://'
         server = f"{scheme}{server}"
+
+    params = dict(params) if params else {}
+    if library:
+        params['library'] = library
 
     url = f"{server}/{endpoint.lstrip('/')}"
     if params:
@@ -57,7 +70,9 @@ def calibre_server_request(endpoint, params=None, method='GET', data=None, timeo
     headers = {'Accept': 'application/json, text/plain, */*'}
     auth = None
     if CONFIG['CALIBRE_USER'] and CONFIG['CALIBRE_PASS']:
-        auth = (CONFIG['CALIBRE_USER'], CONFIG['CALIBRE_PASS'])
+        # Calibre Content Server serves HTTP Digest challenges when auth is enabled;
+        # Basic auth gets rejected with "400 Unsupported authentication method"
+        auth = HTTPDigestAuth(CONFIG['CALIBRE_USER'], CONFIG['CALIBRE_PASS'])
 
     try:
         r = requests.request(method, url, headers=headers, auth=auth, json=data, timeout=timeout)
