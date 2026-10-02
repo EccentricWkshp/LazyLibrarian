@@ -22,10 +22,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from html import unescape as html_unescape
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
+import curl_cffi
 from bs4 import BeautifulSoup, Tag
-from requests import Session, get
+
 from requests.exceptions import JSONDecodeError
 
 import lazylibrarian
@@ -188,7 +189,7 @@ def extract_publish_info(raw: str) -> tuple[str, str]:
     return publisher, date
 
 
-ANNAS_SESSION = Session()
+ANNAS_SESSION = curl_cffi.requests.Session(impersonate="chrome")
 _annas_logged_in = set()
 
 
@@ -222,7 +223,9 @@ def html_parser(url: str, params: dict = None) -> BeautifulSoup:
     if not params:
         params = {}
     params = dict(filter(lambda i: i[1], params.items()))
-    response = ANNAS_SESSION.get(url, params=params)
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    response = ANNAS_SESSION.get(url)
     if response.status_code >= 400:
         uri = urlparse(url)
         _annas_logged_in.discard(f"{uri.scheme}://{uri.netloc}")
@@ -409,7 +412,7 @@ def annas_download(md5, folder, title, extn, domain_index=0):
             prefix = "https://"
         url = urljoin(prefix + host, '/dyn/api/fast_download.json')
         try:
-            response = get(url, params=params)
+            response = ANNAS_SESSION.get(f"{url}?{urlencode(params)}")
         except Exception as e:
             downloadlogger.debug(f"Exception from {host}: {e}")
             response = None
@@ -436,7 +439,7 @@ def annas_download(md5, folder, title, extn, domain_index=0):
         url = res['download_url']
         if url and url.startswith('http'):
             try:
-                r = get(url)
+                r = ANNAS_SESSION.get(url)
                 if r.status_code != 200:
                     msg = f"Got a {r.status_code} response for {url}"
                     if domain_index < max_domain_index:
@@ -631,12 +634,8 @@ def anna_grabs() -> tuple[int, int]:
 def fetch_annas_archive_domains():
     """Fetch current Anna's Archive domains from Wikipedia. Returns list of bare domains."""
     logger = logging.getLogger(__name__)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
     try:
-        response = get(WIKIPEDIA_URL, headers=headers, timeout=10)
+        response = ANNAS_SESSION.get(WIKIPEDIA_URL, timeout=10)
         if response.status_code != 200:
             logger.warning(f"Wikipedia returned status {response.status_code}")
             return []

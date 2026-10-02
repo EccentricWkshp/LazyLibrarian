@@ -22,7 +22,6 @@ import cherrypy
 import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
-
 from requests.auth import HTTPDigestAuth
 
 from lazylibrarian import database
