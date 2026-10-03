@@ -386,7 +386,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 lazylibrarian.CACHE_MISS = int(lazylibrarian.CACHE_MISS) + 1
                 return None, src
 
-        if not src or src == 'cover' and 'cover' not in ignore:
+        if (not src or src == 'cover') and 'cover' not in ignore:
             item = db.match('select BookFile,Audiofile from books where bookID=?', (bookid,))
             if item:
                 # get either ebook or audiobook if they exist
@@ -418,7 +418,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 return None, src
 
         # see if librarything has a cover
-        if not src or src == 'librarything' and 'librarything' not in ignore:
+        if (not src or src == 'librarything') and 'librarything' not in ignore:
             if CONFIG['LT_DEVKEY']:
                 cmd = "select BookISBN from books where bookID=?"
                 item = db.match(cmd, (bookid,))
@@ -446,7 +446,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
         safeparams = quote_plus(make_utf8bytes(f"{author} {title} book cover")[0])
 
         # see if hardcover has a cover
-        if not src or src == 'hardcover' and 'hardcover' not in ignore:
+        if (not src or src == 'hardcover') and 'hardcover' not in ignore:
             if item['hc_id']:
                 h_c = lazylibrarian.hc.HardCover()
                 bookdict, _ = h_c.get_bookdict_for_bookid(item['hc_id'])
@@ -460,7 +460,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 return None, src
 
         # see if ranobedb has a cover
-        if not src or src == 'ranobedb' and 'ranobedb' not in ignore:
+        if (not src or src == 'ranobedb') and 'ranobedb' not in ignore:
             if item['ran_id']:
                 r_a = lazylibrarian.ran.RanobeDB()
                 bookdict, _ = r_a.get_bookdict_for_bookid(item['ran_id'])
@@ -474,7 +474,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 return None, src
 
         # try to get a cover from goodreads
-        if not src or src == 'goodreads' and 'goodreads' not in ignore:
+        if (not src or src == 'goodreads') and 'goodreads' not in ignore:
             if item['gr_id']:
                 # if we have a goodreads bookid, we can call https://www.goodreads.com/book/show/{bookID}
                 # and scrape the page for og:image
@@ -503,7 +503,7 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                 return None, src
 
         # try to get a cover from openlibrary
-        if not src or src == 'openlibrary' and 'openlibrary' not in ignore:
+        if (not src or src == 'openlibrary') and 'openlibrary' not in ignore:
             if item and item['ol_id']:
                 baseurl = f"https://covers.openlibrary.org/b/olid/{item['ol_id']}-M.jpg"
                 result, success = fetch_url(baseurl, raw=True)

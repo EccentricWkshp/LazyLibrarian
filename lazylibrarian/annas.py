@@ -26,7 +26,6 @@ from urllib.parse import urlencode, urljoin, urlparse
 
 import curl_cffi
 from bs4 import BeautifulSoup, Tag
-
 from requests.exceptions import JSONDecodeError
 
 import lazylibrarian
