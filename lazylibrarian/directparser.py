@@ -111,7 +111,7 @@ def bok_login():
         return None
 
     if not zlib.isLoggedIn():
-        logger.error(f"Zlibrary login error. {zlib.login_status()}")
+        logger.error(f"Zlibrary login error")
         return None
 
     profile = zlib.getProfile()
