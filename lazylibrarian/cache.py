@@ -124,11 +124,11 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         if blk.lower() in url.lower() and BLOCKHANDLER.is_blocked(blk):
             return 'Blocked', False
 
+    if not headers:
+        headers = {}
     if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
-            if not headers:
-                headers = {}
-            # higher requests per second if identified
-            headers.update('User-Agent', f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})")
+        # higher requests per second if identified
+        headers['User-Agent'] = f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})"
 
     proxies = proxy_list()
 
