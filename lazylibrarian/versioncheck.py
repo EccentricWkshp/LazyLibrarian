@@ -21,11 +21,11 @@ import threading
 import time
 from shutil import move, rmtree
 
-import requests
+from curl_cffi import requests
 
 import lazylibrarian
 from lazylibrarian import database, version
-from lazylibrarian.common import dbbackup, docker, get_user_agent, proxy_list
+from lazylibrarian.common import dbbackup, docker, proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, listdir, path_isdir, syspath
 from lazylibrarian.formatter import check_int, make_unicode, thread_name
@@ -341,7 +341,7 @@ def get_latest_version_from_git():
                 age = (f"{daynames[tm.tm_wday]}, {tm.tm_mday:02d} {monnames[tm.tm_mon]} {tm.tm_year:04d} "
                        f"{tm.tm_hour:02d}:{tm.tm_min:02d}:{tm.tm_sec:02d} GMT")
             try:
-                headers = {'User-Agent': get_user_agent()}
+                headers = {}
                 if age:
                     logger.debug(f'Checking if modified since {age}')
                     headers.update({'If-Modified-Since': age})
@@ -349,10 +349,11 @@ def get_latest_version_from_git():
                 timeout = CONFIG.get_int('HTTP_TIMEOUT')
                 if url.startswith('https') and CONFIG['SSL_VERIFY']:
                     r = requests.get(url, timeout=timeout, headers=headers, proxies=proxies,
+                                     impersonate='chrome',
                                      verify=CONFIG['SSL_CERTS']
                                      if CONFIG['SSL_CERTS'] else True)
                 else:
-                    r = requests.get(url, timeout=timeout, headers=headers, proxies=proxies, verify=False)
+                    r = requests.get(url, timeout=timeout, headers=headers, proxies=proxies, impersonate='chrome', verify=False)
 
                 if r.status_code == 200:
                     try:
@@ -371,7 +372,7 @@ def get_latest_version_from_git():
                     logger.debug('Not modified, currently on Latest Version')
                 else:
                     logger.warning(f'Could not get the latest commit from git ({r.status_code})')
-                    logger.error(f'{url}: ({headers})')
+                    logger.error(f'{url}')
                     latest_version = f'Not_Available_From_Git : {r.status_code} : {url}'
             except Exception as err:
                 logger.warning(f'Could not get the latest commit from git: {type(err).__name__}')
@@ -400,15 +401,15 @@ def get_commit_difference_from_git() -> tuple[int, str]:
         logger.debug(f'Check for differences between local & repo by [{url}]')
 
         try:
-            headers = {'User-Agent': get_user_agent()}
             proxies = proxy_list()
             timeout = CONFIG.get_int('HTTP_TIMEOUT')
             if url.startswith('https') and CONFIG.get_bool('SSL_VERIFY'):
-                r = requests.get(url, timeout=timeout, headers=headers, proxies=proxies,
+                r = requests.get(url, timeout=timeout, proxies=proxies,
+                                 impersonate='chrome',
                                  verify=CONFIG['SSL_CERTS']
                                  if CONFIG['SSL_CERTS'] else True)
             else:
-                r = requests.get(url, timeout=timeout, headers=headers, proxies=proxies, verify=False)
+                r = requests.get(url, timeout=timeout, proxies=proxies, impersonate='chrome', verify=False)
             git = r.json()
             # for gitlab, commits = len(git['commits'])  no status/ahead/behind
             if 'commits' in git:
@@ -593,15 +594,15 @@ def update():
                 msg = f"Downloading update from: {tar_download_url}"
                 upgradelog.write(f"{time.ctime()} {msg}\n")
                 logger.info(msg)
-                headers = {'User-Agent': get_user_agent()}
                 proxies = proxy_list()
                 timeout = CONFIG.get_int('HTTP_TIMEOUT')
                 if tar_download_url.startswith('https') and CONFIG.get_bool('SSL_VERIFY'):
-                    r = requests.get(tar_download_url, timeout=timeout, headers=headers, proxies=proxies,
+                    r = requests.get(tar_download_url, timeout=timeout, proxies=proxies,
+                                     impersonate='chrome',
                                      verify=CONFIG['SSL_CERTS']
                                      if CONFIG['SSL_CERTS'] else True)
                 else:
-                    r = requests.get(tar_download_url, timeout=timeout, headers=headers, proxies=proxies, verify=False)
+                    r = requests.get(tar_download_url, timeout=timeout, proxies=proxies, impersonate='chrome', verify=False)
             except requests.exceptions.Timeout:
                 msg = f"Timeout retrieving new version from {tar_download_url}"
                 upgradelog.write(f"{time.ctime()} {msg}\n")

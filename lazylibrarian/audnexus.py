@@ -31,11 +31,10 @@ in the next.
 
 import logging
 
-import requests
+from curl_cffi import requests
 
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int
 from lazylibrarian.telemetry import TELEMETRY
@@ -48,7 +47,6 @@ DEFAULT_REGIONS = ("us", "uk", "ca", "au")
 class Audnexus:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.user_agent = get_user_agent(configured=False)
         self.timeout = check_int(CONFIG.get_int("HTTP_TIMEOUT"), 30) or 30
 
     def get_book(self, asin, regions=DEFAULT_REGIONS):
@@ -72,7 +70,7 @@ class Audnexus:
             r = requests.get(
                 f"{BASE_URL}{path}",
                 params={"region": region},
-                headers={"User-Agent": self.user_agent},
+                impersonate='chrome',
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as e:

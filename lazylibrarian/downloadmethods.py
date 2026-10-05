@@ -30,8 +30,8 @@ except Exception:  # magic might fail for multiple reasons
 
 import logging
 
-import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests
 from deluge_client import DelugeRPCClient
 
 from lazylibrarian import (
@@ -50,7 +50,7 @@ from lazylibrarian import (
 from lazylibrarian.annas import annas_download, block_annas
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import fetch_url
-from lazylibrarian.common import get_user_agent, proxy_list
+from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.directparser import bok_grabs, bok_login, session_get
 from lazylibrarian.download_client import check_contents, delete_task, seed_requirement
@@ -498,7 +498,7 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
         return True, ''
 
     # libgen...
-    headers = {'Accept-encoding': 'gzip', 'User-Agent': get_user_agent(), 'Referer': dl_url}
+    headers = {'Accept-encoding': 'gzip', 'Referer': dl_url}
     dl_url = make_unicode(dl_url)
     s = requests.Session()
     proxies = proxy_list()
@@ -700,18 +700,18 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
         if not tor_url.endswith('.torrent') and '.torrent' in tor_url:
             tor_url = tor_url.split('.torrent')[0] + '.torrent'
 
-        headers = {'Accept-encoding': 'gzip', 'User-Agent': get_user_agent()}
+        headers = {'Accept-encoding': 'gzip'}
         proxies = proxy_list()
         safe_url = redact_url(tor_url)
 
         try:
             logger.debug(f"Fetching {safe_url}")
             if tor_url.startswith('https') and CONFIG.get_bool('SSL_VERIFY'):
-                r = requests.get(tor_url, headers=headers, timeout=90, proxies=proxies,
+                r = requests.get(tor_url, headers=headers, timeout=90, proxies=proxies, impersonate='chrome',
                                  verify=CONFIG['SSL_CERTS']
                                  if CONFIG['SSL_CERTS'] else True)
             else:
-                r = requests.get(tor_url, headers=headers, timeout=90, proxies=proxies, verify=False)
+                r = requests.get(tor_url, headers=headers, timeout=90, proxies=proxies, impersonate='chrome', verify=False)
             if r.status_code == 200:
                 torrent = r.content
                 content_type = r.headers.get('Content-Type', 'unknown')

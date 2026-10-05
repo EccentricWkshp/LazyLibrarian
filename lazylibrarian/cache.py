@@ -124,14 +124,11 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         if blk.lower() in url.lower() and BLOCKHANDLER.is_blocked(blk):
             return 'Blocked', False
 
-    if headers is None:
-        # some sites insist on having a user-agent, default is to add one
-        # if you don't want any headers, pass headers={}
-        if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
+    if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
+            if not headers:
+                headers = {}
             # higher requests per second if identified
-            headers = {'User-Agent': f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})"}
-        else:
-            headers = {'User-Agent': get_user_agent()}
+            headers.update('User-Agent', f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})")
 
     proxies = proxy_list()
 
@@ -456,8 +453,8 @@ class XMLCacheRequest(CacheRequest):
 
     def fetch_data(self) -> tuple[str, bool]:
         gr_api_sleep()
-        headers = {'User-Agent': get_user_agent(), 'Accept': 'application/xml', 'Accept-Language': 'en-US,en;q=0.5'}
-        return fetch_url(self.url, raw=True, headers=headers)
+        headers = {'Accept': 'application/xml', 'Accept-Language': 'en-US,en;q=0.5'}
+        return fetch_url(self.url, raw=True, headers=headers, impersonate='chrome')
 
     def load_from_result_and_cache(self, result: str, filename: str, docache: bool):
         source = None

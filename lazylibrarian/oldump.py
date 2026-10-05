@@ -8,6 +8,8 @@ import sqlite3
 import time
 from operator import itemgetter
 
+from curl_cffi import requests
+
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import get_user_agent
@@ -56,12 +58,13 @@ def _checkpoint(conn, mode='PASSIVE'):
 
 def get_remote_size(url):
     """HEAD request for url's Content-Length. Returns 0 if it can't be determined."""
-    import urllib.request
-
-    req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': get_user_agent(configured=False)})
+    headers = {'User-Agent': get_user_agent(configured=False)}
     try:
-        with urllib.request.urlopen(req) as resp:
-            return int(resp.headers.get('Content-Length', 0))
+        # requests has a dedicated .head() method for HEAD requests
+        resp = requests.head(url, headers=headers, timeout=10, impersonate='chrome')
+        # It automatically raises exceptions for 4xx/5xx status codes if needed,
+        # but to match urllib behavior closely, we just read the headers.
+        return int(resp.headers.get('Content-Length', 0))
     except Exception as e:
         logger.warning(f"Unable to check remote size for {url}: {e}")
         return 0
@@ -212,8 +215,6 @@ def download_dump_file(url, local_path):
     of 206) or the partial file turns out larger than the current remote copy (a new
     dump was published mid-download). Returns True if local_path ends up complete and
     usable."""
-    import urllib.error
-    import urllib.request
 
     remote_size = get_remote_size(url)
 
@@ -242,53 +243,61 @@ def download_dump_file(url, local_path):
     else:
         logger.info(f"Downloading {url} -> {local_path}...")
 
-    req = urllib.request.Request(url, headers=headers)
     try:
-        resp = urllib.request.urlopen(req)
-    except urllib.error.HTTPError as e:
-        if resume_from and e.code == 416:
+        # requests.get automatically follows redirects and handles the request
+        resp = requests.get(url, headers=headers, stream=True, impersonate='chrome')
+        # Raise an exception for HTTP errors (4xx or 5xx codes)
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        # e.response holds the response object where we can check the status code
+        if resume_from and e.response.status_code == 416:
             # Range not satisfiable - our partial file is already complete/stale, restart clean.
             logger.warning(f"Server rejected resume of {os.path.basename(local_path)}, restarting from scratch")
-            os.remove(partial_path)
+            if os.path.exists(partial_path):
+                os.remove(partial_path)
             return download_dump_file(url, local_path)
         logger.error(f"HTTP error downloading {url}: {e}")
         return False
-    except urllib.error.URLError as e:
+    except requests.exceptions.ConnectionError as e:
         logger.error(f"Network connection error downloading {url}: {e}")
+        return False
+    except requests.exceptions.RequestException as e:
+        # This catches any other requests-specific issues (e.g., Timeouts)
+        logger.error(f"Unexpected requests error downloading {url}: {e}")
         return False
     except Exception as e:
         logger.error(f"Unexpected error downloading {url}: {e}")
         return False
 
-    with resp:
-        if resume_from and resp.status != 206:
+    if str(resp.status_code).startswith('2'):  # 200, 206
+        if resume_from and resp.status_code != 206:
             # Server ignored the Range header and is sending the whole file again - can't
             # append what we already have on top of that, so restart the file cleanly.
             logger.warning(f"Server didn't honour resume for {os.path.basename(local_path)} "
-                           f"(status {resp.status}), restarting from scratch")
+                           f"(status {resp.status_code}), restarting from scratch")
             resume_from = 0
             mode = 'wb'
         downloaded = resume_from
         next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
         stopped = False
+        chunk_size = 1024 * 1024
         with open(partial_path, mode) as out:
-            while True:
+            for chunk in resp.iter_content(chunk_size=chunk_size):
                 if _stop_requested():
                     logger.debug(f"STOPTHREADS Aborting {os.path.basename(local_path)} download "
-                                 f"at {downloaded // (1024 * 1024)} MB, will resume next run")
+                                 f"at {downloaded // (chunk_size)} MB, will resume next run")
                     stopped = True
                     break
-                chunk = resp.read(1024 * 1024)
                 if not chunk:
                     break
                 out.write(chunk)
                 downloaded += len(chunk)
                 if downloaded >= next_log_at:
                     if remote_size:
-                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (1024 * 1024)} MB "
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (chunk_size)} MB "
                                    f"({downloaded * 100 // remote_size}%)")
                     else:
-                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (1024 * 1024)} MB")
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (chunk_size)} MB")
                     next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
 
     if stopped:

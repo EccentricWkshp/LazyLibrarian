@@ -11,7 +11,7 @@ import traceback
 from queue import Queue
 from urllib.parse import quote
 
-import requests
+from curl_cffi import requests
 
 # Two different iso639 libraries.
 # The first library used languages, but does not support python 3.12
@@ -43,7 +43,6 @@ from lazylibrarian.bookdict import (
     validate_bookdict,
     warn_about_bookdict,
 )
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, syspath
 from lazylibrarian.formatter import (
@@ -197,7 +196,6 @@ class DNB:
             self.logger.error('DNB query unavailable: lxml module missing')
             return [], False
         headers = {
-            'User-Agent': get_user_agent(),
             'Accept': 'application/xml, text/xml',
             'Accept-Language': 'en-US,en;q=0.9,de;q=0.8',
             'Accept-Encoding': 'gzip, deflate',
@@ -233,7 +231,7 @@ class DNB:
                 if BLOCKHANDLER.is_blocked('DNB'):
                     return [], False
 
-                response = requests.get(query_url, headers=headers, timeout=timeout)
+                response = requests.get(query_url, headers=headers, timeout=timeout, impersonate='chrome')
                 response.raise_for_status()
 
                 self.logger.debug(f"CacheHandler: Storing xml {hashfilename}")
@@ -506,7 +504,7 @@ class DNB:
             url = url_elem.text.strip()
             if url.startswith(("http://deposit.dnb.de/", "https://deposit.dnb.de/")):
                 try:
-                    response = requests.get(url, timeout=30)
+                    response = requests.get(url, timeout=30, impersonate='chrome')
                     response.raise_for_status()
 
                     comments_text = response.text
@@ -538,7 +536,7 @@ class DNB:
 
         try:
             # Test the actual response from DNB
-            response = requests.head(cover_url, timeout=10)
+            response = requests.head(cover_url, timeout=10, impersonate='chrome')
             # self.logger.info(f"DNB cover response status: {response.status_code}")
             # self.logger.info(f"DNB cover content-type: {response.headers.get('content-type')}")
 
@@ -579,7 +577,7 @@ class DNB:
         cover_url = self.COVERURL % book_data['isbn']
 
         try:
-            response = requests.get(cover_url, timeout=10)
+            response = requests.get(cover_url, timeout=10, impersonate='chrome')
             response.raise_for_status()
 
             content_type = response.headers.get('content-type').lower()

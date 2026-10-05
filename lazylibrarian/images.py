@@ -24,13 +24,12 @@ from secrets import choice
 from shutil import rmtree
 from urllib.parse import quote_plus
 
-import requests
+from curl_cffi import requests
 
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import ImageType, cache_img, fetch_url
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     DIRS,
@@ -721,7 +720,6 @@ def get_author_image(authorid=None, refresh=False, max_num=1, ignore=''):
         authorname = safe_unicode(author['AuthorName'])
         safeparams = authorname.replace('. ', ' ').replace(' ', '_')
         headers = {
-            'User-Agent': get_user_agent(),
             'Accept': 'application/xml, text/xml',
             'Accept-Language': 'en-US,en;q=0.9,de;q=0.8',
             'Accept-Encoding': 'gzip, deflate',
@@ -739,7 +737,7 @@ def get_author_image(authorid=None, refresh=False, max_num=1, ignore=''):
                 book_api = book_api()
                 img = book_api.get_author_image(authorname=authorname, authorid=author[this_source['author_key']])
                 if img.startswith('http'):
-                    img_data = requests.get(img, headers=headers)
+                    img_data = requests.get(img, headers=headers, impersonate='chrome')
                     if img_data.status_code == 200:
                         img_file = os.path.join(icrawlerdir, f"{api_source}.jpg")
                         with open(img_file, 'wb') as f:
@@ -756,7 +754,7 @@ def get_author_image(authorid=None, refresh=False, max_num=1, ignore=''):
             if crawler_name not in ignore:
                 try:
                     url = f"https://en.wikipedia.org/wiki/{safeparams}"
-                    response = requests.get(url, headers=headers)
+                    response = requests.get(url, headers=headers, impersonate='chrome')
                     if response.status_code == 200:
                         try:
                             img_name = make_unicode(response.content.split(b"infobox-image")[1].split(b'src="')[1].split(b'"')[0])
@@ -764,7 +762,7 @@ def get_author_image(authorid=None, refresh=False, max_num=1, ignore=''):
                             logger.debug(f"No image from wikipedia for {safeparams}")
                             img_name = None
                         if img_name:
-                            img_data = requests.get(f"https:{img_name}", headers=headers)
+                            img_data = requests.get(f"https:{img_name}", headers=headers, impersonate='chrome')
                             if img_data.status_code == 200:
                                 img_file = os.path.join(icrawlerdir, f'{crawler_name}.jpg')
                                 with open(img_file, 'wb') as f:

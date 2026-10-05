@@ -3,7 +3,7 @@ import logging
 import traceback
 from queue import Queue
 
-import requests
+from curl_cffi import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
@@ -16,7 +16,6 @@ from lazylibrarian.bookdict import (
     validate_bookdict,
     warn_about_bookdict,
 )
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, syspath
 from lazylibrarian.formatter import (
@@ -580,9 +579,7 @@ class RanobeDB:
 
     def _result_from_cache(self, searchcmd: str, refresh=False) -> tuple[dict, bool]:
         """Get API result from cache or fetch if needed."""
-        headers = {'Content-Type': 'application/json',
-                   'User-Agent': get_user_agent(),
-                   }
+        headers = {'Content-Type': 'application/json'}
         cache_location = DIRS.get_cachedir('JSONCache')
         filename = f"{self.base_url}/{searchcmd}"
         hashfilename, myhash = get_hashed_filename(cache_location, filename)
@@ -604,7 +601,7 @@ class RanobeDB:
             return {}, False
         # send query, cache result and return it
         url = f"{self.base_url}/{searchcmd}"
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, impersonate='chrome')
         success = r.status_code == 200
 
         if success:
