@@ -271,6 +271,7 @@ def annas_search(
         annas_hosts_update()
     soup = None
     for host in annas_hosts:
+        lazylibrarian.test_data = f"Annas checking {host}"
         prefix = ''
         if not host.startswith('http'):
             prefix = "https://"
@@ -288,12 +289,14 @@ def annas_search(
         annas_hosts_update()
         return None
 
+    lazylibrarian.test_data = f"Annas searching {host}"
     raw_results = soup.select("div[class*='pt-3'][class*='border-b']")
     results = list(filter(lambda i: i is not None, map(parse_result, raw_results)))
     myhash = md5_utf8(query)
     cache_location = os.path.join(DIRS.CACHEDIR, "IRCCache")
     hashfilename = os.path.join(cache_location, f"{myhash}.anna")
     resultslist = []
+    lazylibrarian.test_data = f"Annas found {len(results)} matches"
     for r in results:
         resultdict = {'title': r.title,
                       'id': r.id,

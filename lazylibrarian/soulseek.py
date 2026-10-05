@@ -99,6 +99,7 @@ def slsk_search(book=None, searchtype='ebook', test=False):
     results = []
     removed = 0
 
+    lazylibrarian.test_data = f"SoulSeek checking {len(searchresults)}"
     for item in searchresults:
         author = book['authorName']
         title = item['filename']
@@ -133,7 +134,6 @@ def slsk_search(book=None, searchtype='ebook', test=False):
 
 class SLSKD:
     def __init__(self):
-
         self.logger = logging.getLogger(__name__)
         self.slskd = None
         self.version = None
@@ -144,7 +144,8 @@ class SLSKD:
         self.searchlogger = logging.getLogger('special.searching')
         self.api_key = CONFIG['SLSK_API']
         self.host_url = CONFIG['SLSK_HOST']
-        self.download_dir = get_list(CONFIG['DOWNLOAD_DIR'])[0]
+        dlist = get_list(CONFIG['DOWNLOAD_DIR'])
+        self.download_dir = dlist[0] if dlist else ''
         self.url_base = CONFIG['SLSK_URLBASE']
         self.ignored_users = []
         try:
@@ -164,7 +165,9 @@ class SLSKD:
             return ''
 
         try:
-            self.logger.debug(f"Searching for {searchterm}")
+            msg = f"Searching for {searchterm}"
+            self.logger.debug(msg)
+            lazylibrarian.test_data = msg
             search = self.slskd.searches.search_text(searchText=searchterm,
                                                      searchTimeout=50000,
                                                      filterResponses=True,
@@ -207,8 +210,9 @@ class SLSKD:
                     self.logger.info(f"Ignoring user {username}")
                 else:
                     files = result['files']
-                    msg = f"Parsing result from user: {username}, {len(files)} results"
+                    msg = f"Parsing result from user: {username}: {len(files)} results"
                     self.logger.info(msg)
+                    lazylibrarian.test_data = msg.replace(':', '<br>')
                     rejects = 0
                     for file in files:
                         if username in self.ignored_users:
