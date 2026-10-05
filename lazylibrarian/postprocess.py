@@ -1922,12 +1922,34 @@ def _process_matched_directory(
     return is_valid, skip_reason
 
 
+def _is_multi_item_directory(dirpath, library_type):
+    """Whether a directory holds more than one item of the given library type.
+
+    For ebooks this reuses the multibook() logic (counts files per extension).
+    For audiobooks, checks for more than one 'part 1' or 'chapter 1' pattern
+    which indicates multiple books split into chapter files. For magazines and
+    comics, single-file is the norm so this always returns False."""
+    if not path_isdir(dirpath):
+        return False
+    if library_type in ('eBook', 'ebook'):
+        return bool(multibook(dirpath))
+    if library_type in ('AudioBook', 'audiobook'):
+        flist = [f.lower() for f in listdir(dirpath)]
+        part1_count = sum(
+            1 for f in flist
+            if any(marker in f for marker in ('part 1', 'part1', 'chapter 1', 'chapter01', '01 -', '01.'))
+        )
+        return part1_count > 1
+    return False
+
+
 def _find_best_match_in_downloads(
     book_state,
     all_downloads,
     match_threshold,
     logger,
     fuzzlogger,
+    consumed_paths=None,
 ) -> "tuple[float, str]":
     """
     Search through all downloads to find the best match for a book.
@@ -1957,7 +1979,13 @@ def _find_best_match_in_downloads(
     book_type = book_state.get_book_type_str()
     logger.debug(f"Fuzzy searching for {book_type} across all downloads")
 
+    library_type = book_state.aux_type or ''
     for parent_dir, candidate_file in all_downloads:
+        original_path = os.path.normpath(os.path.join(parent_dir, candidate_file))
+        if consumed_paths and (original_path, library_type) in consumed_paths:
+            fuzzlogger.debug(f"Skipping {candidate_file}: already consumed for {library_type}")
+            continue
+
         # Try to match this candidate
         is_match, match_percent = _try_match_candidate_file(
             candidate_file,
@@ -1979,7 +2007,7 @@ def _find_best_match_in_downloads(
             )
 
             if is_valid:
-                matches.append([match_percent, book_state.candidate_ptr])
+                matches.append([match_percent, book_state.candidate_ptr, original_path])
                 if match_percent == 100:
                     # Perfect match, no need to keep searching
                     break
@@ -1987,7 +2015,7 @@ def _find_best_match_in_downloads(
                 book_state.mark_skipped(skip_reason)
         # Even non-matches get tracked to report closest match
         elif match_percent > 0:
-            matches.append([match_percent, book_state.candidate_ptr])
+            matches.append([match_percent, book_state.candidate_ptr, original_path])
 
     # Find the best match
     if not matches:
@@ -1998,6 +2026,7 @@ def _find_best_match_in_downloads(
     best_candidate_ptr = highest[1]
 
     book_state.update_candidate(best_candidate_ptr)
+    book_state.matched_source_path = highest[2] if len(highest) > 2 else ''
 
     if best_match_percent >= match_threshold:
         logger.debug(
@@ -2345,6 +2374,7 @@ def _process_snatched_book(
     db,
     logger,
     fuzzlogger,
+    consumed_paths=None,
 ) -> int:
     """
     Process a single snatched book using fallback fuzzy search (Matching Stage|Second pass).
@@ -2372,6 +2402,7 @@ def _process_snatched_book(
         match_threshold,
         logger,
         fuzzlogger,
+        consumed_paths=consumed_paths,
     )
 
     if match_percent < match_threshold:
@@ -3036,6 +3067,7 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
         # folders, we will still process the books because there is a chance that that a book is downloading
         # to a location outside of our configured directories (e.g., the download started before a config change)
         all_downloads = None
+        consumed_paths = set()
         if download_dirlist:
             if startdir_file:
                 all_downloads = [
@@ -3106,18 +3138,28 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
                 # ========================================================
                 stage = 'targeted'
                 if book_state.download_folder:
-                    postprocesslogger.debug(
-                        f"Targeted Location Pass: Processing search for {book_state.download_title}"
-                    )
-                    result = _search_in_known_location(
-                        book_state, ignoreclient, db, postprocesslogger, fuzzlogger
-                    )
-                    if result > 0:
-                        ppcount += result
-                        postprocesslogger.info(
-                            f"Matching Stage - First Pass SUCCESS: {book_state.download_title}"
+                    target_path = os.path.normpath(book_state.download_folder)
+                    lib_type = book_state.aux_type or ''
+                    if (target_path, lib_type) in consumed_paths:
+                        postprocesslogger.debug(
+                            f"Targeted pass skipped for {book_state.download_title}: "
+                            f"path already consumed for {lib_type}"
                         )
-                        continue  # Successfully processed, move to next book
+                    else:
+                        postprocesslogger.debug(
+                            f"Targeted Location Pass: Processing search for {book_state.download_title}"
+                        )
+                        result = _search_in_known_location(
+                            book_state, ignoreclient, db, postprocesslogger, fuzzlogger
+                        )
+                        if result > 0:
+                            ppcount += result
+                            postprocesslogger.info(
+                                f"Matching Stage - First Pass SUCCESS: {book_state.download_title}"
+                            )
+                            if not _is_multi_item_directory(target_path, lib_type):
+                                consumed_paths.add((target_path, lib_type))
+                            continue  # Successfully processed, move to next book
 
                     postprocesslogger.debug(
                         f"Matching Stage - First Pass unsuccessful for {book_state.download_title}, trying Pass 2"
@@ -3143,12 +3185,17 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
                     db,
                     postprocesslogger,
                     fuzzlogger,
+                    consumed_paths=consumed_paths,
                 )
                 if result > 0:
                     ppcount += result
                     postprocesslogger.info(
                         f"Matching Stage - Second Pass SUCCESS: {book_state.download_title}"
                     )
+                    source_path = getattr(book_state, 'matched_source_path', '')
+                    lib_type = book_state.aux_type or ''
+                    if source_path and not _is_multi_item_directory(source_path, lib_type):
+                        consumed_paths.add((source_path, lib_type))
                 else:
                     postprocesslogger.warning(
                         f"Matching Stage - Second Pass FAILED: {book_state.download_title}. No matches"
