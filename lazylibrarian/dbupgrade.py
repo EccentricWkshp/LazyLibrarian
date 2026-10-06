@@ -866,7 +866,7 @@ def check_db(upgradelog=None):
                 res = db.select(f'SELECT DISTINCT BookID from readinglists')
                 for bookid in res:
                     read_ids.append(bookid[0])
-
+            read_ids = set(read_ids)
             no_bookid = read_ids.difference(bookids)
             if len(no_bookid):
                 logger.warning(f"Found {len(no_bookid)} unknown bookids in readinglists")
