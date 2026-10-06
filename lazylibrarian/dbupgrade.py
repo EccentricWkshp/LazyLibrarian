@@ -861,32 +861,27 @@ def check_db(upgradelog=None):
                 bookids.append(bookid[0])
             bookids = set(bookids)
             read_ids = []
-            reading_lists = ['readinglists']
-            for table in reading_lists:
-                exists = db.select(f'PRAGMA table_info({table})')
-                if exists:
-                    res = db.select(f'SELECT BookID from {table}')
-                    for bookid in res:
-                        read_ids.append(bookid[0])
+            exists = db.select(f'PRAGMA table_info(readinglists)')
+            if exists:
+                res = db.select(f'SELECT DISTINCT BookID from readinglists')
+                for bookid in res:
+                    read_ids.append(bookid[0])
 
-            read_ids = set(read_ids)
             no_bookid = read_ids.difference(bookids)
             if len(no_bookid):
-                logger.warning(f"Found {len(no_bookid)} unknown bookids in reading lists")
+                logger.warning(f"Found {len(no_bookid)} unknown bookids in readinglists")
             for item in no_bookid:
                 cmd = ('SELECT BookID from books WHERE ol_id=? OR gr_id=? OR lt_workid=? OR gb_id=?'
                        ' or hc_id=? or dnb_id=? or ran_id=?')
                 res = db.match(cmd, (item, item, item, item, item, item, item))
                 if res:
-                    logger.debug(f"Bookid {item} is now {res[0]}")
-                    for table in reading_lists:
-                        cmd = f"UPDATE {table} SET BookID=? WHERE BookID=?"
-                        db.action(cmd, (res[0], item), suppress='UNIQUE')
+                    logger.debug(f"readinglists bookid {item} is now {res[0]}")
+                    cmd = f"UPDATE readinglists SET BookID=? WHERE BookID=?"
+                    db.action(cmd, (res[0], item), suppress='UNIQUE')
                 else:
                     logger.debug(f"Bookid {item} is unknown, deleting it")
-                    for table in reading_lists:
-                        cmd = f'DELETE FROM {table} WHERE BookID=?'
-                        db.action(cmd, (item,))
+                    cmd = f'DELETE FROM readinglists WHERE BookID=?'
+                    db.action(cmd, (item,))
         except Exception as e:
             msg = f'Error: {type(e).__name__} {str(e)}'
             logger.error(msg)
