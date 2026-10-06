@@ -981,7 +981,11 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                             filename = os.path.join(rootdir, files)
                             id3tags = id3read(filename)
                             author = id3tags.get('author')
-                            book = id3tags.get('title')
+                            # Assume album (if present) is the book title
+                            # and title is used for chapter name  as per #3103
+                            book = id3tags.get('album')
+                            if not book:
+                                book = id3tags.get('title')
                             if not narrator:
                                 narrator = id3tags.get('narrator')
 
@@ -1132,7 +1136,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                     reason = f'Author exists for {book}'
                                     logger.debug(reason)
                                     bookid, mtype = find_book_in_db(author, book, reason=reason)
-                                    logger.debug(f"Found {bookid} in database for {author}:{book}")
+                                    logger.debug(f"Found bookid {bookid} in database for {author}:{book}")
                                     if bookid:
                                         logger.debug(f"Found bookid {bookid} for {book}")
                                         match = db.match('SELECT AuthorID,BookName,Status from books where BookID=?',
