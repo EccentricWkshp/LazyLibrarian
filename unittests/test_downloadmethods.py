@@ -320,6 +320,54 @@ class TorDlMethodInvalidDataTest(LLTestCase):
         self.assertIn('Provider returned invalid torrent data', res)
 
 
+class TorDlMethodRedirectTest(LLTestCase):
+    """ Prowlarr answers a grab from a magnet-only indexer with a redirect to
+    the magnet link. curl can't follow that, and its error doesn't say where
+    the redirect was going, so the magnet has to be found another way. """
+
+    CURL_ERROR = Exception("Failed to perform, curl: (1) The redirect target URL could not be "
+                           "parsed: Unsupported URL scheme.")
+
+    def setUp(self):
+        super().setUp()
+        self.set_loglevel(50)
+        self.qbittorrent = mock.patch.object(downloadmethods, 'qbittorrent').start()
+        self.qbittorrent.add_torrent.return_value = (False, 'downloader said no', False)
+        mock.patch.object(downloadmethods, 'record_usage_data').start()
+        mock.patch.object(downloadmethods, 'CONFIG', FakeConfig()).start()
+        self.addCleanup(mock.patch.stopall)
+
+    @staticmethod
+    def redirect(location):
+        r = mock.Mock()
+        r.status_code = 301
+        r.headers = {'Location': location}
+        return r
+
+    def test_redirect_to_a_magnet_is_sent_as_a_magnet(self):
+        magnet = f"magnet:?xt=urn:btih:{TORRENT_HASH}&dn=book"
+        with mock.patch.object(downloadmethods.requests, 'get',
+                               side_effect=[self.CURL_ERROR, self.redirect(magnet)]) as get:
+            downloadmethods.tor_dl_method(
+                bookid='1', tor_title='a book', tor_url='https://prowlarr.example/9/download?link=x')
+
+        self.assertFalse(get.call_args.kwargs['allow_redirects'])
+        self.qbittorrent.add_torrent.assert_called_once()
+        self.assertEqual(self.qbittorrent.add_torrent.call_args.args[0], magnet)
+        self.assertEqual(self.qbittorrent.add_torrent.call_args.args[1], TORRENT_HASH)
+
+    def test_an_error_that_is_not_a_magnet_redirect_still_fails(self):
+        with mock.patch.object(downloadmethods.requests, 'get',
+                               side_effect=[self.CURL_ERROR, self.redirect('https://elsewhere.example/')]):
+            status, res = downloadmethods.tor_dl_method(
+                bookid='1', tor_title='a book', tor_url='https://prowlarr.example/9/download?link=x')
+
+        self.assertFalse(status)
+        self.assertIn('Unsupported URL scheme', res)
+        self.qbittorrent.add_torrent.assert_not_called()
+        self.qbittorrent.add_file.assert_not_called()
+
+
 class TorDlMethodRejectionTest(LLTestCase):
     """ A torrent we had to take on from the client has to be recorded as such
     before anything is allowed to reject it. """

@@ -738,6 +738,21 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
             # some jackett providers redirect internally using http 301 to a magnet link
             # which requests can't handle, so throws an exception
             logger.debug(f"Requests exception: {redact_url(str(e))}")
+            if "magnet:?" not in str(e):
+                # curl_cffi doesn't include the redirect target in its error,
+                # so ask again without following redirects to find it
+                try:
+                    if tor_url.startswith('https') and CONFIG.get_bool('SSL_VERIFY'):
+                        verify = CONFIG['SSL_CERTS'] if CONFIG['SSL_CERTS'] else True
+                    else:
+                        verify = False
+                    r = requests.get(tor_url, headers=headers, timeout=90, proxies=proxies, impersonate='chrome',
+                                     verify=verify, allow_redirects=False)
+                    location = r.headers.get('Location', '')
+                    if location.startswith('magnet:?'):
+                        e = Exception(location)
+                except Exception:
+                    pass
             if "magnet:?" in str(e):
                 tor_url = 'magnet:?' + str(e).split('magnet:?')[1].strip("'")
                 logger.debug("Redirecting to magnet link")
