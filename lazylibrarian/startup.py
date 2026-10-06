@@ -915,6 +915,6 @@ class StartupLazyLibrarian:
         if doquit and not testing:
             self.logger.info(f'Lazylibrarian (pid {os.getpid()}) is exiting')
             cherrypy.engine.stop()
-            # Do this as the last step before existing
+            # Do this as the last step before exiting
             UNBUNDLER.remove_bundled_modules()
             sys.exit(0)
