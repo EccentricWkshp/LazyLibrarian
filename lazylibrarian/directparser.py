@@ -281,7 +281,7 @@ def direct_gen(book=None, prov=None, test=False):
         providerurl = url_fix(f"{host}/{search}")
         search_url = f"{providerurl}?{urlencode(params)}"
         next_page = False
-        result, success = fetch_url(search_url)
+        result, success = fetch_url(search_url, impersonate='chrome')
         if not success:
             # may return 404 if no results, not really an error
             if '404' in result:
@@ -475,7 +475,7 @@ def direct_gen(book=None, prov=None, test=False):
                                     url = url_fix(f"{host}/ads.php?{link}")
 
                             # redirect page for other sources [libgen.me, libgen.li, library1.org, booksdl.org]
-                            bookresult, success = fetch_url(url)
+                            bookresult, success = fetch_url(url, impersonate='chrome')
                             if not success:
                                 logger.debug(f'Error fetching link data from {provider}: {bookresult}')
                                 logger.debug(url)
