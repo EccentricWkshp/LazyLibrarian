@@ -287,6 +287,7 @@ class SLSKD:
         hashfilename = os.path.join(cache_location, f"{myhash}.slsk")
         with open(hashfilename, 'w') as fp:
             json.dump(results, fp)
+        lazylibrarian.test_data = ''
         return hashfilename
 
     def enqueue(self, username, directory):

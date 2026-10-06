@@ -12,7 +12,6 @@ from curl_cffi import requests
 
 import lazylibrarian
 from lazylibrarian import database
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import elapsed_time, format_author_name, get_list, thread_name
@@ -58,10 +57,9 @@ def _checkpoint(conn, mode='PASSIVE'):
 
 def get_remote_size(url):
     """HEAD request for url's Content-Length. Returns 0 if it can't be determined."""
-    headers = {'User-Agent': get_user_agent(configured=False)}
     try:
         # requests has a dedicated .head() method for HEAD requests
-        resp = requests.head(url, headers=headers, timeout=10, impersonate='chrome')
+        resp = requests.head(url, timeout=10, impersonate='chrome')
         # It automatically raises exceptions for 4xx/5xx status codes if needed,
         # but to match urllib behavior closely, we just read the headers.
         return int(resp.headers.get('Content-Length', 0))
@@ -235,7 +233,7 @@ def download_dump_file(url, local_path):
             # as big as (or bigger than) the current remote copy - can't trust it, start over.
             os.remove(partial_path)
 
-    headers = {'User-Agent': get_user_agent(configured=False)}
+    headers = {}
     if resume_from:
         headers['Range'] = f'bytes={resume_from}-'
         logger.info(f"Resuming {os.path.basename(local_path)} from byte {resume_from} "

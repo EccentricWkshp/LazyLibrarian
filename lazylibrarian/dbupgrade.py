@@ -861,9 +861,9 @@ def check_db(upgradelog=None):
                 bookids.append(bookid[0])
             bookids = set(bookids)
             read_ids = []
-            exists = db.select(f'PRAGMA table_info(readinglists)')
+            exists = db.select('PRAGMA table_info(readinglists)')
             if exists:
-                res = db.select(f'SELECT DISTINCT BookID from readinglists')
+                res = db.select('SELECT DISTINCT BookID from readinglists')
                 for bookid in res:
                     read_ids.append(bookid[0])
             read_ids = set(read_ids)
@@ -876,11 +876,11 @@ def check_db(upgradelog=None):
                 res = db.match(cmd, (item, item, item, item, item, item, item))
                 if res:
                     logger.debug(f"readinglists bookid {item} is now {res[0]}")
-                    cmd = f"UPDATE readinglists SET BookID=? WHERE BookID=?"
+                    cmd = "UPDATE readinglists SET BookID=? WHERE BookID=?"
                     db.action(cmd, (res[0], item), suppress='UNIQUE')
                 else:
                     logger.debug(f"Bookid {item} is unknown, deleting it")
-                    cmd = f'DELETE FROM readinglists WHERE BookID=?'
+                    cmd = 'DELETE FROM readinglists WHERE BookID=?'
                     db.action(cmd, (item,))
         except Exception as e:
             msg = f'Error: {type(e).__name__} {str(e)}'

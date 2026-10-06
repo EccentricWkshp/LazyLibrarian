@@ -25,7 +25,6 @@ from urllib.request import (
     install_opener,
 )
 
-from lazylibrarian.common import get_user_agent
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int, get_list
 
@@ -196,7 +195,7 @@ class UtorrentClient:
         if CONFIG['PROXY_HOST']:
             for item in get_list(CONFIG['PROXY_TYPE']):
                 request.set_proxy(CONFIG['PROXY_HOST'], item)
-        request.add_header('User-Agent', get_user_agent())
+        request.add_header('User-Agent', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.7103.88 Mobile Safari/537.36')
 
         if body:
             # noinspection PyCallingNonCallable

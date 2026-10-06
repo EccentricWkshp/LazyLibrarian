@@ -579,7 +579,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('rss', 'RSS_PODCAST', 1),
     ConfigStr('rss', 'RSS_HOST', ''),
     ConfigInt('General', 'PREF_UNRARLIB', 1),
-    ConfigStr('General', 'USER_AGENT', ''),
     ConfigBool('General', 'RATESTARS', 1),
 
     ConfigStr('Preprocess', 'EBOOK_WANTED_FORMATS', ''),

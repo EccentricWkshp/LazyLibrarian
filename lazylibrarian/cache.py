@@ -30,7 +30,7 @@ from curl_cffi import requests as requests_cffi
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
-from lazylibrarian.common import get_user_agent, proxy_list
+from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     DIRS,
@@ -127,8 +127,9 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
     if not headers:
         headers = {}
     if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
+        import platform
         # higher requests per second if identified
-        headers['User-Agent'] = f"{get_user_agent(configured=False)} ({CONFIG['ADMIN_EMAIL']})"
+        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION']}) ({CONFIG['ADMIN_EMAIL']})"
 
     proxies = proxy_list()
 
@@ -152,7 +153,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
             verify = CONFIG['SSL_CERTS']
     try:
         if impersonate:
-            r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+            r = requests_cffi.get(url, verify=verify, headers=headers, impersonate=impersonate, **req_kwargs)
         else:
             r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
     except requests.exceptions.TooManyRedirects as e:
@@ -167,7 +168,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         logger.debug(f"Retrying - got TooManyRedirects on {url}")
         try:
             if impersonate:
-                r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+                r = requests_cffi.get(url, verify=verify, headers=headers, impersonate=impersonate, **req_kwargs)
             else:
                 r = requests.get(url, verify=False, headers=headers, **req_kwargs)
             logger.debug(f"TooManyRedirects retry status code {r.status_code}")
@@ -180,7 +181,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         logger.debug(f"fetch_url: retrying - got timeout on {url}")
         try:
             if impersonate:
-                r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+                r = requests_cffi.get(url, verify=verify, headers=headers, impersonate=impersonate, **req_kwargs)
             else:
                 r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
         except Exception as e:
@@ -193,7 +194,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         cachelogger.debug(f"{h}")
         logger.debug(f"{r.status_code} {len(r.content)}, {h.get('X-Cache')}")
         if impersonate:
-            r = requests_cffi.get(url, impersonate=impersonate, **req_kwargs)
+            r = requests_cffi.get(url, verify=verify, headers=headers, impersonate=impersonate, **req_kwargs)
         else:
             r = requests.get(url, verify=verify, headers=headers, **req_kwargs)
         logger.debug(f"Retry: {r.status_code} {len(r.content)}, {h.get('X-Cache')}")

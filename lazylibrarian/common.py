@@ -78,13 +78,6 @@ def is_valid_language(book_lang: str, valid_langs: list | set | None) -> bool:
     return bool((bl.startswith('en-') or bl in en_codes) and valid_lower.intersection(en_codes))
 
 
-def get_user_agent(configured=True) -> str:
-    # Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36
-    if configured and CONFIG['USER_AGENT']:
-        return CONFIG['USER_AGENT']
-    return f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION']})"
-
-
 def get_readinglist(table, user):
     # return a set of all bookids in a readinglist
     db = database.DBConnection()

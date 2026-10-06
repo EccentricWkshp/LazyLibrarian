@@ -151,6 +151,7 @@ def direct_bok(book=None, prov=None, test=False):
         langs = CONFIG['BOK_SEARCH_LANG']
         if not langs:  # full language names, lower case, eg spanish, german
             langs = None
+        lazylibrarian.test_data = f"Searching {provider}"
         searchresults = zlib.search(book['searchterm'], limit=limit, languages=langs)
     except Exception as e:
         logger.debug(f"Error getting results from zlibrary ({e})")
@@ -160,7 +161,9 @@ def direct_bok(book=None, prov=None, test=False):
             return False
         return [], "No results from zlibrary"
 
-    logger.debug(f"{provider} returned {len(searchresults['books'])}")
+    msg = f"{provider} returned {len(searchresults['books'])}"
+    logger.debug(msg)
+    lazylibrarian.test_data = msg
     results = []
     removed = 0
     for item in searchresults['books']:
@@ -188,6 +191,7 @@ def direct_bok(book=None, prov=None, test=False):
             })
             logger.debug(f'Found {title}, Size {size}')
 
+    lazylibrarian.test_data = ''
     if test:
         logger.debug(f"Test found {len(results)} {plural(len(results), 'result')} ({removed} removed)")
         return len(results)
@@ -235,6 +239,7 @@ def direct_gen(book=None, prov=None, test=False):
         book['bookid'] = '0'
         maxresults = 25
 
+    lazylibrarian.test_data = f"Searching {provider}"
     while next_page:
         if 'index.php' in search:
             params = {
@@ -329,7 +334,9 @@ def direct_gen(book=None, prov=None, test=False):
                 if len(rows) > 1:  # skip table headers
                     rows = rows[1:]
 
-                logger.debug(f"libgen returned {len(rows)} {plural(len(rows), 'row')}")
+                msg = f"libgen returned {len(rows)} {plural(len(rows), 'row')}"
+                logger.debug(msg)
+                lazylibrarian.test_data = msg
                 for row in rows:
                     author = ''
                     title = ''
@@ -338,6 +345,7 @@ def direct_gen(book=None, prov=None, test=False):
                     td = row.find_all('td')
                     links = []
                     prov_page = ''
+                    lazylibrarian.test_data = f"libgen processing {len(results)} from {len(rows)}"
                     if td and tabletype == 'comic':
                         try:
                             if 'FILE' in str(td[-1]):
@@ -540,6 +548,7 @@ def direct_gen(book=None, prov=None, test=False):
 
             if test:
                 logger.debug(f"Test found {len(results)} {plural(len(results), 'result')}")
+                lazylibrarian.test_data = ''
                 return len(results)
 
         page += 1
@@ -564,6 +573,7 @@ def direct_gen(book=None, prov=None, test=False):
             next_page = False
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {provider} for {sterm}")
+    lazylibrarian.test_data = ''
     return results, errmsg
 
 

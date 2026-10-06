@@ -297,6 +297,7 @@ def annas_search(
     hashfilename = os.path.join(cache_location, f"{myhash}.anna")
     resultslist = []
     lazylibrarian.test_data = f"Annas found {len(results)} matches"
+    time.sleep(2)  # allow time to display
     for r in results:
         resultdict = {'title': r.title,
                       'id': r.id,
@@ -312,6 +313,7 @@ def annas_search(
 
     with open(hashfilename, 'w') as fp:
         json.dump(resultslist, fp)
+    lazylibrarian.test_data = ''
     return hashfilename
 
 
