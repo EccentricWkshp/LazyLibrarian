@@ -800,22 +800,21 @@ def get_series_authors(seriesid):
 
 def is_set_or_part(title):
     logger = logging.getLogger(__name__)
-    rejected = False
-    msg = ''
     if not title:
-        return rejected, msg
+        return False, ''
     m = re.search(r'(\d+)-(\d+)', title)
     if m:
         if check_year(m.group(1), past=1400, future=0):
             logger.debug(f"Allow {title}, looks like a date range")
         else:
-            rejected = True
-            msg = f'Set or Part {m.group(0)}'
-    if re.search(r'\d+ of \d+', title) or \
-            re.search(r'\d+/\d+', title) and not re.search(r'\d+/\d+/\d+', title) or re.search(r'\w+\s*/\s*\w+', title):
-        rejected = True
-        msg = 'Set or Part'
-    return rejected, msg
+            return True, f'Set or Part {m.group(0)}'
+    m = re.search(r'\d+/\d+/\d+', title)
+    if m and check_year(m.group(0).split('/')[2], past=1400, future=0):
+        logger.debug(f"Allow {title}, looks like a date")
+        return False, ''
+    if re.search(r'\d+ of \d+', title) or re.search(r'\d+/\d+', title) or re.search(r'\w+\s*/\s*\w+', title):
+        return True, 'Set or Part'
+    return False, ''
 
 
 def get_series_members(seriesid=None, seriesname=None, refresh=False):
