@@ -28,7 +28,7 @@ from lazylibrarian.providers import (
 )
 
 
-def search_item(item=None, bookid=None, cat=None):
+def search_item(item=None, bookid=None, cat=''):
     """
     Call all active search providers to search for item
     return a list of results, each entry in list containing percentage_match, title, provider, size, url
