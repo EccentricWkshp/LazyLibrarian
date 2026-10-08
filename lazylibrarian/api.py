@@ -257,7 +257,7 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
             'listIgnoredBooks': (0, 'list all books in the database marked ignored'),
             'listIgnoredSeries': (0, 'list all series in the database marked ignored'),
             'searchBook': (1, '&id= [&wait] [&type=eBook/AudioBook] search for one book by BookID'),
-            'searchItem': (1, '&item= get search results for an item (author, title, isbn)'),
+            'searchItem': (1, '&item= [&cat=] get search results for an item (author, title, isbn)'),
             'showStats': (0, '[&json] show database statistics'),
             'showJobs': (0, '[&json] show status of running jobs'),
             'restartJobs': (1, 'restart background jobs'),
@@ -2710,7 +2710,8 @@ class Api:
         if 'item' not in kwargs:
             self.data = 'Missing parameter: item'
             return
-        self.data = search_item(kwargs['item'])
+        cat = kwargs.get('cat', 'general')
+        self.data = search_item(kwargs['item'], cat=cat)
 
     def _searchbook(self, **kwargs):
         TELEMETRY.record_usage_data()
