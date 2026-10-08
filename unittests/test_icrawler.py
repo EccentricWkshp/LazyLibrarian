@@ -38,7 +38,7 @@ class TestICrawler(unittest.TestCase):
         self.assertGreater(res, 0, f'Expected Google to have a cat result!')
         shutil.rmtree(img_dir)
     """
-    
+    """ bing is broken, returns nsfw images so disabled
     def test_bing(self):
         img_dir = osp.join(self.test_dir, 'bing')
         bing_crawler = BingImageCrawler(
@@ -54,7 +54,7 @@ class TestICrawler(unittest.TestCase):
         res = len(os.listdir(img_dir))
         self.assertGreater(res, 0, f'Expected Bing to have a cat result!')
         shutil.rmtree(img_dir)
-
+    """
     def test_greedy(self):
         img_dir = osp.join(self.test_dir, 'greedy')
         greedy_crawler = GreedyImageCrawler(
