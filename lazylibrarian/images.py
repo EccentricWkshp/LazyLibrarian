@@ -307,6 +307,8 @@ def get_book_covers():
 
 
 def cache_bookimg(img, bookid, src, suffix='', imgid=None):
+    # img can be a file or a url, store image in our cache
+    # return the filename in the cache, eg cache/book/12345.jpg
     logger = logging.getLogger(__name__)
     if not imgid:
         imgid = bookid
@@ -317,19 +319,25 @@ def cache_bookimg(img, bookid, src, suffix='', imgid=None):
         src = suffix
 
     # if librarything has no image they return a 1x1 gif
-    data = ''
     coverfile = os.path.join(DIRS.DATADIR, coverlink)
-    if path_isfile(coverfile):
-        with open(syspath(coverfile), 'rb') as f:
-            data = f.read()
-    if len(data) < 50:
+    if empty_image(coverfile):
         logger.debug(f"Got an empty {src} image for {bookid} [{img}]")
+        os.remove(coverfile)
     elif success:
         logger.debug(f"Caching {src} cover for {bookid}")
         return coverlink
     else:
         logger.debug(f"Failed to cache {src} image for {img} [{coverlink}]")
     return ''
+
+
+def empty_image(coverfile):
+    """ some providers send a 1x1 image if no cover, rather than an error code """
+    data = ''
+    if path_isfile(coverfile):
+        with open(syspath(coverfile), 'rb') as f:
+            data = f.read()
+    return len(data) < 50
 
 
 def get_book_cover(bookid=None, src=None, ignore=''):
@@ -510,14 +518,17 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                     with tempfile.NamedTemporaryFile(delete_on_close=False) as f:
                         f.write(result)
                         f.close()
+
+                    if empty_image(f.name):
+                        logger.debug(f"Got an empty OpenLibrary image for id {item['ol_id']}")
+                    else:
                         coverlink = cache_bookimg(f.name, bookid, src, suffix='_ol', imgid=imgid)
                         if coverlink:
                             return coverlink, 'openlibrary'
 
             if item and item['BookISBN']:
-                baseurl = '/'.join([CONFIG['OL_URL'],
-                                   'api/books?format=json&jscmd=data&bibkeys=ISBN:'])
-                result, success = fetch_url(baseurl + item['BookISBN'])
+                baseurl = f"{CONFIG['OL_URL']}/isbn/{item['BookISBN']}.json"
+                result, success = fetch_url(baseurl)
                 if success:
                     try:
                         source = json.loads(result)  # type: dict
@@ -526,16 +537,22 @@ def get_book_cover(bookid=None, src=None, ignore=''):
                         source = {}
 
                     img = ''
-                    if source:
-                        # noinspection PyUnresolvedReferences
-                        k = list(source.keys())[0]
-                        try:
-                            img = source[k]['cover']['medium']
-                        except KeyError:
-                            try:
-                                img = source[k]['cover']['large']
-                            except KeyError:
-                                logger.debug(f"No openlibrary image for {item['BookISBN']}")
+                    if source and source.get('covers'):
+                        baseurl = f"https://covers.openlibrary.org/b/id/{source['covers'][0]}-M.jpg"
+                        result, success = fetch_url(baseurl, raw=True)
+                        if success:
+                            with tempfile.NamedTemporaryFile(delete_on_close=False) as f:
+                                f.write(result)
+                                f.close()
+
+                            if empty_image(f.name):
+                                logger.debug(f"Got an empty OpenLibrary image for isbn {item['BookISBN']}")
+                            else:
+                                coverlink = cache_bookimg(f.name, bookid, src, suffix='_ol', imgid=imgid)
+                                if coverlink:
+                                    return coverlink, 'openlibrary'
+                        else:
+                            logger.debug(f"No openlibrary image for {item['BookISBN']}")
 
                     if img and img.startswith('http') and 'nocover' not in img and 'nophoto' not in img:
                         coverlink = cache_bookimg(img, bookid, src, suffix='_ol', imgid=imgid)
