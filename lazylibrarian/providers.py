@@ -52,6 +52,7 @@ from lazylibrarian.formatter import (
 )
 from lazylibrarian.ircbot import irc_query, irc_results
 from lazylibrarian.soulseek import slsk_search
+from lazylibrarian.telemetry import TELEMETRY
 from lazylibrarian.torrentparser import (
     torrent_abb,
     torrent_kat,
@@ -1100,6 +1101,8 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     ny_times best-sellers query function, return all the results in a list
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/ny_times')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1160,6 +1163,8 @@ def amazon(host=None, feednr=None, priority=0, dispname=None, types='E', test=Fa
     Amazon charts html page
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/amazon')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1227,6 +1232,8 @@ def publishersweekly(host=None, feednr=None, priority=0, dispname=None, types='E
     publishersweekly best-sellers voir dans configLazy folder pour les commentaires
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/publishersweekly')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1286,6 +1293,8 @@ def appsnprorg(host=None, feednr=None, priority=0, dispname=None, types='E', tes
     best-book aoos,npr.org
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/appsnprprg')
     results = []
     basehost = host
     booknames = []
@@ -1358,6 +1367,8 @@ def penguinrandomhouse(host=None, feednr=None, priority=0, dispname=None, types=
     penguinrandomhouse html page
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/penguinrandomhouse')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1442,6 +1453,8 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     Goodreads Listopia query function, return all the results in a list
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/listopia')
     results = []
     maxpage = priority
     basehost = host
@@ -1522,6 +1535,8 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
 
 def mam(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/mam')
     results = []
     basehost = host
     if not dispname:
@@ -1619,6 +1634,8 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
     but expects goodreads format (looks for goodreads category names)
     """
     logger = logging.getLogger(__name__)
+    if not test:
+        TELEMETRY.record_usage_data('WISHLIST/goodreads')
     results = []
     basehost = host
     if not dispname:
