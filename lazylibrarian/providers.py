@@ -1866,7 +1866,7 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
             else:
                 url = f"{host}?page={page}"
 
-        result, success = fetch_url(url)
+        result, success = fetch_url(url, impersonate='chrome')
         next_page = False
 
         if success:
