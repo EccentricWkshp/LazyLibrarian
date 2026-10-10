@@ -134,8 +134,8 @@ def search_wishlist():
     search_start = time.time()
     db = database.DBConnection()
     try:
-        logger.debug(f"Storing start time for {thread_name()}")
-        db.upsert("jobs", {"Start": time.time()}, {"Name": thread_name()})
+        logger.debug("Storing start time for SEARCHWISHLIST")
+        db.upsert("jobs", {"Start": time.time()}, {"Name": "SEARCHWISHLIST"})
         try:
             resultlist, wishproviders = iterate_over_wishlists()
             if not wishproviders:
@@ -374,8 +374,8 @@ def search_wishlist():
         except Exception:
             logger.error(f'Unhandled exception in search_wishlist: {traceback.format_exc()}')
         finally:
-            logger.debug(f"Storing finish time for {thread_name()}")
-            db.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
+            logger.debug("Storing finish time for SEARCHWISHLIST")
+            db.upsert("jobs", {"Finish": time.time()}, {"Name": "SEARCHWISHLIST"})
 
         logger.debug(f"Wishlist found eBook:{len(new_books)}, Audio:{len(new_audio)}")
 

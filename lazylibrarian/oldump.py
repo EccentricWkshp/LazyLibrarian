@@ -215,7 +215,7 @@ def download_dump_file(url, local_path):
     usable."""
 
     remote_size = get_remote_size(url)
-
+    stopped = False
     if remote_size and os.path.exists(local_path) and os.path.getsize(local_path) == remote_size:
         logger.info(f"{os.path.basename(local_path)} already fully downloaded ({remote_size} bytes), skipping")
         return True
@@ -283,7 +283,7 @@ def download_dump_file(url, local_path):
             for chunk in resp.iter_content(chunk_size=chunk_size):
                 if _stop_requested():
                     logger.debug(f"STOPTHREADS Aborting {os.path.basename(local_path)} download "
-                                 f"at {downloaded // (chunk_size)} MB, will resume next run")
+                                 f"at {downloaded // chunk_size} MB, will resume next run")
                     stopped = True
                     break
                 if not chunk:
@@ -292,10 +292,10 @@ def download_dump_file(url, local_path):
                 downloaded += len(chunk)
                 if downloaded >= next_log_at:
                     if remote_size:
-                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (chunk_size)} MB "
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // chunk_size} MB "
                                    f"({downloaded * 100 // remote_size}%)")
                     else:
-                        logger.info(f"{os.path.basename(local_path)}: {downloaded // (chunk_size)} MB")
+                        logger.info(f"{os.path.basename(local_path)}: {downloaded // chunk_size} MB")
                     next_log_at = downloaded + DOWNLOAD_PROGRESS_STEP
 
     if stopped:
