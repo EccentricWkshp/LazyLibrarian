@@ -163,15 +163,6 @@ def test_provider(name: str, host=None, api=None):
                     elif 'penguinrandomhouse' in host:
                         return penguinrandomhouse(host, provider['NAME'], provider.get_int('DLPRIORITY'),
                                                   provider['DISPNAME'], test=True), provider['DISPNAME']
-                    elif 'barnesandnoble' in host:
-                        return barnesandnoble(host, provider['NAME'], provider.get_int('DLPRIORITY'),
-                                              provider['DISPNAME'], test=True), provider['DISPNAME']
-                    elif 'bookdepository' in host:
-                        return bookdepository(host, provider['NAME'], provider.get_int('DLPRIORITY'),
-                                              provider['DISPNAME'], test=True), provider['DISPNAME']
-                    elif 'indigo' in host:
-                        return indigo(host, provider['NAME'], provider.get_int('DLPRIORITY'),
-                                      provider['DISPNAME'], test=True), provider['DISPNAME']
                     elif 'mam' in label.lower() and 'wish' in label.lower():
                         return mam(host, provider['NAME'], provider.get_int('DLPRIORITY'),
                                    provider['DISPNAME'], test=True), provider['DISPNAME']
@@ -1029,34 +1020,6 @@ def iterate_over_wishlists():
                     resultslist += penguinrandomhouse(provider['HOST'], provider['NAME'],
                                                       provider.get_int('DLPRIORITY'), provider['DISPNAME'],
                                                       provider['DLTYPES'], False, provider['LABEL'])
-            elif wishtype == 'barnesandnoble':
-                if BLOCKHANDLER.is_blocked(provider['HOST']):
-                    logger.debug(f"{provider['HOST']} is BLOCKED")
-                else:
-                    providers += 1
-                    logger.debug(f"[iterate_over_wishlists] - {provider['HOST']}")
-                    resultslist += barnesandnoble(provider['HOST'], provider['NAME'],
-                                                  provider.get_int('DLPRIORITY'), provider['DISPNAME'],
-                                                  provider['DLTYPES'], False, provider['LABEL'])
-
-            elif wishtype == 'bookdepository':
-                if BLOCKHANDLER.is_blocked(provider['HOST']):
-                    logger.debug(f"{provider['HOST']} is BLOCKED")
-                else:
-                    providers += 1
-                    logger.debug(f"[iterate_over_wishlists] - {provider['HOST']}")
-                    resultslist += bookdepository(provider['HOST'], provider['NAME'],
-                                                  provider.get_int('DLPRIORITY'), provider['DISPNAME'],
-                                                  provider['DLTYPES'], False, provider['LABEL'])
-            elif wishtype == 'indigo':
-                if BLOCKHANDLER.is_blocked(provider['HOST']):
-                    logger.debug(f"{provider['HOST']} is BLOCKED")
-                else:
-                    providers += 1
-                    logger.debug(f"[iterate_over_wishlists] - {provider['HOST']}")
-                    resultslist += indigo(provider['HOST'], provider['NAME'],
-                                          provider.get_int('DLPRIORITY'), provider['DISPNAME'],
-                                          provider['DLTYPES'], False, provider['LABEL'])
             elif wishtype == 'myanonamouse':
                 if BLOCKHANDLER.is_blocked(provider['HOST']):
                     logger.debug(f"{provider['HOST']} is BLOCKED")
@@ -1151,6 +1114,8 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     if not dispname:
         dispname = provider
 
+    lazylibrarian.test_data = f'Querying {dispname}'
+
     result, success = fetch_url(url, impersonate='chrome')
 
     if not success:
@@ -1184,6 +1149,7 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
         logger.debug(f'No data returned from {url}')
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
     return results
@@ -1203,6 +1169,11 @@ def amazon(host=None, feednr=None, priority=0, dispname=None, types='E', test=Fa
         provider = host.split('/charts')[1]
     else:
         provider = host
+
+    if not dispname:
+        dispname = provider
+
+    lazylibrarian.test_data = f'Querying {dispname}'
 
     url = host
     result, success = fetch_url(url)
@@ -1245,6 +1216,7 @@ def amazon(host=None, feednr=None, priority=0, dispname=None, types='E', test=Fa
                 })
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
     return results
@@ -1268,6 +1240,8 @@ def publishersweekly(host=None, feednr=None, priority=0, dispname=None, types='E
         provider = 'best-sellers'
     if not dispname:
         dispname = provider
+
+    lazylibrarian.test_data = f'Querying {dispname}'
 
     result, success = fetch_url(url)
     if not success:
@@ -1301,6 +1275,7 @@ def publishersweekly(host=None, feednr=None, priority=0, dispname=None, types='E
                 pass
     else:
         logger.debug(f'No data returned from {url}')
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
     return results
@@ -1326,6 +1301,8 @@ def appsnprorg(host=None, feednr=None, priority=0, dispname=None, types='E', tes
         provider = 'apps.nprorg'
     if not dispname:
         dispname = provider
+
+    lazylibrarian.test_data = f'Querying {dispname}'
 
     try:
         year_url = url.split('year=')[1]
@@ -1370,6 +1347,7 @@ def appsnprorg(host=None, feednr=None, priority=0, dispname=None, types='E', tes
         logger.debug(f'No data returned from {url}')
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
     return results
@@ -1390,8 +1368,13 @@ def penguinrandomhouse(host=None, feednr=None, priority=0, dispname=None, types=
     else:
         provider = "penguinrandomhouse"
 
+    if not dispname:
+        dispname = provider
+
+    lazylibrarian.test_data = f'Querying {dispname}'
+
     url = host
-    result, success = fetch_url(url)
+    result, success = fetch_url(url, impersonate='chrome')
     if not success:
         logger.error(f'Error fetching data from {url}: {result}')
         if not test:
@@ -1448,232 +1431,9 @@ def penguinrandomhouse(host=None, feednr=None, priority=0, dispname=None, types=
                         'label': label,
                     })
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
-    return results
-
-
-def barnesandnoble(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
-    """
-    Barneandnoble charts html page
-    """
-    logger = logging.getLogger(__name__)
-    results = []
-    basehost = host
-    if str(host)[:4] != "http":
-        host = f"http://{host}"
-    provider = "barnesandnoble"
-
-    url = host
-    result, success = fetch_url(url)
-    if not success:
-        logger.error(f'Error fetching data from {url}: {result}')
-        if not test:
-            BLOCKHANDLER.block_provider(basehost, result)
-    elif result:
-        logger.debug(f'Parsing results from {url}')
-        soup = BeautifulSoup(result, 'html5lib')
-        titles = soup.find_all("div", {"class": "product-shelf-title product-info-title pt-xs"})
-        authors = soup.find_all("div", {"class": "product-shelf-author pt-0 mt-1"})
-
-        if len(authors) and len(authors) == len(titles):
-            res = []
-            authnames = []
-            for item in authors:
-                tmp = item.text.strip()
-                if "," in tmp:
-                    authnames.append(tmp.split(',')[0].split('by')[1].strip())
-                else:
-                    authnames.append(tmp.split('by')[1].strip())
-            booknames = []
-            for item in titles:
-                booknames.append(str(item.contents[1]).split('title="')[1].split('"')[0].strip())
-            temp_res = list(zip(authnames, booknames, strict=True))
-            # suppress blanks and duplicates
-            for item in temp_res:
-                if item[0] and item[1] and item not in res:
-                    res.append(item)
-
-            for item in res:
-                results.append({
-                    'rss_prov': provider,
-                    'rss_feed': feednr,
-                    'rss_title': item[1],
-                    'rss_author': item[0],
-                    'rss_bookid': '',
-                    'rss_isbn': '',
-                    'priority': priority,
-                    'dispname': dispname,
-                    'types': types,
-                    'label': label,
-                })
-    logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
-    if test:
-        return len(results)
-    return results
-
-
-def bookdepository(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
-    """
-    bookdepository
-    """
-    logger = logging.getLogger(__name__)
-    results = []
-    basehost = host
-    if str(host)[:4] != "http":
-        host = f"http://{host}"
-    provider = "bookdepository"
-    page = 1
-    next_page = True
-    url = host
-
-    while next_page:
-        time.sleep(1)
-        if 'page=' in host:
-            host = str(url.split('page=')[0])
-        if '?' in host:
-            url = f"{host}&page={page}"
-        else:
-            url = f"{host}?page={page}"
-
-        result, success = fetch_url(url)
-
-        next_page = False
-        if not success:
-            logger.error(f'Error fetching data from {url}: {result}')
-            if not test:
-                BLOCKHANDLER.block_provider(basehost, result)
-        elif result:
-            logger.debug(f'Parsing results from {url}')
-            soup = BeautifulSoup(result, 'html5lib')
-            titles = soup.find_all("h3", {"class": "title"})
-            authors = soup.find_all("p", {"class": "author"})
-            if len(authors) and len(authors) == len(titles):
-                # take the number of result to see when max page
-                resultnumber = soup.find_all("div", {"class": "search-info"})
-                actual_result = str(resultnumber[0].text).split()[3].strip()
-                max_result = str(resultnumber[0].text).split()[5].strip()
-                next_page = actual_result != max_result
-                res = []
-                authnames = []
-                for item in authors:
-                    authnames.append(item.text.strip())
-                booknames = []
-                for item in titles:
-                    booknames.append(item.text.strip())
-                temp_res = list(zip(authnames, booknames, strict=True))
-                for item in temp_res:
-                    if item[0] and item[1] and item not in res:
-                        res.append(item)
-
-                for item in res:
-                    results.append({
-                        'rss_prov': provider,
-                        'rss_feed': feednr,
-                        'rss_title': item[1],
-                        'rss_author': item[0],
-                        'rss_bookid': '',
-                        'rss_isbn': '',
-                        'priority': priority,
-                        'dispname': dispname,
-                        'types': types,
-                        'label': label,
-                    })
-
-        if test:
-            logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
-            return len(results)
-
-        page += 1
-
-    return results
-
-
-def indigo(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
-    """
-    indigo book list
-    """
-    # May have to check again, the api seems to return XML in browser from time to time,
-    # may have to do a checkup to see if the result is xml
-    logger = logging.getLogger(__name__)
-    results = []
-    basehost = host
-    if str(host)[:4] != "http":
-        host = f"http://{host}"
-    provider = "indigo"
-    # The first page is 0
-    page = 0
-    next_page = True
-    url = host
-
-    result, success = fetch_url(url)
-    if not success:
-        logger.error(f'Error fetching data from {url}: {result}')
-        if not test:
-            BLOCKHANDLER.block_provider(basehost, result)
-    elif result:
-        logger.debug(f'Parsing results from {url}')
-        api = 'https://www.chapters.indigo.ca/en-ca/api/v1/merchandising/GetCmsProductList/?sortDirection=0'
-        api += '&sortKey=Default&rangeLength=0&rangeStart=0&pageSize=12'
-        list_id = re.findall(r'(?<="productLists":\[{"ContentID":).*?,', result)[0].split(',')[0]
-        list_id = f"&id={str(list_id)}"
-        while next_page:
-            time.sleep(1)
-            if '?' in api:
-                urlapi = f"{api}&page={page}{list_id}"
-            else:
-                urlapi = f"{api}?page={page}{list_id}"
-
-            # Response in List format
-            apiresult, success = fetch_url(urlapi)
-            soup = BeautifulSoup(apiresult, 'html5lib')
-            # Test if page result is empty
-            if soup.text.strip() == "[]" or soup.text.strip() == "<feff>":
-                return len(results)
-            next_page = True
-
-            # replace weird character , delete new line
-            apiresult = apiresult.replace('\n', '').strip().replace(':', ': ').replace("“", "'").replace("”", "'")
-
-            # conver to list of dict
-            apilist = list(json.loads(apiresult))
-
-            # List containt word without quote
-            titles = []
-            authors = []
-            isbn = []
-            for item in apilist:
-                tmp_dic = item
-                titles.append(tmp_dic['FullTitle'])
-                authors.append(tmp_dic['MajorContributorName'])
-                isbn.append(tmp_dic['ExternalProductId'])
-
-            if len(authors) == len(titles):
-                res = []
-                temp_res = list(zip(authors, titles, isbn, strict=True))
-                # suppress blanks and duplicates
-                for item in temp_res:
-                    if item[0] and item[1] and item not in res:
-                        res.append(item)
-
-                for item in res:
-                    results.append({
-                        'rss_prov': provider,
-                        'rss_feed': feednr,
-                        'rss_title': item[1],
-                        'rss_author': item[0],
-                        'rss_bookid': '',
-                        'rss_isbn': item[2],
-                        'priority': priority,
-                        'dispname': dispname,
-                        'types': types,
-                        'label': label,
-                    })
-            page += 1
-            if test:
-                logger.debug(f"Test found {len(results)} {plural(len(results), 'result')} from {host}")
-                return len(results)
-    logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
     return results
 
 
@@ -1700,13 +1460,15 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     if not dispname:
         dispname = provider
 
+    lazylibrarian.test_data = f'Querying {dispname}'
+
     while next_page:
         if '?' in host:
             url = f"{host}&page={page}"
         else:
             url = f"{host}?page={page}"
 
-        result, success = fetch_url(url)
+        result, success = fetch_url(url, impersonate='chrome')
 
         next_page = False
 
@@ -1745,6 +1507,7 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
 
         if test:
             logger.debug(f"Test found {len(results)} {plural(len(results), 'result')} from {host}")
+            lazylibrarian.test_data = ''
             return len(results)
 
         page += 1
@@ -1753,6 +1516,7 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
             next_page = False
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     return results
 
 
@@ -1760,10 +1524,14 @@ def mam(host=None, feednr=None, priority=0, dispname=None, types='E', test=False
     logger = logging.getLogger(__name__)
     results = []
     basehost = host
+    if not dispname:
+        dispname = host
     if str(host)[:4] != "http":
         host = f"http://{host}"
 
     url = host
+
+    lazylibrarian.test_data = f'Querying {dispname}'
 
     result, success = fetch_url(url, timeout=False)
 
@@ -1838,6 +1606,8 @@ def mam(host=None, feednr=None, priority=0, dispname=None, types='E', test=False
         logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
     else:
         logger.debug(f'No data returned from {host}')
+
+    lazylibrarian.test_data = ''
     if test:
         return len(results)
     return results
@@ -1851,6 +1621,8 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
     logger = logging.getLogger(__name__)
     results = []
     basehost = host
+    if not dispname:
+        dispname = host
     if str(host)[:4] != "http":
         host = f"http://{host}"
 
@@ -1859,6 +1631,8 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
     page = 1
     next_page = True
 
+    lazylibrarian.test_data = f'Querying {dispname}'
+
     while next_page:
         if page > 1:
             if '?' in host:
@@ -1866,7 +1640,7 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
             else:
                 url = f"{host}?page={page}"
 
-        result, success = fetch_url(url)
+        result, success = fetch_url(url, impersonate='chrome')
         next_page = False
 
         if success:
@@ -1912,6 +1686,7 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
                     next_page = True
         if test:
             logger.debug(f"Test found {len(results)} {plural(len(results), 'result')} from {host}")
+            lazylibrarian.test_data = ''
             return len(results)
 
         page += 1
@@ -1920,6 +1695,7 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
             next_page = False
 
     logger.debug(f"Found {len(results)} {plural(len(results), 'result')} from {host}")
+    lazylibrarian.test_data = ''
     return results
 
 
