@@ -6,6 +6,7 @@ Zlibrary-API / Zlibrary.py
 Enhanced fork (granary17/Zlibrary-API), changes vs upstream:
   - every request returns a real value or raises; no more print()+None
   - configurable domain/mirror, optional proxies (e.g. Tor socks5)
+  - curl_cffi session with TLS impersonation to bypass DiamWall fingerprinting
   - requests.Session reuse, timeouts, retry with backoff on 429/5xx/network
   - HTTP status checked before .json(); non-JSON (challenge) pages raise
   - correct type annotations, py3.7+ via future annotations
@@ -22,7 +23,9 @@ import logging
 import time
 from typing import Any
 
-import requests
+from curl_cffi import requests
+from curl_cffi.curl import CurlError
+from curl_cffi.requests.exceptions import RequestException
 
 logger = logging.getLogger("zlibrary")
 
@@ -85,10 +88,11 @@ class Zlibrary:
         self._domain = _normalize_domain(domain)
         self._timeout = timeout
         self._max_retries = max_retries
-        self._session = requests.Session()
-        self._session.headers.update(_HEADERS)
+        kwargs: dict[str, Any] = {"impersonate": "chrome"}
         if proxies:
-            self._session.proxies.update(proxies)
+            kwargs["proxies"] = proxies
+        self._session = requests.Session(**kwargs)
+        self._session.headers.update(_HEADERS)
 
         self._cookies: dict[str, str] = {"siteLanguageV2": "en"}
         self._loggedin = False
@@ -153,7 +157,7 @@ class Zlibrary:
                     cookies=self._cookies if cookies is None else cookies,
                     timeout=self._timeout,
                 )
-            except requests.RequestException as exc:
+            except (RequestException, CurlError) as exc:
                 attempt += 1
                 if attempt > self._max_retries:
                     raise ZlibraryError(
@@ -491,7 +495,7 @@ class Zlibrary:
         while True:
             try:
                 resp = self._session.get(url, timeout=self._timeout)
-            except requests.RequestException as exc:
+            except (RequestException, CurlError) as exc:
                 attempt += 1
                 if attempt > self._max_retries:
                     raise ZlibraryError(
