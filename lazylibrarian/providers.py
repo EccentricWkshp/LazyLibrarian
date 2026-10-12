@@ -1102,7 +1102,7 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/ny_times')
+        TELEMETRY.record_usage_data('Wishlist/ny_times')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1164,7 +1164,7 @@ def amazon(host=None, feednr=None, priority=0, dispname=None, types='E', test=Fa
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/amazon')
+        TELEMETRY.record_usage_data('Wishlist/amazon')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1233,7 +1233,7 @@ def publishersweekly(host=None, feednr=None, priority=0, dispname=None, types='E
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/publishersweekly')
+        TELEMETRY.record_usage_data('Wishlist/publishersweekly')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1294,7 +1294,7 @@ def appsnprorg(host=None, feednr=None, priority=0, dispname=None, types='E', tes
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/appsnprprg')
+        TELEMETRY.record_usage_data('Wishlist/appsnprprg')
     results = []
     basehost = host
     booknames = []
@@ -1368,7 +1368,7 @@ def penguinrandomhouse(host=None, feednr=None, priority=0, dispname=None, types=
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/penguinrandomhouse')
+        TELEMETRY.record_usage_data('Wishlist/penguinrandomhouse')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1454,7 +1454,7 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/listopia')
+        TELEMETRY.record_usage_data('Wishlist/listopia')
     results = []
     maxpage = priority
     basehost = host
@@ -1536,7 +1536,7 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
 def mam(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/mam')
+        TELEMETRY.record_usage_data('Wishlist/mam')
     results = []
     basehost = host
     if not dispname:
@@ -1635,7 +1635,7 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
     """
     logger = logging.getLogger(__name__)
     if not test:
-        TELEMETRY.record_usage_data('WISHLIST/goodreads')
+        TELEMETRY.record_usage_data('Wishlist/goodreads')
     results = []
     basehost = host
     if not dispname:
