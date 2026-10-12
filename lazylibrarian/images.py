@@ -322,7 +322,8 @@ def cache_bookimg(img, bookid, src, suffix='', imgid=None):
     coverfile = os.path.join(DIRS.DATADIR, coverlink)
     if empty_image(coverfile):
         logger.debug(f"Got an empty {src} image for {bookid} [{img}]")
-        os.remove(coverfile)
+        if os.path.isfile(coverfile):
+            os.remove(coverfile)
     elif success:
         logger.debug(f"Caching {src} cover for {bookid}")
         return coverlink
