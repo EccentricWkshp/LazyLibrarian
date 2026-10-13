@@ -207,9 +207,11 @@ def audio_parts(folder, bookname, authorname):
     # there seem to be two common numbering systems x-y
     # for single-part audiobooks, x=part, y=total
     # for multi-part, x=chapter, y=part_in_chapter
+    # for multi-part books without chapters we try to use tags
+    # see #3107 "When Women Were Dragons_ A Novel--0004.mp3"
     for f in listdir(folder):
         if CONFIG.is_valid_booktype(f, booktype='audiobook'):
-            res = re.search(r'([0-9-]+\-[0-9]+)', f)
+            res = re.search(r'(\d+\-\d+)', f)
             if res and res.group():
                 entry = res.group().split('-')
                 chap = entry[0]
