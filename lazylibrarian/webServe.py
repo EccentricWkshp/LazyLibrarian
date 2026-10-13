@@ -25,6 +25,7 @@ import subprocess
 import threading
 import time
 import traceback
+import unicodedata
 import uuid
 from shutil import copyfile, rmtree
 from urllib.parse import quote, unquote, unquote_plus, urlencode, urlsplit, urlunsplit
@@ -205,6 +206,11 @@ for item in lazylibrarian.INFOSOURCES.keys():
     # source, authorid, bookid
     info_source = lazylibrarian.INFOSOURCES[item]
     api_sources.append([info_source, info_source['author_key'], info_source['book_key']])
+
+
+def fold(s):
+    s = unicodedata.normalize('NFKD', str(s))
+    return ''.join(c for c in s if not unicodedata.combining(c)).casefold()
 
 
 def clear_mako_cache(userid=0):
@@ -925,7 +931,8 @@ class WebInterface:
                     rows.append(nrow)  # add each rowlist to the masterlist
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in rows if q in fold(x)]
                 else:
                     filtered = rows
 
@@ -1759,7 +1766,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in rows if q in fold(x)]
+                    # filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = rows
 
@@ -3578,7 +3587,9 @@ class WebInterface:
                                     filtered.append(list(row))
                                     break
                     else:
-                        filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
+                        q = fold(sSearch)
+                        filtered = [x for x in rows if q in fold(x)]
+                        # filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = rows
 
@@ -5826,7 +5837,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in newrowlist if q in fold(x)]
+                    #filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = newrowlist
 
@@ -6036,7 +6049,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in newrowlist if q in fold(x)]
+                    #filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = newrowlist
 
@@ -6384,7 +6399,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in newrowlist if q in fold(x)]
+                    #filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = newrowlist
 
@@ -6626,7 +6643,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in newrowlist if q in fold(x)]
+                    #filtered = [x for x in newrowlist if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = newrowlist
 
@@ -7016,7 +7035,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in rows if q in fold(x)]
+                    #filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = rows
 
@@ -8158,7 +8179,9 @@ class WebInterface:
 
                 if sSearch:
                     serversidelogger.debug(f"filter {sSearch}")
-                    filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
+                    q = fold(sSearch)
+                    filtered = [x for x in rows if q in fold(x)]
+                    #filtered = [x for x in rows if sSearch.lower() in str(x).lower()]
                 else:
                     filtered = rows
 
