@@ -127,8 +127,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 90 add Origin to wanted table
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
+# 98 add bn_id to book table
 
-db_current_version = 97
+db_current_version = 98
 
 
 def upgrade_needed():
@@ -872,8 +873,8 @@ def check_db(upgradelog=None):
                 logger.warning(f"Found {len(no_bookid)} unknown bookids in readinglists")
             for item in no_bookid:
                 cmd = ('SELECT BookID from books WHERE ol_id=? OR gr_id=? OR lt_workid=? OR gb_id=?'
-                       ' or hc_id=? or dnb_id=? or ran_id=?')
-                res = db.match(cmd, (item, item, item, item, item, item, item))
+                       ' or hc_id=? or dnb_id=? or ran_id=? or bn_id=?')
+                res = db.match(cmd, (item, item, item, item, item, item, item, item))
                 if res:
                     logger.debug(f"readinglists bookid {item} is now {res[0]}")
                     cmd = "UPDATE readinglists SET BookID=? WHERE BookID=?"
@@ -1606,6 +1607,12 @@ def update_schema(db, upgradelog):
             upgradelog.write(f"{time.ctime()} v97: {lazylibrarian.UPDATE_MSG}\n")
             db.action("UPDATE books SET Status='Skipped' WHERE Status IS NULL")
             db.action("UPDATE books SET AudioStatus='Skipped' WHERE AudioStatus IS NULL")
+
+    if not has_column(db, "books", "bn_id"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding bn_id column to books table'
+        upgradelog.write(f"{time.ctime()} v98: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('ALTER TABLE books ADD COLUMN bn_id TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

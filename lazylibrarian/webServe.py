@@ -785,7 +785,7 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
-            # Sources that expose a per-author ID (unlike GoogleBooks/DNB, which are
+            # Sources that expose a per-author ID (unlike GoogleBooks/DNB/BN, which are
             # book-search-only - their author_key is the plain 'authorid' placeholder,
             # not a real per-source column). Derived from INFOSOURCES so a new such
             # source needs no change here or in the badge fallback below.
@@ -2814,8 +2814,8 @@ class WebInterface:
         # dnb_id even though those aren't author-linkable sources), counted in Python
         # rather than one SQL query per source since per-author book counts are small.
         # Column list is derived from INFOSOURCES (single source of truth, see !1850
-        # review) instead of a hand-duplicated tuple. DNB is excluded from the *count*
-        # loop below (but stays in book_source_cols for overlap) because it has no
+        # review) instead of a hand-duplicated tuple. DNB/BN are excluded from the *count*
+        # loop below (but stay in book_source_cols for overlap) because they have no
         # dedicated row in author_detail.html - unlike GoogleBooks, which also has no
         # author entity of its own but does get a row, so it stays in both.
         book_source_cols = tuple(src['book_key'] for src in lazylibrarian.INFOSOURCES.values()
@@ -2823,7 +2823,7 @@ class WebInterface:
         book_rows = db.select(
             f"SELECT {','.join(book_source_cols)} from books WHERE AuthorID=?", (authorid,))
         source_book_counts = {}
-        for col in (c for c in book_source_cols if c != 'dnb_id'):
+        for col in (c for c in book_source_cols if c not in ('dnb_id', 'bn_id')):
             count = 0
             overlap = 0
             for row in book_rows:
@@ -2975,7 +2975,7 @@ class WebInterface:
     def book_refresh_source_priority():
         """ Priority order for picking which single source to refresh a book from -
         author-linkable sources (INFOSOURCES's author_key, richer/more curated data)
-        before book-search-only ones (GoogleBooks/DNB), each group in INFOSOURCES'
+        before book-search-only ones (GoogleBooks/DNB/BN), each group in INFOSOURCES'
         own order. Every source implements the same add_bookid_to_db(bookid,
         bookstatus, audiostatus, reason) interface (see bookdict.py's docstring), so
         this can dispatch generically rather than needing per-source logic.
@@ -2994,7 +2994,7 @@ class WebInterface:
         self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
-        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,gb_id FROM books WHERE BookID=?",
+        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,bn_id,gb_id FROM books WHERE BookID=?",
                         (bookid,))
         db.close()
         if not book:
@@ -8471,7 +8471,7 @@ class WebInterface:
             CONFIG.set_bool('OL_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8488,7 +8488,24 @@ class WebInterface:
             CONFIG.set_bool('DNB_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+            # ensure at least one option is available
+            CONFIG.set_bool('OL_API', True)
+            CONFIG.set_str('BOOK_API', 'OpenLibrary')
+        return kwargs['status']
+
+    @cherrypy.expose
+    @require_auth()
+    def bn_api_changed(self, **kwargs):
+        # bn_api is true/false, not an api key
+        if kwargs['status']:
+            CONFIG.set_bool('BN_API', True)
+            CONFIG.set_str('BOOK_API', 'BN')
+        else:
+            CONFIG.set_bool('BN_API', False)
+        if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
+                and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8505,7 +8522,7 @@ class WebInterface:
             CONFIG.set_bool('RAN_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8522,7 +8539,7 @@ class WebInterface:
             CONFIG.set_bool('HC_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8537,7 +8554,7 @@ class WebInterface:
             CONFIG.set_str('BOOK_API', 'GoodReads')
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8552,7 +8569,7 @@ class WebInterface:
             CONFIG.set_str('BOOK_API', 'GoogleBooks')
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')

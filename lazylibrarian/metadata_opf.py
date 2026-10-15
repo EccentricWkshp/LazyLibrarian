@@ -24,6 +24,7 @@ ISBN, publication date, and other bibliographic information.
 import datetime
 import logging
 import os
+import re
 import subprocess
 from xml.sax.saxutils import escape
 
@@ -173,6 +174,8 @@ def create_opf(dest_path, data_row, global_name=None, overwrite=False):
             scheme = "HardCover"
     elif bookid.startswith("OL"):
         scheme = "OpenLibrary"
+    elif re.match(r"^b\d{12,}$", bookid):
+        scheme = "BN"
     else:
         scheme = "GoogleBooks"
 

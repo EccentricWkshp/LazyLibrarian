@@ -169,7 +169,7 @@
                     %endfor
                   </tbody>
                 </table>
-                %if CONFIG['GB_API'] or CONFIG['DNB_API']:
+                %if CONFIG['GB_API'] or CONFIG['DNB_API'] or CONFIG['BN_API']:
                 <label class="control-label">Search for additional titles (book search only, no author linking):</label><br>
                 %if CONFIG['GB_API']:
                 <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
@@ -178,6 +178,10 @@
                 %if CONFIG['DNB_API']:
                 <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
                   <i class="fa fa-search"></i> Search DNB</a>
+                %endif
+                %if CONFIG['BN_API']:
+                <a class="btn btn-sm btn-default" href="search?searchfor=${config['AuthorName']}" target="_blank">
+                  <i class="fa fa-search"></i> Search BN</a>
                 %endif
                 %endif
               </div>

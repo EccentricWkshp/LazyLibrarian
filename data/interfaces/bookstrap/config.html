@@ -632,6 +632,7 @@
                     gr_selected = ''
                     hc_selected = ''
                     dnb_selected = ''
+                    bn_selected = ''
                     ran_selected = ''
                     if CONFIG['BOOK_API'] == "GoodReads":
                         gr_selected = 'selected="selected"'
@@ -643,6 +644,8 @@
                         hc_selected = 'selected="selected"'
                     if CONFIG['BOOK_API'] == "DNB":
                         dnb_selected = 'selected="selected"'
+                    if CONFIG['BOOK_API'] == "BN":
+                        bn_selected = 'selected="selected"'
                     if CONFIG['BOOK_API'] == "RanobeDB":
                         ran_selected = 'selected="selected"'
                     %>
@@ -659,6 +662,9 @@
                       %endif
                       %if CONFIG['DNB_API']:
                         <option value = "DNB" ${dnb_selected}>Deutsche Nationalbibliothek</option>
+                      %endif
+                      %if CONFIG['BN_API']:
+                        <option value = "BN" ${bn_selected}>Biblioteka Narodowa</option>
                       %endif
                       %if CONFIG['RAN_API']:
                         <option value = "RanobeDB" ${ran_selected}>RanobeDB</option>
@@ -717,6 +723,16 @@
                     <label for="dnb_api">
                       <input type="checkbox" id="dnb_api" name="dnb_api" value="1" ${checked} />
                       Enable Deutsche Nationalbibliothek api for book information
+                    </label>
+                  </div>
+                  </fieldset>
+                  <fieldset id="bn_options">
+                  <label class="control-label">Biblioteka Narodowa API:</label>
+                  <div class="checkbox">
+                    <% checked = 'checked="checked"' if CONFIG['BN_API'] else '' %>
+                    <label for="bn_api">
+                      <input type="checkbox" id="bn_api" name="bn_api" value="1" ${checked} />
+                      Enable Biblioteka Narodowa (National Library of Poland) api for book information
                     </label>
                   </div>
                   </fieldset>

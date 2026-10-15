@@ -78,6 +78,15 @@ class TestCache(LLTestCaseWithConfigandDIRS):
         self.assertFalse(res, 'Expect blank URL to fail')
         self.assertEqual(msg, 'Blocked: Google quota exhausted')
 
+    def test_service_for_url(self):
+        self.assertEqual(cache.service_for_url('https://www.goodreads.com/book/isbn/123'), 'GoodReads')
+        self.assertEqual(cache.service_for_url('http://www.google.com/search?q=ISBN+9788375780635'), 'ISBN')
+        self.assertEqual(cache.service_for_url('https://services.dnb.de/sru/dnb?query=x'), 'DNB')
+        # query parameters must not be mistaken for a service
+        self.assertEqual(cache.service_for_url(
+            'https://data.bn.org.pl/api/institutions/bibs.marcxml?isbnIssn=838566114X'), '')
+        self.assertEqual(cache.service_for_url('https://example.com/search?title=hardcover+dnb'), '')
+
     # This method will be used by the mock to replace requests.get
     def mocked_requests_get(*args, **kwargs):
         class MockResponse:
