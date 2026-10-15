@@ -271,16 +271,21 @@
             %if CONFIG.get_int('EBOOK_TAB') > 0 and CONFIG.get_int('AUDIO_TAB') > 0:
               <option value="WantBoth">Both Wanted</option>
             %endif
-            <option value="Have">Have</option>
-            <option value="Ignored">Ignored</option>
-            %endif
-            %if CONFIG.get_int('EBOOK_TAB') > 0 and CONFIG.get_int('AUDIO_TAB') > 0:
-              <option value="IgnoreBoth">Both Ignored</option>
-            %endif
-            <option value="Skipped">Skipped</option>
+            %for code, label in [('Have', 'Have'), ('Ignore', 'Ignored'), ('Skip', 'Skipped')]:
+              %if CONFIG.get_int('EBOOK_TAB') > 0:
+                <option value="${code}Ebook">eBook ${label}</option>
+              %endif
+              %if CONFIG.get_int('AUDIO_TAB') > 0:
+                <option value="${code}Audio">Audio ${label}</option>
+              %endif
+              %if CONFIG.get_int('EBOOK_TAB') > 0 and CONFIG.get_int('AUDIO_TAB') > 0:
+                <option value="${code}Both">Both ${label}</option>
+              %endif
+            %endfor
             <option value="Remove">Remove</option>
             <option value="Delete">Delete</option>
             <option value="Leave" hidden>Leave</option>
+          %endif
           % endif
           %if CONFIG['USER_ACCOUNTS']:
             <option value="Unread">Unread</option>
@@ -488,7 +493,7 @@
                             btn2 = '<p><a class="a btn btn-xs btn-danger"><i class="fa fa-headphones"></i> ' + btn2 + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=AudioBook" target="_self"><i class="fa fa-search"></i> Search</a></p>'}
                         else if ( btn2.indexOf('Snatched') >= 0 ) {
                             btn2 = '<a class="button btn btn-xs btn-info"><i class="fa fa-headphones"></i> ' + btn2 + '</a>'}
-                        else if ( btn.indexOf('Ignored') >= 0 ) {
+                        else if ( btn2.indexOf('Ignored') >= 0 ) {
                             btn2 = '<button onclick="dlinfo(\'' + btn2 + '^' + row[9] +
                             '\')" class="button btn btn-xs btn-primary" type="button"><i class="fa fa-headphones"></i> ' + btn2 + '</button>'}
                         else if ( btn2.indexOf('Have') >= 0 ) {
