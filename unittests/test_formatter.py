@@ -595,6 +595,13 @@ class FormatterTest(LLTestCaseWithStartup):
                 authorname = formatter.format_author_name(name[0], postfix=postfix)
                 self.assertEqual(authorname, name[1], f"{name[0]} -> {authorname} instead of {name[1]}")
 
+    def test_unaccented(self):
+        self.assertEqual(formatter.unaccented('Stefan Żeromski'), 'Stefan Zeromski')
+        # 'ł' has no separate accent to strip, it must not be dropped
+        self.assertEqual(formatter.unaccented('Łukasz Orbitowski'), 'Lukasz Orbitowski')
+        self.assertEqual(formatter.unaccented('Stanisław Lem'), 'Stanislaw Lem')
+        self.assertEqual(formatter.unaccented('Łódź', only_ascii=False), 'Łódź')
+
     def test_disp_name(self):
         # Add some dummy data to test on
         rss = self.cfg().providers('RSS')

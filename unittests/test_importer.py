@@ -2,6 +2,7 @@
 #
 # Purpose:
 #   Testing functionality in importer.py
+import unicodedata
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -96,6 +97,31 @@ class ImporterTest(LLTestCaseWithStartup):
         self.assertEqual(new, False)
         self.assertEqual(authorname, testname)
         self.assertEqual(authorid, 'OL272947A')
+
+    def test_collate_fuzzy_unicode_forms(self):
+        composed = 'Stefan Żeromski'
+        decomposed = unicodedata.normalize('NFD', composed)
+        self.assertNotEqual(composed, decomposed)
+        self.assertEqual(importer.collate_fuzzy(composed, decomposed), 0)
+
+    def test_get_preferred_author_unicode_forms(self):
+        # names can be stored composed or decomposed, a lookup in either form finds the stored author
+        db = database.DBConnection()
+        try:
+            for authorid, name in [('UNI_NFC', 'Andrzej Ziemiański'),
+                                   ('UNI_NFD', unicodedata.normalize('NFD', 'Jacek Pacyński'))]:
+                db.action("INSERT OR REPLACE INTO authors (AuthorID, AuthorName, Status) VALUES (?, ?, ?)",
+                          (authorid, name, 'Active'))
+            for name, authorid in [('Andrzej Ziemiański', 'UNI_NFC'),
+                                   (unicodedata.normalize('NFD', 'Andrzej Ziemiański'), 'UNI_NFC'),
+                                   ('Jacek Pacyński', 'UNI_NFD'),
+                                   (unicodedata.normalize('NFD', 'Jacek Pacyński'), 'UNI_NFD')]:
+                with self.subTest(name=name):
+                    self.assertEqual(importer.get_preferred_author(name)[1], authorid)
+        finally:
+            db.action("DELETE FROM authors WHERE AuthorID IN ('UNI_NFC', 'UNI_NFD')")
+            db.close()
+
 
 class MoveBookToAuthorTest(LLTestCaseWithStartup):
 
