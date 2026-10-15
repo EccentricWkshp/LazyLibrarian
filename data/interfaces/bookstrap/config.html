@@ -7,6 +7,7 @@
     from lazylibrarian.logconfig import LOGCONFIG
     from lazylibrarian.notifiers import APPRISE_VER
     from lazylibrarian import MONTHNAMES, SEASONS
+    from lazylibrarian import i18n
 %>
 <%def name="headerIncludes()">
 <div id="subhead_container">
@@ -495,6 +496,17 @@
                         %for page in ['Authors', 'eBooks', 'Series', 'AudioBooks','Magazines', 'Comics']:
                         <% selected = 'selected="selected"' if CONFIG['HOMEPAGE'] == page else '' %>
                         <option value="${page}" ${selected}>${page}</option>
+                        %endfor
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="ui_language">${_('Interface language:')}</label>
+                      <select id="ui_language" name="ui_language" class="form-control">
+                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == 'auto' else '' %>
+                        <option value="auto" ${selected}>${_('Automatic (browser language)')}</option>
+                        %for lang in i18n.available_languages():
+                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == lang else '' %>
+                        <option value="${lang}" ${selected}>${i18n.language_name(lang)} (${lang})</option>
                         %endfor
                       </select>
                     </div>

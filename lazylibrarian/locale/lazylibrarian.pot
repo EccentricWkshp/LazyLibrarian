@@ -1,0 +1,466 @@
+# Translations template for LazyLibrarian.
+# Copyright (C) 2026 LazyLibrarian contributors
+# This file is distributed under the same license as the LazyLibrarian
+# project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: LazyLibrarian VERSION\n"
+"Report-Msgid-Bugs-To: "
+"https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues\n"
+"POT-Creation-Date: 2026-10-15 12:12+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: data/interfaces/bookstrap/base.html:50
+msgid "Filter: "
+msgstr ""
+
+#. TRANSLATORS: _MENU_ is replaced by the rows per page dropdown, keep it as it
+#. is
+#: data/interfaces/bookstrap/base.html:52
+msgid "_MENU_ rows per page"
+msgstr ""
+
+#. TRANSLATORS: _START_, _END_ and _TOTAL_ are replaced by numbers, keep them
+#. as they are
+#: data/interfaces/bookstrap/base.html:54
+msgid "Showing _START_ to _END_ of _TOTAL_ rows"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:55
+msgid "Showing 0 to 0 of 0 rows"
+msgstr ""
+
+#. TRANSLATORS: _MAX_ is replaced by a number, keep it as it is
+#: data/interfaces/bookstrap/base.html:57
+msgid "(filtered from _MAX_ total rows)"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:58
+#: data/interfaces/bookstrap/index.html:348
+msgid "Processing..."
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:59
+msgid "Loading..."
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:61
+msgid "First"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:62
+msgid "Previous"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:63
+msgid "Next"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:64
+msgid "Last"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:81
+msgid "Clear"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:212
+msgid "Toggle navigation"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:232
+msgid "Authors"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:237
+msgid "eBooks"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:244
+msgid "Series"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:252
+msgid "Audio"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:253
+msgid "AudioBooks"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:263
+msgid "Mags"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:264
+msgid "Magazines"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:273
+msgid "Comics"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:279
+#: data/interfaces/bookstrap/base.html:281
+msgid "Manage"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:285
+msgid "History"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:288
+msgid "Logs"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:291
+msgid "Config"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:293
+msgid "Help"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:297
+msgid "User"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:300
+msgid "Logout"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:317
+msgid "Go to top"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:323
+msgid "LazyLibrarian Telemetry"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:324
+msgid ""
+"LazyLibrarian has the ability to send basic information about the "
+"installation, how it is configured, and how it is used to a server. This "
+"helps the developers figure out where it is worth improving, and which "
+"parts nobody uses. All telemetry information is 100% anonymized."
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:325
+msgid "Turn on"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:325
+#: data/interfaces/bookstrap/base.html:383
+msgid "Enable Telemetry"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:326
+msgid "Ask me again later"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:326
+msgid "Maybe Later"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:329
+msgid "LazyLibrarian Update"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:331
+msgid "You are running an unknown version of lazylibrarian"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:333
+msgid "You are running an unknown version via source install"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:336
+msgid "Unable to get the latest version from git"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:338
+msgid ""
+"Running a local updated version. Push changes to git or rollback to "
+"Master release"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:341
+#, python-format
+msgid "New version available. You are one commit behind."
+msgid_plural "New version available. You are %(count)d commits behind."
+msgstr[0] ""
+msgstr[1] ""
+
+#: data/interfaces/bookstrap/base.html:345
+msgid "Manual update is required"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:349
+msgid "Update to the latest release"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:349
+msgid "Update"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:356
+msgid "Ignore the update message for 24 hours"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:356
+msgid "Ignore"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:387
+#: data/interfaces/bookstrap/base.html:412
+#: data/interfaces/bookstrap/base.html:531
+#: data/interfaces/bookstrap/index.html:408
+msgid "Close"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:408
+msgid "Check Version"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:424
+msgid "Are you sure you want to logout?"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:427
+#: data/interfaces/bookstrap/index.html:309
+msgid "Yes"
+msgstr ""
+
+#: data/interfaces/bookstrap/base.html:431
+#: data/interfaces/bookstrap/index.html:313
+msgid "No"
+msgstr ""
+
+#: data/interfaces/bookstrap/config.html:503
+msgid "Interface language:"
+msgstr ""
+
+#: data/interfaces/bookstrap/config.html:506
+msgid "Automatic (browser language)"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:11
+msgid "Refresh Authors"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:14
+msgid "Show Active Authors"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:16
+msgid "Show Inactive Authors"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:20
+#: data/interfaces/bookstrap/index.html:22
+msgid "All, or just mine"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:26
+#: data/interfaces/bookstrap/index.html:28
+msgid "Grid view"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:32
+#: data/interfaces/bookstrap/index.html:34
+msgid "Primary Author, or All Contributors"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:42
+msgid "Search"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:44
+msgid "Title / Author / ISBN"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:46
+msgid "Search for author/book"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:60
+msgid "Author Refresh in progress ..."
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:65
+#: data/interfaces/bookstrap/index.html:69
+msgid "Search in progress ..."
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:79
+msgid "Mark selected as"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:82
+msgid "Active"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:83
+msgid "Wanted"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:84
+msgid "Ignored"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:85
+msgid "Paused"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:86
+msgid "Remove"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:87
+msgid "Delete"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:88
+msgid "Delete + Ignore"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:91
+msgid "Subscribe"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:92
+msgid "Unsubscribe"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:96
+msgid "Go"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:101
+msgid "Toggle:"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:101
+#: data/interfaces/bookstrap/index.html:121
+msgid "Image"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:102
+#: data/interfaces/bookstrap/index.html:122
+msgid "Author"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:103
+#: data/interfaces/bookstrap/index.html:123
+msgid "Added"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:104
+msgid "Latest"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:105
+#: data/interfaces/bookstrap/index.html:125
+msgid "Released"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:106
+#: data/interfaces/bookstrap/index.html:126
+msgid "Downloaded"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:107
+#: data/interfaces/bookstrap/index.html:127
+msgid "Status"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:124
+msgid "Latest Book"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:184
+msgid "Cover"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:220
+msgid "Complete"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:236
+msgid "No authors found"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:240
+msgid "All"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:278
+msgid "Results filter"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:294
+#, python-format
+msgid ""
+"Are you sure you want to permanently delete the selected author and their"
+" media?"
+msgid_plural ""
+"Are you sure you want to permanently delete the %(count)s selected "
+"authors and their media?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: data/interfaces/bookstrap/index.html:298
+#, python-format
+msgid ""
+"Are you sure you want to delete media for the selected author and ignore "
+"them?"
+msgid_plural ""
+"Are you sure you want to delete media for the %(count)s selected authors "
+"and ignore them?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: data/interfaces/bookstrap/index.html:302
+#, python-format
+msgid "Are you sure you want to remove the selected author?"
+msgid_plural "Are you sure you want to remove the %(count)s selected authors?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: data/interfaces/bookstrap/index.html:375
+msgid "Summary:"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:378
+msgid "Successful:"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:380
+msgid "Failed:"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:385
+msgid "Mark Authors Complete"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:389
+msgid "OK"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:404
+msgid "Error"
+msgstr ""
+
+#: data/interfaces/bookstrap/index.html:405
+msgid "An error occurred:"
+msgstr ""
+
