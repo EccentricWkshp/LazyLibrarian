@@ -66,6 +66,16 @@ class FormatterTest(LLTestCaseWithStartup):
         for d in data:
             self.assertEqual(formatter.make_bytestr(d[0]), d[1])
 
+    def test_make_bytestr_falls_back_when_sys_encoding_cannot_encode(self):
+        # windows cp1250 can't encode "ō", make_bytestr should fall back to utf-8, not raise
+        saved = formatter._encodings[:]
+        try:
+            formatter._encodings[:] = ['cp1250', 'utf-8', 'iso-8859-15', 'cp850']
+            self.assertEqual(formatter.make_bytestr("Karel Čapek"), "Karel Čapek".encode('cp1250'))
+            self.assertEqual(formatter.make_bytestr("Marie Kondō"), b'Marie Kond\xc5\x8d')
+        finally:
+            formatter._encodings[:] = saved
+
     def test_safe_unicode(self):
         strings = [
             ("", ""),
