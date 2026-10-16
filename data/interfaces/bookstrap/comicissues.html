@@ -162,9 +162,9 @@
               };
             });
 
-            var page = oTable.page();
+            var page = table.page();
             if ( page != '0' ) {
-                if (${firstpage}) { oTable.page( 'first' ).draw( 'page' ); }
+                if (${firstpage}) { table.page( 'first' ).draw( 'page' ); }
             }
 
             $('.dataTables_filter input').attr("placeholder", "Results filter");
