@@ -77,6 +77,10 @@
                 <input id="lltheme" name="lltheme" class="form-control" value="" placeholder="Default">
               </div>
               <div class="form-group col-md-6">
+                <label for="ui_lang">UI Language</label>
+                <input id="ui_lang" name="ui_lang" class="form-control" value="" placeholder="Default">
+              </div>
+              <div class="form-group col-md-6">
                 <label for="userid">UserID</label>
                 <input id="userid" name="userid" class="form-control" value="" readonly>
               </div>
@@ -162,6 +166,7 @@
             $("#downloads").val(obj['downloads']);
             $("#logins").val(obj['logins']);
             $("#lltheme").val(obj['theme']);
+            $("#ui_lang").val(obj['ui_lang']);
             $("#summernote").val(obj['subs']);
             $("#password").val("");
             $("#hc_id").val(obj['hc_id']);
@@ -309,10 +314,11 @@
           var booktype = $.trim($("#booktype").val());
           var password = $.trim($("#password").val());
           var lltheme = $.trim($("#lltheme").val());
+          var ui_lang = $.trim($("#ui_lang").val());
           var hc_token = $.trim($("#hc_token").val());
           $.get("admin_users", {'user': user, 'username': username, 'fullname': fullname, 'email': email,
                 'sendto': sendto, 'perms': perms, 'password': password, 'calread': calread, 'caltoread': caltoread,
-                'booktype': booktype, 'theme': lltheme, 'hc_token': hc_token},
+                'booktype': booktype, 'theme': lltheme, 'hc_token': hc_token, 'ui_lang': ui_lang},
                 function (data) {
                 bootbox.dialog({
                     title: 'Update User',

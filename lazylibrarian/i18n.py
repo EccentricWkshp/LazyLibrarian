@@ -10,6 +10,7 @@
 #    Untranslated strings fall back to the English source text.
 
 import ast
+import contextlib
 import gettext as _gettext
 import json
 import logging
@@ -101,19 +102,15 @@ class POTranslations(_gettext.NullTranslations):
                 for part in value.split(';'):
                     part = part.strip()
                     if part.startswith('nplurals='):
-                        try:
+                        with contextlib.suppress(ValueError):
                             self.nplurals = int(part[len('nplurals='):])
-                        except ValueError:
-                            pass
                     elif part.startswith('plural='):
                         expr = part[len('plural='):].strip()
-                        try:
+                        with contextlib.suppress(ValueError, SyntaxError):
                             # c2py also validates the expression, so it is safe to reuse in javascript
                             # noinspection PyProtectedMember,PyUnresolvedReferences
                             self.plural = _gettext.c2py(expr)
                             self.plural_expr = expr
-                        except (ValueError, SyntaxError):
-                            pass
 
     def gettext(self, message):
         return self._catalog.get(message) or message

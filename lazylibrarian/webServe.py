@@ -240,6 +240,7 @@ def clear_our_cookies():
     cookie['ll_prefs']['path'] = '/'
     cookie['ll_prefs']['expires'] = 0
     cookie['ll_prefs']['max-age'] = 0
+    cookie['ll_uilang'] = ''
 
 
 def refresh_book_languages():
@@ -339,8 +340,13 @@ def refresh_book_languages():
 
 def template_i18n():
     """ Set the UI language for this request and return the translation helpers for templates """
-    lang = i18n.resolve_language(CONFIG.get_str('UI_LANGUAGE'),
-                                 cherrypy.request.headers.get('Accept-Language', ''))
+    uilang = ''
+    cookie = cherrypy.request.cookie
+    if cookie and 'll_uilang' in list(cookie.keys()):
+        uilang = cookie['ll_uilang'].value
+    if not uilang:
+        uilang = CONFIG.get_str('UI_LANGUAGE')
+    lang = i18n.resolve_language(uilang, cherrypy.request.headers.get('Accept-Language', ''))
     i18n.set_language(lang)
     return {'_': i18n.gettext, '_js': i18n.gettext_js, '_jsn': i18n.ngettext_js, 'js': i18n.js_string,
             'ngettext': i18n.ngettext, 'pgettext': i18n.pgettext, 'js_plural': i18n.plural_expression,
@@ -403,6 +409,7 @@ def serve_template(templatename, **kwargs):
                 if res:
                     cherrypy.response.cookie['ll_uid'] = res['UserID']
                     cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                     userid = res['UserID']
                     if formauth:
                         logger.debug(f"Auth-login for {res['UserName']}")
@@ -427,6 +434,7 @@ def serve_template(templatename, **kwargs):
                     if res:
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                     else:
                         adminlogger.debug(f"No user for uid {cookie['ll_uid'].value}")
                         clear_our_cookies()
@@ -442,6 +450,7 @@ def serve_template(templatename, **kwargs):
                     if res:
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                     else:
                         adminlogger.debug(f"No user for basic auth {user} or invalid password")
                 if not res and CONFIG.get_bool('PROXY_AUTH'):
@@ -454,6 +463,7 @@ def serve_template(templatename, **kwargs):
                             logger.debug(f"{user} is a registered user")
                             cherrypy.response.cookie['ll_uid'] = res['UserID']
                             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                             db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                       (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                         else:
@@ -484,6 +494,7 @@ def serve_template(templatename, **kwargs):
                                     res = db.match('SELECT * from users where UserName=?', (user,))
                                     cherrypy.response.cookie['ll_uid'] = res['UserID']
                                     cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                                     db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                               (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                                 else:
@@ -501,6 +512,7 @@ def serve_template(templatename, **kwargs):
                         res = db.match('SELECT * from users')
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                         logger.debug(f"Single user login for {res['UserName']}")
                         db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                   (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
@@ -522,6 +534,7 @@ def serve_template(templatename, **kwargs):
                             res = db.match('SELECT * from users where Perms=65535')
                             cherrypy.response.cookie['ll_uid'] = res['UserID']
                             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
                             logger.debug(f"Auto-login for {res['UserName']} at {remote_ip}")
                             db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                       (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
@@ -1091,7 +1104,7 @@ class WebInterface:
         if cookie and 'll_uid' in list(cookie.keys()):
             userid = cookie['ll_uid'].value
             db = database.DBConnection()
-            user = db.match('SELECT UserName,Name,Email,Password,BookType,SendTo,Theme,hc_token '
+            user = db.match('SELECT UserName,Name,Email,Password,BookType,SendTo,Theme,hc_token,ui_lang '
                             'from users where UserID=?', (userid,))
             if user:
                 if kwargs['username'] and user['UserName'] != kwargs['username']:
@@ -1138,6 +1151,10 @@ class WebInterface:
                         db.action('UPDATE users SET Theme=? WHERE UserID=?', (theme, userid))
                     else:
                         logger.warning(f"Invalid user theme [{theme}]")
+
+                if user['UI_Lang'] != kwargs['ui_lang']:
+                    changes += ' UI_Lang'
+                    db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
 
                 if user['SendTo'] != kwargs['sendto']:
                     if not is_valid_email(kwargs['sendto']):
@@ -1215,6 +1232,8 @@ class WebInterface:
         if res and pwd == res['Password']:
             cherrypy.response.cookie['ll_uid'] = res['UserID']
             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
+            if res['UI_Lang']:
+                cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
             if 'remember' in kwargs:
                 cherrypy.response.cookie['ll_uid']['Max-Age'] = '86400'
 
@@ -1280,6 +1299,12 @@ class WebInterface:
             users = db.select('SELECT UserName from users')
         finally:
             db.close()
+        uilang = ''
+        cookie = cherrypy.request.cookie
+        if cookie and 'll_uilang' in list(cookie.keys()):
+            uilang = cookie['ll_uilang'].value
+        if not uilang:
+            uilang = CONFIG.get_str('UI_LANGUAGE')
         return serve_template(templatename="users.html", title="Manage User Accounts", users=users)
 
     @cherrypy.expose
@@ -1399,11 +1424,12 @@ class WebInterface:
                               'lastlogin': datetime.datetime.fromtimestamp(last_login).ctime()
                               if last_login else '',
                               'logins': match['Login_Count'], 'downloads': cnt['counter'], 'subs': subscriptions,
-                              'theme': match['Theme'], 'hc_id': match['hc_id'], 'hc_token': match['hc_token']})
+                              'theme': match['Theme'], 'hc_id': match['hc_id'], 'hc_token': match['hc_token'],
+                              'ui_lang': match['UI_Lang']})
         else:
             res = json.dumps({'email': '', 'name': '', 'perms': '0', 'calread': '', 'caltoread': '', 'sendto': '',
                               'booktype': '', 'userid': '', 'lastlogin': '', 'logins': '0', 'subs': '',
-                              'theme': '', 'hc_id': '', 'hc_token': ''})
+                              'theme': '', 'hc_id': '', 'hc_token': '', 'ui_lang': ''})
         db.close()
         return res
 
@@ -1489,7 +1515,7 @@ class WebInterface:
                 return "Username already exists"
 
         cmd = ("SELECT UserID,Name,Email,SendTo,Password,Perms,CalibreRead,CalibreToRead,BookType,Theme,"
-               "hc_token from users where UserName=?")
+               "hc_token,ui_lang from users where UserName=?")
         details = db.match(cmd, (user,))
 
         if details:
@@ -1520,6 +1546,13 @@ class WebInterface:
                     changes += ' password'
                     db.action('UPDATE users SET password=? WHERE UserID=?', (pwd, userid))
 
+            if kwargs.get('ui_lang'):
+                if details['UI_Lang'] != kwargs['ui_lang'] and (kwargs['ui_lang'] == 'auto' or kwargs['ui_lang'] in i18n.available_languages()):
+                    changes += ' UI_Language'
+                    db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
+                else:
+                    logger.warning(f"Invalid UI Language [{kwargs['ui_lang']}]")
+
             if details['Theme'] != kwargs['theme']:
                 valid = False
                 if kwargs['theme'] == 'legacy':
@@ -1528,6 +1561,8 @@ class WebInterface:
                     parts = kwargs['theme'].split('_', 1)
                     if parts[0] == 'bookstrap' and len(parts) == 2 and parts[1] in lazylibrarian.BOOKSTRAP_THEMELIST:
                         valid = True
+                else:
+                    valid = True
                 if valid:
                     changes += ' Theme'
                     db.action('UPDATE users SET Theme=? WHERE UserID=?', (kwargs['theme'], userid))

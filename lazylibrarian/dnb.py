@@ -910,9 +910,11 @@ class DNB:
     def find_results(self, searchterm=None, queue=None):
         if not CONFIG['DNB_API']:
             self.logger.warning('DNB API not enabled, check config')
+            queue.put([])
             return False
         if not etree or (not Lang and not iso_langs):
             self.logger.warning('Required modules missing, lxml and/or iso639')
+            queue.put([])
             return False
         try:
             resultlist = []
@@ -1013,7 +1015,7 @@ class DNB:
                         'bookisbn': book['bookisbn'],
                         'bookpub': book['bookpub'],
                         'bookdate': book['bookdate'],
-                        'booklang': ', '.join(set(book['booklang'])),
+                        'booklang': book['booklang'],
                         'booklink': book['booklink'],
                         'bookrate': float(book['bookrate']),
                         'bookrate_count': book['bookrate_count'],
@@ -1043,9 +1045,12 @@ class DNB:
             self.logger.debug(f"Removed {ignored} unwanted language {plural(ignored, 'result')}")
             self.logger.debug(f"Removed {no_author_count} {plural(no_author_count, 'book')} with no author")
             queue.put(resultlist)
+            return resultcount > 0
 
         except Exception:
             self.logger.error(f'Unhandled exception in DNB.find_results: {traceback.format_exc()}')
+            queue.put([])
+            return False
 
     @staticmethod
     def _book_dict(item):

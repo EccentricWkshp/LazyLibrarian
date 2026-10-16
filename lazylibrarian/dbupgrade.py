@@ -128,8 +128,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 91 add Category to wanted table
 # 92 add ran_id to author and books table
 # 98 add bn_id to book table
+# 99 add ui_lang to users table
 
-db_current_version = 98
+db_current_version = 99
 
 
 def upgrade_needed():
@@ -1613,6 +1614,12 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding bn_id column to books table'
         upgradelog.write(f"{time.ctime()} v98: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE books ADD COLUMN bn_id TEXT')
+
+    if not has_column(db, "users", "ui_lang"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding ui_lang column to users table'
+        upgradelog.write(f"{time.ctime()} v99: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('ALTER TABLE users ADD COLUMN ui_lang TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

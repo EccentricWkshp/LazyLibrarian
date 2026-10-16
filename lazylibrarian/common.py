@@ -205,6 +205,8 @@ def mime_type(filename):
         return 'application/x-mobi8-ebook'
     if name.endswith('.pdf'):
         return 'application/pdf'
+    if name.endswith('.fb2'):
+        return 'application/fb2+xml'
     if name.endswith('.mp3'):
         return 'audio/mpeg3'
     if name.endswith(('.m4a', '.m4b')):
