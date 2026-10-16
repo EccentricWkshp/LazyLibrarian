@@ -600,6 +600,32 @@ def serve_template(templatename, **kwargs):
         return exceptions.html_error_template().render()
 
 
+# Per-format variants of Have/Skipped/Ignored, mapped to (status, libraries)
+FORMAT_STATUS_ACTIONS = {
+    'HaveEbook': ('Have', 'eBook'),
+    'HaveAudio': ('Have', 'AudioBook'),
+    'HaveBoth': ('Have', 'eBook+AudioBook'),
+    'SkipEbook': ('Skipped', 'eBook'),
+    'SkipAudio': ('Skipped', 'AudioBook'),
+    'SkipBoth': ('Skipped', 'eBook+AudioBook'),
+    'IgnoreEbook': ('Ignored', 'eBook'),
+    'IgnoreAudio': ('Ignored', 'AudioBook'),
+    'IgnoreBoth': ('Ignored', 'eBook+AudioBook'),
+}
+
+
+def status_mark_targets(action: str, library: str) -> tuple[str, str] | None:
+    """Return (status, libraries) for a Have/Skipped/Ignored mark, or None for any other action.
+
+    The plain actions follow the page's library; the per-format ones name their own.
+    """
+    if action in FORMAT_STATUS_ACTIONS:
+        return FORMAT_STATUS_ACTIONS[action]
+    if action in ('Have', 'Skipped', 'Ignored'):
+        return action, library or ''
+    return None
+
+
 # noinspection PyProtectedMember,PyGlobalUndefined,PyGlobalUndefined
 class WebInterface:
 
@@ -5260,8 +5286,8 @@ class WebInterface:
                     logger.debug(f'Status set to {action} for {bookid}')
                     passed += 1
 
-                elif action in ["Skipped", "Have", "Ignored", "IgnoreBoth",
-                                "Wanted", "WantEbook", "WantAudio", "WantBoth"]:
+                elif action in ["Wanted", "WantEbook", "WantAudio", "WantBoth"] or \
+                        status_mark_targets(action, library):
                     bookdata = db.match('SELECT AuthorID,BookName,Status,AudioStatus from books WHERE BookID=?',
                                         (bookid,))
                     if bookdata:
@@ -5293,26 +5319,18 @@ class WebInterface:
                                 logger.debug(f'AudioStatus set to "Wanted" for "{bookname}"')
                                 wantedaudio.append({"bookid": bookid})
                                 passed += 1
-                        if (action == "Ignored" and 'eBook' in library) or action == "IgnoreBoth":
-                            db.upsert("books", {'Status': "Ignored", 'ScanResult': f'User {action}'},
-                                      {'BookID': bookid})
-                            logger.debug(f'Status set to "Ignored" for "{bookname}"')
-                            passed += 1
-                        if (action == "Ignored" and 'AudioBook' in library) or action == "IgnoreBoth":
-                            db.upsert("books", {'AudioStatus': "Ignored", 'ScanResult': f'User {action}'},
-                                      {'BookID': bookid})
-                            logger.debug(f'AudioStatus set to "Ignored" for "{bookname}"')
-                            passed += 1
-                        if action in ["Skipped", "Have"]:
-                            if 'eBook' in library:
-                                db.upsert("books", {'Status': action, 'ScanResult': f'User {action}'},
+                        targets = status_mark_targets(action, library)
+                        if targets:
+                            status, mark_library = targets
+                            if 'eBook' in mark_library:
+                                db.upsert("books", {'Status': status, 'ScanResult': f'User {status}'},
                                           {'BookID': bookid})
-                                logger.debug(f'Status set to "{action}" for "{bookname}"')
+                                logger.debug(f'Status set to "{status}" for "{bookname}"')
                                 passed += 1
-                            if 'AudioBook' in library:
-                                db.upsert("books", {'AudioStatus': action, 'ScanResult': f'User {action}'},
+                            if 'AudioBook' in mark_library:
+                                db.upsert("books", {'AudioStatus': status, 'ScanResult': f'User {status}'},
                                           {'BookID': bookid})
-                                logger.debug(f'AudioStatus set to "{action}" for "{bookname}"')
+                                logger.debug(f'AudioStatus set to "{status}" for "{bookname}"')
                                 passed += 1
                     else:
                         logger.warning(f"Unable to set status {action} for {bookid}")

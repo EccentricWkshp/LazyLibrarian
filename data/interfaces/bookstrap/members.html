@@ -51,8 +51,8 @@
             // would be nice to use fontawesome icons here but options are not styleable
             // and some browsers don't show them, eg linux firefox, android chrome
             // They only show icons on closed select, not in dropdown
-            %for item in ["eBook", "AudioBook", "eBook+Audio"]:
-              <option value="${item}">${item}</option>
+            %for value, label in [("eBook", "eBook"), ("AudioBook", "AudioBook"), ("eBook+AudioBook", "eBook+Audio")]:
+              <option value="${value}">${label}</option>
             %endfor
           </select>
         %else:
