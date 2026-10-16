@@ -1062,9 +1062,10 @@ def unaccented_bytes(str_or_unicode, only_ascii=True):
         stripped = ''.join([c for c in stripped if not unicodedata.combining(c)])
         # Other characters not converted by unicodedata.combining
         # c6 Ae, d0 Eth, d7 multiply, d8 Ostroke, de Thorn, df sharpS
-        # e6 ae, f0 eth, f7 divide, f8 ostroke, fe thorn
+        # e6 ae, f0 eth, f7 divide, f8 ostroke, fe thorn, 141 Lstroke, 142 lstroke
         dic = {'\xc6': 'A', '\xd0': 'D', '\xd7': '*', '\xd8': 'O', '\xde': 'P', '\xdf': 's',
-                '\xe6': 'a', '\xf0': 'o', '\xf7': '/', '\xf8': 'o', '\xfe': 'p'}
+                '\xe6': 'a', '\xf0': 'o', '\xf7': '/', '\xf8': 'o', '\xfe': 'p',
+                '\u0141': 'L', '\u0142': 'l'}
         stripped = replace_all(stripped, dic)
     if only_ascii is True:
         stripped = stripped.encode('ASCII', 'ignore')

@@ -19,6 +19,7 @@ import string
 import threading
 import time
 import traceback
+import unicodedata
 from hashlib import sha1
 from queue import Queue
 from urllib.parse import unquote_plus
@@ -82,12 +83,14 @@ def get_preferred_author(author, authorid=''):
         db.close()
         return check_exist_author['AuthorName'], check_exist_author['AuthorID']
 
-    # If no exact match, look for a close fuzzy match to handle misspellings, accents or AKA
-    match_name = author.lower().replace('.', '')
+    # If no exact match, look for a close fuzzy match to handle misspellings, accents or AKA.
+    # Compare in composed form, names may be stored decomposed (eg 'Z' plus a combining dot)
+    match_name = unicodedata.normalize('NFC', author).lower().replace('.', '')
     res = db.action('select AuthorID,AuthorName,AKA from authors')
     for item in res:
         aname = item['AuthorName']
         if aname:
+            aname = unicodedata.normalize('NFC', aname)
             match_fuzz = fuzz.ratio(aname, match_name, processor=default_process)
             if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
                 logger.debug(f"Fuzzy match [{item['AuthorName']}] {round(match_fuzz, 2)}% for [{author}]")
@@ -97,6 +100,7 @@ def get_preferred_author(author, authorid=''):
         akas = get_list(item['AKA'], ',')
         if akas:
             for aka in akas:
+                aka = unicodedata.normalize('NFC', aka)
                 match_fuzz = fuzz.token_set_ratio(aka, match_name, processor=default_process)
                 if match_fuzz >= CONFIG.get_int('NAME_RATIO'):
                     logger.debug(f"Fuzzy AKA match [{aka}] {round(match_fuzz, 2)}% for [{author}]")
@@ -748,8 +752,9 @@ def collate_nopunctuation(string1, string2):
 
 def collate_fuzzy(string1, string2):
     fuzzlogger = logging.getLogger('special.fuzz')
-    string1 = string1.lower()
-    string2 = string2.lower()
+    # compare in composed form, a decomposed 'Z' plus combining dot is the same as 'Ż'
+    string1 = unicodedata.normalize('NFC', string1).lower()
+    string2 = unicodedata.normalize('NFC', string2).lower()
     for entry in title_translates:
         string1 = string1.replace(entry[0], entry[1])
         string2 = string2.replace(entry[0], entry[1])
