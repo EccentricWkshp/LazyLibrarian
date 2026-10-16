@@ -927,7 +927,8 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                             # calibre uses "metadata.opf", LL uses "bookname - authorname.opf"
                             # match on the current book's filename since a series folder may
-                            # hold opf/metadata for more than one book
+                            # hold opf/metadata for more than one book, metadata.opf is only
+                            # used if no other book shares the folder
                             # Allow metadata in opf file to override book metadata as may be users pref
                             pre_opf_author = res.get('creator', '')
                             metafile = ''

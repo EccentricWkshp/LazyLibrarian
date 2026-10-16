@@ -445,20 +445,38 @@ def any_file(search_dir: str, extn: str) -> str:
     return ""
 
 
+def only_book_in_dir(search_dir: str, basename: str) -> bool:
+    """ Return True if every ebook/audiobook file in search_dir is named basename.<ext>,
+    ie the folder holds just one book, possibly in several formats """
+    for fname in listdir(search_dir):
+        if (DIRS.config.is_valid_booktype(fname, booktype='ebook') or
+                DIRS.config.is_valid_booktype(fname, booktype='audiobook')) and \
+                os.path.splitext(fname)[0] != basename:
+            return False
+    return True
+
+
 def opf_file(search_dir: str, bookfile: str = '') -> str:
     global _OPFWARN
     """ Look for .opf files in search_dir, returning the file name.
-    If bookfile is given, only <bookfile-basename>.opf is considered, since search_dir may
+    If bookfile is given, <bookfile-basename>.opf is preferred, since search_dir may
     hold opf for more than one book (eg a series folder) and any other .opf there belongs
-    to a different book. Return '' if it doesn't exist.
+    to a different book. If it doesn't exist, metadata.opf (as written by calibre) is used
+    only when no other book shares the folder. Return '' if neither applies.
     Otherwise (no bookfile given):
     If metadata.opf exists and no other opf file does, return metatadata.
     If metadata.opf and another .opf file exists, return the other one.
     If two or more other .opf files exist, we don't know which one to use.
     Warn and return any"""
     if bookfile:
-        candidate = os.path.join(search_dir, f"{os.path.splitext(os.path.basename(bookfile))[0]}.opf")
-        return candidate if path_isfile(candidate) else ''
+        basename = os.path.splitext(os.path.basename(bookfile))[0]
+        candidate = os.path.join(search_dir, f"{basename}.opf")
+        if path_isfile(candidate):
+            return candidate
+        candidate = os.path.join(search_dir, 'metadata.opf')
+        if path_isfile(candidate) and only_book_in_dir(search_dir, basename):
+            return candidate
+        return ''
     cnt = 0
     res = ''
     meta = ''
