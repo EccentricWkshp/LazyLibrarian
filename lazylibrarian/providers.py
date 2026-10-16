@@ -60,6 +60,7 @@ from lazylibrarian.torrentparser import (
     torrent_tdl,
     torrent_tpb,
 )
+from lazylibrarian.webshare import webshare_search
 
 
 def test_provider(name: str, host=None, api=None):
@@ -324,6 +325,14 @@ def test_provider(name: str, host=None, api=None):
         if api:
             CONFIG.set_str('ANNA_KEY', api)
         return anna_search(book, test=True), "ANNA"
+
+    if name == 'WEBSHARE':
+        logger.debug(f"Testing provider {name}")
+        if api:
+            user, pwd = api.split(' : ', 1)
+            CONFIG.set_str('WEBSHARE_USER', user)
+            CONFIG.set_str('WEBSHARE_PASS', pwd)
+        return webshare_search(book, test=True), "Webshare"
 
     msg = f"Unknown provider [{name}]"
     logger.error(msg)
@@ -917,6 +926,40 @@ def iterate_over_direct_sites(book=None, search_type=None):
                 else:
                     # use a short delay for site unavailable etc
                     BLOCKHANDLER.block_provider(provider, error, delay=CONFIG.get_int('BLOCKLIST_TIMER'))
+            else:
+                resultslist += results
+                providers += 1
+
+    prov = 'WEBSHARE'
+    if CONFIG[prov]:
+        iterateproviderslogger.debug(f"DLTYPES: {prov}: {CONFIG[prov]} {CONFIG[prov + '_DLTYPES']}")
+        provider = 'webshare'
+        ignored = False
+        if BLOCKHANDLER.is_blocked(provider):
+            logger.debug('webshare is BLOCKED')
+            ignored = True
+        elif search_type in ['book', 'shortbook', 'titlebook'] and                 'E' not in CONFIG[f"{prov}_DLTYPES"]:
+            logger.debug(f"Ignoring {prov} for eBook")
+            ignored = True
+        elif "audio" in search_type and 'A' not in CONFIG[f"{prov}_DLTYPES"]:
+            logger.debug(f"Ignoring {prov} for AudioBook")
+            ignored = True
+        elif "mag" in search_type and 'M' not in CONFIG[f"{prov}_DLTYPES"]:
+            logger.debug(f"Ignoring {prov} for Magazine")
+            ignored = True
+        elif "comic" in search_type:
+            logger.debug(f"Ignoring {prov} for Comic")
+            ignored = True
+        if not ignored:
+            logger.debug(f'Querying {provider}')
+            searchtype = 'ebook'
+            if 'audio' in search_type:
+                searchtype = 'audio'
+            if 'mag' in search_type:
+                searchtype = 'mag'
+            results, error = webshare_search(book, searchtype)
+            if error:
+                BLOCKHANDLER.block_provider(provider, error, delay=CONFIG.get_int('BLOCKLIST_TIMER'))
             else:
                 resultslist += results
                 providers += 1

@@ -195,6 +195,11 @@
                 let langs = $("#" + prov.toLowerCase() + "_search_lang").val();
                 api = email + ' : ' + pass + ' : ' + langs
             }
+            if ( prov === 'WEBSHARE' ) {
+                let user = $("#webshare_user").val();
+                let pass = $("#webshare_pass").val();
+                api = user + ' : ' + pass
+            }
             if ( prov.indexOf('gen_') === 0 ) {
                 host = $("#" + prov.toLowerCase() + "_host").val();
                 api = $("#" + prov.toLowerCase() + "_search").val();
