@@ -828,7 +828,7 @@ def make_bytestr(txt):
     for encoding in _encodings:
         try:
             return txt.encode(encoding)
-        except (UnicodeDecodeError, LookupError):
+        except (UnicodeEncodeError, LookupError):
             pass
     logger = logging.getLogger(__name__)
     logger.debug(f"Unable to encode name [{repr(txt)}]")

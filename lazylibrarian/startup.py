@@ -87,10 +87,11 @@ class StartupLazyLibrarian:
             pass
 
         # for OSes that are poorly configured I'll just force UTF-8
-        # windows cp1252 can't handle some accented author names,
-        # eg "Marie Kondō" U+014D: LATIN SMALL LETTER O WITH MACRON, but utf-8 does
+        # windows ansi codepages (cp1252, cp1250 etc.) can't handle some accented author names,
+        # eg "Marie Kondō" U+014D: LATIN SMALL LETTER O WITH MACRON, or "Karel Čapek" on cp1252,
+        # but utf-8 does, and python uses utf-8 for windows filenames anyway
         if not lazylibrarian.SYS_ENCODING or lazylibrarian.SYS_ENCODING in (
-                'ANSI_X3.4-1968', 'US-ASCII', 'ASCII') or '1252' in lazylibrarian.SYS_ENCODING:
+                'ANSI_X3.4-1968', 'US-ASCII', 'ASCII') or os.name == 'nt':
             lazylibrarian.SYS_ENCODING = 'UTF-8'
 
         # Set arguments
