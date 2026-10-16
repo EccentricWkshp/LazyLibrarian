@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: LazyLibrarian VERSION\n"
 "Report-Msgid-Bugs-To: https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues\n"
-"POT-Creation-Date: 2026-10-15 12:12+0200\n"
+"POT-Creation-Date: 2026-10-16 15:25+0200\n"
 "PO-Revision-Date: 2026-10-15 12:12+0200\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: sk\n"
@@ -18,6 +18,291 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: data/interfaces/bookstrap/audio.html:12 data/interfaces/bookstrap/audio.html:206
+#: data/interfaces/bookstrap/books.html:12 data/interfaces/bookstrap/books.html:216
+#: data/interfaces/bookstrap/index.html:42 data/interfaces/bookstrap/issues.html:10
+#: data/interfaces/bookstrap/magazines.html:12 data/interfaces/bookstrap/magazines.html:193
+#: data/interfaces/bookstrap/series.html:44
+msgid "Search"
+msgstr "Hľadať"
+
+#: data/interfaces/bookstrap/audio.html:13 data/interfaces/bookstrap/books.html:13
+#: data/interfaces/bookstrap/issues.html:11 data/interfaces/bookstrap/magazines.html:13
+msgid "Run Post-Processor"
+msgstr "Spustiť spracovanie"
+
+#: data/interfaces/bookstrap/audio.html:14 data/interfaces/bookstrap/books.html:14
+#: data/interfaces/bookstrap/issues.html:12 data/interfaces/bookstrap/magazines.html:14
+msgid "Library Scan"
+msgstr "Prehľadať knižnicu"
+
+#: data/interfaces/bookstrap/audio.html:16
+msgid "Recent AudioBooks"
+msgstr "Nedávne audioknihy"
+
+#: data/interfaces/bookstrap/audio.html:19 data/interfaces/bookstrap/books.html:20
+#: data/interfaces/bookstrap/magazines.html:21
+msgid "rss feed of recent downloads"
+msgstr "RSS kanál nedávnych stiahnutí"
+
+#: data/interfaces/bookstrap/audio.html:20
+msgid "LazyLibrarian latest AudioBooks"
+msgstr "LazyLibrarian – najnovšie audioknihy"
+
+#: data/interfaces/bookstrap/audio.html:23 data/interfaces/bookstrap/audio.html:25
+#: data/interfaces/bookstrap/books.html:24 data/interfaces/bookstrap/books.html:26
+#: data/interfaces/bookstrap/index.html:20 data/interfaces/bookstrap/index.html:22
+#: data/interfaces/bookstrap/magazines.html:25 data/interfaces/bookstrap/magazines.html:27
+#: data/interfaces/bookstrap/series.html:18 data/interfaces/bookstrap/series.html:20
+msgid "All, or just mine"
+msgstr "Všetci alebo len moji"
+
+#: data/interfaces/bookstrap/audio.html:29 data/interfaces/bookstrap/audio.html:31
+#: data/interfaces/bookstrap/books.html:30 data/interfaces/bookstrap/books.html:32
+msgid "Primary Author, or Contributor"
+msgstr "Hlavný autor alebo spoluautor"
+
+#: data/interfaces/bookstrap/audio.html:37 data/interfaces/bookstrap/books.html:37
+msgid "Language"
+msgstr "Jazyk"
+
+#: data/interfaces/bookstrap/audio.html:39 data/interfaces/bookstrap/audio.html:222
+#: data/interfaces/bookstrap/books.html:39 data/interfaces/bookstrap/books.html:242
+#: data/interfaces/bookstrap/index.html:240 data/interfaces/bookstrap/issues.html:145
+#: data/interfaces/bookstrap/magazines.html:209 data/interfaces/bookstrap/members.html:204
+#: data/interfaces/bookstrap/series.html:75 data/interfaces/bookstrap/series.html:251
+msgid "All"
+msgstr "Všetky"
+
+#: data/interfaces/bookstrap/audio.html:54 data/interfaces/bookstrap/books.html:53
+#: data/interfaces/bookstrap/issues.html:35 data/interfaces/bookstrap/magazines.html:55
+msgid "Libraryscan in progress ..."
+msgstr "Prebieha prehľadávanie knižnice..."
+
+#: data/interfaces/bookstrap/audio.html:64 data/interfaces/bookstrap/books.html:63
+#: data/interfaces/bookstrap/index.html:79 data/interfaces/bookstrap/magazines.html:63
+msgid "Mark selected as"
+msgstr "Označiť vybrané ako"
+
+#: data/interfaces/bookstrap/audio.html:66 data/interfaces/bookstrap/books.html:66
+#: data/interfaces/bookstrap/index.html:83 data/interfaces/bookstrap/members.html:77
+#: data/interfaces/bookstrap/series.html:78 data/interfaces/bookstrap/series.html:123
+msgid "Wanted"
+msgstr "Hľadaný"
+
+#: data/interfaces/bookstrap/audio.html:67 data/interfaces/bookstrap/books.html:67
+#: data/interfaces/bookstrap/members.html:77 data/interfaces/bookstrap/series.html:93
+#: data/interfaces/bookstrap/series.html:112
+msgid "Have"
+msgstr "Mám"
+
+#: data/interfaces/bookstrap/audio.html:68 data/interfaces/bookstrap/books.html:68
+#: data/interfaces/bookstrap/index.html:84 data/interfaces/bookstrap/members.html:77
+#: data/interfaces/bookstrap/series.html:78 data/interfaces/bookstrap/series.html:124
+msgid "Ignored"
+msgstr "Ignorovaný"
+
+#: data/interfaces/bookstrap/audio.html:69 data/interfaces/bookstrap/books.html:69
+#: data/interfaces/bookstrap/members.html:78
+msgid "Skipped"
+msgstr "Preskočené"
+
+#: data/interfaces/bookstrap/audio.html:70 data/interfaces/bookstrap/books.html:70
+#: data/interfaces/bookstrap/index.html:86 data/interfaces/bookstrap/issues.html:42
+#: data/interfaces/bookstrap/magazines.html:69 data/interfaces/bookstrap/members.html:78
+msgid "Remove"
+msgstr "Odstrániť"
+
+#: data/interfaces/bookstrap/audio.html:71 data/interfaces/bookstrap/books.html:71
+#: data/interfaces/bookstrap/index.html:87 data/interfaces/bookstrap/issues.html:43
+#: data/interfaces/bookstrap/magazines.html:70 data/interfaces/bookstrap/members.html:78
+msgid "Delete"
+msgstr "Vymazať"
+
+#: data/interfaces/bookstrap/audio.html:72
+msgid "Leave"
+msgstr "Ponechať"
+
+#: data/interfaces/bookstrap/audio.html:75 data/interfaces/bookstrap/books.html:82
+#: data/interfaces/bookstrap/index.html:96 data/interfaces/bookstrap/issues.html:49
+#: data/interfaces/bookstrap/magazines.html:81 data/interfaces/bookstrap/members.html:91
+#: data/interfaces/bookstrap/series.html:143
+msgid "Go"
+msgstr "Vykonať"
+
+#: data/interfaces/bookstrap/audio.html:80 data/interfaces/bookstrap/audio.html:101
+#: data/interfaces/bookstrap/audio.html:144 data/interfaces/bookstrap/books.html:87
+#: data/interfaces/bookstrap/books.html:108 data/interfaces/bookstrap/books.html:154
+#: data/interfaces/bookstrap/index.html:184 data/interfaces/bookstrap/issues.html:51
+#: data/interfaces/bookstrap/issues.html:68 data/interfaces/bookstrap/issues.html:70
+#: data/interfaces/bookstrap/issues.html:125 data/interfaces/bookstrap/magazines.html:86
+#: data/interfaces/bookstrap/magazines.html:107 data/interfaces/bookstrap/magazines.html:109
+#: data/interfaces/bookstrap/magazines.html:152 data/interfaces/bookstrap/members.html:94
+#: data/interfaces/bookstrap/members.html:110 data/interfaces/bookstrap/members.html:129
+msgid "Cover"
+msgstr "Obálka"
+
+#: data/interfaces/bookstrap/audio.html:80 data/interfaces/bookstrap/books.html:87
+#: data/interfaces/bookstrap/index.html:101 data/interfaces/bookstrap/issues.html:51
+#: data/interfaces/bookstrap/magazines.html:86 data/interfaces/bookstrap/members.html:94
+#: data/interfaces/bookstrap/series.html:91
+msgid "Toggle:"
+msgstr "Stĺpce:"
+
+#: data/interfaces/bookstrap/audio.html:81 data/interfaces/bookstrap/audio.html:102
+#: data/interfaces/bookstrap/books.html:88 data/interfaces/bookstrap/books.html:109
+#: data/interfaces/bookstrap/index.html:102 data/interfaces/bookstrap/index.html:122
+#: data/interfaces/bookstrap/members.html:113 data/interfaces/bookstrap/members.html:115
+#: data/interfaces/bookstrap/series.html:91 data/interfaces/bookstrap/series.html:110
+msgid "Author"
+msgstr "Autor"
+
+#: data/interfaces/bookstrap/audio.html:82 data/interfaces/bookstrap/audio.html:103
+#: data/interfaces/bookstrap/books.html:89 data/interfaces/bookstrap/books.html:110
+#: data/interfaces/bookstrap/magazines.html:87 data/interfaces/bookstrap/magazines.html:111
+#: data/interfaces/bookstrap/members.html:95 data/interfaces/bookstrap/members.html:111
+msgid "Title"
+msgstr "Názov"
+
+#: data/interfaces/bookstrap/audio.html:83 data/interfaces/bookstrap/audio.html:104
+#: data/interfaces/bookstrap/base.html:244 data/interfaces/bookstrap/books.html:90
+#: data/interfaces/bookstrap/books.html:111 data/interfaces/bookstrap/series.html:92
+msgid "Series"
+msgstr "Série"
+
+#: data/interfaces/bookstrap/audio.html:84 data/interfaces/bookstrap/audio.html:105
+#: data/interfaces/bookstrap/audio.html:178 data/interfaces/bookstrap/books.html:91
+#: data/interfaces/bookstrap/books.html:112 data/interfaces/bookstrap/books.html:188
+msgid "Rating"
+msgstr "Hodnotenie"
+
+#: data/interfaces/bookstrap/audio.html:85 data/interfaces/bookstrap/audio.html:106
+#: data/interfaces/bookstrap/books.html:92 data/interfaces/bookstrap/books.html:113
+#: data/interfaces/bookstrap/index.html:105 data/interfaces/bookstrap/index.html:125
+msgid "Released"
+msgstr "Vydané"
+
+#: data/interfaces/bookstrap/audio.html:86 data/interfaces/bookstrap/audio.html:107
+#: data/interfaces/bookstrap/books.html:93 data/interfaces/bookstrap/books.html:114
+#: data/interfaces/bookstrap/index.html:103 data/interfaces/bookstrap/index.html:123
+#: data/interfaces/bookstrap/issues.html:53 data/interfaces/bookstrap/issues.html:73
+#: data/interfaces/bookstrap/magazines.html:89 data/interfaces/bookstrap/magazines.html:113
+msgid "Added"
+msgstr "Pridané"
+
+#: data/interfaces/bookstrap/audio.html:87 data/interfaces/bookstrap/audio.html:108
+#: data/interfaces/bookstrap/books.html:94 data/interfaces/bookstrap/books.html:115
+#: data/interfaces/bookstrap/index.html:107 data/interfaces/bookstrap/index.html:127
+#: data/interfaces/bookstrap/magazines.html:91 data/interfaces/bookstrap/magazines.html:115
+#: data/interfaces/bookstrap/members.html:97 data/interfaces/bookstrap/members.html:118
+#: data/interfaces/bookstrap/series.html:94 data/interfaces/bookstrap/series.html:113
+msgid "Status"
+msgstr "Stav"
+
+#: data/interfaces/bookstrap/audio.html:183 data/interfaces/bookstrap/books.html:193
+msgid "Listed:"
+msgstr "Zaradené:"
+
+#: data/interfaces/bookstrap/audio.html:201 data/interfaces/bookstrap/books.html:211
+#: data/interfaces/bookstrap/issues.html:135 data/interfaces/bookstrap/magazines.html:181
+#: data/interfaces/bookstrap/members.html:154 data/interfaces/bookstrap/members.html:170
+msgid "Send"
+msgstr "Poslať"
+
+#: data/interfaces/bookstrap/audio.html:220 data/interfaces/bookstrap/books.html:240
+#: data/interfaces/bookstrap/members.html:201
+msgid "No books found"
+msgstr "Nenašli sa žiadne knihy"
+
+#: data/interfaces/bookstrap/audio.html:273 data/interfaces/bookstrap/books.html:293
+#: data/interfaces/bookstrap/index.html:278 data/interfaces/bookstrap/issues.html:187
+#: data/interfaces/bookstrap/magazines.html:251 data/interfaces/bookstrap/members.html:207
+#: data/interfaces/bookstrap/series.html:275
+msgid "Results filter"
+msgstr "Filtrovať výsledky"
+
+#: data/interfaces/bookstrap/audio.html:292
+#, python-format
+msgid "Are you sure you want to permanently delete the selected audiobook?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected audiobooks?"
+msgstr[0] "Naozaj chcete natrvalo vymazať vybranú audioknihu?"
+msgstr[1] "Naozaj chcete natrvalo vymazať %(count)s vybrané audioknihy?"
+msgstr[2] "Naozaj chcete natrvalo vymazať %(count)s vybraných audiokníh?"
+
+#: data/interfaces/bookstrap/audio.html:298 data/interfaces/bookstrap/base.html:427
+#: data/interfaces/bookstrap/books.html:318 data/interfaces/bookstrap/index.html:309
+#: data/interfaces/bookstrap/issues.html:207 data/interfaces/bookstrap/magazines.html:271
+msgid "Yes"
+msgstr "Áno"
+
+#: data/interfaces/bookstrap/audio.html:302 data/interfaces/bookstrap/base.html:431
+#: data/interfaces/bookstrap/books.html:322 data/interfaces/bookstrap/index.html:313
+#: data/interfaces/bookstrap/issues.html:211 data/interfaces/bookstrap/magazines.html:275
+msgid "No"
+msgstr "Nie"
+
+#: data/interfaces/bookstrap/audio.html:331 data/interfaces/bookstrap/base.html:58
+#: data/interfaces/bookstrap/books.html:351 data/interfaces/bookstrap/index.html:348
+#: data/interfaces/bookstrap/issues.html:250 data/interfaces/bookstrap/magazines.html:304
+#: data/interfaces/bookstrap/members.html:222 data/interfaces/bookstrap/series.html:290
+msgid "Processing..."
+msgstr "Spracúva sa..."
+
+#: data/interfaces/bookstrap/audio.html:358 data/interfaces/bookstrap/books.html:378
+#: data/interfaces/bookstrap/index.html:375 data/interfaces/bookstrap/issues.html:284
+#: data/interfaces/bookstrap/magazines.html:338 data/interfaces/bookstrap/members.html:249
+#: data/interfaces/bookstrap/series.html:317
+msgid "Summary:"
+msgstr "Súhrn:"
+
+#: data/interfaces/bookstrap/audio.html:361 data/interfaces/bookstrap/books.html:381
+#: data/interfaces/bookstrap/index.html:378 data/interfaces/bookstrap/issues.html:287
+#: data/interfaces/bookstrap/magazines.html:341 data/interfaces/bookstrap/members.html:252
+#: data/interfaces/bookstrap/series.html:320
+msgid "Successful:"
+msgstr "Úspešné:"
+
+#: data/interfaces/bookstrap/audio.html:363 data/interfaces/bookstrap/books.html:383
+#: data/interfaces/bookstrap/index.html:380 data/interfaces/bookstrap/issues.html:289
+#: data/interfaces/bookstrap/magazines.html:343 data/interfaces/bookstrap/members.html:254
+#: data/interfaces/bookstrap/series.html:322
+msgid "Failed:"
+msgstr "Neúspešné:"
+
+#: data/interfaces/bookstrap/audio.html:368 data/interfaces/bookstrap/books.html:388
+#: data/interfaces/bookstrap/members.html:259
+msgid "Mark Books Complete"
+msgstr "Označenie kníh dokončené"
+
+#: data/interfaces/bookstrap/audio.html:372 data/interfaces/bookstrap/books.html:392
+#: data/interfaces/bookstrap/index.html:389 data/interfaces/bookstrap/issues.html:299
+#: data/interfaces/bookstrap/issues.html:319 data/interfaces/bookstrap/magazines.html:353
+#: data/interfaces/bookstrap/magazines.html:373 data/interfaces/bookstrap/members.html:263
+#: data/interfaces/bookstrap/series.html:331
+msgid "OK"
+msgstr "OK"
+
+#: data/interfaces/bookstrap/audio.html:387 data/interfaces/bookstrap/books.html:407
+#: data/interfaces/bookstrap/index.html:404 data/interfaces/bookstrap/issues.html:315
+#: data/interfaces/bookstrap/magazines.html:369 data/interfaces/bookstrap/members.html:278
+#: data/interfaces/bookstrap/series.html:346
+msgid "Error"
+msgstr "Chyba"
+
+#: data/interfaces/bookstrap/audio.html:388 data/interfaces/bookstrap/books.html:408
+#: data/interfaces/bookstrap/index.html:405 data/interfaces/bookstrap/issues.html:316
+#: data/interfaces/bookstrap/magazines.html:370 data/interfaces/bookstrap/members.html:279
+#: data/interfaces/bookstrap/series.html:347
+msgid "An error occurred:"
+msgstr "Nastala chyba:"
+
+#: data/interfaces/bookstrap/audio.html:391 data/interfaces/bookstrap/base.html:387
+#: data/interfaces/bookstrap/base.html:412 data/interfaces/bookstrap/base.html:531
+#: data/interfaces/bookstrap/books.html:411 data/interfaces/bookstrap/index.html:408
+#: data/interfaces/bookstrap/members.html:282 data/interfaces/bookstrap/series.html:350
+msgid "Close"
+msgstr "Zavrieť"
 
 #: data/interfaces/bookstrap/base.html:50
 msgid "Filter: "
@@ -43,10 +328,6 @@ msgstr "Zobrazené 0 až 0 z 0 riadkov"
 #: data/interfaces/bookstrap/base.html:57
 msgid "(filtered from _MAX_ total rows)"
 msgstr "(vyfiltrované z _MAX_ riadkov)"
-
-#: data/interfaces/bookstrap/base.html:58 data/interfaces/bookstrap/index.html:348
-msgid "Processing..."
-msgstr "Spracúva sa..."
 
 #: data/interfaces/bookstrap/base.html:59
 msgid "Loading..."
@@ -83,10 +364,6 @@ msgstr "Autori"
 #: data/interfaces/bookstrap/base.html:237
 msgid "eBooks"
 msgstr "E-knihy"
-
-#: data/interfaces/bookstrap/base.html:244
-msgid "Series"
-msgstr "Série"
 
 #: data/interfaces/bookstrap/base.html:252
 msgid "Audio"
@@ -218,11 +495,6 @@ msgstr "Skryť upozornenie na aktualizáciu na 24 hodín"
 msgid "Ignore"
 msgstr "Skryť"
 
-#: data/interfaces/bookstrap/base.html:387 data/interfaces/bookstrap/base.html:412
-#: data/interfaces/bookstrap/base.html:531 data/interfaces/bookstrap/index.html:408
-msgid "Close"
-msgstr "Zavrieť"
-
 #: data/interfaces/bookstrap/base.html:408
 msgid "Check Version"
 msgstr "Kontrola verzie"
@@ -231,13 +503,59 @@ msgstr "Kontrola verzie"
 msgid "Are you sure you want to logout?"
 msgstr "Naozaj sa chcete odhlásiť?"
 
-#: data/interfaces/bookstrap/base.html:427 data/interfaces/bookstrap/index.html:309
-msgid "Yes"
-msgstr "Áno"
+#: data/interfaces/bookstrap/books.html:16
+msgid "Additions"
+msgstr "Pridané"
 
-#: data/interfaces/bookstrap/base.html:431 data/interfaces/bookstrap/index.html:313
-msgid "No"
-msgstr "Nie"
+#: data/interfaces/bookstrap/books.html:17
+msgid "Downloads"
+msgstr "Stiahnuté"
+
+#: data/interfaces/bookstrap/books.html:21
+msgid "LazyLibrarian latest eBooks"
+msgstr "LazyLibrarian – najnovšie e-knihy"
+
+#: data/interfaces/bookstrap/books.html:74 data/interfaces/bookstrap/members.html:83
+#: data/interfaces/bookstrap/series.html:130
+msgid "Unread"
+msgstr "Neprečítané"
+
+#: data/interfaces/bookstrap/books.html:75 data/interfaces/bookstrap/members.html:84
+#: data/interfaces/bookstrap/series.html:131
+msgid "Read"
+msgstr "Prečítané"
+
+#: data/interfaces/bookstrap/books.html:76 data/interfaces/bookstrap/members.html:85
+#: data/interfaces/bookstrap/series.html:132
+msgid "To Read"
+msgstr "Na prečítanie"
+
+#: data/interfaces/bookstrap/books.html:77 data/interfaces/bookstrap/members.html:86
+#: data/interfaces/bookstrap/series.html:133
+msgid "Reading"
+msgstr "Čítam"
+
+#: data/interfaces/bookstrap/books.html:78 data/interfaces/bookstrap/members.html:87
+#: data/interfaces/bookstrap/series.html:134
+msgid "Abandoned"
+msgstr "Nedočítané"
+
+#: data/interfaces/bookstrap/books.html:218 data/interfaces/bookstrap/books.html:227
+#: data/interfaces/bookstrap/books.html:234
+msgid "Request"
+msgstr "Požiadať"
+
+#: data/interfaces/bookstrap/books.html:222
+msgid "Snatched"
+msgstr "Stiahnuté zo zdroja"
+
+#: data/interfaces/bookstrap/books.html:312
+#, python-format
+msgid "Are you sure you want to permanently delete the selected book?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected books?"
+msgstr[0] "Naozaj chcete natrvalo vymazať vybranú knihu?"
+msgstr[1] "Naozaj chcete natrvalo vymazať %(count)s vybrané knihy?"
+msgstr[2] "Naozaj chcete natrvalo vymazať %(count)s vybraných kníh?"
 
 #: data/interfaces/bookstrap/config.html:503
 msgid "Interface language:"
@@ -259,10 +577,6 @@ msgstr "Zobraziť aktívnych autorov"
 msgid "Show Inactive Authors"
 msgstr "Zobraziť neaktívnych autorov"
 
-#: data/interfaces/bookstrap/index.html:20 data/interfaces/bookstrap/index.html:22
-msgid "All, or just mine"
-msgstr "Všetci alebo len moji"
-
 #: data/interfaces/bookstrap/index.html:26 data/interfaces/bookstrap/index.html:28
 msgid "Grid view"
 msgstr "Zobrazenie mriežky"
@@ -271,11 +585,7 @@ msgstr "Zobrazenie mriežky"
 msgid "Primary Author, or All Contributors"
 msgstr "Hlavný autor alebo všetci spoluautori"
 
-#: data/interfaces/bookstrap/index.html:42
-msgid "Search"
-msgstr "Hľadať"
-
-#: data/interfaces/bookstrap/index.html:44
+#: data/interfaces/bookstrap/index.html:44 data/interfaces/bookstrap/series.html:46
 msgid "Title / Author / ISBN"
 msgstr "Názov / autor / ISBN"
 
@@ -288,92 +598,49 @@ msgid "Author Refresh in progress ..."
 msgstr "Prebieha obnova autorov..."
 
 #: data/interfaces/bookstrap/index.html:65 data/interfaces/bookstrap/index.html:69
+#: data/interfaces/bookstrap/series.html:62 data/interfaces/bookstrap/series.html:66
 msgid "Search in progress ..."
 msgstr "Prebieha vyhľadávanie..."
 
-#: data/interfaces/bookstrap/index.html:79
-msgid "Mark selected as"
-msgstr "Označiť vybrané ako"
-
-#: data/interfaces/bookstrap/index.html:82
+#: data/interfaces/bookstrap/index.html:82 data/interfaces/bookstrap/magazines.html:66
+#: data/interfaces/bookstrap/series.html:78 data/interfaces/bookstrap/series.html:123
 msgid "Active"
 msgstr "Aktívny"
 
-#: data/interfaces/bookstrap/index.html:83
-msgid "Wanted"
-msgstr "Hľadaný"
-
-#: data/interfaces/bookstrap/index.html:84
-msgid "Ignored"
-msgstr "Ignorovaný"
-
-#: data/interfaces/bookstrap/index.html:85
+#: data/interfaces/bookstrap/index.html:85 data/interfaces/bookstrap/magazines.html:67
+#: data/interfaces/bookstrap/series.html:77 data/interfaces/bookstrap/series.html:123
 msgid "Paused"
 msgstr "Pozastavený"
-
-#: data/interfaces/bookstrap/index.html:86
-msgid "Remove"
-msgstr "Odstrániť"
-
-#: data/interfaces/bookstrap/index.html:87
-msgid "Delete"
-msgstr "Vymazať"
 
 #: data/interfaces/bookstrap/index.html:88
 msgid "Delete + Ignore"
 msgstr "Vymazať + ignorovať"
 
-#: data/interfaces/bookstrap/index.html:91
+#: data/interfaces/bookstrap/index.html:91 data/interfaces/bookstrap/magazines.html:76
+#: data/interfaces/bookstrap/series.html:135
 msgid "Subscribe"
 msgstr "Odoberať"
 
-#: data/interfaces/bookstrap/index.html:92
+#: data/interfaces/bookstrap/index.html:92 data/interfaces/bookstrap/magazines.html:77
+#: data/interfaces/bookstrap/series.html:136
 msgid "Unsubscribe"
 msgstr "Zrušiť odber"
-
-#: data/interfaces/bookstrap/index.html:96
-msgid "Go"
-msgstr "Vykonať"
-
-#: data/interfaces/bookstrap/index.html:101
-msgid "Toggle:"
-msgstr "Stĺpce:"
 
 #: data/interfaces/bookstrap/index.html:101 data/interfaces/bookstrap/index.html:121
 msgid "Image"
 msgstr "Obrázok"
 
-#: data/interfaces/bookstrap/index.html:102 data/interfaces/bookstrap/index.html:122
-msgid "Author"
-msgstr "Autor"
-
-#: data/interfaces/bookstrap/index.html:103 data/interfaces/bookstrap/index.html:123
-msgid "Added"
-msgstr "Pridané"
-
-#: data/interfaces/bookstrap/index.html:104
+#: data/interfaces/bookstrap/index.html:104 data/interfaces/bookstrap/magazines.html:90
 msgid "Latest"
 msgstr "Najnovšia"
-
-#: data/interfaces/bookstrap/index.html:105 data/interfaces/bookstrap/index.html:125
-msgid "Released"
-msgstr "Vydané"
 
 #: data/interfaces/bookstrap/index.html:106 data/interfaces/bookstrap/index.html:126
 msgid "Downloaded"
 msgstr "Stiahnuté"
 
-#: data/interfaces/bookstrap/index.html:107 data/interfaces/bookstrap/index.html:127
-msgid "Status"
-msgstr "Stav"
-
 #: data/interfaces/bookstrap/index.html:124
 msgid "Latest Book"
 msgstr "Najnovšia kniha"
-
-#: data/interfaces/bookstrap/index.html:184
-msgid "Cover"
-msgstr "Obálka"
 
 #: data/interfaces/bookstrap/index.html:220
 msgid "Complete"
@@ -382,14 +649,6 @@ msgstr "hotovo"
 #: data/interfaces/bookstrap/index.html:236
 msgid "No authors found"
 msgstr "Nenašli sa žiadni autori"
-
-#: data/interfaces/bookstrap/index.html:240
-msgid "All"
-msgstr "Všetky"
-
-#: data/interfaces/bookstrap/index.html:278
-msgid "Results filter"
-msgstr "Filtrovať výsledky"
 
 #: data/interfaces/bookstrap/index.html:294
 #, python-format
@@ -415,31 +674,259 @@ msgstr[0] "Naozaj chcete odstrániť vybraného autora?"
 msgstr[1] "Naozaj chcete odstrániť %(count)s vybraných autorov?"
 msgstr[2] "Naozaj chcete odstrániť %(count)s vybraných autorov?"
 
-#: data/interfaces/bookstrap/index.html:375
-msgid "Summary:"
-msgstr "Súhrn:"
-
-#: data/interfaces/bookstrap/index.html:378
-msgid "Successful:"
-msgstr "Úspešné:"
-
-#: data/interfaces/bookstrap/index.html:380
-msgid "Failed:"
-msgstr "Neúspešné:"
-
 #: data/interfaces/bookstrap/index.html:385
 msgid "Mark Authors Complete"
 msgstr "Označenie autorov dokončené"
 
-#: data/interfaces/bookstrap/index.html:389
-msgid "OK"
-msgstr "OK"
+#: data/interfaces/bookstrap/issues.html:13
+msgid "Import Issues"
+msgstr "Importovať čísla"
 
-#: data/interfaces/bookstrap/index.html:404
-msgid "Error"
-msgstr "Chyba"
+#: data/interfaces/bookstrap/issues.html:14 data/interfaces/bookstrap/magazines.html:16
+msgid "Past Issues"
+msgstr "Staršie čísla"
 
-#: data/interfaces/bookstrap/index.html:405
-msgid "An error occurred:"
-msgstr "Nastala chyba:"
+#: data/interfaces/bookstrap/issues.html:16 data/interfaces/bookstrap/magazines.html:18
+msgid "Recent Issues"
+msgstr "Nedávne čísla"
+
+#: data/interfaces/bookstrap/issues.html:20
+#, python-format
+msgid "%(title)s latest issues"
+msgstr "%(title)s – najnovšie čísla"
+
+#: data/interfaces/bookstrap/issues.html:30
+msgid "Rename"
+msgstr "Premenovať"
+
+#: data/interfaces/bookstrap/issues.html:40
+msgid "Selected issues:"
+msgstr "Vybrané čísla:"
+
+#: data/interfaces/bookstrap/issues.html:44
+msgid "Swap Pages 1/2"
+msgstr "Vymeniť strany 1/2"
+
+#: data/interfaces/bookstrap/issues.html:45
+msgid "Cover from Page 1"
+msgstr "Obálka zo strany 1"
+
+#: data/interfaces/bookstrap/issues.html:46
+msgid "Cover from Page 2"
+msgstr "Obálka zo strany 2"
+
+#: data/interfaces/bookstrap/issues.html:47
+msgid "Tag issue"
+msgstr "Otagovať číslo"
+
+#: data/interfaces/bookstrap/issues.html:52 data/interfaces/bookstrap/issues.html:72
+msgid "Issue"
+msgstr "Číslo"
+
+#: data/interfaces/bookstrap/issues.html:54 data/interfaces/bookstrap/issues.html:74
+#: data/interfaces/bookstrap/magazines.html:92 data/interfaces/bookstrap/magazines.html:116
+msgid "Select"
+msgstr "Vybrať"
+
+#: data/interfaces/bookstrap/issues.html:94
+msgid "Issue Update"
+msgstr "Aktualizácia čísla"
+
+#: data/interfaces/bookstrap/issues.html:132 data/interfaces/bookstrap/members.html:168
+msgid "Open"
+msgstr "Otvoriť"
+
+#: data/interfaces/bookstrap/issues.html:140
+msgid "No issues found"
+msgstr "Nenašli sa žiadne čísla"
+
+#: data/interfaces/bookstrap/issues.html:201
+#, python-format
+msgid "Are you sure you want to permanently delete the selected issue?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected issues?"
+msgstr[0] "Naozaj chcete natrvalo vymazať vybrané číslo?"
+msgstr[1] "Naozaj chcete natrvalo vymazať %(count)s vybrané čísla?"
+msgstr[2] "Naozaj chcete natrvalo vymazať %(count)s vybraných čísel?"
+
+#: data/interfaces/bookstrap/issues.html:232
+msgid "Scanning Magazine Issues"
+msgstr "Prehľadávajú sa čísla časopisu"
+
+#: data/interfaces/bookstrap/issues.html:295 data/interfaces/bookstrap/magazines.html:349
+#: data/interfaces/bookstrap/series.html:327
+msgid "Operation Complete"
+msgstr "Operácia dokončená"
+
+#: data/interfaces/bookstrap/magazines.html:15
+msgid "Library Clean"
+msgstr "Vyčistiť knižnicu"
+
+#: data/interfaces/bookstrap/magazines.html:22
+msgid "LazyLibrarian latest magazines"
+msgstr "LazyLibrarian – najnovšie časopisy"
+
+#: data/interfaces/bookstrap/magazines.html:34 data/interfaces/bookstrap/magazines.html:36
+msgid "Magazine Title"
+msgstr "Názov časopisu"
+
+#: data/interfaces/bookstrap/magazines.html:40
+msgid "Search for Magazine"
+msgstr "Hľadať časopis"
+
+#: data/interfaces/bookstrap/magazines.html:40 data/interfaces/bookstrap/magazines.html:42
+msgid "Magazine"
+msgstr "Časopis"
+
+#: data/interfaces/bookstrap/magazines.html:42
+msgid "Add Magazine"
+msgstr "Pridať časopis"
+
+#: data/interfaces/bookstrap/magazines.html:68
+msgid "Reset"
+msgstr "Obnoviť"
+
+#: data/interfaces/bookstrap/magazines.html:71
+msgid "Tag issues"
+msgstr "Otagovať čísla"
+
+#: data/interfaces/bookstrap/magazines.html:72
+msgid "Scan issues"
+msgstr "Prehľadať čísla"
+
+#: data/interfaces/bookstrap/magazines.html:73
+msgid "Search issues"
+msgstr "Hľadať čísla"
+
+#: data/interfaces/bookstrap/magazines.html:88 data/interfaces/bookstrap/magazines.html:112
+#: data/interfaces/bookstrap/members.html:96 data/interfaces/bookstrap/members.html:117
+msgid "Num"
+msgstr "Počet"
+
+#: data/interfaces/bookstrap/magazines.html:114
+msgid "Latest Issue"
+msgstr "Najnovšie číslo"
+
+#: data/interfaces/bookstrap/magazines.html:204
+msgid "No magazines found"
+msgstr "Nenašli sa žiadne časopisy"
+
+#: data/interfaces/bookstrap/magazines.html:265
+#, python-format
+msgid "Are you sure you want to permanently delete the selected magazine?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected magazines?"
+msgstr[0] "Naozaj chcete natrvalo vymazať vybraný časopis?"
+msgstr[1] "Naozaj chcete natrvalo vymazať %(count)s vybrané časopisy?"
+msgstr[2] "Naozaj chcete natrvalo vymazať %(count)s vybraných časopisov?"
+
+#: data/interfaces/bookstrap/members.html:9 data/interfaces/bookstrap/series.html:11
+msgid "Return to Author"
+msgstr "Späť na autora"
+
+#: data/interfaces/bookstrap/members.html:11
+msgid "Series List"
+msgstr "Zoznam sérií"
+
+#: data/interfaces/bookstrap/members.html:14
+msgid "Refresh Author"
+msgstr "Obnoviť autora"
+
+#: data/interfaces/bookstrap/members.html:16
+msgid "Refresh Series"
+msgstr "Obnoviť sériu"
+
+#: data/interfaces/bookstrap/members.html:19 data/interfaces/bookstrap/series.html:33
+#: data/interfaces/bookstrap/series.html:35
+msgid "Show Active"
+msgstr "Zobraziť aktívne"
+
+#: data/interfaces/bookstrap/members.html:21
+msgid "Show Ignored"
+msgstr "Zobraziť ignorované"
+
+#: data/interfaces/bookstrap/members.html:31
+msgid "Edit"
+msgstr "Upraviť"
+
+#: data/interfaces/bookstrap/members.html:37
+msgid "Series scan in progress ..."
+msgstr "Prebieha prehľadávanie série..."
+
+#: data/interfaces/bookstrap/members.html:49
+msgid "Mark selected"
+msgstr "Označiť vybrané"
+
+#: data/interfaces/bookstrap/members.html:54 data/interfaces/bookstrap/members.html:64
+msgid "eBook"
+msgstr "E-kniha"
+
+#: data/interfaces/bookstrap/members.html:54 data/interfaces/bookstrap/members.html:70
+msgid "AudioBook"
+msgstr "Audiokniha"
+
+#: data/interfaces/bookstrap/members.html:55
+msgid "eBook+Audio"
+msgstr "E-kniha + audio"
+
+#: data/interfaces/bookstrap/members.html:62
+msgid "Mark selected eBook"
+msgstr "Označiť vybrané e-knihy"
+
+#: data/interfaces/bookstrap/members.html:68
+msgid "Mark selected AudioBook"
+msgstr "Označiť vybrané audioknihy"
+
+#: data/interfaces/bookstrap/members.html:75
+msgid "as"
+msgstr "ako"
+
+#: data/interfaces/bookstrap/members.html:139
+msgid "Manual"
+msgstr "Ručne"
+
+#: data/interfaces/bookstrap/series.html:27 data/interfaces/bookstrap/series.html:29
+msgid "Show all authors"
+msgstr "Zobraziť všetkých autorov"
+
+#: data/interfaces/bookstrap/series.html:27 data/interfaces/bookstrap/series.html:29
+msgid "Show All"
+msgstr "Zobraziť všetko"
+
+#: data/interfaces/bookstrap/series.html:33 data/interfaces/bookstrap/series.html:35
+msgid "Only active/wanted authors"
+msgstr "Len aktívni/hľadaní autori"
+
+#: data/interfaces/bookstrap/series.html:48
+msgid "Search for book"
+msgstr "Hľadať knihu"
+
+#: data/interfaces/bookstrap/series.html:73
+msgid "Status:"
+msgstr "Stav:"
+
+#: data/interfaces/bookstrap/series.html:75
+msgctxt "series status"
+msgid "Complete"
+msgstr "Kompletné"
+
+#: data/interfaces/bookstrap/series.html:76
+msgctxt "series status"
+msgid "Partial"
+msgstr "Čiastočné"
+
+#: data/interfaces/bookstrap/series.html:77
+msgctxt "series status"
+msgid "Empty"
+msgstr "Prázdne"
+
+#: data/interfaces/bookstrap/series.html:111
+msgid "Series Name"
+msgstr "Názov série"
+
+#: data/interfaces/bookstrap/series.html:120
+msgid "Change selected series to:"
+msgstr "Zmeniť vybrané série na:"
+
+#: data/interfaces/bookstrap/series.html:245
+msgid "No series found"
+msgstr "Nenašli sa žiadne série"
 
