@@ -1315,7 +1315,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                                                       suppress='UNIQUE')
                                                             update_totals(aid)
 
-                                            book_filename = None
+                                            book_filename = os.path.join(rootdir, files)
                                             if library == 'eBook':
                                                 if check_status['Status'] not in ['Open', 'Have']:
                                                     # we found a new book
@@ -1326,7 +1326,6 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                                                 if CONFIG.get_bool('IMP_EBOOKOPF'):
                                                     # create an opf file if there isn't one
-                                                    book_filename = os.path.join(rootdir, files)
                                                     _ = lazylibrarian.metadata_opf.create_opf(os.path.dirname(book_filename),
                                                                                               check_status,
                                                                                               splitext(os.path.basename(
