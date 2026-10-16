@@ -5,6 +5,7 @@
 
 import os
 import sys
+import tempfile
 import mock
 import unittest
 import logging
@@ -247,6 +248,32 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
 
         opf = filesystem.opf_file(DIRS.DATADIR)
         self.assertEqual(opf, '')
+
+    def test_opf_file_with_bookfile(self):
+        def make_files(folder, names):
+            for name in names:
+                with open(os.path.join(folder, name), 'w') as f:
+                    f.write('')
+
+        with tempfile.TemporaryDirectory() as folder:
+            # calibre folder: one book in several formats with metadata.opf
+            make_files(folder, ['Title - Author.epub', 'Title - Author.mobi', 'cover.jpg', 'metadata.opf'])
+            opf = filesystem.opf_file(folder, bookfile='Title - Author.epub')
+            self.assertEqual(opf, os.path.join(folder, 'metadata.opf'))
+
+            # a matching bookname.opf is preferred over metadata.opf
+            make_files(folder, ['Title - Author.opf'])
+            opf = filesystem.opf_file(folder, bookfile='Title - Author.epub')
+            self.assertEqual(opf, os.path.join(folder, 'Title - Author.opf'))
+
+        with tempfile.TemporaryDirectory() as folder:
+            # series folder: metadata.opf could belong to any of the books
+            make_files(folder, ['Book One - Author.epub', 'Book Two - Author.epub', 'metadata.opf'])
+            self.assertEqual(filesystem.opf_file(folder, bookfile='Book One - Author.epub'), '')
+
+        with tempfile.TemporaryDirectory() as folder:
+            make_files(folder, ['Title - Author.epub'])
+            self.assertEqual(filesystem.opf_file(folder, bookfile='Title - Author.epub'), '')
 
     def test_book_file(self):
         book = filesystem.book_file(get_directory("Testdata"), '', config=self.cfg())

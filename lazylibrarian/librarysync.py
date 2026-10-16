@@ -612,7 +612,17 @@ def _skip_already_scanned_directory(subdirectory, processed_subdirectories):
     return subdirectory in processed_subdirectories and CONFIG.get_bool('IMP_SINGLEBOOK')
 
 
-def _derive_fallback_authorname(rootdir, files, destdir):
+def _path_is_under(path, folder):
+    """Whether path is folder itself or somewhere inside it"""
+    path = os.path.abspath(path)
+    folder = os.path.abspath(folder)
+    try:
+        return os.path.commonpath([path, folder]) == folder
+    except ValueError:  # eg different drives on windows
+        return False
+
+
+def _derive_fallback_authorname(rootdir, files, destdir, startdir=''):
     """Guess an author name from a book's path when metadata/id lookups found no match.
 
     The on-disk convention is always <library root>/<Author>/<Title (id)>, and we're
@@ -629,21 +639,46 @@ def _derive_fallback_authorname(rootdir, files, destdir):
     dir= parameter lets a scan be scoped to a subdirectory instead (e.g. a single author's
     folder, to avoid the cost of a full scan) -- in that case startdir *is* the author
     folder, so segments taken relative to it would start from the title folder instead.
+    A scan can also be pointed at a folder outside destdir, then segments are taken relative
+    to startdir, as there is no library root to go by. startdir may itself be an author's
+    folder there, so its own name is also checked against known authors.
+
+    Segments are compared ignoring case, and failing that also ignoring accents, as calibre
+    writes folder names without them.
 
     Falls back to the first segment under destdir (the normal case for a genuinely new
     author not yet in the database) if no segment matches an existing author.
     """
     book_filename = os.path.join(rootdir, files)
-    relpath = book_filename[len(destdir.rstrip(os.sep)) + 1:]
+    root = destdir
+    lookup_root = destdir
+    if startdir and not (destdir and _path_is_under(book_filename, destdir)):
+        root = startdir
+        lookup_root = os.path.dirname(os.path.abspath(startdir))
+    relpath = os.path.relpath(book_filename, root)
+    if relpath == os.pardir or relpath.startswith(os.pardir + os.sep):
+        return ''  # book is not under root, no segments to go by
     segments = relpath.split(os.sep)[:-1]  # directory segments only, drop the filename
+    lookup_segments = os.path.relpath(book_filename, lookup_root).split(os.sep)[:-1]
 
     db = database.DBConnection()
     try:
-        for segment in segments:
+        known = None
+        for segment in lookup_segments:
             match = db.match('SELECT AuthorName FROM authors WHERE AuthorName=? COLLATE NOCASE',
                              (segment,))
             if match:
                 return match['AuthorName']
+            # calibre folder names have no accents, eg "Camilla Lackberg" for "Camilla Läckberg"
+            if known is None:
+                known = {}
+                for item in db.select('SELECT AuthorName FROM authors'):
+                    key = unaccented(item['AuthorName']).lower()
+                    if key:
+                        known.setdefault(key, item['AuthorName'])
+            key = unaccented(segment).lower()
+            if key and key in known:
+                return known[key]
     finally:
         db.close()
 
@@ -927,7 +962,8 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                             # calibre uses "metadata.opf", LL uses "bookname - authorname.opf"
                             # match on the current book's filename since a series folder may
-                            # hold opf/metadata for more than one book
+                            # hold opf/metadata for more than one book, metadata.opf is only
+                            # used if no other book shares the folder
                             # Allow metadata in opf file to override book metadata as may be users pref
                             pre_opf_author = res.get('creator', '')
                             metafile = ''
@@ -1200,8 +1236,9 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                                     if not bookid:
                                         # get author name from (grand)parent directory of this book directory
-                                        newauthorname = _derive_fallback_authorname(rootdir, files, destdir)
-                                        if author.lower() != newauthorname.lower():
+                                        newauthorname = _derive_fallback_authorname(rootdir, files, destdir,
+                                                                                     startdir)
+                                        if newauthorname and author.lower() != newauthorname.lower():
                                             logger.debug(f"Trying authorname [{newauthorname}]")
                                             bookid, mtype = find_book_in_db(newauthorname, book, ignored=False,
                                                                             reason=f'New author for {book}')
@@ -1315,7 +1352,7 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                                                       suppress='UNIQUE')
                                                             update_totals(aid)
 
-                                            book_filename = None
+                                            book_filename = os.path.join(rootdir, files)
                                             if library == 'eBook':
                                                 if check_status['Status'] not in ['Open', 'Have']:
                                                     # we found a new book
@@ -1326,7 +1363,6 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                                                 if CONFIG.get_bool('IMP_EBOOKOPF'):
                                                     # create an opf file if there isn't one
-                                                    book_filename = os.path.join(rootdir, files)
                                                     _ = lazylibrarian.metadata_opf.create_opf(os.path.dirname(book_filename),
                                                                                               check_status,
                                                                                               splitext(os.path.basename(

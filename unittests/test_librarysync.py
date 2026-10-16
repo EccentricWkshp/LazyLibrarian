@@ -4,6 +4,9 @@
 #   Testing functionality in librarysync.py
 
 import os
+import shutil
+import tempfile
+import unicodedata
 
 from lazylibrarian import database, librarysync
 from lazylibrarian.config2 import CONFIG
@@ -154,3 +157,92 @@ class DeriveFallbackAuthornameTest(LLTestCaseWithStartup):
         files = 'Some Title - Smith Jr_.epub'
         self.assertEqual(
             librarysync._derive_fallback_authorname(rootdir, files, destdir), 'Smith Jr.')
+
+    def test_scan_outside_library_root_uses_startdir(self):
+        # a scan pointed at a folder outside the library root (eg dir= on forceLibraryScan)
+        # used to cut the path at len(destdir), giving a garbage first segment
+        destdir = os.path.join('data', 'books', 'ingest')
+        startdir = os.path.join('data', 'books', 'biblioteka')
+        rootdir = os.path.join(startdir, 'Camilla Lackberg', 'Ksiezniczka z lodu (7)')
+        files = 'Ksiezniczka z lodu - Camilla Lackberg.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir, startdir),
+            'Camilla Lackberg')
+
+    def test_scan_inside_library_root_still_uses_destdir(self):
+        # a sibling folder sharing the library root's name as a prefix is not inside it
+        destdir = os.path.join('library')
+        startdir = os.path.join('library', 'Some Author')
+        rootdir = os.path.join('library', 'Some Author', 'Some Title (123)')
+        files = 'Some Title - Some Author.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir, startdir), 'Some Author')
+        startdir = os.path.join('library2')
+        rootdir = os.path.join('library2', 'Other Author', 'Other Title (456)')
+        files = 'Other Title - Other Author.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir, startdir), 'Other Author')
+
+    def test_single_author_scan_outside_library_root(self):
+        # dir= pointed at one author's folder outside the library root: segments under
+        # startdir start at the title, so the folder's own name must be checked too
+        self._add_author('Jacek Piekara')
+        destdir = os.path.join('data', 'books', 'ingest')
+        startdir = os.path.join('data', 'books', 'biblioteka', 'Jacek Piekara')
+        rootdir = os.path.join(startdir, 'Sluga Bozy (6)')
+        files = 'Sluga Bozy - Jacek Piekara.epub'
+        self.assertEqual(
+            librarysync._derive_fallback_authorname(rootdir, files, destdir, startdir), 'Jacek Piekara')
+
+    def test_matches_known_author_ignoring_accents(self):
+        # calibre writes folder names without accents, LL stores names decomposed
+        self._add_author(unicodedata.normalize('NFKD', 'Selma Lagerlöf'))
+        self._add_author(unicodedata.normalize('NFKD', 'Łukasz Orbitowski'))
+        destdir = os.path.join('data', 'books', 'ingest')
+        for folder, expected in (('Selma Lagerlof', 'Selma Lagerlöf'),
+                                 ('Lukasz Orbitowski', 'Łukasz Orbitowski')):
+            startdir = os.path.join('data', 'books', 'biblioteka', folder)
+            rootdir = os.path.join(startdir, 'Some Title (7)')
+            files = f'Some Title - {folder}.epub'
+            name = librarysync._derive_fallback_authorname(rootdir, files, destdir, startdir)
+            self.assertEqual(unicodedata.normalize('NFC', name), expected)
+
+    def test_book_outside_destdir_without_startdir(self):
+        destdir = os.path.join('data', 'books', 'ingest')
+        rootdir = os.path.join('data', 'books', 'biblioteka', 'Camilla Lackberg', 'Ksiezniczka z lodu (7)')
+        files = 'Ksiezniczka z lodu - Camilla Lackberg.epub'
+        self.assertEqual(librarysync._derive_fallback_authorname(rootdir, files, destdir), '')
+
+
+class LibraryScanBookFileTest(LLTestCaseWithStartup):
+
+    def test_bookfile_stored_without_opf_or_rename(self):
+        # book_filename used to be set only when IMP_EBOOKOPF or IMP_RENAME was on, so with
+        # both off the scan raised TypeError and left the book Open with no BookFile
+        saved = {key: CONFIG.get_bool(key) for key in ('IMP_EBOOKOPF', 'IMP_RENAME')}
+        saved_dir = CONFIG['EBOOK_DIR']
+        db = database.DBConnection()
+        try:
+            CONFIG.set_bool('IMP_EBOOKOPF', False)
+            CONFIG.set_bool('IMP_RENAME', False)
+            db.action("INSERT OR REPLACE INTO authors (AuthorID, AuthorName, Status) VALUES (?, ?, ?)",
+                      ('BB1', 'Bob Builder', 'Active'))
+            db.action("INSERT OR REPLACE INTO books (BookID, AuthorID, BookName, Status, gb_id, BookIsbn) "
+                      "VALUES (?, ?, ?, ?, ?, ?)",
+                      ('9876542', 'BB1', 'Test Title', 'Wanted', '9876542', '9782123456803'))
+            with tempfile.TemporaryDirectory() as library:
+                folder = os.path.join(library, 'Bob Builder', 'Test Title')
+                os.makedirs(folder)
+                shutil.copy(os.path.join(get_directory('Testdata'), 'Test Title - Bob Builder.epub'), folder)
+                CONFIG['EBOOK_DIR'] = library
+                librarysync.library_scan(startdir=library, library='eBook', remove=False)
+                book = db.match("SELECT Status, BookFile FROM books WHERE BookID=?", ('9876542',))
+                self.assertEqual(book['Status'], 'Open')
+                self.assertEqual(book['BookFile'], os.path.join(folder, 'Test Title - Bob Builder.epub'))
+        finally:
+            db.action("DELETE FROM books WHERE BookID=?", ('9876542',))
+            db.action("DELETE FROM authors WHERE AuthorID=?", ('BB1',))
+            db.close()
+            for key, value in saved.items():
+                CONFIG.set_bool(key, value)
+            CONFIG['EBOOK_DIR'] = saved_dir
