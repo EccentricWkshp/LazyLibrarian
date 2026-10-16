@@ -46,6 +46,7 @@ from lazylibrarian import (
     deluge,
     grsync,
     hc,
+    i18n,
     magazinescan,
     notifiers,
     nzbget,
@@ -336,10 +337,22 @@ def refresh_book_languages():
         thread_name(incoming_threadname)
 
 
+def template_i18n():
+    """ Set the UI language for this request and return the translation helpers for templates """
+    lang = i18n.resolve_language(CONFIG.get_str('UI_LANGUAGE'),
+                                 cherrypy.request.headers.get('Accept-Language', ''))
+    i18n.set_language(lang)
+    return {'_': i18n.gettext, '_js': i18n.gettext_js, '_jsn': i18n.ngettext_js, 'js': i18n.js_string,
+            'ngettext': i18n.ngettext, 'pgettext': i18n.pgettext, 'js_plural': i18n.plural_expression,
+            'ui_lang': lang}
+
+
 def serve_template(templatename, **kwargs):
     thread_name("WEBSERVER")
     logger = logging.getLogger(__name__)
     adminlogger = logging.getLogger('special.admin')
+    i18n_vars = template_i18n()
+    kwargs.update(i18n_vars)
     interface_dir = os.path.join(str(DIRS.PROG_DIR), 'data', 'interfaces')
     template_dir = os.path.join(str(interface_dir), CONFIG['HTTP_LOOK'])
     if not path_isdir(template_dir):
@@ -362,7 +375,7 @@ def serve_template(templatename, **kwargs):
         if lazylibrarian.UPDATE_MSG:
             template = _hplookup.get_template("dbupdate.html")
             return template.render(perm=0, message="Database upgrade in progress, please wait...",
-                                   title="Database Upgrade", timer=5, style=style)
+                                   title="Database Upgrade", timer=5, style=style, **i18n_vars)
 
         adminlogger.debug(f"Request headers: {str(cherrypy.request.headers)}")
         adminlogger.debug(f"Request cookie: {str(cherrypy.request.cookie)}")
@@ -589,8 +602,8 @@ def serve_template(templatename, **kwargs):
             if CONFIG['HTTP_ROOT']:
                 img = f'{CONFIG["HTTP_ROOT"]}/{img}'
             if templatename == "login.html":
-                return template.render(perm=0, title="Redirected", img=img, style=style)
-            return template.render(perm=0, title='Login', img=img, from_page='/home')
+                return template.render(perm=0, title="Redirected", img=img, style=style, **i18n_vars)
+            return template.render(perm=0, title='Login', img=img, from_page='/home', **i18n_vars)
 
         # keep template name for help context
         cherrypy.response.cookie['ll_template'] = templatename

@@ -1,7 +1,7 @@
 # Makefile
 # Simplified commands using Ruff for formatting and linting
 
-.PHONY: help install install-dev format lint test coverage clean pre-commit security all
+.PHONY: help install install-dev format lint test coverage clean pre-commit security all translations
 
 # Default target
 .DEFAULT_GOAL := help
@@ -115,3 +115,12 @@ setup: install-dev pre-commit ## Initial setup for development
 stats: ## Show code statistics with Ruff
 	@echo "$(BLUE)Code statistics...$(NC)"
 	ruff check lazylibrarian/ --statistics
+
+translations: ## Extract UI strings to the .pot template and update the .po files
+	@echo "$(BLUE)Extracting translatable strings...$(NC)"
+	pybabel extract -F babel.cfg -k _js -k _jsn:1,2 -c TRANSLATORS: --sort-by-file \
+		--project=LazyLibrarian --copyright-holder="LazyLibrarian contributors" --msgid-bugs-address=https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues \
+		-o lazylibrarian/locale/lazylibrarian.pot .
+	pybabel update -D lazylibrarian -i lazylibrarian/locale/lazylibrarian.pot -d lazylibrarian/locale \
+		--ignore-obsolete --no-fuzzy-matching
+	@echo "$(GREEN)✓ Translations updated$(NC)"
