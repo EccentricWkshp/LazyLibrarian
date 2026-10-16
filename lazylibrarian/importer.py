@@ -122,7 +122,7 @@ def available_author_sources():
         if CONFIG[this_source['enabled']] and not BLOCKHANDLER.is_blocked(item):
             source_dict[item] = [this_source['src'], this_source['api'],
                                  this_source['author_key'], this_source['enabled']]
-    # GB/DNB don't have authorid so we use one of the others...
+    # GB/DNB/BN don't have authorid so we use one of the others...
     # prefer CONFIG['BOOK_API'] if it has authorid
     # 2nd choice, one that's enabled with an apikey
     # 3rd choice, openlibrary if enabled (doesn't need apikey)
@@ -898,7 +898,7 @@ def de_duplicate(authorid):
     # noinspection PyBroadException
     try:
         # Pass 1: Merge by matching external provider IDs
-        id_keys = ['gr_id', 'WorkID', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'ran_id', 'LT_WorkID']
+        id_keys = ['gr_id', 'WorkID', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'bn_id', 'ran_id', 'LT_WorkID']
         for id_key in id_keys:
             res = db.select(f"SELECT count({id_key}), {id_key} FROM books WHERE AuthorID=? AND {id_key} IS NOT NULL AND {id_key} != '' GROUP BY {id_key} HAVING ( count({id_key}) > 1 )", (authorid,))
             for item in res:

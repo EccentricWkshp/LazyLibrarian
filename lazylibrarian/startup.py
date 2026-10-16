@@ -33,7 +33,7 @@ import requests
 import urllib3
 
 import lazylibrarian
-from lazylibrarian import database, dnb, gb, gr, hc, ol, ran, versioncheck
+from lazylibrarian import bn, database, dnb, gb, gr, hc, ol, ran, versioncheck
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import fetch_url, init_hex_caches
 from lazylibrarian.cleanup import UNBUNDLER
@@ -370,6 +370,11 @@ class StartupLazyLibrarian:
                         'api': dnb.DNB, 'has_subs': 1,
                         'author_link': None, 'author_about': None,
                         'link_template': 'https://d-nb.info/{}'},
+                'BN': {'src': 'BN', 'author_key': 'authorid', 'book_key': 'bn_id', 'enabled': 'BN_API',
+                       'api': bn.BN, 'has_subs': 1,
+                       'author_link': None, 'author_about': None,
+                       'link_template': 'https://katalogi.bn.org.pl/discovery/search?query=any,contains,{}'
+                                        '&vid=48OMNIS_NLOP:48OMNIS_NLOP'},
                 'RanobeDB': {'src': 'RA', 'author_key': 'ran_id', 'book_key': 'ran_id', 'enabled': 'RAN_API',
                         'api': ran.RanobeDB, 'has_subs': 0,
                         'author_link': 'ran_link', 'author_about': 'ran_about'},

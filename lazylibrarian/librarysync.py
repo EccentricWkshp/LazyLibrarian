@@ -257,6 +257,8 @@ def get_book_info(fname):
                             res['gb_id'] = txt
                         elif attrib[k] == 'DNB':
                             res['dnb_id'] = txt
+                        elif attrib[k] == 'BN':
+                            res['bn_id'] = txt
                         elif attrib[k] == 'RANOBEDB':
                             res['ran_id'] = txt
         n += 1

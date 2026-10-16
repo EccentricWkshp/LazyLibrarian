@@ -22,6 +22,7 @@ from abc import ABC
 from enum import Enum
 from http.client import responses
 from typing import Any
+from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import requests
@@ -62,6 +63,21 @@ class ImageType(Enum):
 
 
 service_blocked = ['GoodReads', 'LibraryThing', 'googleapis', 'OpenLibrary', 'HardCover', 'DNB', 'RanobeDB', 'ISBN']
+
+
+def service_for_url(url: str) -> str:
+    """ Return the service_blocked entry a url belongs to, or empty string.
+        Match on the host so a query like '?isbnIssn=' or a title containing 'dnb' is not
+        mistaken for that service. ISBN is the google search used to look up isbns """
+    url_lower = url.lower()
+    host = urlparse(url_lower).netloc
+    for blk in service_blocked:
+        if blk == 'ISBN':
+            if 'google.com/search' in url_lower and 'isbn' in url_lower:
+                return blk
+        elif blk.lower() in host:
+            return blk
+    return ''
 
 
 def gr_api_sleep():
@@ -120,9 +136,9 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
             logger.debug(f"Intercepted Google request ({url}): Provider is blocked due to quota exhaustion")
             return 'Blocked: Google quota exhausted', False
 
-    for blk in service_blocked:
-        if blk.lower() in url.lower() and BLOCKHANDLER.is_blocked(blk):
-            return 'Blocked', False
+    blk = service_for_url(url)
+    if blk and BLOCKHANDLER.is_blocked(blk):
+        return 'Blocked', False
 
     if not headers:
         headers = {}
@@ -212,11 +228,7 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         msg = f"Error {r.status_code}"
 
     if '503' in msg:
-        to_block = ''
-        for blk in service_blocked:
-            if blk.lower() in url.lower():
-                to_block = blk
-                break
+        to_block = service_for_url(url)
         if to_block:
             delay = 10
             logger.debug(f'Request denied, {r.status_code}, blocking {to_block} for {delay} seconds')
@@ -375,9 +387,9 @@ class CacheRequest(ABC):
                     (BLOCKHANDLER.is_blocked('googleapis') or BLOCKHANDLER.is_blocked('ISBN')):
                     return None, False
 
-            for blk in service_blocked:
-                if blk.lower() in self.url.lower() and BLOCKHANDLER.is_blocked(blk):
-                    return None, False
+            blk = service_for_url(self.url)
+            if blk and BLOCKHANDLER.is_blocked(blk):
+                return None, False
 
             result, success = self.fetch_data()
             if success:
@@ -389,11 +401,7 @@ class CacheRequest(ABC):
             else:
                 msg = f"Got error response for {self.url}: {result.split('<')[0]}"
                 self.logger.debug(msg)
-                to_block = ''
-                for blk in service_blocked:
-                    if blk.lower() in self.url:
-                        to_block = blk
-                        break
+                to_block = service_for_url(self.url)
                 if to_block:
                     delay = 30
                     self.logger.debug(f'Blocking {to_block} for {delay} seconds')
