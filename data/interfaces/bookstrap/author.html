@@ -150,6 +150,9 @@
             </p>
             %endif
             %if CONFIG['SHOW_REASON']:
+              <%
+                reasonstring = None
+              %>
               %if author['Reason']:
               <%
                 reasonlist = author['Reason'].split()
@@ -189,10 +192,12 @@
                   case 'series':
                     reasonstring = _('Search for series %(name)s') % {'name': ' '.join(reasonlist[1:])}
                   case _:
-                    reasonstring = null
+                    reasonstring = author['Reason']
               %>
               %else:
-                reasonstring = "Book added before reason set"
+              <%
+                reasonstring = _('Book added before reason set')
+              %>
               %endif
               %if reasonstring:
               <p><b> ${_('Added by:')}</b> ${reasonstring}</p>
