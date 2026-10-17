@@ -417,7 +417,7 @@ class BookState:
                     self.download_folder = os.path.join(get_directory('Download'), soulseek.get("name", '').rsplit('/', 1)[1])
                 except (KeyError, IndexError):
                     self.download_folder = general_folder
-            elif res and (res['NZBprov'] in ['annas', 'zlibrary'] or res['NZBprov'].startswith('libgen')):
+            elif res and (res['NZBprov'] in ['annas', 'zlibrary', 'webshare'] or res['NZBprov'].startswith('libgen')):
                 # these download into first download directory
                 self.download_folder = get_directory('Download')
             elif self.source == "QBITTORRENT" and general_folder:

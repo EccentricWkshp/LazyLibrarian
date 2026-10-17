@@ -3401,7 +3401,7 @@ class WebInterface:
             db.upsert("wanted", new_value_dict, control_value_dict)
             author_id = bookdata["AuthorID"]
             dl_title = bookdata["BookName"]
-            if provider in ['soulseek', 'annas']:
+            if provider in ['soulseek', 'annas', 'webshare']:
                 dl_title = title
             if mode == 'direct':
                 snatch, res = direct_dl_method(bookid, dl_title, url, library, provider)

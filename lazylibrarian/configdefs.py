@@ -352,6 +352,11 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('ANNA', 'ANNA_MAX_SERVERS', 1),
     ConfigStr('ANNA', 'ANNA_SEARCH_LANG', 'ANY'),  # upper case 2 letter language code or ANY
     ConfigDownloadTypes('ANNA', 'ANNA_DLTYPES', 'E'),
+    ConfigStr('WEBSHARE', 'WEBSHARE_USER', ''),
+    ConfigStr('WEBSHARE', 'WEBSHARE_PASS', ''),
+    ConfigBool('WEBSHARE', 'WEBSHARE', 0),
+    ConfigInt('WEBSHARE', 'WEBSHARE_DLPRIORITY', 0),
+    ConfigDownloadTypes('WEBSHARE', 'WEBSHARE_DLTYPES', 'E'),
     ConfigStr('LIME', 'LIME_HOST', 'https://www.limetorrents.cc'),
     ConfigBool('LIME', 'LIME', 0),
     ConfigInt('LIME', 'LIME_DLPRIORITY', 0),

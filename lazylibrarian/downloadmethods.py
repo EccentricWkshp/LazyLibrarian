@@ -78,6 +78,7 @@ from lazylibrarian.formatter import (
 from lazylibrarian.ircbot import irc_query
 from lazylibrarian.soulseek import SLSKD
 from lazylibrarian.telemetry import record_usage_data
+from lazylibrarian.webshare import valid_ident, webshare_download
 from lib.bencode import BencodeDecodeError, bdecode, bencode
 
 from .magnet2torrent import magnet2torrent
@@ -405,6 +406,41 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
         record_usage_data(f'Download/Direct/{provider}/Failed')
         db.close()
         return False, fname
+
+    if provider == 'webshare':
+        if not valid_ident(dl_url):
+            return False, f"Invalid webshare ident [{dl_url}]"
+        folder = ''
+        db = database.DBConnection()
+        res = db.match('SELECT bookname from books WHERE bookid=?', (bookid,))
+        if res and res['bookname']:
+            folder = sanitize(res['bookname'], is_folder_or_file=True)
+        try:
+            success, fname = webshare_download(dl_url, folder, dl_title)
+        except Exception as e:
+            success = False
+            fname = f"Webshare download error: {e}"
+        if not success:
+            logger.error(fname)
+
+        status = 'Snatched' if success else 'Failed'
+        dlresult = '' if success else fname
+        if success:
+            if library == 'eBook':
+                db.action("UPDATE books SET status='Snatched' WHERE BookID=?", (bookid,))
+            elif library == 'AudioBook':
+                db.action("UPDATE books SET audiostatus='Snatched' WHERE BookID=?", (bookid,))
+        if auxinfo:  # magazine issue
+            cmd = ("UPDATE wanted SET status=?, dlresult=?, Source=?, DownloadID=?, completed=? "
+                   "WHERE NZBUrl=?")
+            db.action(cmd, (status, dlresult, source, dl_url, int(time.time()), dl_url))
+        else:
+            cmd = ("UPDATE wanted SET status=?, dlresult=?, Source=?, DownloadID=?, completed=? "
+                   "WHERE BookID=? and NZBProv=?")
+            db.action(cmd, (status, dlresult, source, dl_url, int(time.time()), bookid, provider))
+        db.close()
+        record_usage_data(f'Download/Direct/{provider}/{"Success" if success else "Failed"}')
+        return success, dlresult
 
     if provider == 'zlibrary':
         zlib = bok_login()

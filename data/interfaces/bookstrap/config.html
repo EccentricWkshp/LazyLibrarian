@@ -2040,6 +2040,32 @@
                         </span>
                       </div>
                     </div>
+                    <% checked = 'checked="checked"' if CONFIG['WEBSHARE'] else '' %>
+                    <div class="col-md-4 form-group">
+                      <label for="webshare_user" class="sr-only">Webshare</label>
+                      <div class="input-group">
+                        <span class="input-group-addon">Webshare</span>
+                        <input type="text" placeholder="webshare.cz username (optional)" id="webshare_user" name="webshare_user" value="${CONFIG['WEBSHARE_USER']}" class="form-control">
+                        <span class="input-group-addon" data-toggle="tooltip" data-placement="bottom" title="Enable provider">
+                        <input type="checkbox" id="webshare" name="webshare" value="1" ${checked} />
+                        </span>
+                      </div>
+                      <div class="input-group">
+                        <span class="input-group-addon">Password</span>
+                        <input type="password" placeholder="password (optional)" id="webshare_pass" name="webshare_pass" value="${CONFIG['WEBSHARE_PASS']}" class="form-control">
+                        <span class="input-group-addon" data-toggle="tooltip" data-placement="bottom" title="Searching and downloading also works without an account">
+                        </span>
+                      </div>
+                      <div class="input-group">
+                        <span class="input-group-addon">Priority</span>
+                        <input type="number" id="webshare_dlpriority" name="webshare_dlpriority" value="${CONFIG['WEBSHARE_DLPRIORITY']}" class="form-control" placeholder="0">
+                        <span class="input-group-addon">Types</span>
+                        <input type="text" id="webshare_dltypes" name="webshare_dltypes" value="${CONFIG['WEBSHARE_DLTYPES']}" class="form-control" placeholder="">
+                        <span class="input-group-addon">
+                        <button role="testprov" class="button btn btn-xs btn-warning active" type="button" value="WEBSHARE"> Test</button>
+                        </span>
+                      </div>
+                    </div>
                     <% checked = 'checked="checked"' if CONFIG['BOK'] else '' %>
                     <div class="col-md-4 form-group">
                       <label for="bok_host" class="sr-only">zlibrary host</label>
