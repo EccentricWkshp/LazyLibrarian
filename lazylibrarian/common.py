@@ -196,34 +196,32 @@ def pwd_check(password):
 
 
 def mime_type(filename):
-    name = make_unicode(filename).lower()
-    if name.endswith('.epub'):
-        return 'application/epub+zip'
-    if name.endswith(('.mobi', '.azw')):
-        return 'application/x-mobipocket-ebook'
-    if name.endswith('.azw3'):
-        return 'application/x-mobi8-ebook'
-    if name.endswith('.pdf'):
-        return 'application/pdf'
-    if name.endswith('.fb2'):
-        return 'application/fb2+xml'
-    if name.endswith('.mp3'):
-        return 'audio/mpeg3'
-    if name.endswith(('.m4a', '.m4b')):
-        return 'audio/mp4'
-    if name.endswith('.flac'):
-        return 'audio/flac'
-    if name.endswith('.ogg'):
-        return 'audio/ogg'
-    if name.endswith('.zip'):
-        return 'application/x-zip-compressed'
-    if name.endswith('.xml'):
-        return 'application/rss+xml'
-    if name.endswith('.cbz'):
-        return 'application/x-cbz'
-    if name.endswith('.cbr'):
-        return 'application/x-cbr'
-    return "application/x-download"
+    # Mapping table for extensions
+    extensions = {
+        '.epub': 'application/epub+zip',
+        '.mobi': 'application/x-mobipocket-ebook',
+        '.azw':  'application/x-mobipocket-ebook',
+        '.azw3': 'application/x-mobi8-ebook',
+        '.pdf':  'application/pdf',
+        '.fb2':  'application/x-fictionbook+xml',
+        '.md':   'application/text/markdown',
+        '.mp3':  'audio/mpeg3',
+        '.m4a':  'audio/mp4',
+        '.m4b':  'audio/mp4',
+        '.flac': 'audio/flac',
+        '.ogg':  'audio/ogg',
+        '.zip':  'application/x-zip-compressed',
+        '.xml':  'application/rss+xml',
+        '.cbt':  'application/x-cbt',
+        '.cb7':  'application/x-cb7',
+        '.cbz':  'application/x-cbz',
+        '.cbr':  'application/x-cbr'
+    }
+    # Extract the extension safely
+    _, ext = os.path.splitext(make_unicode(filename).lower())
+
+    # Return the match or the default fallback
+    return extensions.get(ext, "application/x-download")
 
 
 def module_available(module_name):
