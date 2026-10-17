@@ -20,19 +20,27 @@ The `.po` files are read directly by `lazylibrarian/i18n.py`. You don't need to 
 
 ## For translators
 
-Translations are managed with standard `.po` files, so you can use any gettext tool
-(Weblate, Poedit, Lokalize, ...). Please keep:
+Translations are done on Hosted Weblate:
+https://hosted.weblate.org/projects/lazylibrarian/
+
+[![Translation status](https://hosted.weblate.org/widget/lazylibrarian/webui/multi-auto.svg)](https://hosted.weblate.org/engage/lazylibrarian/)
+
+Sign in, pick your language (or use "Start new translation" to add one) and translate
+in the browser. No git or coding is needed. Weblate sends the translations back to this
+repository as merge requests.
+
+Please don't edit the `.po` files in the repository directly. Weblate keeps its own
+copy, so changes made outside it lead to conflicts with its merge requests. If you
+prefer an offline tool (Poedit, Lokalize, ...), download the file from Weblate and
+upload it back there when you're done.
+
+When translating, please keep:
 
 - `%(count)s` / `%(count)d` placeholders as they are, wherever they fit in your sentence
 - the DataTables placeholders `_MENU_`, `_START_`, `_END_`, `_TOTAL_`, `_MAX_` as they are
 - HTML-free text: the markup stays in the templates
 
-To add a new language, create its catalog from the template (replace `sk` with your
-language code):
-
-```
-pybabel init -D lazylibrarian -i lazylibrarian/locale/lazylibrarian.pot -d lazylibrarian/locale -l sk
-```
+New languages are added in Weblate, which creates the `.po` file from the template.
 
 ## For developers
 
@@ -54,13 +62,23 @@ Notes:
 - Add a hint for translators with a Mako comment directly above the line:
   `## TRANSLATORS: _MAX_ is replaced by a number`
 
-After adding or changing strings, regenerate the template and update the catalogs
-(`pip install babel` first):
+After adding or changing strings, regenerate the template (`pip install babel` first):
 
 ```
 make translations
 ```
 
-The translation platform (e.g. Hosted Weblate) watches the `.pot` file and the `.po`
-files in the repository, so translators see new strings once the updated `.pot` file
-is committed.
+Commit only the updated `.pot` file. Weblate watches the repository and merges the new
+strings into every `.po` file itself (msgmerge add-on), so translators see them after the
+push to `master`. Translations come back as merge requests from Weblate. Merging them
+is all that's needed, there's no compile step.
+
+The Weblate component is set up as:
+
+| Setting | Value |
+|---|---|
+| Repository / branch | `https://gitlab.com/LazyLibrarian/LazyLibrarian.git`, `master` |
+| File format | gettext PO file |
+| File mask | `lazylibrarian/locale/*/LC_MESSAGES/lazylibrarian.po` |
+| Template for new translations | `lazylibrarian/locale/lazylibrarian.pot` |
+| Add-ons | "Update PO files to match POT (msgmerge)" |
