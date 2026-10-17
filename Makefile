@@ -116,11 +116,9 @@ stats: ## Show code statistics with Ruff
 	@echo "$(BLUE)Code statistics...$(NC)"
 	ruff check lazylibrarian/ --statistics
 
-translations: ## Extract UI strings to the .pot template and update the .po files
+translations: ## Extract UI strings to the .pot template (Weblate updates the .po files)
 	@echo "$(BLUE)Extracting translatable strings...$(NC)"
 	pybabel extract -F babel.cfg -k _js -k _jsn:1,2 -c TRANSLATORS: --sort-by-file \
 		--project=LazyLibrarian --copyright-holder="LazyLibrarian contributors" --msgid-bugs-address=https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues \
 		-o lazylibrarian/locale/lazylibrarian.pot .
-	pybabel update -D lazylibrarian -i lazylibrarian/locale/lazylibrarian.pot -d lazylibrarian/locale \
-		--ignore-obsolete --no-fuzzy-matching
-	@echo "$(GREEN)✓ Translations updated$(NC)"
+	@echo "$(GREEN)✓ lazylibrarian.pot updated, Weblate merges the new strings into the .po files$(NC)"
