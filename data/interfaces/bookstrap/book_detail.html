@@ -8,15 +8,15 @@
         <div id="subhead_menu">
             <a href="author_page?authorid=${book['AuthorID']}" class="btn btn-sm btn-primary"><i class="fa fa-user"></i> ${book['AuthorName']}</a>
             %if perm&lazylibrarian.perm_edit:
-            <a href="edit_book?bookid=${book['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-pencil-alt"></i> Edit</a>
+            <a href="edit_book?bookid=${book['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-pencil-alt"></i> ${_('Edit')}</a>
             %endif
             %if perm&lazylibrarian.perm_force:
-            <a href="refresh_book?bookid=${book['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> Refresh Book</a>
+            <a href="refresh_book?bookid=${book['BookID']}" class="btn btn-sm btn-primary"><i class="fa fa-sync"></i> ${_('Refresh Book')}</a>
             %endif
             %if perm&lazylibrarian.perm_status:
-            <a href="search_for_book?bookid=${book['BookID']}&library=eBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> Search eBook</a>
+            <a href="search_for_book?bookid=${book['BookID']}&library=eBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> ${_('Search eBook')}</a>
             %if CONFIG.get_int('AUDIO_TAB') > 0:
-            <a href="search_for_book?bookid=${book['BookID']}&library=AudioBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> Search AudioBook</a>
+            <a href="search_for_book?bookid=${book['BookID']}&library=AudioBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> ${_('Search AudioBook')}</a>
             %endif
             %endif
         </div>
@@ -40,54 +40,54 @@
         <h4 class="text-muted">${book['BookSub']}</h4>
         %endif
         %if book.get('SeriesDisplay'):
-        <p><b>Series:</b> ${book['SeriesDisplay']}</p>
+        <p><b>${_('Series:')}</b> ${book['SeriesDisplay']}</p>
         %endif
         %if book.get('BookGenre'):
-        <p><b>Genre:</b> ${book['BookGenre']}</p>
+        <p><b>${_('Genre:')}</b> ${book['BookGenre']}</p>
         %endif
 
         <div class="row">
           %if book.get('BookDate'):
-          <div class="col-sm-4"><p><b>Published:</b> ${book['BookDate']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Published:')}</b> ${book['BookDate']}</p></div>
           %endif
           %if book.get('OriginalPubDate') and book['OriginalPubDate'] != book.get('BookDate'):
-          <div class="col-sm-4"><p><b>Original publication:</b> ${book['OriginalPubDate']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Original publication:')}</b> ${book['OriginalPubDate']}</p></div>
           %endif
           %if book.get('BookPages'):
-          <div class="col-sm-4"><p><b>Pages:</b> ${book['BookPages']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Pages:')}</b> ${book['BookPages']}</p></div>
           %endif
         </div>
         <div class="row">
           %if book.get('BookRate'):
-          <div class="col-sm-4"><p><b>Rating:</b> ${book['BookRate']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Rating:')}</b> ${book['BookRate']}</p></div>
           %endif
           %if book.get('BookLang'):
-          <div class="col-sm-4"><p><b>Language:</b> ${book['BookLang']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Language:')}</b> ${book['BookLang']}</p></div>
           %endif
           %if book.get('Narrator'):
-          <div class="col-sm-4"><p><b>Narrator:</b> ${book['Narrator']}</p></div>
+          <div class="col-sm-4"><p><b>${_('Narrator:')}</b> ${book['Narrator']}</p></div>
           %endif
         </div>
 
-        <p><b>eBook status:</b> ${book['Status']}
+        <p><b>${_('eBook status:')}</b> ${status_label(book['Status'])}
         %if CONFIG.get_int('AUDIO_TAB') > 0 and book.get('AudioStatus'):
-          &nbsp;&nbsp;<b>AudioBook status:</b> ${book['AudioStatus']}
+          &nbsp;&nbsp;<b>${_('AudioBook status:')}</b> ${status_label(book['AudioStatus'])}
         %endif
         </p>
         %if book.get('BookIsbn'):
-        <p><b>ISBN:</b> ${book['BookIsbn']}</p>
+        <p><b>${_('ISBN:')}</b> ${book['BookIsbn']}</p>
         %endif
         %if book.get('BookPub'):
-        <p><b>Publisher:</b> ${book['BookPub']}</p>
+        <p><b>${_('Publisher:')}</b> ${book['BookPub']}</p>
         %endif
     </div>
 </div>
 
 <div class="row">
   <div class="col-md-12">
-    <h3>Sources</h3>
+    <h3>${_('Sources')}</h3>
     <table class="table table-condensed table-bordered">
-      <thead><tr><th>Source</th><th>ID</th><th>Link</th></tr></thead>
+      <thead><tr><th>${_('Source')}</th><th>${_('ID')}</th><th>${_('Link')}</th></tr></thead>
       <tbody>
         <%
             source_names = {src['book_key']: name for name, src in lazylibrarian.INFOSOURCES.items()}
@@ -100,28 +100,28 @@
             %if link:
             <a href="${link}" target="_blank" rel="noreferrer">${link}</a>
             %else:
-            <span class="text-muted">no verified link template</span>
+            <span class="text-muted">${_('no verified link template')}</span>
             %endif
           </td>
         </tr>
         %endfor
         <tr>
-          <td>Amazon</td>
+          <td>${_('Amazon')}</td>
           <td>${book.get('ASIN') or ''}</td>
           <td id="asin_cell">
             %if amazon_link:
             <a href="${amazon_link}" target="_blank" rel="noreferrer">${amazon_link}</a>
             %elif book.get('gr_id'):
             <button type="button" class="btn btn-xs btn-info" onclick="lookupAsin('${book['BookID']}')">
-              <i class="fa fa-search"></i> Look up on GoodReads
+              <i class="fa fa-search"></i> ${_('Look up on GoodReads')}
             </button>
             %else:
-            <span class="text-muted">no linked GoodReads id to look up from</span>
+            <span class="text-muted">${_('no linked GoodReads id to look up from')}</span>
             %endif
           </td>
         </tr>
         %if not book_links:
-        <tr><td colspan="3" class="text-muted">No other sources linked</td></tr>
+        <tr><td colspan="3" class="text-muted">${_('No other sources linked')}</td></tr>
         %endif
       </tbody>
     </table>
@@ -131,7 +131,7 @@
 %if book.get('BookDesc'):
 <div class="row">
     <div class="col-md-12">
-        <h3>Description</h3>
+        <h3>${_('Description')}</h3>
         <div>${book['BookDesc']}</div>
     </div>
 </div>
@@ -143,10 +143,10 @@
     function lookupAsin(bookid) {
         $.get('lookup_book_asin', {bookid: bookid}, function (data) {
             if (data.error) { bootbox.alert(data.error); return; }
-            if (!data.found) { bootbox.alert('No ASIN found on GoodReads for this book'); return; }
+            if (!data.found) { bootbox.alert(${_js('No ASIN found on GoodReads for this book')}); return; }
             $('#asin_cell').html('<a href="' + data.link + '" target="_blank" rel="noreferrer">' + data.link + '</a>');
         }, 'json').fail(function () {
-            bootbox.alert('Lookup failed - check the logs');
+            bootbox.alert(${_js('Lookup failed - check the logs')});
         });
     }
   </script>
