@@ -126,6 +126,13 @@ class I18nTest(unittest.TestCase):
         self.assertEqual(i18n.gettext('Authors'), 'Autori')
         self.assertIn('n>=2', i18n.plural_expression())
 
+    def test_status_label(self):
+        i18n.set_language('sk')
+        self.assertEqual(i18n.status_label('Wanted'), 'Hľadaný')
+        self.assertEqual(i18n.status_label('SomethingNew'), 'SomethingNew')
+        i18n.set_language('en')
+        self.assertEqual(i18n.status_label('Wanted'), 'Wanted')
+
     def test_js_helpers(self):
         i18n.set_language('en')
         self.assertEqual(i18n.js_string('a "b" </script>'), '"a \\"b\\" <\\/script>"')

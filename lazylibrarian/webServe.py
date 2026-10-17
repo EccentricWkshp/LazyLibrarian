@@ -350,7 +350,7 @@ def template_i18n():
     i18n.set_language(lang)
     return {'_': i18n.gettext, '_js': i18n.gettext_js, '_jsn': i18n.ngettext_js, 'js': i18n.js_string,
             'ngettext': i18n.ngettext, 'pgettext': i18n.pgettext, 'js_plural': i18n.plural_expression,
-            'ui_lang': lang}
+            'status_label': i18n.status_label, 'ui_lang': lang}
 
 
 def serve_template(templatename, **kwargs):
