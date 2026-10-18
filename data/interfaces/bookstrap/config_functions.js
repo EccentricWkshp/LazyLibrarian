@@ -1078,6 +1078,14 @@
             });
         });
 
+        $('#dbk_api').on('click', function() {
+            let status = $("#dbk_api").prop("checked") ? 'True' : ''
+            $.get('dbk_api_changed', {'status': status},
+            function(data) {
+                location.reload();
+            });
+        });
+
         $('#ran_api').on('click', function() {
             let status = $("#ran_api").prop("checked") ? 'True' : ''
             $.get('ran_api_changed', {'status': status},

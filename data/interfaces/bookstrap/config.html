@@ -645,6 +645,7 @@
                     hc_selected = ''
                     dnb_selected = ''
                     bn_selected = ''
+                    dbk_selected = ''
                     ran_selected = ''
                     if CONFIG['BOOK_API'] == "GoodReads":
                         gr_selected = 'selected="selected"'
@@ -658,6 +659,8 @@
                         dnb_selected = 'selected="selected"'
                     if CONFIG['BOOK_API'] == "BN":
                         bn_selected = 'selected="selected"'
+                    if CONFIG['BOOK_API'] == "DBK":
+                        dbk_selected = 'selected="selected"'
                     if CONFIG['BOOK_API'] == "RanobeDB":
                         ran_selected = 'selected="selected"'
                     %>
@@ -677,6 +680,9 @@
                       %endif
                       %if CONFIG['BN_API']:
                         <option value = "BN" ${bn_selected}>Biblioteka Narodowa</option>
+                      %endif
+                      %if CONFIG['DBK_API']:
+                        <option value = "DBK" ${dbk_selected}>Databáze knih</option>
                       %endif
                       %if CONFIG['RAN_API']:
                         <option value = "RanobeDB" ${ran_selected}>RanobeDB</option>
@@ -745,6 +751,17 @@
                     <label for="bn_api">
                       <input type="checkbox" id="bn_api" name="bn_api" value="1" ${checked} />
                       Enable Biblioteka Narodowa (National Library of Poland) api for book information
+                    </label>
+                  </div>
+                  </fieldset>
+                  <fieldset id="dbk_options">
+                  <label class="control-label">Databáze knih:</label>
+                  <div class="checkbox">
+                    <% checked = 'checked="checked"' if CONFIG['DBK_API'] else '' %>
+                    <label for="dbk_api">
+                      <input type="checkbox" id="dbk_api" name="dbk_api" value="1" ${checked} />
+                      Enable Databáze knih (databazeknih.cz, Czech and Slovak books) for book information.
+                      Add Czech and/or Slovak to the preferred languages to keep their books
                     </label>
                   </div>
                   </fieldset>

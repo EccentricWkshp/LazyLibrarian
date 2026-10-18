@@ -550,6 +550,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('API', 'OL_API', 0),
     ConfigBool('API', 'DNB_API', 0),
     ConfigBool('API', 'BN_API', 0),
+    ConfigBool('API', 'DBK_API', 0),
     ConfigBool('API', 'RAN_API', 0),
     ConfigBool('API', 'HC_API', 0),
     ConfigBool('API', 'AUDNEXUS', 0),

@@ -132,6 +132,8 @@ def send_to_calibre(booktype, global_name, folder, data):
                 identifier = f"dnb:{bookid}"
             elif data.get("bn_id") == bookid:
                 identifier = f"bn:{bookid}"
+            elif data.get("dbk_id") == bookid:
+                identifier = f"databazeknih:{bookid}"
             elif data.get("ran_id") == bookid:
                 identifier = f"RanobeDB:{bookid}"
         elif booktype == "comic":
