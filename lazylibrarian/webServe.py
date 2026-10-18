@@ -43,6 +43,7 @@ from lazylibrarian import (
     ROLE,
     comicscan,
     database,
+    dbk,
     deluge,
     grsync,
     hc,
@@ -837,7 +838,7 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
-            # Sources that expose a per-author ID (unlike GoogleBooks/DNB/BN/DBK, which are
+            # Sources that expose a per-author ID (unlike GoogleBooks/DNB/BN, which are
             # book-search-only - their author_key is the plain 'authorid' placeholder,
             # not a real per-source column). Derived from INFOSOURCES so a new such
             # source needs no change here or in the badge fallback below.
@@ -2888,7 +2889,7 @@ class WebInterface:
         # dnb_id even though those aren't author-linkable sources), counted in Python
         # rather than one SQL query per source since per-author book counts are small.
         # Column list is derived from INFOSOURCES (single source of truth, see !1850
-        # review) instead of a hand-duplicated tuple. DNB/BN/DBK are excluded from the *count*
+        # review) instead of a hand-duplicated tuple. DNB/BN are excluded from the *count*
         # loop below (but stay in book_source_cols for overlap) because they have no
         # dedicated row in author_detail.html - unlike GoogleBooks, which also has no
         # author entity of its own but does get a row, so it stays in both.
@@ -2897,7 +2898,7 @@ class WebInterface:
         book_rows = db.select(
             f"SELECT {','.join(book_source_cols)} from books WHERE AuthorID=?", (authorid,))
         source_book_counts = {}
-        for col in (c for c in book_source_cols if c not in ('dnb_id', 'bn_id', 'dbk_id')):
+        for col in (c for c in book_source_cols if c not in ('dnb_id', 'bn_id')):
             count = 0
             overlap = 0
             for row in book_rows:
@@ -2951,7 +2952,7 @@ class WebInterface:
         # says, not just the single merged/preferred version above.
         about_by_source = []
         for name, col in (('GoodReads', 'gr_about'), ('OpenLibrary', 'ol_about'),
-                          ('HardCover', 'hc_about'), ('RanobeDB', 'ran_about')):
+                          ('HardCover', 'hc_about'), ('RanobeDB', 'ran_about'), ('DBK', 'dbk_about')):
             text = author.get(col)
             if text:
                 note_match = self.LIBRARIAN_NOTE_RE.match(text)
@@ -3049,7 +3050,7 @@ class WebInterface:
     def book_refresh_source_priority():
         """ Priority order for picking which single source to refresh a book from -
         author-linkable sources (INFOSOURCES's author_key, richer/more curated data)
-        before book-search-only ones (GoogleBooks/DNB/BN/DBK), each group in INFOSOURCES'
+        before book-search-only ones (GoogleBooks/DNB/BN), each group in INFOSOURCES'
         own order. Every source implements the same add_bookid_to_db(bookid,
         bookstatus, audiostatus, reason) interface (see bookdict.py's docstring), so
         this can dispatch generically rather than needing per-source logic.
@@ -4657,6 +4658,11 @@ class WebInterface:
         if not sourceid:
             return {'error': 'No source id supplied'}
         column = self.author_linkable_sources()[source]
+        if source == 'DBK':
+            # accept the bare number or the author page link, stored as DBK<number>
+            sourceid = dbk.DBK.author_id_from_text(sourceid)
+            if not sourceid:
+                return {'error': 'Not a Databazeknih author id or link'}
         db = database.DBConnection()
         author = db.match('SELECT AuthorID,AuthorName from authors WHERE AuthorID=?', (authorid,))
         if not author:

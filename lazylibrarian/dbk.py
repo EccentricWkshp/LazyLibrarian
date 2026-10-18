@@ -9,9 +9,12 @@
 #   https://www.databazeknih.cz/prehled-knihy/zaklinac-saga-krev-elfu-30482  book, with schema.org json-ld
 #   https://www.databazeknih.cz/book-detail-more-info/30482               pages, original title, isbn
 #   https://www.databazeknih.cz/search?in=authors&q=sapkowski             search for authors
+#   https://www.databazeknih.cz/autori/andrzej-sapkowski-269              author, with schema.org json-ld
 #   https://www.databazeknih.cz/vydane-knihy/andrzej-sapkowski-269        an author's books, 20 per page
 #   https://www.databazeknih.cz/serie/zaklinac-saga---7063                books in a series
 # Each edition of a book has its own id. The author and series pages list one edition of each book
+# Author ids are plain numbers like GoodReads and HardCover ones, so LazyLibrarian stores them
+# as DBK<number> to keep them apart in the lookups that match an id against every source column
 
 import contextlib
 import json
@@ -42,6 +45,7 @@ from lazylibrarian.bookdict import (
 from lazylibrarian.cache import html_request
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import (
+    format_author_name,
     get_list,
     is_valid_isbn,
     plural,
@@ -68,6 +72,7 @@ class DBK:
     SEARCHURL = BASEURL + '/vyhledavani/knihy?%s'
     ISBNURL = BASEURL + '/search?%s'
     AUTHORSEARCHURL = BASEURL + '/search?%s'
+    AUTHORURL = BASEURL + '/autori/autor-%s'
     AUTHORBOOKSURL = BASEURL + '/vydane-knihy/autor-%s'
     SERIESURL = BASEURL + '/serie/serie-%s'
 
@@ -505,6 +510,45 @@ class DBK:
         return best_id if best_fuzz >= 90 else ''
 
     @staticmethod
+    def author_id_from_text(text) -> str:
+        """ Return the LazyLibrarian form of a databazeknih author id, DBK<number>, from a bare
+            number, an id that already has the prefix or an author page link, or empty string """
+        text = str(text or '').strip()
+        if text.upper().startswith('DBK'):
+            text = text[3:]
+        if not text.isdigit():
+            text = DBK._id_from_link(text.split('?')[0].rstrip('/'))
+        return f"DBK{text}" if text else ''
+
+    @staticmethod
+    def _author_number(authorid) -> str:
+        """ The number the site uses for an author, from DBK<number> """
+        return DBK.author_id_from_text(authorid)[3:]
+
+    def _parse_author(self, page: str) -> dict:
+        """ Return the author dict in the standard layout from an author page, or empty dict """
+        soup = BeautifulSoup(page, 'html.parser')
+        person = self._json_ld(soup, 'Person')
+        number = self._id_from_link(person.get('url', ''))
+        authorname = self._clean_author(str(person.get('name', '')))
+        if not number or not authorname:
+            return {}
+        authorimg = str(person.get('image', ''))
+        if '/img/authors/' not in authorimg:
+            # no photo, the site shows a placeholder
+            authorimg = ''
+        return {
+            'authorid': f"DBK{number}",
+            'authorlink': person['url'],
+            'authorborn': str(person.get('birthDate', '')),
+            'authordeath': str(person.get('deathDate', '')),
+            'authorimg': authorimg,
+            'about': ' '.join(str(person.get('description', '')).split()),
+            'totalbooks': 0,
+            'authorname': format_author_name(authorname, postfix=get_list(CONFIG.get_csv('NAME_POSTFIX'))),
+        }
+
+    @staticmethod
     def _comparable_name(name):
         """ Name without diacritics, unaccented() drops 'ł' as it has no separate accent """
         return unaccented(name.translate({0x141: 'L', 0x142: 'l'}))
@@ -529,6 +573,34 @@ class DBK:
 
     # ---------------------------------------------------------------- provider interface
 
+    def find_author_id(self, authorname=None, title=None, refresh=False):
+        """ Return the author dict of the closest name match, or empty dict.
+            The site's author search only matches names, so title is not used """
+        if not CONFIG['DBK_API'] or not authorname:
+            return {}
+        number = self._find_author(authorname)
+        if not number:
+            self.logger.debug(f"No Databazeknih author id for {authorname}")
+            return {}
+        return self.get_author_info(authorid=f"DBK{number}", authorname=authorname, refresh=refresh)
+
+    def get_author_info(self, authorid=None, authorname=None, refresh=False):
+        """ Return name, link, image, dates and description of a databazeknih author, or empty dict """
+        if not CONFIG['DBK_API']:
+            return {}
+        number = self._author_number(authorid)
+        if not number:
+            return self.find_author_id(authorname=authorname, refresh=refresh) if authorname else {}
+        self.logger.debug(f"Getting Databazeknih author info for {authorid}:{authorname}")
+        page, _ = self._fetch(self.AUTHORURL % number)
+        author = self._parse_author(page) if page else {}
+        if not author:
+            self.logger.debug(f"Unable to read Databazeknih author {authorid}")
+        return author
+
+    def get_author_image(self, authorid=None, authorname=None, refresh=False):
+        return self.get_author_info(authorid=authorid, authorname=authorname, refresh=refresh).get('authorimg', '')
+
     def get_author_books(self, authorid=None, authorname=None, bookstatus="Skipped",
                          audiostatus="Skipped", entrystatus='Active', refresh=False, reason='dbk.get_author_books'):
         if not CONFIG['DBK_API']:
@@ -541,8 +613,11 @@ class DBK:
         try:
             dbk_author_id = ''
             if authorid:
-                res = db.match('SELECT AuthorName,dbk_id from authors WHERE Authorid=?', (authorid,))
+                # importer passes the dbk_id, which is the AuthorID only if Databazeknih added the author
+                res = db.match('SELECT AuthorID,AuthorName,dbk_id from authors WHERE AuthorID=? or dbk_id=?',
+                               (authorid, authorid))
                 if res:
+                    auth_id = res['AuthorID']
                     auth_name = res['AuthorName']
                     dbk_author_id = res['dbk_id'] or ''
             else:
@@ -551,8 +626,9 @@ class DBK:
             self.logger.debug(f'[{auth_id}:{auth_name}] Now processing books with Databazeknih')
             db.action("UPDATE authors SET Status='Loading' WHERE AuthorID=?", (auth_id,))
 
-            if not dbk_author_id or refresh:
-                dbk_author_id = self._find_author(auth_name)
+            # keep a stored id on refresh, the user may have linked it by hand
+            if not dbk_author_id:
+                dbk_author_id = self.author_id_from_text(self._find_author(auth_name))
                 if dbk_author_id and auth_id:
                     db.action("UPDATE authors SET dbk_id=? WHERE AuthorID=?", (dbk_author_id, auth_id))
             if not dbk_author_id:
@@ -561,7 +637,7 @@ class DBK:
 
             results = []
             cache_hits = 0
-            for bookid, bookname, year in self._author_books(dbk_author_id):
+            for bookid, bookname, year in self._author_books(self._author_number(dbk_author_id)):
                 if lazylibrarian.STOPTHREADS and thread_name() == "AUTHORUPDATE":
                     break
                 # skip the more-info request, the list already has the first publication year
@@ -604,7 +680,7 @@ class DBK:
 
     def get_series_members(self, series_id=None, series_title='', queue=None, refresh=False):
         """ Return [(position, title, author_name, author_id, book_id, pubdate)] sorted on position.
-            author_id is left empty, databazeknih author ids are not LazyLibrarian author ids """
+            author_id is left empty, the author is found by name when the book is added """
         dbk_series_id = str(series_id or '').removeprefix('DBK')
         resultlist = []
         if dbk_series_id.isdigit():

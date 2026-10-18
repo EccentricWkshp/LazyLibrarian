@@ -122,7 +122,7 @@ def available_author_sources():
         if CONFIG[this_source['enabled']] and not BLOCKHANDLER.is_blocked(item):
             source_dict[item] = [this_source['src'], this_source['api'],
                                  this_source['author_key'], this_source['enabled']]
-    # GB/DNB/BN/DBK don't have authorid so we use one of the others...
+    # GB/DNB/BN don't have authorid so we use one of the others...
     # prefer CONFIG['BOOK_API'] if it has authorid
     # 2nd choice, one that's enabled with an apikey
     # 3rd choice, openlibrary if enabled (doesn't need apikey)

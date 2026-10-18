@@ -3,10 +3,12 @@
 # Purpose:
 #   Testing functionality in dbk.py (Databáze knih) without network access
 
+import unicodedata
 from queue import Queue
 from unittest import mock
 
-from lazylibrarian import dbk
+import lazylibrarian
+from lazylibrarian import dbk, importer
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.dbupgrade import has_column
 from lazylibrarian.database import DBConnection
@@ -136,6 +138,26 @@ AUTHOR_SEARCH_PAGE = """<html><body>
 <a href="autori/andrzej-sapkowski-ml-99999">Andrzej Nowak</a>
 </body></html>"""
 
+AUTHOR_PAGE = r"""<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Karel Čapek",
+  "url": "https://www.databazeknih.cz/autori/karel-capek-101",
+  "image": "https:\/\/www.databazeknih.cz\/img\/authors\/10_\/101\/karel-capek-z04-101.jpg",
+  "description": "Český prozaik, dramatik, novinář a překladatel...",
+  "birthDate": "1890-01-09",
+  "deathDate": "1938-12-25",
+  "birthPlace": {
+    "@type": "Place",
+    "name": "Malé Svatoňovice"
+  }
+}
+</script></head><body>
+<h1>Karel Čapek</h1>
+</body></html>"""
+
 
 class DBKTest(LLTestCaseWithStartup):
 
@@ -263,5 +285,100 @@ class DBKTest(LLTestCaseWithStartup):
         try:
             self.assertTrue(has_column(db, 'books', 'dbk_id'))
             self.assertTrue(has_column(db, 'authors', 'dbk_id'))
+        finally:
+            db.close()
+
+    def test_author_id_from_text(self):
+        for text in ['269', 'DBK269', 'dbk269', ' 269 ', 'https://www.databazeknih.cz/autori/andrzej-sapkowski-269',
+                     'https://www.databazeknih.cz/autori/andrzej-sapkowski-269/?lang=cz', 'autori/andrzej-sapkowski-269']:
+            self.assertEqual(dbk.DBK.author_id_from_text(text), 'DBK269', text)
+        for text in ['', None, 'Andrzej Sapkowski', 'DBK']:
+            self.assertEqual(dbk.DBK.author_id_from_text(text), '', text)
+
+    def test_get_author_info(self):
+        with mock.patch.object(dbk.DBK, '_fetch', return_value=(AUTHOR_PAGE, False)) as fetch:
+            author = dbk.DBK().get_author_info(authorid='DBK101')
+            self.assertEqual(fetch.call_args[0][0], 'https://www.databazeknih.cz/autori/autor-101')
+        self.assertEqual(author['authorid'], 'DBK101')
+        # format_author_name stores names decomposed
+        self.assertEqual(unicodedata.normalize('NFC', author['authorname']), 'Karel Čapek')
+        self.assertEqual(author['authorlink'], 'https://www.databazeknih.cz/autori/karel-capek-101')
+        self.assertEqual(author['authorimg'],
+                         'https://www.databazeknih.cz/img/authors/10_/101/karel-capek-z04-101.jpg')
+        self.assertEqual(author['authorborn'], '1890-01-09')
+        self.assertEqual(author['authordeath'], '1938-12-25')
+        self.assertTrue(author['about'].startswith('Český prozaik, dramatik'))
+
+    def test_get_author_info_no_photo_or_page(self):
+        page = AUTHOR_PAGE.replace(r'https:\/\/www.databazeknih.cz\/img\/authors\/10_\/101\/karel-capek'
+                                   r'-z04-101.jpg', '/img/content/noimage-author.png')
+        with mock.patch.object(dbk.DBK, '_fetch', return_value=(page, False)):
+            self.assertEqual(dbk.DBK().get_author_image(authorid='DBK101'), '')
+        with mock.patch.object(dbk.DBK, '_fetch', return_value=('', False)):
+            self.assertEqual(dbk.DBK().get_author_info(authorid='DBK101'), {})
+        # a page that is not an author
+        with mock.patch.object(dbk.DBK, '_fetch', return_value=(BOOK_PAGE, False)):
+            self.assertEqual(dbk.DBK().get_author_info(authorid='101'), {})
+
+    def test_find_author_id(self):
+        pages = {'https://www.databazeknih.cz/search?in=authors&q=Karel+%C4%8Capek':
+                 '<a href="/autori/karel-capek-101">Karel Čapek</a><a href="/autori/karel-jan-capek-4910">'
+                 'Karel Jan Čapek</a>',
+                 'https://www.databazeknih.cz/autori/autor-101': AUTHOR_PAGE}
+        with mock.patch.object(dbk.DBK, '_fetch', side_effect=lambda url: (pages.get(url, ''), False)):
+            author = dbk.DBK().find_author_id(authorname='Karel Čapek', title='R.U.R.')
+            self.assertEqual(author['authorid'], 'DBK101')
+            self.assertEqual(unicodedata.normalize('NFC', author['authorname']), 'Karel Čapek')
+            self.assertEqual(dbk.DBK().find_author_id(authorname='Terry Pratchett'), {})
+            # without an id, get_author_info finds the author by name
+            self.assertEqual(dbk.DBK().get_author_info(authorname='Karel Čapek')['authorid'], 'DBK101')
+
+    def test_author_source(self):
+        source = lazylibrarian.INFOSOURCES['DBK']
+        self.assertEqual(source['author_key'], 'dbk_id')
+        self.assertEqual(source['author_link'], 'dbk_link')
+        self.assertIn('dbk_id', importer.author_keys())
+
+    def test_author_id_lookup_no_collision(self):
+        """ A GoodReads author with id 269 and the Databazeknih author 269 are different people """
+        db = DBConnection()
+        try:
+            db.action("DELETE FROM authors WHERE AuthorID IN ('269', 'DBK269')")
+            db.action("INSERT INTO authors (AuthorID, AuthorName, gr_id) VALUES ('269', 'Goodreads Author', '269')")
+            db.action("INSERT INTO authors (AuthorID, AuthorName, dbk_id) VALUES ('DBK269', 'Andrzej Sapkowski', "
+                      "'DBK269')")
+            self.assertEqual(importer.get_preferred_author('x', authorid='269'), ('Goodreads Author', '269'))
+            self.assertEqual(importer.get_preferred_author('x', authorid='DBK269'), ('Andrzej Sapkowski', 'DBK269'))
+        finally:
+            db.action("DELETE FROM authors WHERE AuthorID IN ('269', 'DBK269')")
+            db.close()
+
+    def test_get_author_books_by_dbk_id(self):
+        """ The importer passes the dbk_id, the author may have been added from another source """
+        pages = {'https://www.databazeknih.cz/vydane-knihy/autor-269': AUTHOR_BOOKS_PAGE,
+                 'https://www.databazeknih.cz/prehled-knihy/kniha-433': BOOK_PAGE,
+                 'https://www.databazeknih.cz/prehled-knihy/kniha-30500': BOOK_PAGE}
+        db = DBConnection()
+        try:
+            db.action("DELETE FROM authors WHERE AuthorID='12345'")
+            db.action("INSERT INTO authors (AuthorID, AuthorName, gr_id, dbk_id, Status) VALUES "
+                      "('12345', 'Andrzej Sapkowski', '12345', 'DBK269', 'Active')")
+            with mock.patch.object(dbk.DBK, '_fetch', side_effect=lambda url: (pages.get(url, ''), True)), \
+                    mock.patch.object(dbk, 'add_author_books_to_db') as add_books:
+                dbk.DBK().get_author_books('DBK269', 'Andrzej Sapkowski', entrystatus='Active')
+            self.assertTrue(add_books.called)
+            args = add_books.call_args[0]
+            books = args[0].get()
+            self.assertEqual(len(books), 2)
+            self.assertEqual({b['authorid'] for b in books}, {'12345'})
+            self.assertEqual(args[5], '12345')
+        finally:
+            db.action("DELETE FROM authors WHERE AuthorID='12345'")
+            db.close()
+
+    def test_dbk_link_column(self):
+        db = DBConnection()
+        try:
+            self.assertTrue(has_column(db, 'authors', 'dbk_link'))
         finally:
             db.close()
