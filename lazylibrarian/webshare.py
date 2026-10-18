@@ -14,10 +14,12 @@
 # Search and file links work anonymously, an account is optional.
 # Free accounts are speed limited, which doesn't matter much for ebooks.
 
+import contextlib
 import hashlib
 import logging
 import os
 import re
+import tempfile
 import xml.etree.ElementTree as ElementTree
 
 import requests
@@ -188,6 +190,26 @@ def valid_ident(ident: str) -> bool:
     return bool(re.fullmatch(r'[A-Za-z0-9]+', ident or ''))
 
 
+def safe_filename(name: str) -> str:
+    """ Reduce an uploader supplied name to a single path component """
+    # sanitize keeps ':' on windows, which would make "D:x" a drive relative path
+    name = sanitize((name or '').replace('\\', '/').split('/')[-1]).replace(':', '')
+    return '' if name in ('.', '..') else name
+
+
+def _remove_quietly(path: str):
+    with contextlib.suppress(OSError):
+        os.remove(path)
+
+
+def _inside(path: str, directory: str) -> bool:
+    directory = os.path.realpath(directory)
+    try:
+        return os.path.commonpath([os.path.realpath(path), directory]) == directory
+    except ValueError:  # different drives on windows
+        return False
+
+
 def webshare_download(ident: str, folder: str, filename: str):
     """ Download file ident into download_dir/folder/filename
         Returns (True, destination) or (False, error message) """
@@ -204,25 +226,35 @@ def webshare_download(ident: str, folder: str, filename: str):
     if not url:
         return False, "webshare returned no download link"
 
-    download_dir = get_directory('Download')
+    root_dir = get_directory('Download')
+    download_dir = os.path.join(root_dir, folder) if folder else root_dir
+    safe_name = safe_filename(filename)
+    dest_filename = os.path.join(download_dir, safe_name)
+    if not safe_name or not _inside(dest_filename, root_dir):
+        return False, f"Refusing to save {filename} outside the download directory"
     if folder:
-        download_dir = os.path.join(download_dir, folder)
         os.makedirs(download_dir, exist_ok=True)
-    dest_filename = os.path.join(download_dir, sanitize(filename, is_folder_or_file=True))
+    # write to a unique temporary file so a failed download never leaves or clobbers a book file
+    part_filename = ''
+    size = 0
     try:
         with requests.get(url, stream=True, timeout=60, proxies=proxy_list()) as r:
             if r.status_code != 200:
                 return False, f"Got a {r.status_code} response downloading {filename}"
-            size = 0
-            with open(dest_filename, 'wb') as f:
+            fd, part_filename = tempfile.mkstemp(suffix='.part', dir=download_dir)
+            with os.fdopen(fd, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=65536):
                     f.write(chunk)
                     size += len(chunk)
+        if size >= 100:
+            os.replace(part_filename, dest_filename)
     except Exception as e:
+        if part_filename:
+            _remove_quietly(part_filename)
         return False, f"{type(e).__name__} downloading {filename}: {e}"
 
     if size < 100:
-        os.remove(dest_filename)
+        _remove_quietly(part_filename)
         return False, f"Only got {size} bytes for {filename}"
     setperm(dest_filename)
     logger.debug(f"Webshare saved {size} bytes to {dest_filename}")
