@@ -62,7 +62,7 @@ class ImageType(Enum):
     TEST = 'test'
 
 
-service_blocked = ['GoodReads', 'LibraryThing', 'googleapis', 'OpenLibrary', 'HardCover', 'DNB', 'RanobeDB', 'ISBN']
+service_blocked = ['GoodReads', 'LibraryThing', 'googleapis', 'OpenLibrary', 'HardCover', 'DNB', 'RanobeDB', 'DatabazeKnih', 'ISBN']
 
 
 def service_for_url(url: str) -> str:

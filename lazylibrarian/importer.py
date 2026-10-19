@@ -898,7 +898,7 @@ def de_duplicate(authorid):
     # noinspection PyBroadException
     try:
         # Pass 1: Merge by matching external provider IDs
-        id_keys = ['gr_id', 'WorkID', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'bn_id', 'ran_id', 'LT_WorkID']
+        id_keys = ['gr_id', 'WorkID', 'ol_id', 'gb_id', 'hc_id', 'dnb_id', 'bn_id', 'dbk_id', 'ran_id', 'LT_WorkID']
         for id_key in id_keys:
             res = db.select(f"SELECT count({id_key}), {id_key} FROM books WHERE AuthorID=? AND {id_key} IS NOT NULL AND {id_key} != '' GROUP BY {id_key} HAVING ( count({id_key}) > 1 )", (authorid,))
             for item in res:

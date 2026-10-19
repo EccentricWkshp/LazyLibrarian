@@ -129,8 +129,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 92 add ran_id to author and books table
 # 98 add bn_id to book table
 # 99 add ui_lang to users table
+# 100 add dbk_id to books and authors tables, dbk_link to authors table
 
-db_current_version = 99
+db_current_version = 100
 
 
 def upgrade_needed():
@@ -874,8 +875,8 @@ def check_db(upgradelog=None):
                 logger.warning(f"Found {len(no_bookid)} unknown bookids in readinglists")
             for item in no_bookid:
                 cmd = ('SELECT BookID from books WHERE ol_id=? OR gr_id=? OR lt_workid=? OR gb_id=?'
-                       ' or hc_id=? or dnb_id=? or ran_id=? or bn_id=?')
-                res = db.match(cmd, (item, item, item, item, item, item, item, item))
+                       ' or hc_id=? or dnb_id=? or ran_id=? or bn_id=? or dbk_id=?')
+                res = db.match(cmd, (item, item, item, item, item, item, item, item, item))
                 if res:
                     logger.debug(f"readinglists bookid {item} is now {res[0]}")
                     cmd = "UPDATE readinglists SET BookID=? WHERE BookID=?"
@@ -1620,6 +1621,19 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding ui_lang column to users table'
         upgradelog.write(f"{time.ctime()} v99: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE users ADD COLUMN ui_lang TEXT')
+
+    for table in ('books', 'authors'):
+        if not has_column(db, table, "dbk_id"):
+            changes += 1
+            lazylibrarian.UPDATE_MSG = f'Adding dbk_id column to {table} table'
+            upgradelog.write(f"{time.ctime()} v100: {lazylibrarian.UPDATE_MSG}\n")
+            db.action(f'ALTER TABLE {table} ADD COLUMN dbk_id TEXT')
+
+    if not has_column(db, "authors", "dbk_link"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Adding dbk_link column to authors table'
+        upgradelog.write(f"{time.ctime()} v100: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('ALTER TABLE authors ADD COLUMN dbk_link TEXT')
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

@@ -43,6 +43,7 @@ from lazylibrarian import (
     ROLE,
     comicscan,
     database,
+    dbk,
     deluge,
     grsync,
     hc,
@@ -2951,7 +2952,7 @@ class WebInterface:
         # says, not just the single merged/preferred version above.
         about_by_source = []
         for name, col in (('GoodReads', 'gr_about'), ('OpenLibrary', 'ol_about'),
-                          ('HardCover', 'hc_about'), ('RanobeDB', 'ran_about')):
+                          ('HardCover', 'hc_about'), ('RanobeDB', 'ran_about'), ('DBK', 'dbk_about')):
             text = author.get(col)
             if text:
                 note_match = self.LIBRARIAN_NOTE_RE.match(text)
@@ -3068,7 +3069,7 @@ class WebInterface:
         self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
-        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,bn_id,gb_id FROM books WHERE BookID=?",
+        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,bn_id,dbk_id,gb_id FROM books WHERE BookID=?",
                         (bookid,))
         db.close()
         if not book:
@@ -4657,6 +4658,11 @@ class WebInterface:
         if not sourceid:
             return {'error': 'No source id supplied'}
         column = self.author_linkable_sources()[source]
+        if source == 'DBK':
+            # accept the bare number or the author page link, stored as DBK<number>
+            sourceid = dbk.DBK.author_id_from_text(sourceid)
+            if not sourceid:
+                return {'error': 'Not a Databazeknih author id or link'}
         db = database.DBConnection()
         author = db.match('SELECT AuthorID,AuthorName from authors WHERE AuthorID=?', (authorid,))
         if not author:
@@ -8537,7 +8543,8 @@ class WebInterface:
             CONFIG.set_bool('OL_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8554,7 +8561,8 @@ class WebInterface:
             CONFIG.set_bool('DNB_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8571,7 +8579,26 @@ class WebInterface:
             CONFIG.set_bool('BN_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
+            # ensure at least one option is available
+            CONFIG.set_bool('OL_API', True)
+            CONFIG.set_str('BOOK_API', 'OpenLibrary')
+        return kwargs['status']
+
+    @cherrypy.expose
+    @require_auth()
+    def dbk_api_changed(self, **kwargs):
+        # dbk_api is true/false, not an api key
+        if kwargs['status']:
+            CONFIG.set_bool('DBK_API', True)
+            CONFIG.set_str('BOOK_API', 'DBK')
+        else:
+            CONFIG.set_bool('DBK_API', False)
+        if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
+                and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8588,7 +8615,8 @@ class WebInterface:
             CONFIG.set_bool('RAN_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8605,7 +8633,8 @@ class WebInterface:
             CONFIG.set_bool('HC_API', False)
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8620,7 +8649,8 @@ class WebInterface:
             CONFIG.set_str('BOOK_API', 'GoodReads')
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')
@@ -8635,7 +8665,8 @@ class WebInterface:
             CONFIG.set_str('BOOK_API', 'GoogleBooks')
         if (not CONFIG.get_bool('HC_API') and not bool(CONFIG.get_str('GR_API'))
                 and not bool(CONFIG.get_str('GB_API')) and not CONFIG.get_bool('DNB_API')
-                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('RAN_API')):
+                and not CONFIG.get_bool('BN_API') and not CONFIG.get_bool('DBK_API')
+                and not CONFIG.get_bool('RAN_API')):
             # ensure at least one option is available
             CONFIG.set_bool('OL_API', True)
             CONFIG.set_str('BOOK_API', 'OpenLibrary')

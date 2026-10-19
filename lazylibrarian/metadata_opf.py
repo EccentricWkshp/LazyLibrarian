@@ -170,7 +170,9 @@ def create_opf(dest_path, data_row, global_name=None, overwrite=False):
     elif bookid.isdigit():
         # TODO could be goodreads or hardcover, can't be sure
         scheme = "goodreads"
-        if CONFIG["BOOK_API"] == "HardCover":
+        if data_dict.get("dbk_id") == bookid or CONFIG["BOOK_API"] == "DBK":
+            scheme = "DATABAZEKNIH"
+        elif CONFIG["BOOK_API"] == "HardCover":
             scheme = "HardCover"
     elif bookid.startswith("OL"):
         scheme = "OpenLibrary"

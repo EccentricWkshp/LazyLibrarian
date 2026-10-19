@@ -33,7 +33,7 @@ import requests
 import urllib3
 
 import lazylibrarian
-from lazylibrarian import bn, database, dnb, gb, gr, hc, ol, ran, versioncheck
+from lazylibrarian import bn, database, dbk, dnb, gb, gr, hc, ol, ran, versioncheck
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import fetch_url, init_hex_caches
 from lazylibrarian.cleanup import UNBUNDLER
@@ -376,6 +376,10 @@ class StartupLazyLibrarian:
                        'author_link': None, 'author_about': None,
                        'link_template': 'https://katalogi.bn.org.pl/discovery/search?query=any,contains,{}'
                                         '&vid=48OMNIS_NLOP:48OMNIS_NLOP'},
+                'DBK': {'src': 'DBK', 'author_key': 'dbk_id', 'book_key': 'dbk_id', 'enabled': 'DBK_API',
+                        'api': dbk.DBK, 'has_subs': 1,
+                        'author_link': 'dbk_link', 'author_about': 'dbk_about',
+                        'link_template': 'https://www.databazeknih.cz/prehled-knihy/kniha-{}'},
                 'RanobeDB': {'src': 'RA', 'author_key': 'ran_id', 'book_key': 'ran_id', 'enabled': 'RAN_API',
                         'api': ran.RanobeDB, 'has_subs': 0,
                         'author_link': 'ran_link', 'author_about': 'ran_about'},
