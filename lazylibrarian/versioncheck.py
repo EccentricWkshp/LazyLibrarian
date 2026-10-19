@@ -10,6 +10,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
 
+import contextlib
 import datetime
 import logging
 import os
@@ -564,9 +565,9 @@ def update():
                     msg = f"No update available: {str(output)}"
                     upgradelog.write(f"{time.ctime()} {msg}\n")
                     logger.info(msg)
-                    if os.path.exists(backup_file):
+                    with contextlib.suppress(OSError):
                         os.remove(backup_file)
-                    if os.path.exists(dbbackup_file):
+                    with contextlib.suppress(OSError):
                         os.remove(dbbackup_file)
                     break
                 if 'Aborting' in line or 'local changes' in line:
@@ -671,7 +672,7 @@ def update():
                         # or use a different upgrade mechanism
                         logger.debug(f"Skipping {curfile}")
                     else:
-                        if os.path.isfile(syspath(new_path)):
+                        with contextlib.suppress(OSError):
                             os.remove(syspath(new_path))
                         os.renames(syspath(old_path), syspath(new_path))
 

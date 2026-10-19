@@ -1,3 +1,16 @@
+#  This file is part of Lazylibrarian.
+#  Lazylibrarian is free software':'you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  Lazylibrarian is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  You should have received a copy of the GNU General Public License
+#  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
+
+import contextlib
 import gzip
 import json
 import logging
@@ -251,7 +264,7 @@ def download_dump_file(url, local_path):
         if resume_from and e.response.status_code == 416:
             # Range not satisfiable - our partial file is already complete/stale, restart clean.
             logger.warning(f"Server rejected resume of {os.path.basename(local_path)}, restarting from scratch")
-            if os.path.exists(partial_path):
+            with contextlib.suppress(OSError):
                 os.remove(partial_path)
             return download_dump_file(url, local_path)
         logger.error(f"HTTP error downloading {url}: {e}")

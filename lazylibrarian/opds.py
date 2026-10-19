@@ -19,6 +19,7 @@
 import datetime
 import logging
 import os
+import zipfile
 from urllib.parse import quote_plus
 
 import cherrypy
@@ -32,6 +33,7 @@ from lazylibrarian.common import get_readinglist, mime_type, zip_audio
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import any_file, listdir, path_isfile, splitext
 from lazylibrarian.formatter import check_int, get_list, make_unicode, plural
+from lazylibrarian.images import valid_pdf
 
 searchable = ['EAuthors', 'AAuthors', 'Magazines', 'Series', 'EAuthor', 'AAuthor', 'RecentBooks',
               'RecentAudio', 'RecentMags', 'RatedBooks', 'RatedAudio', 'ReadBooks', 'ToReadBooks',
@@ -136,7 +138,7 @@ class OPDS:
         else:
             return self.data
 
-    def multi_link(self, bookfile, bookid):
+    def _multi_format_book_links(self, bookfile, bookid):
         types = []
         multi = ''
         basename, _ = splitext(bookfile)
@@ -151,6 +153,78 @@ class OPDS:
                 multi += '<link href="'
                 multi += f'{self.opdsroot}?cmd=Serve&amp;bookid={quote_plus(bookid)}&amp;fmt={fmt}'
                 multi += '" rel="http://opds-spec.org/acquisition" type="' + mime_type('.' + fmt) + '"/>'
+        return multi
+
+    def _number_of_pages(self, bookfile):
+        basename, extn = splitext(bookfile)
+
+        if extn.lower() == '.pdf':
+            valid, page_count = valid_pdf(bookfile)
+            if valid:
+                return page_count
+
+        if extn.lower() == '.cbz':
+            with zipfile.ZipFile(bookfile, 'r') as cbz:
+                return len(cbz.namelist())
+
+        # Valid image extensions commonly found inside CBR/CB7 files
+        image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
+        if extn.lower() == '.cbr':
+            if lazylibrarian.UNRARLIB == 1 and lazylibrarian.RARFILE.is_rarfile(bookfile):
+                try:
+                    z = lazylibrarian.RARFILE.RarFile(bookfile)
+                except Exception as e:
+                    self.logger.error(f"Failed to unrar lib_1 {bookfile}: {e}")
+                    return 0
+                all_files = z.namelist()
+                # Count only files that end with a valid image extension
+                page_count = sum(
+                    1 for file in all_files
+                    if file.lower().endswith(image_extensions)
+                )
+                return page_count
+
+            if lazylibrarian.UNRARLIB == 2:
+                try:
+                    z = lazylibrarian.RARFILE(bookfile)
+                except Exception as e:
+                    self.logger.error(f"Failed to unrar lib_2 {bookfile}: {e}")
+                    return 0
+                data = z.read_files('ComicInfo.xml')
+                if data:
+                    try:
+                        return int(data.split('<PageCount>')[1].split('<')[0])
+                    except (IndexError, ValueError):
+                        pass
+                return 0
+
+        if extn.lower() == '.cb7':
+            try:
+                import py7zr
+            except Exception:
+                return 0
+            with py7zr.SevenZipFile(bookfile, mode='r') as archive:
+                all_files = archive.getnames()
+                page_count = sum(1 for file in all_files if file.lower().endswith(image_extensions))
+                return page_count
+
+        return 0
+
+    def _streamable_links(self, bookfile, bookid, userid, idtype):
+        multi = ''
+        basename, extn = splitext(bookfile)
+        if not isinstance(basename, str):
+            basename = basename.decode('utf-8')
+        pagecount = self._number_of_pages(bookfile)
+        if not pagecount:
+            return ''
+        multi += '<link href="'
+        multi += f'{self.opdsroot}?cmd=Serve&amp;issueid={quote_plus(bookid)}{userid}'
+        multi += '" rel="http://opds-spec.org/acquisition" type="' + mime_type(extn) + '"/>'
+        multi += f'<link href="{self.opdsroot}?cmd=Stream&amp;{idtype}={quote_plus(bookid)}'
+        multi += '&amp;page={pageNumber}&amp;width={maxWidth}"'
+        multi += f' pse:count="{pagecount}"'
+        multi += ' rel="http://vaemendis.net/opds-pse/stream" type="image/jpeg"/>'
         return multi
 
     @staticmethod
@@ -501,7 +575,7 @@ class OPDS:
                 mimetype = None
                 rel = 'file'
                 if book['BookFile']:
-                    mimetype = self.multi_link(book['BookFile'], book['BookID'])
+                    mimetype = self._multi_format_book_links(book['BookFile'], book['BookID'])
                     if mimetype:
                         rel = 'multi'
                     else:
@@ -1063,6 +1137,13 @@ class OPDS:
             page = results
             limit = len(page)
         for issue in page:
+            rel = 'file'
+            mimetype = self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
+            if mimetype:
+                rel = 'multi'
+            else:
+                mimetype = mime_type(issue['IssueFile'])
+
             title = make_unicode(issue['Title'])
             entry = {'title': escape(f'{title} ({issue["IssueDate"]})'),
                      'id': escape(f'issue:{issue["IssueID"]}'),
@@ -1070,8 +1151,9 @@ class OPDS:
                      'content': escape(f'{title} - {issue["IssueDate"]}'),
                      'href': f'{self.opdsroot}?cmd=Serve&amp;issueid={quote_plus(issue["IssueID"])}{userid}',
                      'kind': 'acquisition',
-                     'rel': 'file',
-                     'type': mime_type(issue['IssueFile'])}
+                     'rel': rel,
+                     'type': mimetype}
+
             if CONFIG.get_bool('OPDS_METAINFO'):
                 fname = splitext(issue['IssueFile'])[0]
                 res = cache_img(ImageType.MAG, issue['IssueID'], fname + '.jpg')
@@ -1149,7 +1231,7 @@ class OPDS:
             mimetype = None
             rel = 'file'
             if book['BookFile']:
-                mimetype = self.multi_link(book['BookFile'], book['BookID'])
+                mimetype = self._multi_format_book_links(book['BookFile'], book['BookID'])
                 if mimetype:
                     rel = 'multi'
                 else:
@@ -1333,7 +1415,7 @@ class OPDS:
             mimetype = None
             rel = 'file'
             if book['BookFile']:
-                mimetype = self.multi_link(book['BookFile'], book['BookID'])
+                mimetype = self._multi_format_book_links(book['BookFile'], book['BookID'])
                 if mimetype:
                     rel = 'multi'
                 else:
@@ -1621,7 +1703,7 @@ class OPDS:
                 mimetype = None
                 rel = 'file'
                 if book['BookFile']:
-                    mimetype = self.multi_link(book['BookFile'], book['BookID'])
+                    mimetype = self._multi_format_book_links(book['BookFile'], book['BookID'])
                     if mimetype:
                         rel = 'multi'
                     else:

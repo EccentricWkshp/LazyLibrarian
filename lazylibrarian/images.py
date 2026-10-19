@@ -10,7 +10,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import contextlib
 import io
 import json
 import logging
@@ -222,8 +222,9 @@ def coverswap(sourcefile, coverpage=2):
         except Exception as e:
             logger.warning(f"Failed to copy output file: {str(e)}")
             return False
-        os.remove(srcfile)
-        os.remove(f"{srcfile}new")
+        with contextlib.suppress(OSError):
+            os.remove(srcfile)
+            os.remove(f"{srcfile}new")
         logger.info(f"{sourcefile} has {cnt:d} pages. Swapped pages 1 and 2\n")
         return True
 
@@ -323,7 +324,7 @@ def cache_bookimg(img, bookid, src, suffix='', imgid=None):
     coverfile = os.path.join(DIRS.DATADIR, coverlink)
     if empty_image(coverfile):
         logger.debug(f"Got an empty {src} image for {bookid} [{img}]")
-        if os.path.isfile(coverfile):
+        with contextlib.suppress(OSError):
             os.remove(coverfile)
     elif success:
         logger.debug(f"Caching {src} cover for {bookid}")
@@ -998,7 +999,8 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
 
     if cover and path_isfile(coverfile):
         if refresh:
-            os.remove(syspath(coverfile))
+            with contextlib.suppress(OSError):
+                os.remove(syspath(coverfile))
         else:
             logger.debug(f'Cover for {issuefile} exists')
             return coverfile
