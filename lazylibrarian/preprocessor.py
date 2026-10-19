@@ -575,7 +575,7 @@ def preprocess_magazine(bookfolder, cover=0, tag=False, title='', issue='', genr
                 logger.debug(f"No preprocessing required for {source_extn} magazine archive")
             return True, ''
 
-        if not valid_pdf(os.path.join(bookfolder, sourcefile)):
+        if not valid_pdf(os.path.join(bookfolder, sourcefile))[0]:
             msg = f"Invalid pdf {sourcefile} in {bookfolder}"
             return False, msg
 

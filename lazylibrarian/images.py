@@ -153,6 +153,7 @@ def createthumb(jpeg, basewidth=None, overwrite=True):
 
 def valid_pdf(sourcefile):
     # check we can read/parse the pdf file, ie it's not corrupted
+    # Return bool(readable), int(pagecount)
     logger = logging.getLogger(__name__)
     if PdfWriter is None:
         logger.warning("pypdf is not loaded")
@@ -172,10 +173,10 @@ def valid_pdf(sourcefile):
             while p < cnt:
                 writer.add_page(reader.pages[p])
                 p += 1
-        return True
+        return True, cnt
     except Exception as e:
         logger.warning(str(e))
-        return False
+        return False, 0
 
 
 def coverswap(sourcefile, coverpage=2):
@@ -970,9 +971,7 @@ def shrink_mag(issuefile, dpi=0):
     return ''
 
 
-# noinspection PyUnresolvedReferences
 def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
-    global GS, GS_VER, generator
     logger = logging.getLogger(__name__)
     if is_valid_type(issuefile, extensions=get_list(CONFIG['MAG_TYPE'])) and (not CONFIG.get_bool('IMP_MAGCOVER')
                                                                               or not pagenum):
@@ -984,22 +983,27 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
     if not issuefile or not path_isfile(issuefile):
         logger.warning(f'No issuefile {issuefile}')
         return ''
-
-    base, extn = splitext(issuefile)
+    _, extn = splitext(issuefile)
     if not extn:
         logger.warning(f'Unable to create cover for {issuefile}, no extension?')
         return ''
+    return extract_image_from_page(issuefile, refresh, pagenum, cover=True)
 
+
+def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False):
+    global GS, GS_VER, generator
+    logger = logging.getLogger(__name__)
+    base, extn = splitext(issuefile)
     coverfile = f"{base}.jpg"
 
-    if path_isfile(coverfile):
+    if cover and path_isfile(coverfile):
         if refresh:
             os.remove(syspath(coverfile))
         else:
             logger.debug(f'Cover for {issuefile} exists')
-            return coverfile  # quit if cover already exists and we didn't want to refresh
+            return coverfile
 
-    logger.debug(f'Creating cover for {issuefile}, page {pagenum}')
+    logger.debug(f'Extracting image for {issuefile} from page {pagenum}')
     data = ''  # result from unzip or unrar
     extn = extn.lower()
     if extn in ['.cbz', '.epub']:
@@ -1021,13 +1025,19 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
         img = None
         fextn = ''
         try:
-            for item in ['cover.', '000.', '001.', '00.', '01.']:
+            extns = ['.jpg', '.jpeg', '.png', '.webp']
+            if cover:
+                formats = ['cover.', '000.', '001.', '00.', '01.']
+            else:
+                formats = [f'{pagenum:03d}.', f'{pagenum:02d}.']
+
+            for item in formats:
                 if getattr(data, 'infoiter', None):
                     for member in data.infoiter():
                         fname = member.filename.lower()
                         if item in fname:
                             _, fextn = splitext(fname)
-                            if fextn in ['.jpg', '.jpeg', '.png', '.webp']:
+                            if fextn in extns:
                                 r = data.read_files(member.filename)
                                 img = r[0][1]
                                 break
@@ -1036,7 +1046,7 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
                         fname = member.lower()
                         if item in fname:
                             _, fextn = splitext(fname)
-                            if fextn in ['.jpg', '.jpeg', '.png', '.webp']:
+                            if fextn in extns:
                                 img = data.read(member)
                                 break
                 if img:
@@ -1050,7 +1060,7 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
                     with open(syspath(coverfile), 'wb') as f:
                         f.write(img)
                 return coverfile
-            logger.debug(f"Failed to find image in {issuefile}")
+            logger.debug(f"Failed to find page in {issuefile}")
         except Exception as why:
             logger.error(f"Failed to extract image from {issuefile}, {type(why).__name__} {str(why)}")
 
@@ -1101,7 +1111,7 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
                     if not path_isfile(coverfile):
                         logger.debug(f"Failed to create jpg: {res}")
                 except Exception as e:
-                    logger.debug(f"Failed to create cover with {str(params)} [{e}]")
+                    logger.debug(f"Failed to extract page with {str(params)} [{e}]")
             else:
                 logger.warning(f"Failed to create jpg for {issuefile}")
         else:  # not windows
@@ -1134,23 +1144,24 @@ def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
                             if not path_isfile(coverfile):
                                 logger.debug(f"Failed to create jpg: {res}")
                         except Exception as e:
-                            logger.debug(f"Failed to create cover with {str(params)} [{e}]")
+                            logger.debug(f"Failed to extract page with {str(params)} [{e}]")
                     else:
                         logger.warning(f"Failed to create jpg for {issuefile}")
             except Exception as e:
-                logger.warning(f"Unable to create cover for {issuefile} using {type(e).__name__} {generator}")
-                logger.debug(f"Exception in create_cover: {traceback.format_exc()}")
+                logger.warning(f"Unable to extract image for {issuefile} using {type(e).__name__} {generator}")
+                logger.debug(f"Exception in extract_image: {traceback.format_exc()}")
 
         if path_isfile(coverfile):
             setperm(coverfile)
-            logger.debug(f"Created cover (page {check_int(pagenum, 1):d}) for {issuefile} using {generator}")
+            logger.debug(f"Extracted image (page {check_int(pagenum, 1):d}) for {issuefile} using {generator}")
             return coverfile
 
     # if not recognised extension or cover creation failed
     try:
-        coverfile = safe_copy(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'nocover.jpg'), coverfile)
-        setperm(coverfile)
-        return coverfile
+        if cover:
+            coverfile = safe_copy(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'nocover.jpg'), coverfile)
+            setperm(coverfile)
+            return coverfile
     except Exception as why:
         logger.error(f"Failed to copy nocover file, {type(why).__name__} {str(why)}")
     return ''
