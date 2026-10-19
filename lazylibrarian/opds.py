@@ -1138,7 +1138,9 @@ class OPDS:
             limit = len(page)
         for issue in page:
             rel = 'file'
-            mimetype = self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
+            mimetype = ''
+            # TODO add streamable links to serve individual pages as jpg (work in progress)
+            # self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
             if mimetype:
                 rel = 'multi'
             else:
