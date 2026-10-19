@@ -129,10 +129,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 92 add ran_id to author and books table
 # 98 add bn_id to book table
 # 99 add ui_lang to users table
-# 100 add dbk_id to books and authors tables
-# 101 add dbk_link to authors table, DBK author ids get a DBK prefix
+# 100 add dbk_id to books and authors tables, dbk_link to authors table
 
-db_current_version = 101
+db_current_version = 100
 
 
 def upgrade_needed():
@@ -1633,18 +1632,8 @@ def update_schema(db, upgradelog):
     if not has_column(db, "authors", "dbk_link"):
         changes += 1
         lazylibrarian.UPDATE_MSG = 'Adding dbk_link column to authors table'
-        upgradelog.write(f"{time.ctime()} v101: {lazylibrarian.UPDATE_MSG}\n")
+        upgradelog.write(f"{time.ctime()} v100: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE authors ADD COLUMN dbk_link TEXT')
-
-    if db_version < 101:
-        # Databazeknih author ids are plain numbers like GoodReads/HardCover ones, so they
-        # are stored with a DBK prefix to keep the AuthorID-or-any-source-id lookups apart
-        res = db.match("SELECT COUNT(*) as cnt FROM authors WHERE dbk_id GLOB '[0-9]*'")
-        if res and res['cnt']:
-            changes += 1
-            lazylibrarian.UPDATE_MSG = f"Adding DBK prefix to {res['cnt']} Databazeknih author ids"
-            upgradelog.write(f"{time.ctime()} v101: {lazylibrarian.UPDATE_MSG}\n")
-            db.action("UPDATE authors SET dbk_id='DBK' || dbk_id WHERE dbk_id GLOB '[0-9]*'")
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
