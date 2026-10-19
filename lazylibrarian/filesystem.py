@@ -445,13 +445,25 @@ def any_file(search_dir: str, extn: str) -> str:
     return ""
 
 
+# Book formats that mark another book sharing the folder even when they aren't
+# in the configured types, so its metadata.opf isn't taken for ours
+_OTHER_BOOK_EXTENSIONS = {
+    'azw', 'azw1', 'azw3', 'azw4', 'kfx', 'kepub', 'mobi', 'prc', 'pdb', 'epub', 'pdf', 'djvu',
+    'fb2', 'fbz', 'lit', 'lrf', 'rtf', 'doc', 'docx', 'odt', 'chm', 'cbz', 'cbr', 'cb7', 'cbc',
+    'mp3', 'm4b', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wma',
+}
+
+
 def only_book_in_dir(search_dir: str, basename: str) -> bool:
     """ Return True if every ebook/audiobook file in search_dir is named basename.<ext>,
     ie the folder holds just one book, possibly in several formats """
     for fname in listdir(search_dir):
-        if (DIRS.config.is_valid_booktype(fname, booktype='ebook') or
-                DIRS.config.is_valid_booktype(fname, booktype='audiobook')) and \
-                os.path.splitext(fname)[0] != basename:
+        stem, extn = os.path.splitext(fname)
+        if stem == basename:
+            continue
+        if (extn.lstrip('.').lower() in _OTHER_BOOK_EXTENSIONS or
+                DIRS.config.is_valid_booktype(fname, booktype='ebook') or
+                DIRS.config.is_valid_booktype(fname, booktype='audiobook')):
             return False
     return True
 

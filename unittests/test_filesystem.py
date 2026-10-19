@@ -275,6 +275,20 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
             make_files(folder, ['Title - Author.epub'])
             self.assertEqual(filesystem.opf_file(folder, bookfile='Title - Author.epub'), '')
 
+        # another book in a format that isn't in the configured types still shares the folder
+        for other in ['Book Two - Author.azw3', 'Book Two - Author.CBZ', 'Book Two - Author.kfx',
+                      'Book Two - Author.flac']:
+            with self.subTest(other=other), tempfile.TemporaryDirectory() as folder:
+                make_files(folder, ['Book One - Author.epub', other, 'metadata.opf'])
+                self.assertEqual(filesystem.opf_file(folder, bookfile='Book One - Author.epub'), '')
+
+        with tempfile.TemporaryDirectory() as folder:
+            # calibre extras next to a single book don't count as another book
+            make_files(folder, ['Title - Author.epub', 'Title - Author.azw3', 'cover.jpg', 'metadata.opf',
+                                'desktop.ini', '.DS_Store'])
+            opf = filesystem.opf_file(folder, bookfile='Title - Author.epub')
+            self.assertEqual(opf, os.path.join(folder, 'metadata.opf'))
+
     def test_book_file(self):
         book = filesystem.book_file(get_directory("Testdata"), '', config=self.cfg())
         self.assertEqual(book, '', 'Searching for type None should not find a book')
