@@ -151,17 +151,17 @@ def createthumb(jpeg, basewidth=None, overwrite=True):
     return outfile
 
 
-def valid_pdf(sourcefile):
+def pdf_pagecount(sourcefile):
     # check we can read/parse the pdf file, ie it's not corrupted
-    # Return bool(readable), int(pagecount)
+    # Return int(pagecount) or zero if no readable pages
     logger = logging.getLogger(__name__)
     if PdfWriter is None:
         logger.warning("pypdf is not loaded")
-        return False
+        return 0
     _, extn = splitext(sourcefile)
     if extn.lower() != '.pdf':
         logger.warning(f"Cannot swap cover on [{sourcefile}]")
-        return False
+        return 0
 
     try:
         writer = PdfWriter()
@@ -173,10 +173,10 @@ def valid_pdf(sourcefile):
             while p < cnt:
                 writer.add_page(reader.pages[p])
                 p += 1
-        return True, cnt
+        return cnt
     except Exception as e:
         logger.warning(str(e))
-        return False, 0
+        return 0
 
 
 def coverswap(sourcefile, coverpage=2):
@@ -995,15 +995,15 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
     global GS, GS_VER, generator
     logger = logging.getLogger(__name__)
     base, extn = splitext(issuefile)
-    coverfile = f"{base}.jpg"
+    imagefile = f"{base}.jpg"
 
-    if cover and path_isfile(coverfile):
-        if refresh:
-            with contextlib.suppress(OSError):
-                os.remove(syspath(coverfile))
-        else:
-            logger.debug(f'Cover for {issuefile} exists')
-            return coverfile
+    if cover and path_isfile(imagefile) and not refresh:
+        return imagefile
+
+    if not cover:
+        imagefile = f"{base}_p{pagenum}.jpg"
+        if path_isfile(imagefile) and not refresh:
+            return imagefile
 
     logger.debug(f'Extracting image for {issuefile} from page {pagenum}')
     data = ''  # result from unzip or unrar
@@ -1057,11 +1057,11 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                 if PIL and fextn in ['.png', '.webp']:
                     image = PILImage.open(io.BytesIO(img))
                     image = image.convert('RGB')
-                    image.save(syspath(coverfile), 'jpeg')
+                    image.save(imagefile, 'jpeg')
                 else:
-                    with open(syspath(coverfile), 'wb') as f:
+                    with open(imagefile, 'wb') as f:
                         f.write(img)
-                return coverfile
+                return imagefile
             logger.debug(f"Failed to find page in {issuefile}")
         except Exception as why:
             logger.error(f"Failed to extract image from {issuefile}, {type(why).__name__} {str(why)}")
@@ -1082,7 +1082,7 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                 postfix = '[0]'
             params = []
             try:
-                params = [converter, f'{issuefile}{postfix}', f'{coverfile}']
+                params = [converter, f'{issuefile}{postfix}', imagefile]
                 if os.name != 'nt':
                     res = subprocess.check_output(params, preexec_fn=lambda: os.nice(10),
                                                   stderr=subprocess.STDOUT)
@@ -1106,11 +1106,11 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                 params = [GS, "-sDEVICE=jpeg", "-dJPEGQ=100", "-dNOPAUSE", "-dBATCH", "-dSAFER",
                           f"-dFirstPage={check_int(pagenum, 1):d}",
                           f"-dLastPage={check_int(pagenum, 1):d}",
-                          "-dUseCropBox", f"-sOutputFile={coverfile}", issuefile]
+                          "-dUseCropBox", f"-sOutputFile={imagefile}", issuefile]
                 try:
                     res = subprocess.check_output(params, stderr=subprocess.STDOUT)
                     res = make_unicode(res).strip()
-                    if not path_isfile(coverfile):
+                    if not path_isfile(imagefile):
                         logger.debug(f"Failed to create jpg: {res}")
                 except Exception as e:
                     logger.debug(f"Failed to extract page with {str(params)} [{e}]")
@@ -1129,7 +1129,7 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                     generator = "wand interface"
                     # noinspection PyCallingNonCallable
                     with wand_Image(filename=f"{issuefile}[{str(check_int(pagenum, 1) - 1)}]") as img:
-                        img.save(filename=coverfile)
+                        img.save(filename=imagefile)
                 else:
                     if not GS:
                         GS, GS_VER, generator = find_gs()
@@ -1138,12 +1138,12 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                         params = [GS, "-sDEVICE=jpeg", "-dJPEGQ=100", "-dNOPAUSE", "-dBATCH", "-dSAFER",
                                   f"-dFirstPage={check_int(pagenum, 1):d}",
                                   f"-dLastPage={check_int(pagenum, 1):d}",
-                                  "-dUseCropBox", f"-sOutputFile={coverfile}", issuefile]
+                                  "-dUseCropBox", f"-sOutputFile={imagefile}", issuefile]
                         try:
                             res = subprocess.check_output(params, preexec_fn=lambda: os.nice(10),
                                                           stderr=subprocess.STDOUT)
                             res = make_unicode(res).strip()
-                            if not path_isfile(coverfile):
+                            if not path_isfile(imagefile):
                                 logger.debug(f"Failed to create jpg: {res}")
                         except Exception as e:
                             logger.debug(f"Failed to extract page with {str(params)} [{e}]")
@@ -1153,17 +1153,17 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                 logger.warning(f"Unable to extract image for {issuefile} using {type(e).__name__} {generator}")
                 logger.debug(f"Exception in extract_image: {traceback.format_exc()}")
 
-        if path_isfile(coverfile):
-            setperm(coverfile)
+        if path_isfile(imagefile):
+            setperm(imagefile)
             logger.debug(f"Extracted image (page {check_int(pagenum, 1):d}) for {issuefile} using {generator}")
-            return coverfile
+            return imagefile
 
     # if not recognised extension or cover creation failed
     try:
         if cover:
-            coverfile = safe_copy(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'nocover.jpg'), coverfile)
-            setperm(coverfile)
-            return coverfile
+            imagefile = safe_copy(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'nocover.jpg'), imagefile)
+            setperm(imagefile)
+            return imagefile
     except Exception as why:
         logger.error(f"Failed to copy nocover file, {type(why).__name__} {str(why)}")
     return ''

@@ -144,19 +144,21 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
     if not headers:
         headers = {}
 
-    if 'User-Agent' not in headers:
-        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]})"
-
-    if 'openlibrary.org' in url.lower() and CONFIG['ADMIN_EMAIL']:
+    # don't do a blanket User-Agent as impersonate will add one, but there are special cases...
+    if 'openlibrary.org' in url_lower and CONFIG['ADMIN_EMAIL']:
         # higher requests per second if identified
-        headers['User-Agent'] = f"{headers['User-Agent']} ({CONFIG['ADMIN_EMAIL']})"
+        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]}) ({CONFIG['ADMIN_EMAIL']})"
+
+    elif 'comicvine.gamespot.com' in url_lower:
+        # comicvine api asks for a descriptive user agent
+        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]})"
 
     proxies = proxy_list()
 
     # jackett query all indexers needs a longer timeout
     # /torznab/all/api?q=  or v2.0/indexers/all/results/torznab/api?q=
     if timeout:
-        if '/torznab/' in url and ('/all/' in url or '/aggregate/' in url):
+        if '/torznab/' in url_lower and ('/all/' in url_lower or '/aggregate/' in url_lower):
             timeout = CONFIG.get_int('HTTP_EXT_TIMEOUT')
         else:
             timeout = CONFIG.get_int('HTTP_TIMEOUT')

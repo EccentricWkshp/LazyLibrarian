@@ -33,7 +33,7 @@ from lazylibrarian.common import get_readinglist, mime_type, zip_audio
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import any_file, listdir, path_isfile, splitext
 from lazylibrarian.formatter import check_int, get_list, make_unicode, plural
-from lazylibrarian.images import valid_pdf
+from lazylibrarian.images import extract_image_from_page, pdf_pagecount
 
 searchable = ['EAuthors', 'AAuthors', 'Magazines', 'Series', 'EAuthor', 'AAuthor', 'RecentBooks',
               'RecentAudio', 'RecentMags', 'RatedBooks', 'RatedAudio', 'ReadBooks', 'ToReadBooks',
@@ -159,16 +159,16 @@ class OPDS:
         basename, extn = splitext(bookfile)
 
         if extn.lower() == '.pdf':
-            valid, page_count = valid_pdf(bookfile)
-            if valid:
-                return page_count
-
-        if extn.lower() == '.cbz':
-            with zipfile.ZipFile(bookfile, 'r') as cbz:
-                return len(cbz.namelist())
+            return pdf_pagecount(bookfile)
 
         # Valid image extensions commonly found inside CBR/CB7 files
         image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
+
+        if extn.lower() == '.cbz':
+            with zipfile.ZipFile(bookfile, 'r') as z:
+                all_files = z.namelist()
+                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
+
         if extn.lower() == '.cbr':
             if lazylibrarian.UNRARLIB == 1 and lazylibrarian.RARFILE.is_rarfile(bookfile):
                 try:
@@ -177,12 +177,7 @@ class OPDS:
                     self.logger.error(f"Failed to unrar lib_1 {bookfile}: {e}")
                     return 0
                 all_files = z.namelist()
-                # Count only files that end with a valid image extension
-                page_count = sum(
-                    1 for file in all_files
-                    if file.lower().endswith(image_extensions)
-                )
-                return page_count
+                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
 
             if lazylibrarian.UNRARLIB == 2:
                 try:
@@ -190,13 +185,12 @@ class OPDS:
                 except Exception as e:
                     self.logger.error(f"Failed to unrar lib_2 {bookfile}: {e}")
                     return 0
-                data = z.read_files('ComicInfo.xml')
-                if data:
-                    try:
-                        return int(data.split('<PageCount>')[1].split('<')[0])
-                    except (IndexError, ValueError):
-                        pass
-                return 0
+                all_files = []
+                for member in z.infoiter():
+                    all_files.append(member.filename)
+                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
+
+            return 0
 
         if extn.lower() == '.cb7':
             try:
@@ -205,8 +199,7 @@ class OPDS:
                 return 0
             with py7zr.SevenZipFile(bookfile, mode='r') as archive:
                 all_files = archive.getnames()
-                page_count = sum(1 for file in all_files if file.lower().endswith(image_extensions))
-                return page_count
+                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
 
         return 0
 
@@ -1065,14 +1058,21 @@ class OPDS:
             limit = len(page)
         for issue in page:
             issueid = f'{kwargs["magid"]}_{issue["IssueID"]}'
+            mimetype = self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
+            if mimetype:
+                rel = 'multi'
+            else:
+                rel = 'file'
+                mimetype = mime_type(issue['IssueFile'])
+
             entry = {'title': escape(f'{title} ({issue["IssueID"]})'),
                      'id': f'issue:{issueid}',
                      'updated': opdstime(issue['IssueAcquired']),
                      'content': escape(f'{title} - {issue["IssueID"]}'),
                      'href': f'{self.opdsroot}?cmd=Serve&amp;comicissueid={issueid}{userid}',
                      'kind': 'acquisition',
-                     'rel': 'file',
-                     'type': mime_type(issue['IssueFile'])}
+                     'rel': rel,
+                     'type': mimetype}
             if CONFIG.get_bool('OPDS_METAINFO'):
                 fname = splitext(issue['IssueFile'])[0]
                 res = cache_img(ImageType.COMIC, issueid, fname + '.jpg')
@@ -1137,13 +1137,11 @@ class OPDS:
             page = results
             limit = len(page)
         for issue in page:
-            rel = 'file'
-            mimetype = ''
-            # TODO add streamable links to serve individual pages as jpg (work in progress)
-            # self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
+            mimetype = self._streamable_links(issue['IssueFile'], issue["IssueID"], userid, 'issueid')
             if mimetype:
                 rel = 'multi'
             else:
+                rel = 'file'
                 mimetype = mime_type(issue['IssueFile'])
 
             title = make_unicode(issue['Title'])
@@ -1519,6 +1517,12 @@ class OPDS:
             page = results
             limit = len(page)
         for mag in page:
+            mimetype = self._streamable_links(mag['IssueFile'], mag["IssueID"], userid, 'issueid')
+            if mimetype:
+                rel = 'multi'
+            else:
+                rel = 'file'
+                mimetype = mime_type(mag['IssueFile'])
             title = make_unicode(mag['Title'])
             entry = {'title': escape(f'{mag["IssueDate"]}'),
                      'id': escape(f'issue:{mag["IssueID"]}'),
@@ -1526,9 +1530,9 @@ class OPDS:
                      'content': escape(f'{title} - {mag["IssueDate"]}'),
                      'href': f'{self.opdsroot}?cmd=Serve&amp;issueid={quote_plus(mag["IssueID"])}',
                      'kind': 'acquisition',
-                     'rel': 'file',
+                     'rel': rel,
                      'author': escape(title),
-                     'type': mime_type(mag['IssueFile'])}
+                     'type': mimetype}
             if CONFIG.get_bool('OPDS_METAINFO'):
                 entry['image'] = self.searchroot + '/' + mag['Cover']
                 entry['thumbnail'] = entry['image']
@@ -1592,17 +1596,24 @@ class OPDS:
             page = results
             limit = len(page)
         for mag in page:
-            title = make_unicode(mag['Title'])
             issueid = f'{mag["ComicID"]}_{mag["IssueID"]}'
+            mimetype = self._streamable_links(mag['IssueFile'], issueid, userid, 'comicid')
+            if mimetype:
+                rel = 'multi'
+            else:
+                rel = 'file'
+                mimetype = mime_type(mag['IssueFile'])
+
+            title = make_unicode(mag['Title'])
             entry = {'title': escape(f'{title} {mag["Start"]}'),
                      'id': escape(f'issue:{issueid}'),
                      'updated': opdstime(mag['IssueAcquired']),
                      'content': escape(f'{title} - {mag["IssueID"]}'),
                      'href': f'{self.opdsroot}?cmd=Serve&amp;comicissueid={issueid}',
                      'kind': 'acquisition',
-                     'rel': 'file',
+                     'rel': rel,
                      'author': escape(title),
-                     'type': mime_type(mag['IssueFile'])}
+                     'type': mimetype}
             if CONFIG.get_bool('OPDS_METAINFO'):
                 fname = splitext(mag['IssueFile'])[0]
                 res = cache_img(ImageType.COMIC, issueid, fname + '.jpg')
@@ -1886,6 +1897,11 @@ class OPDS:
                 db.close()
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
+            if 'page' in kwargs:
+                pagefile = extract_image_from_page(res['IssueFile'], pagenum=kwargs['page'], cover=False)
+                if pagefile:
+                    self.filepath = pagefile
+                    self.filename = os.path.split(pagefile)[1]
             return
         if 'comicissueid' in kwargs:
             myid = kwargs['comicissueid']
@@ -1901,6 +1917,11 @@ class OPDS:
                 db.close()
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
+            if 'page' in kwargs:
+                pagefile = extract_image_from_page(res['IssueFile'], pagenum=kwargs['page'], cover=False)
+                if pagefile:
+                    self.filepath = pagefile
+                    self.filename = os.path.split(pagefile)[1]
             return
         if 'audioid' in kwargs:
             myid = kwargs['audioid']
