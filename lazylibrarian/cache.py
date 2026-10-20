@@ -16,6 +16,7 @@ import itertools
 import json
 import logging
 import os
+import platform
 import shutil
 import time
 from abc import ABC
@@ -142,10 +143,13 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
 
     if not headers:
         headers = {}
-    if 'openlibrary.org' in url and CONFIG['ADMIN_EMAIL']:
-        import platform
+
+    if 'User-Agent' not in headers:
+        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]})"
+
+    if 'openlibrary.org' in url.lower() and CONFIG['ADMIN_EMAIL']:
         # higher requests per second if identified
-        headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION']}) ({CONFIG['ADMIN_EMAIL']})"
+        headers['User-Agent'] = f"{headers['User-Agent']} ({CONFIG['ADMIN_EMAIL']})"
 
     proxies = proxy_list()
 
