@@ -204,7 +204,7 @@ def mime_type(filename):
         '.azw3': 'application/x-mobi8-ebook',
         '.pdf':  'application/pdf',
         '.fb2':  'application/x-fictionbook+xml',
-        '.md':   'application/text/markdown',
+        '.md':   'text/markdown',
         '.mp3':  'audio/mpeg3',
         '.m4a':  'audio/mp4',
         '.m4b':  'audio/mp4',
@@ -217,8 +217,8 @@ def mime_type(filename):
         '.cbz':  'application/x-cbz',
         '.cbr':  'application/x-cbr'
     }
-    # Extract the extension safely
-    _, ext = os.path.splitext(make_unicode(filename).lower())
+    # not splitext, callers also pass a bare extension like '.epub'
+    ext = '.' + make_unicode(filename).lower().rsplit('.', 1)[-1]
 
     # Return the match or the default fallback
     return extensions.get(ext, "application/x-download")

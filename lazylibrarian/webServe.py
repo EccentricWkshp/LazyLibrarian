@@ -339,6 +339,11 @@ def refresh_book_languages():
         thread_name(incoming_threadname)
 
 
+def valid_ui_lang(value: str) -> bool:
+    """ Empty (use the global setting), auto, or a language we have a translation for """
+    return value in ('', i18n.AUTO) or value in i18n.available_languages()
+
+
 def template_i18n():
     """ Set the UI language for this request and return the translation helpers for templates """
     uilang = ''
@@ -410,7 +415,7 @@ def serve_template(templatename, **kwargs):
                 if res:
                     cherrypy.response.cookie['ll_uid'] = res['UserID']
                     cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                     userid = res['UserID']
                     if formauth:
                         logger.debug(f"Auth-login for {res['UserName']}")
@@ -435,7 +440,7 @@ def serve_template(templatename, **kwargs):
                     if res:
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                     else:
                         adminlogger.debug(f"No user for uid {cookie['ll_uid'].value}")
                         clear_our_cookies()
@@ -451,7 +456,7 @@ def serve_template(templatename, **kwargs):
                     if res:
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                     else:
                         adminlogger.debug(f"No user for basic auth {user} or invalid password")
                 if not res and CONFIG.get_bool('PROXY_AUTH'):
@@ -464,7 +469,7 @@ def serve_template(templatename, **kwargs):
                             logger.debug(f"{user} is a registered user")
                             cherrypy.response.cookie['ll_uid'] = res['UserID']
                             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                             db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                       (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                         else:
@@ -495,7 +500,7 @@ def serve_template(templatename, **kwargs):
                                     res = db.match('SELECT * from users where UserName=?', (user,))
                                     cherrypy.response.cookie['ll_uid'] = res['UserID']
                                     cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                                     db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                               (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
                                 else:
@@ -513,7 +518,7 @@ def serve_template(templatename, **kwargs):
                         res = db.match('SELECT * from users')
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                         logger.debug(f"Single user login for {res['UserName']}")
                         db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                   (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
@@ -535,7 +540,7 @@ def serve_template(templatename, **kwargs):
                             res = db.match('SELECT * from users where Perms=65535')
                             cherrypy.response.cookie['ll_uid'] = res['UserID']
                             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
+                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
                             logger.debug(f"Auto-login for {res['UserName']} at {remote_ip}")
                             db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
                                       (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
@@ -1153,9 +1158,13 @@ class WebInterface:
                     else:
                         logger.warning(f"Invalid user theme [{theme}]")
 
-                if user['UI_Lang'] != kwargs['ui_lang']:
-                    changes += ' UI_Lang'
-                    db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
+                # profile.html doesn't send ui_lang, only the admin users page does
+                if 'ui_lang' in kwargs and (user['UI_Lang'] or '') != kwargs['ui_lang']:
+                    if valid_ui_lang(kwargs['ui_lang']):
+                        changes += ' UI_Lang'
+                        db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
+                    else:
+                        logger.warning(f"Invalid UI Language [{kwargs['ui_lang']}]")
 
                 if user['SendTo'] != kwargs['sendto']:
                     if not is_valid_email(kwargs['sendto']):
@@ -1547,8 +1556,9 @@ class WebInterface:
                     changes += ' password'
                     db.action('UPDATE users SET password=? WHERE UserID=?', (pwd, userid))
 
-            if kwargs.get('ui_lang'):
-                if details['UI_Lang'] != kwargs['ui_lang'] and (kwargs['ui_lang'] == 'auto' or kwargs['ui_lang'] in i18n.available_languages()):
+            # empty means use the global UI_LANGUAGE setting
+            if 'ui_lang' in kwargs and (details['UI_Lang'] or '') != kwargs['ui_lang']:
+                if valid_ui_lang(kwargs['ui_lang']):
                     changes += ' UI_Language'
                     db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
                 else:
