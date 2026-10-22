@@ -76,8 +76,8 @@
 
     $(document).ready(function()
     {
-    var columns = Integer(window.innerWidth / 124);
-    $('#w_width').val(columns)
+    var columns = Math.floor(window.innerWidth / 124);
+    $('#w_width').val(columns);
     });
   </script>
 </%def>
