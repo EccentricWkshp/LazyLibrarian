@@ -1,0 +1,46 @@
+# GitLab CI for LazyLibrarian
+#
+# update-pot: after changes are merged into master, regenerate the translation template
+# lazylibrarian/locale/lazylibrarian.pot and commit it when the strings changed.
+# Hosted Weblate watches the repository and merges the new strings into the .po files,
+# so merge requests don't need to touch the .pot file (see lazylibrarian/locale/README.md).
+#
+# The job pushes with a deploy key that has write access (available on GitLab Free).
+# It only runs when the CI/CD variable POT_DEPLOY_KEY exists. Use the "File" type and put
+# the private key in it. The commit message contains [skip ci], so the push doesn't start
+# another pipeline.
+
+stages:
+  - translations
+
+update-pot:
+  stage: translations
+  image: python:3.12-slim
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $POT_DEPLOY_KEY'
+      changes:
+        - "**/*.py"
+        - "data/interfaces/**/*.html"
+        - babel.cfg
+        - Makefile
+  variables:
+    GIT_DEPTH: "10"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git make openssh-client > /dev/null
+    - pip install --quiet --disable-pip-version-check babel mako
+  script:
+    - make translations
+    # pybabel always writes a new POT-Creation-Date, so ignore that line when checking for changes
+    - |
+      if git diff --quiet -I '^"POT-Creation-Date:' -- lazylibrarian/locale/lazylibrarian.pot; then
+        echo "lazylibrarian.pot is up to date"
+        exit 0
+      fi
+    - git config user.name "LazyLibrarian CI"
+    - git config user.email "noreply@gitlab.com"
+    - 'git commit -m "i18n: update lazylibrarian.pot [skip ci]" -- lazylibrarian/locale/lazylibrarian.pot'
+    # push over ssh with the deploy key; the variable is a file, ssh needs it to be private
+    - chmod 600 "$POT_DEPLOY_KEY"
+    - mkdir -p ~/.ssh && ssh-keyscan -t ed25519,rsa "$CI_SERVER_HOST" >> ~/.ssh/known_hosts 2> /dev/null
+    - export GIT_SSH_COMMAND="ssh -i $POT_DEPLOY_KEY -o IdentitiesOnly=yes"
+    - git push "git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git" "HEAD:${CI_DEFAULT_BRANCH}"

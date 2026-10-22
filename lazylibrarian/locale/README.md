@@ -68,7 +68,12 @@ Notes:
 
 Don't include `lazylibrarian.pot` in merge requests that change templates or code. Every
 branch would regenerate the whole file, so open merge requests would keep conflicting with
-each other. Instead, once the code changes are merged, regenerate the template on an
+each other.
+
+The `update-pot` job in `.gitlab-ci.yml` regenerates the template after changes are merged
+into `master` and commits it when the strings changed. It pushes with a deploy key that has
+write access. The private key is stored in the CI/CD variable `POT_DEPLOY_KEY` (type "File").
+Without that variable the job doesn't run. In that case, regenerate the template on an
 up-to-date `master` in a separate commit or merge request (`pip install babel` first):
 
 ```
