@@ -160,16 +160,16 @@
         $('#showblocked').on('click', function() {
             $.get('showblocked', function(data) {
                 bootbox.dialog({
-                    title: 'Provider Status',
+                    title: ${_js('Provider Status')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         prompt: {
-                            label: "Clear Blocklist",
+                            label: ${_js('Clear Blocklist')},
                             className: 'btn-danger',
                             callback: function(){ $.get("clearblocked", function(e) {}); }
                         },
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -236,11 +236,11 @@
             function(data) {
                 $("#myAlert").addClass('hidden');
                 bootbox.dialog({
-                    title: 'Test Result',
+                    title: ${_js('Test Result')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -251,11 +251,11 @@
         $('#show_stats').on('click', function() {
             $.get('show_stats', function(data) {
                 bootbox.dialog({
-                    title: 'Database Stats',
+                    title: ${_js('Database Stats')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -266,21 +266,21 @@
         $('#show_jobs').on('click', function() {
             $.get('show_jobs', function(data) {
                 bootbox.dialog({
-                    title: 'Job Status',
+                    title: ${_js('Job Status')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         stopit: {
-                            label: "<i class=\"fa fa-ban\"></i> Stop Jobs",
+                            label: '<i class="fa fa-ban"></i> ' + ${_js('Stop Jobs')},
                             className: 'btn-warning',
                             callback: function(){ $.get("stop_jobs", function(e) {}); }
                         },
                         restart: {
-                            label: "<i class=\"fa fa-sync\"></i> Restart Jobs",
+                            label: '<i class="fa fa-sync"></i> ' + ${_js('Restart Jobs')},
                             className: 'btn-info',
                             callback: function(){ $.get("restart_jobs", function(e) {}); }
                         },
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -291,11 +291,11 @@
         $('#show_apprise').on('click', function() {
             $.get('show_apprise', function(data) {
                 bootbox.dialog({
-                    title: 'Supported Types',
+                    title: ${_js('Supported Types')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -305,13 +305,13 @@
 
         $('#ol_dump_sync_now').on('click', function() {
             $.get("force_openlibrary_dump", function(data) {
-                let msg = data.success ? 'OpenLibrary bulk-dump sync started - check the log for progress.' : (data.error || 'Failed to start sync.');
+                let msg = data.success ? ${_js('OpenLibrary bulk-dump sync started - check the log for progress.')} : (data.error || ${_js('Failed to start sync.')});
                 bootbox.dialog({
-                    title: 'OpenLibrary Dump Sync',
+                    title: ${_js('OpenLibrary Dump Sync')},
                     message: msg,
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -330,11 +330,11 @@
             $.get("test_sabnzbd", {'host': host, 'port': port, 'user': user, 'pwd': pwd, 'api': api, 'cat': cat, 'subdir': subdir},
             function(data) {
                 bootbox.dialog({
-                    title: 'SABnzbd Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'SABnzbd'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -352,11 +352,11 @@
             $.get('test_nzbget', {'host': host, 'port': port, 'user': user, 'pwd': pwd, 'cat': cat, 'pri': pri},
                 function(data) {
                 bootbox.dialog({
-                    title: 'NZBget Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'NZBget'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -367,10 +367,14 @@
         function pollConfigLangRefreshStatus() {
             $.get('language_refresh_status', function(data) {
                 if (data && data.running) {
-                    $('#config_langrefreshstatus').text('Running: checked ' + data.checked + ' of ' + data.total + ' (' + data.updated + ' updated, ' + data.unignored + ' restored)');
+                    $('#config_langrefreshstatus').text(${_js('Running: checked %(checked)s of %(total)s (%(updated)s updated, %(restored)s restored)')}
+                        .replace('%(checked)s', data.checked).replace('%(total)s', data.total)
+                        .replace('%(updated)s', data.updated).replace('%(restored)s', data.unignored));
                     setTimeout(pollConfigLangRefreshStatus, 2000);
                 } else if (data && data.total) {
-                    $('#config_langrefreshstatus').text('Done: checked ' + data.total + ', ' + data.updated + ' updated, ' + data.unignored + ' restored');
+                    $('#config_langrefreshstatus').text(${_js('Done: checked %(total)s, %(updated)s updated, %(restored)s restored')}
+                        .replace('%(total)s', data.total).replace('%(updated)s', data.updated)
+                        .replace('%(restored)s', data.unignored));
                 }
             }, 'json');
         }
@@ -378,13 +382,11 @@
 
         $('#lang_refresh_now').on('click', function() {
             bootbox.confirm({
-                title: "Refresh Book Languages",
-                message: "Re-evaluate languages across candidate books in the database using title, description, and smart language heuristics. " +
-                         "This fixes short-title false positives (e.g. English books misclassified as German/French/Spanish), resolves Unknown languages, " +
-                         "and restores books falsely marked Ignored due to invalid language. Runs safely as a background job.",
+                title: ${_js('Refresh Book Languages')},
+                message: ${_js('Re-evaluate languages across candidate books in the database using title, description, and smart language heuristics. This fixes short-title false positives (e.g. English books misclassified as German/French/Spanish), resolves Unknown languages, and restores books falsely marked Ignored due to invalid language. Runs safely as a background job.')},
                 buttons: {
-                    confirm: { label: "Start", className: "btn-primary" },
-                    cancel: { label: "Cancel", className: "btn-default" }
+                    confirm: { label: ${_js('Start')}, className: "btn-primary" },
+                    cancel: { label: ${_js('Cancel')}, className: "btn-default" }
                 },
                 callback: function(result) {
                     if (!result) return;
@@ -408,11 +410,11 @@
             $.get('test_synology', {'host': host, 'port': port, 'user': user, 'pwd': pwd, 'dir': dir},
                 function(data) {
                 bootbox.dialog({
-                    title: 'Synology Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'Synology'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -431,11 +433,11 @@
             $.get("test_deluge", {'host': host, 'port': port, 'base': base, 'cert': cert, 'user': user, 'pwd': pwd, 'label': label},
                 function(data) {
                     bootbox.dialog({
-                    title: 'Deluge Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'Deluge'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -452,11 +454,11 @@
             $.get('test_transmission', {'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd},
                 function(data) {
                 bootbox.dialog({
-                    title: 'Transmission Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'Transmission'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -475,11 +477,11 @@
             $.get('test_qbittorrent', {'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd, 'label': label, 'ignore_ssl': ignore_ssl},
                 function(data) {
                 bootbox.dialog({
-                    title: 'qBittorrent Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'qBittorrent'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -497,11 +499,11 @@
             $.get('test_utorrent', {'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd, 'label': label},
                 function(data) {
                 bootbox.dialog({
-                    title: 'uTorrent Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'uTorrent'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -518,11 +520,11 @@
             $.get('test_rtorrent', {'host': host, 'dir': dir, 'user': user, 'pwd': pwd, 'label': label},
                 function(data) {
                 bootbox.dialog({
-                    title: 'rTorrent Connection',
+                    title: ${_js('%(name)s Connection')}.replace('%(name)s', 'rTorrent'),
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -533,11 +535,11 @@
         $('#sysinfo').on('click', function() {
             $.get('log_header', function(data) {
                 bootbox.dialog({
-                    title: 'System Info',
+                    title: ${_js('System Info')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -548,11 +550,11 @@
         $('#savefilters').on('click', function() {
             $.get('save_filters', function(data) {
                 bootbox.dialog({
-                    title: 'Export Filters',
+                    title: ${_js('Export Filters')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -563,11 +565,11 @@
         $('#loadfilters').on('click', function() {
             $.get('load_filters', function(data) {
                 bootbox.dialog({
-                    title: 'Import Filters',
+                    title: ${_js('Import Filters')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -583,11 +585,11 @@
             $.get("test_grauth", {'gr_api': gr_api, 'gr_secret': gr_secret, 'oauth_token': oauth_token, 'oauth_secret': oauth_secret},
                 function (data) {
                     bootbox.dialog({
-                        title: 'GoodReads Auth',
+                        title: ${_js('GoodReads Auth')},
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -601,22 +603,23 @@
             $.get("grauth_step1", {'gr_api': gr_api, 'gr_secret': gr_secret},
                 function (data) {
                 if ( data.substr(0, 4) === 'http') { bootbox.dialog({
-                        title: 'GoodReads Auth',
-                        message: '<pre>A new tab or page should open at GoodReads to authorise lazylibrarian. Follow the prompts, then go back to LazyLibrarian and request oAuth2\nIf the page does not open, visit this link...\n'+data+'</pre>',
+                        title: ${_js('GoodReads Auth')},
+                        message: '<pre>' + ${_js('A new tab or page should open at GoodReads to authorise lazylibrarian. Follow the prompts, then go back to LazyLibrarian and request oAuth2')} + '\n' +
+                            ${_js('If the page does not open, visit this link...')} + '\n' + data + '</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
                     });  window.open(data);
                 }
                 else { bootbox.dialog({
-                        title: 'GoodReads Response',
+                        title: ${_js('GoodReads Response')},
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -628,11 +631,11 @@
         $('#grauth_step2').click(function () {
             $.get("grauth_step2", {},
                 function (data) { bootbox.dialog({
-                        title: 'GoodReads Confirm',
+                        title: ${_js('GoodReads Confirm')},
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary',
                                 callback: function(){ document.location.reload(); }
                             }
@@ -645,7 +648,7 @@
         $('#twitter_step1').click(function () {
             $('#testTwitter-result').html('');
             $.get("twitter_step1", function (data) {window.open(data); })
-                .done(function () { $('#testTwitter-result').html('<b>Step1:</b> Confirm Authorization'); });
+                .done(function () { $('#testTwitter-result').html('<b>' + ${_js('Step 1:')} + '</b> ' + ${_js('Confirm Authorization')}); });
         });
 
         $('#twitter_step2').click(function () {
@@ -659,11 +662,11 @@
             $.get("test_twitter", {},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Twitter Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Twitter'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -676,11 +679,11 @@
             $.get("test_boxcar", {'token': token},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Boxcar Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Boxcar'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -694,11 +697,11 @@
             $.get("test_pushbullet", {'token': token, 'device': device},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Pushbullet Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Pushbullet'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -714,11 +717,11 @@
             $.get("test_pushover", {'apitoken': token, 'keys': keys, 'priority': priority, 'device': device},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Pushover Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Pushover'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -732,11 +735,11 @@
             $.get("test_prowl", {'apikey': apikey, 'priority': priority},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Prowl Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Prowl'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -750,11 +753,11 @@
             $.get("test_growl", {'host': host, 'password': password},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Growl Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Growl'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -768,11 +771,11 @@
             $.get("test_telegram", {'token': token, 'userid': userid},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Telegram Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Telegram'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -786,11 +789,11 @@
             $.get("test_slack", {'token': token, 'url': url},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Slack Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Slack'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -803,11 +806,11 @@
             $.get("test_custom", {'script': script},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Custom Notifier',
+                        title: ${_js('Custom Notifier')},
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -828,11 +831,11 @@
             $.get("test_email", {'tls': tls, 'ssl': ssl, 'emailfrom': emailfrom, 'emailto': emailto, 'server': server, 'user': user, 'password': password, 'port': port, 'sendfile': sendfile},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Email Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Email'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -847,11 +850,11 @@
             $.get("test_androidpn", {'url': androidpn_url, 'username': androidpn_username, 'broadcast': androidpn_broadcast},
                 function (data) {
                     bootbox.dialog({
-                        title: 'Android Notifier',
+                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Android'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -868,7 +871,7 @@
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -884,7 +887,7 @@
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -901,7 +904,7 @@
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -918,7 +921,7 @@
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
-                                label: "Close",
+                                label: ${_js('Close')},
                                 className: 'btn-primary'
                             }
                         }
@@ -940,11 +943,11 @@
             $.get('check_for_updates', function(data) {
                 $("#myAlert").addClass('hidden');
                 bootbox.dialog({
-                    title: 'Check Version',
+                    title: ${_js('Check Version')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary',
                             callback: function(){ location.reload(); }
                         },
@@ -958,11 +961,11 @@
             $.get('generate_api', function(data) {
                 $("#myAlert").addClass('hidden');
                 bootbox.dialog({
-                    title: 'Generate API',
+                    title: ${_js('Generate API')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary',
                             callback: function(){ location.reload(); }
                         },
@@ -976,11 +979,11 @@
             $.get('generate_ro_api', function(data) {
                 $("#myAlert").addClass('hidden');
                 bootbox.dialog({
-                    title: 'Generate Read-Only API',
+                    title: ${_js('Generate Read-Only API')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary',
                             callback: function(){ location.reload(); }
                         },
@@ -1023,11 +1026,11 @@
             $.get('test_telemetry_server', {'server': server},
                 function(data) {
                 bootbox.dialog({
-                    title: 'Telemetry server connection',
+                    title: ${_js('Telemetry server connection')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary'
                         }
                     }
@@ -1042,11 +1045,11 @@
             $.get('submit_telemetry_data', {'server': server, 'send_config': send_config, 'send_usage': send_usage},
                 function(data) {
                 bootbox.dialog({
-                    title: 'Submitted telemetry data',
+                    title: ${_js('Submitted telemetry data')},
                     message: '<pre>'+data+'</pre>',
                     buttons: {
                         primary: {
-                            label: "Close",
+                            label: ${_js('Close')},
                             className: 'btn-primary',
                         },
                     }
