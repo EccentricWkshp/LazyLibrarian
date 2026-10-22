@@ -878,8 +878,13 @@ def add_series_entries(bookdict, bookstatus, audiostatus, get_series_members, ge
                                      f"for series {ser_name}, author not in database")
                         continue
 
-                cmd = f"SELECT * from authors WHERE authorname=? or {source.lower()}_id=?"
-                exists = db.match(cmd, (auth_name, member[3]))
+                if member[3]:
+                    cmd = f"SELECT * from authors WHERE authorname=? or {source.lower()}_id=?"
+                    exists = db.match(cmd, (auth_name, member[3]))
+                else:
+                    # dbk has no author id here, and an unlinked author has an empty one,
+                    # so use the author get_preferred_author found
+                    exists = db.match("SELECT * from authors WHERE AuthorID=?", (exists,))
                 if exists:
                     auth_id = exists['AuthorID']
                     if fuzz.ratio(auth_name, member[2], processor=default_process) < 95:
