@@ -1,10 +1,10 @@
 # Web UI translations
 
 The web interface can be shown in other languages using standard gettext `.po` files.
-Pick the language in **Config > Interface > Appearance > Interface language**. "Automatic" follows the
-browser's `Accept-Language` header. The default is English, so nothing changes for
-existing installs. Any string without a translation is shown in English, so a partial
-translation is fine.
+Pick the language in **Config > Interface > Appearance > Interface language**. The default
+is "Automatic", which follows the browser's `Accept-Language` header and falls back to English
+when there is no translation for it. With user accounts, each user can also pick their own
+language. Any string without a translation is shown in English, so a partial translation is fine.
 
 Log messages and the API stay in English.
 

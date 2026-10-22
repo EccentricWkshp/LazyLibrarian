@@ -63,7 +63,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('General', 'HIST_REFRESH', 1000),
     ConfigBool('General', 'NO_IPV6', 0),
     ConfigStr('General', 'BOOKSTRAP_THEME', 'slate'),
-    ConfigStr('General', 'UI_LANGUAGE', 'en'),  # 'auto' follows the browser's Accept-Language
+    ConfigStr('General', 'UI_LANGUAGE', 'auto'),  # 'auto' follows the browser's Accept-Language, or a code like 'en'
     ConfigBool('General', 'SERIES_TAB', 1),
     ConfigBool('General', 'AUDIO_TAB', 1),
     ConfigBool('General', 'EBOOK_TAB', 1),
