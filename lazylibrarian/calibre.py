@@ -16,13 +16,13 @@ import re
 import string
 import time
 import traceback
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import cherrypy
 import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
-from requests.auth import HTTPDigestAuth
+from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 
 from lazylibrarian import database
 from lazylibrarian.common import get_readinglist, run_script, set_readinglist
@@ -39,7 +39,7 @@ from lazylibrarian.librarysync import find_book_in_db
 # calibredb search "#label":"false"  # returns list of ids (slow)
 
 
-def calibre_server_request(endpoint, params=None, method='GET', data=None, timeout=15):
+def calibre_server_request(endpoint, params=None, method='GET', data=None, timeout=15, with_library=False):
     """ Generic REST API client for Calibre Content Server.
         Enables seamless network communication with Calibre across Docker containers,
         LANs, or remote instances without requiring local calibredb CLI or direct database access. """
@@ -49,20 +49,21 @@ def calibre_server_request(endpoint, params=None, method='GET', data=None, timeo
         return None, "No CALIBRE_SERVER configured"
     # CALIBRE_SERVER may carry a "#library" fragment (the calibredb --with-library convention).
     # In a REST URL everything after "#" is never sent to the server, which would silently
-    # swallow the endpoint, so split the fragment off and pass it as ?library= instead.
+    # swallow the endpoint, so split the fragment off. The server ignores a library query
+    # parameter, endpoints that take a library have it as the last path segment instead
     library = None
     if '#' in server:
         server, library = server.split('#', 1)
+        server = server.rstrip('/')
         library = library.strip()
     if not server.startswith('http'):
         scheme = 'https://' if CONFIG.get_bool('HTTPS_ENABLED') else 'http://'
         server = f"{scheme}{server}"
 
     params = dict(params) if params else {}
-    if library:
-        params['library'] = library
-
     url = f"{server}/{endpoint.lstrip('/')}"
+    if with_library and library:
+        url += f"/{quote(library, safe='')}"
     if params:
         url += f"?{urlencode(params)}"
 
@@ -75,6 +76,15 @@ def calibre_server_request(endpoint, params=None, method='GET', data=None, timeo
 
     try:
         r = requests.request(method, url, headers=headers, auth=auth, json=data, timeout=timeout)
+        challenge = r.headers.get('WWW-Authenticate', '').lower() if r.status_code == 401 else ''
+        if auth and challenge.startswith('basic'):
+            # the server uses basic auth when it has ssl, or is started with --auth-mode basic.
+            # Only send the password that way over https, and not on to wherever a redirect goes
+            if not url.startswith('https://') or not r.url.startswith('https://'):
+                return None, "HTTP 401: server wants basic auth, which needs an https CALIBRE_SERVER"
+            auth = HTTPBasicAuth(CONFIG['CALIBRE_USER'], CONFIG['CALIBRE_PASS'])
+            r = requests.request(method, url, headers=headers, auth=auth, json=data, timeout=timeout,
+                                 allow_redirects=False)
         if r.status_code == 200:
             try:
                 return r.json(), None
@@ -90,7 +100,7 @@ def calibre_server_search(query):
     """ Search Calibre library via Content Server REST API.
         Query can be a free text search, title:"...", author:"...", or identifiers:goodreads:... / identifiers:isbn:...
         Returns a list of matching Calibre book IDs. """
-    data, err = calibre_server_request('ajax/search', params={'query': query})
+    data, err = calibre_server_request('ajax/search', params={'query': query}, with_library=True)
     if data and isinstance(data, dict) and 'book_ids' in data:
         return data['book_ids'], None
     return [], err
@@ -99,7 +109,7 @@ def calibre_server_search(query):
 def calibre_server_get_books():
     """ Fetch the entire Calibre library in a single REST API call via /ajax/books.
         Returns dict of {book_id: book_metadata_dict}. """
-    data, err = calibre_server_request('ajax/books')
+    data, err = calibre_server_request('ajax/books', with_library=True)
     if data and isinstance(data, dict):
         return data, None
     return {}, err
@@ -107,7 +117,7 @@ def calibre_server_get_books():
 
 def calibre_server_get_book(book_id):
     """ Retrieve full book metadata from Calibre Content Server REST API """
-    return calibre_server_request(f'ajax/book/{book_id}')
+    return calibre_server_request(f"ajax/book/{quote(str(book_id), safe='')}", with_library=True)
 
 
 def calibre_list(col_read, col_toread):
@@ -128,7 +138,8 @@ def calibre_list(col_read, col_toread):
                     item = {
                         'id': bid,
                         'title': bdata.get('title', ''),
-                        'authors': ', '.join(bdata.get('authors', [])),
+                        # same separator as calibredb list, a comma reads as surname, forename
+                        'authors': ' & '.join(bdata.get('authors', [])),
                         'identifiers': bdata.get('identifiers', {}),
                         'formats': bdata.get('formats', []),
                         'pubdate': bdata.get('pubdate', ''),
@@ -516,21 +527,26 @@ def sync_calibre_list(col_read=None, col_toread=None, userid=None):
 
 
 def calibre_test():
-    logger = logging.getLogger(__name__)
-
     # 1. Test Calibre Content Server REST API if configured
     if CONFIG.get_bool('CALIBRE_USE_SERVER') and CONFIG['CALIBRE_SERVER']:
         info, err = calibre_server_request('ajax/library-info')
         if not info or not isinstance(info, dict):
-            return f"Calibre Content Server REST API communication failed: {err or 'No response'}"
+            res = f"Calibre Content Server REST API communication failed: {err or 'No response'}"
+            if CONFIG['IMP_CALIBREDB']:
+                # calibredb doesn't go through the REST api, so it can still work
+                res += f"\n{calibredb_test()}"
+            return res
 
         default_lib = info.get('default_library', 'default')
         libs = list(info.get('library_map', {}).values())
 
-        search_res, err = calibre_server_request('ajax/search', params={'query': 'id:>0'})
-        book_count = search_res.get('total_num', 0) if (search_res and isinstance(search_res, dict)) else 0
-
-        res = f"Calibre Content Server REST API ok. Default library: '{default_lib}', Libraries: {libs}\nDatabase READ ok ({book_count} books found)"
+        search_res, err = calibre_server_request('ajax/search', params={'query': 'id:>0'}, with_library=True)
+        res = f"Calibre Content Server REST API ok. Default library: '{default_lib}', Libraries: {libs}"
+        if search_res and isinstance(search_res, dict):
+            res += f"\nDatabase READ ok ({search_res.get('total_num', 0)} books found)"
+        else:
+            # eg a #library that isn't in the library map
+            res += f"\nDatabase READ failed: {err or 'No response'}"
         if CONFIG['IMP_CALIBREDB']:
             cres, cerr, crc = calibredb('--version')
             if not crc:
@@ -539,6 +555,11 @@ def calibre_test():
         return res
 
     # 2. calibredb CLI binary test
+    return calibredb_test()
+
+
+def calibredb_test():
+    logger = logging.getLogger(__name__)
     res, err, rc = calibredb('--version')
     if rc:
         msg = "calibredb communication failed: "
@@ -656,8 +677,9 @@ def calibredb(cmd=None, prelib=None, postlib=None):
 def delete_from_calibre(calibre_id):
     logger = logging.getLogger(__name__)
     if calibre_id:
-        if CONFIG.get_bool('CALIBRE_USE_SERVER') and CONFIG['CALIBRE_SERVER']:
-            res, err = calibre_server_request(f'cdb/delete-books/{calibre_id}', method='POST')
+        # the endpoint takes a list of ids, only ever send it one
+        if CONFIG.get_bool('CALIBRE_USE_SERVER') and CONFIG['CALIBRE_SERVER'] and str(calibre_id).isdigit():
+            res, err = calibre_server_request(f'cdb/delete-books/{calibre_id}', method='POST', with_library=True)
             if not err:
                 logger.debug(f"Deleted calibre ID {calibre_id} via REST API")
                 return True
