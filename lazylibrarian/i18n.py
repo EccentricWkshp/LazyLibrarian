@@ -24,6 +24,7 @@ AUTO = 'auto'
 
 _local = threading.local()
 _catalogs = {}  # lang -> (mtime, translations)
+_template = None  # (mtime, msgids of the .pot file)
 _lock = threading.Lock()
 
 
@@ -36,6 +37,8 @@ class POTranslations(_gettext.NullTranslations):
         self.plural = lambda n: int(n != 1)
         self.plural_expr = 'n != 1'
         self.nplurals = 2
+        self.msgids = set()  # every message in the file
+        self.translated = set()  # messages with a complete translation
         self._parse(filename)
 
     def _parse(self, filename):
@@ -86,14 +89,21 @@ class POTranslations(_gettext.NullTranslations):
             if msgid == '':
                 self._parse_header(entry.get('msgstr', ''))
                 continue
+            self.msgids.add(msgid)
             if 'msgid_plural' in entry:
                 idx = 0
+                complete = True
                 while f'msgstr[{idx}]' in entry:
                     if entry[f'msgstr[{idx}]']:
                         self._catalog[(msgid, idx)] = entry[f'msgstr[{idx}]']
+                    else:
+                        complete = False
                     idx += 1
+                if complete and idx:
+                    self.translated.add(msgid)
             elif entry.get('msgstr'):
                 self._catalog[msgid] = entry['msgstr']
+                self.translated.add(msgid)
 
     def _parse_header(self, header):
         for line in header.splitlines():
@@ -181,15 +191,42 @@ def get_translations(lang):
         return translations
 
 
-def match_accept_language(header, languages=None):
-    """ Pick the best available language from an Accept-Language header """
-    if not header:
-        return DEFAULT_LANGUAGE
-    if languages is None:
-        languages = available_languages()
-    lookup = {lang.lower().replace('-', '_'): lang for lang in languages}
+def _template_msgids():
+    """ The messages in the .pot template, reloaded if the file has changed """
+    global _template
+    filename = os.path.join(LOCALE_DIR, f'{DOMAIN}.pot')
+    try:
+        mtime = os.path.getmtime(filename)
+    except OSError:
+        return set()
+    with _lock:
+        if _template and _template[0] == mtime:
+            return _template[1]
+        try:
+            msgids = POTranslations(filename).msgids
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Unable to load template {filename}: {e}")
+            msgids = set()
+        _template = (mtime, msgids)
+        return msgids
+
+
+def translation_progress(lang):
+    """ Percentage of the template's messages that have a translation for lang (rounded down, so
+        100 means complete). English is always complete, as it is the source language """
+    if not lang or lang == DEFAULT_LANGUAGE:
+        return 100
+    msgids = _template_msgids()
+    if not msgids:
+        return 100  # no template to compare with, so we can't tell
+    translated = getattr(get_translations(lang), 'translated', set())
+    return len(msgids & translated) * 100 // len(msgids)
+
+
+def parse_accept_language(header):
+    """ Language codes from an Accept-Language header, most preferred first (lowercase, '_' separated) """
     requested = []
-    for pos, part in enumerate(header.split(',')):
+    for pos, part in enumerate((header or '').split(',')):
         code, _, params = part.strip().partition(';')
         quality = 1.0
         params = params.strip()
@@ -200,13 +237,48 @@ def match_accept_language(header, languages=None):
                 quality = 0.0
         if code and quality > 0:
             requested.append((-quality, pos, code.strip().lower().replace('-', '_')))
-    for _, _, code in sorted(requested):
+    return [code for _, _, code in sorted(requested)]
+
+
+def match_accept_language(header, languages=None):
+    """ Pick the best available language from an Accept-Language header """
+    if languages is None:
+        languages = available_languages()
+    lookup = {lang.lower().replace('-', '_'): lang for lang in languages}
+    for code in parse_accept_language(header):
         if code in lookup:
             return lookup[code]
         primary = code.split('_')[0]
         if primary in lookup:
             return lookup[primary]
     return DEFAULT_LANGUAGE
+
+
+def translation_invite(user_lang, setting, accept_header, languages=None):
+    """ Decide whether to invite the user to help translate, based on the language they want:
+        their own choice (user_lang), else the UI_LANGUAGE setting, else the browser when that is 'auto'.
+        Returns (language code, percent translated): percent is 0 when there is no translation at all.
+        Returns ('', 100) when there is nothing to ask, which is always the case for English """
+    wanted = (user_lang or '').strip()
+    if not wanted or wanted.lower() == AUTO:
+        wanted = (setting or '').strip()
+    if not wanted or wanted.lower() == AUTO:
+        requested = parse_accept_language(accept_header)
+        wanted = requested[0] if requested else ''
+    code = wanted.lower().replace('-', '_')
+    primary = code.split('_')[0]
+    if not primary or primary in (DEFAULT_LANGUAGE, '*'):
+        return '', 100
+    if languages is None:
+        languages = available_languages()
+    lookup = {lang.lower().replace('-', '_'): lang for lang in languages}
+    lang = lookup.get(code) or lookup.get(primary)
+    if not lang:
+        return primary, 0
+    percent = translation_progress(lang)
+    if percent >= 100:
+        return '', 100
+    return lang, percent
 
 
 def resolve_language(setting, accept_header=''):
