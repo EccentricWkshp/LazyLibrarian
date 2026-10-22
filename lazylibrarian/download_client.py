@@ -548,7 +548,7 @@ def get_download_progress(source, downloadid):
                 downloadid
             )
             if errorstring and progress == -1:
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(cmd, (errorstring, downloadid, source))
 
         elif source == "DIRECT" or str(source).startswith("IRC"):
@@ -615,7 +615,7 @@ def get_download_progress(source, downloadid):
                             elif item["status"] in ["Extracting", "Fetching"]:
                                 progress = 99
                             elif item["status"] == "Failed" or item["fail_message"]:
-                                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status<>'Failed'"
                                 db.action(
                                     cmd, (item["fail_message"], downloadid, source)
                                 )
@@ -625,7 +625,7 @@ def get_download_progress(source, downloadid):
                 errorstring = f"{downloadid} not found at {source}"
                 logger.debug(errorstring)
                 if progress == -1:
-                    cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                    cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status<>'Failed'"
                     db.action(cmd, (errorstring, downloadid, source))
 
         elif source == "NZBGET":
@@ -667,7 +667,7 @@ def get_download_progress(source, downloadid):
                                 or "FAILURE" in item["Status"]
                             ):
                                 cmd = (
-                                    "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? "
+                                    "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Status<>'Failed'"
                                     "and Source=?"
                                 )
                                 db.action(cmd, (item["Status"], downloadid, source))
@@ -676,7 +676,7 @@ def get_download_progress(source, downloadid):
             if not found:
                 errorstring = f"{downloadid} not found at {source}"
                 logger.debug(errorstring)
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status<>'Failed'"
                 db.action(cmd, (errorstring, downloadid, source))
                 progress = -1
 
@@ -689,7 +689,8 @@ def get_download_progress(source, downloadid):
                     msg += f" Status: {status} Progress: {progress}"
                 logger.debug(msg)
             if status == "error" or progress == -1:
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                # for torrents, only mark Aborted if Snatched or Seeding, don't update if already Failed (#3113)
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(cmd, (f"QBITTORRENT returned {status}:{progress}", downloadid, source))
 
         elif source == "UTORRENT":
@@ -698,7 +699,7 @@ def get_download_progress(source, downloadid):
                 logger.debug(f"{downloadid} not found at {source}")
                 # Keep progress as -1 to signal "not found" rather than "0% progress"
             if status & 16:  # Error
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(
                     cmd,
                     (f"UTORRENT returned error status {status}", downloadid, source),
@@ -713,7 +714,7 @@ def get_download_progress(source, downloadid):
                 progress = 100
                 finished = True
             if progress == -1:
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(cmd, (f"rTorrent returned {status}", downloadid, source))
 
         elif source and source.startswith("SYNOLOGY"):
@@ -721,13 +722,13 @@ def get_download_progress(source, downloadid):
             if status == "finished":
                 progress = 100
             elif progress == -1:
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(cmd, (f"Synology returned {status}", downloadid, source))
 
         elif source == "DELUGEWEBUI":
             progress, message, finished = deluge.get_torrent_progress(downloadid)
             if message and message != "OK":
-                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(cmd, (message, downloadid, source))
                 progress = -1
 
@@ -759,7 +760,7 @@ def get_download_progress(source, downloadid):
                     progress = -1
                     finished = False
                 if "message" in result and result["message"] != "OK":
-                    cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=?"
+                    cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                     db.action(cmd, (result["message"], downloadid, source))
                     progress = -1
             except Exception as e:
