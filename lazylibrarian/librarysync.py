@@ -271,6 +271,23 @@ def get_book_info(fname):
     return res
 
 
+def title_has_volume(title: str, candidate: str) -> bool:
+    """ Check title, eg a chapter title like "the primal hunter 3: a litrpg adventure - 01 - opening credits",
+    contains the whole of candidate followed by a subtitle, a " - " separator or nothing, so not
+    "book 3 part 2", "book 3-5" or "book 3 & 4" """
+    def tidy(text: str) -> str:
+        # series details in brackets are checked separately, and a filename has _ for :
+        text = re.sub(r'\([^)]*\)', ' ', text).replace('_', ':')
+        text = re.sub(r'[^\w.:-]+', ' ', text)
+        return ' '.join(re.sub(r'(?<![\w.])0+(?=\d)', '', text).split())
+
+    title = tidy(title)
+    candidate = tidy(candidate)
+    if not candidate:
+        return True
+    return re.search(r'(?<![\w.])' + re.escape(candidate) + r'(?=$|:| - )', title) is not None
+
+
 def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_book_in_db', source=''):
     # Fuzzy search for book in library, return LL bookid and status if found or zero
     # prefer an exact match on author & book
@@ -456,7 +473,15 @@ def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_bo
                     with contextlib.suppress(IndexError):
                         numbers.append(int(re.findall(r'\d+', word)[0]))
 
-            if len(numbers) == 2 and numbers[0] != numbers[1]:
+            # in an audiobook title with the whole of a numbered candidate in it, other numbers are chapters
+            # or tracks, eg "the primal hunter 3 - 01 - opening credits" is still "the primal hunter 3".
+            # Series details in brackets still get checked below
+            has_volume = not numbers or title_has_volume(book_lower, a_book_lower)
+            same_volume = (library != 'eBook' and bool(numbers) and has_volume
+                           and re.search(r'\d', re.sub(r'\([^)]*\)', '', a_book_lower)) is not None
+                           and re.search(r'\([^)]*\d', book_lower) is None)
+
+            if not same_volume and len(numbers) == 2 and numbers[0] != numbers[1]:
                 # make sure we are below match threshold
                 if ratio >= CONFIG.get_int('NAME_RATIO'):
                     ratio = CONFIG.get_int('NAME_RATIO') - 5
@@ -466,7 +491,7 @@ def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_bo
                     partname = CONFIG.get_int('NAME_PARTNAME') - 5
                 fuzzlogger.debug(f"Downgraded ratios as different numbers {numbers}")
 
-            if len(numbers) == 1:
+            if not same_volume and len(numbers) == 1:
                 # If the number is in braces and other words are in the braces,
                 # looks like it's series details eg (Robert Langdon, #6)
                 # and the comparison book doesn't include series details
@@ -506,6 +531,16 @@ def find_book_in_db(author, book, ignored=None, library='eBook', reason='find_bo
                     if partname >= CONFIG.get_int('NAME_PARTNAME'):
                         partname = CONFIG.get_int('NAME_PARTNAME') - 5
                     fuzzlogger.debug(f"Downgraded ratios as one has number {numbers}")
+
+            # more numbers than we can pair up, usually track and chapter numbers in an audiobook title
+            if library != 'eBook' and len(numbers) > 2 and not has_volume:
+                if ratio >= CONFIG.get_int('NAME_RATIO'):
+                    ratio = CONFIG.get_int('NAME_RATIO') - 5
+                if partial >= CONFIG.get_int('NAME_PARTIAL'):
+                    partial = CONFIG.get_int('NAME_PARTIAL') - 5
+                if partname >= CONFIG.get_int('NAME_PARTNAME'):
+                    partname = CONFIG.get_int('NAME_PARTNAME') - 5
+                fuzzlogger.debug(f"Downgraded ratios as title doesn't contain this volume {numbers}")
 
             # lose a point for each extra word in the fuzzy matches so we get the closest match
             # this should also stop us matching single books against omnibus editions
