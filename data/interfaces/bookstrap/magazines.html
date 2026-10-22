@@ -175,29 +175,29 @@
                                         row[0] + '" target="_self"><i class="fa fa-book"></i>'
                                 %if CONFIG['MAG_SINGLE']:
                                     if ( row[3] == 1) {
-                                        btn = btn + ' Open</a>'
+                                        btn = btn + ' ' + ${_js('Open')} + '</a>'
                                         %if len(email):
                                             btn += '<a class="button green btn btn-xs btn-info" href="send_mag?bookid=' +
                                                     row[0] + '" target="_self">' + ${_js('Send')} + '</a>'
                                         %endif
                                         }
-                                    else { btn = btn + ' Show</a>' }
+                                    else { btn = btn + ' ' + ${_js('Show')} + '</a>' }
                                 %else:
-                                    btn = btn + ' Show</a>'
+                                    btn = btn + ' ' + ${_js('Show')} + '</a>'
                                 %endif
                            }
                         else if ( btn.indexOf('Wanted') >= 0 ) {
-                            btn = '<p><a class="a btn btn-xs btn-danger">' + btn + '</a></p>'
+                            btn = '<p><a class="a btn btn-xs btn-danger">' + llStatus(btn) + '</a></p>'
                             %if perm&lazylibrarian.perm_force:
                                btn += '<p><a class="b btn btn-xs btn-success" href="search_for_mag?bookid=' + row[0] +
                                       '" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'
                             %endif
                             }
                         else if ( btn.indexOf('Snatched') >= 0 ) {
-                            btn = '<a class="button btn btn-xs btn-info">' + btn + '</a>'}
+                            btn = '<a class="button btn btn-xs btn-info">' + llStatus(btn) + '</a>'}
                         else if ( btn.indexOf('Have') >= 0 ) {
-                            btn = '<a class="button btn btn-xs btn-info">' + btn + '</a>'}
-                        else { btn = '<a class="button btn btn-xs btn-default grey">' + btn + '</a>'}
+                            btn = '<a class="button btn btn-xs btn-info">' + llStatus(btn) + '</a>'}
+                        else { btn = '<a class="button btn btn-xs btn-default grey">' + llStatus(btn) + '</a>'}
                         return btn;} },
                         ],
                 "oLanguage": $.extend({}, llDataTablesLanguage, {
