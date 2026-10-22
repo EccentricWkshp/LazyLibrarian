@@ -1127,9 +1127,9 @@ class WebInterface:
     def user_update(self, **kwargs):
         if ('password' in kwargs and 'password2' in kwargs and kwargs['password'] and
                 kwargs['password'] != kwargs['password2']):
-            return "Passwords do not match"
+            return i18n.gettext("Passwords do not match")
         if kwargs['password'] and not pwd_check(kwargs['password']):
-            return "Password must be at least 8 characters long\nand not contain spaces"
+            return i18n.gettext("Password must be at least 8 characters long\nand not contain spaces")
         logger = logging.getLogger(__name__)
         changes = ''
         cookie = cherrypy.request.cookie
@@ -1143,7 +1143,7 @@ class WebInterface:
                     # if username changed, must not have same username as another user
                     match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
                     if match:
-                        return "Unable to change username: already exists"
+                        return i18n.gettext("Unable to change username: already exists")
                     if self.validate_param("username", kwargs['username'], ['<', '>', '='], None):
                         changes += ' username'
                         db.action('UPDATE users SET UserName=? WHERE UserID=?', (kwargs['username'], userid))
@@ -1227,8 +1227,8 @@ class WebInterface:
             db.close()
 
             if changes:
-                return f'Updated user details:{changes}'
-        return "No changes made"
+                return i18n.gettext('Updated user details: %(fields)s') % {'fields': changes.strip()}
+        return i18n.gettext("No changes made")
 
     @cherrypy.expose
     @require_auth()
@@ -1246,9 +1246,8 @@ class WebInterface:
             if itm[0] == remote_ip:
                 cnt += 1
         if cnt >= 3:
-            msg = f"IP address [{remote_ip}] is blocked"
-            logger.warning(msg)
-            return msg
+            logger.warning(f"IP address [{remote_ip}] is blocked")
+            return i18n.gettext("IP address [%(ip)s] is blocked") % {'ip': remote_ip}
 
         username = ''
         password = ''
@@ -1291,16 +1290,18 @@ class WebInterface:
                 if itm[0] == username:
                     cnt += 1
             if cnt >= 2:
-                msg = "Too many failed attempts. Reset password or retry after 1 hour"
-                logger.warning(f"Blocked user: {username}: [{remote_ip}] {msg}")
+                logger.warning(f"Blocked user: {username}: [{remote_ip}] Too many failed attempts")
+                msg = i18n.gettext("Too many failed attempts. Reset password or retry after 1 hour")
             else:
                 lazylibrarian.USER_BLOCKLIST.append((username, int(time.time())))
-                msg = f"Wrong password entered. You have {2 - cnt} {plural(2 - cnt, 'attempt')} left"
+                msg = i18n.ngettext('Wrong password entered. You have %(count)s attempt left',
+                                    'Wrong password entered. You have %(count)s attempts left',
+                                    2 - cnt) % {'count': 2 - cnt}
             logger.warning(f"Failed login attempt: {username}: [{remote_ip}] {lazylibrarian.LOGIN_MSG}")
         else:
             # invalid or missing username, or valid user but missing password
-            msg = "Invalid user or password."
-            logger.warning(f"Blocked IP: {username}: [{remote_ip}] {msg}")
+            logger.warning(f"Blocked IP: {username}: [{remote_ip}] Invalid user or password.")
+            msg = i18n.gettext("Invalid user or password.")
             lazylibrarian.USER_BLOCKLIST.append((remote_ip, int(time.time())))
         return msg
 
@@ -1321,10 +1322,10 @@ class WebInterface:
             result = notifiers.email_notifier.notify_message('Message from LazyLibrarian User',
                                                              msg, CONFIG['ADMIN_EMAIL'])
             if result:
-                return "Message sent to admin, you will receive a reply by email"
+                return i18n.gettext("Message sent to admin, you will receive a reply by email")
             logger.error(f"Unable to send message to admin: {msg}")
-            return "Message not sent, please try again later"
-        return "No message sent, no return email address"
+            return i18n.gettext("Message not sent, please try again later")
+        return i18n.gettext("No message sent, no return email address")
 
     @cherrypy.expose
     @require_auth()
@@ -1349,7 +1350,7 @@ class WebInterface:
         logger = logging.getLogger(__name__)
         if 'value' in kwargs and kwargs['value'] == '':
             # cancel or [x] pressed
-            return 'No changes made'
+            return i18n.gettext('No changes made')
         user = kwargs.pop('user', '')
         value = get_list(kwargs.pop('value[]', ''))
         cnt = 0
@@ -1378,7 +1379,7 @@ class WebInterface:
                         else:
                             logger.debug(f"{feedname} {user} was already unsubscribed")
         db.close()
-        return f"Changed {cnt} {plural(cnt, 'feed')}"
+        return i18n.ngettext('Changed %(count)s feed', 'Changed %(count)s feeds', cnt) % {'count': cnt}
 
     @cherrypy.expose
     @require_auth()
@@ -1430,11 +1431,11 @@ class WebInterface:
                             if val & lazylibrarian.perm_config:
                                 count += 1
                         if count < 2:
-                            return "Unable to delete last administrator"
+                            return i18n.gettext("Unable to delete last administrator")
                     db.action('DELETE from users WHERE UserName=?', (user,))
-                    return f"User {user} deleted"
-                return "User not found"
-            return "No user!"
+                    return i18n.gettext("User %(user)s deleted") % {'user': user}
+                return i18n.gettext("User not found")
+            return i18n.gettext("No user!")
         finally:
             db.close()
 
@@ -1481,36 +1482,37 @@ class WebInterface:
         changes = ''
 
         if new_user:
-            msg = "New user NOT added: "
+            msg = i18n.gettext("New user NOT added: %(reason)s")
             if not kwargs['username']:
                 db.close()
-                return msg + "No username given"
+                return msg % {'reason': i18n.gettext("No username given")}
             # new user must not have same username as an existing one
             match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
             if match:
                 db.close()
-                return msg + "Username already exists"
+                return msg % {'reason': i18n.gettext("Username already exists")}
 
             if not kwargs['fullname']:
                 db.close()
-                return msg + "No fullname given"
+                return msg % {'reason': i18n.gettext("No fullname given")}
 
             if not kwargs['email']:
                 db.close()
-                return msg + "No email given"
+                return msg % {'reason': i18n.gettext("No email given")}
 
             if not is_valid_email(kwargs['email']):
                 db.close()
-                return msg + "Invalid email given"
+                return msg % {'reason': i18n.gettext("Invalid email given")}
 
             perms = check_int(kwargs['perms'], 0)
             if not perms:
                 db.close()
-                return msg + "No permissions or invalid permissions given"
+                return msg % {'reason': i18n.gettext("No permissions or invalid permissions given")}
             if not kwargs['password']:
                 db.close()
-                return msg + "No password given"
+                return msg % {'reason': i18n.gettext("No password given")}
 
+            # perm_msg also goes into the welcome email, which stays in English
             if perms == lazylibrarian.perm_admin:
                 perm_msg = 'ADMIN'
             elif perms == lazylibrarian.perm_friend:
@@ -1534,12 +1536,14 @@ class WebInterface:
                 db.action(cmd, (pwd_generator(), kwargs['username'], kwargs['fullname'],
                                 md5_utf8(kwargs['password']), kwargs['email'], kwargs['sendto'], perms,
                                 kwargs.get('hc_token', '')))
-                msg = f"New user added: {kwargs['username']}: {perm_msg}<br>Email sent to {kwargs['email']}"
+                msg = i18n.gettext("New user added: %(user)s: %(perm)s") % {'user': kwargs['username'], 'perm': perm_msg}
+                msg += '<br>' + i18n.gettext("Email sent to %(email)s") % {'email': kwargs['email']}
                 cnt = db.match("select count(*) as counter from users")
                 if cnt['counter'] > 1:
                     lazylibrarian.SHOWLOGOUT = 1
             else:
-                msg = (f"New user NOT added<br>Failed to send email to {kwargs['email']}")
+                msg = i18n.gettext("New user NOT added") + '<br>' + i18n.gettext("Failed to send email to %(email)s") % {
+                    'email': kwargs['email']}
             db.close()
             return msg
 
@@ -1548,7 +1552,7 @@ class WebInterface:
             match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
             if match:
                 db.close()
-                return "Username already exists"
+                return i18n.gettext("Username already exists")
 
         cmd = ("SELECT UserID,Name,Email,SendTo,Password,Perms,CalibreRead,CalibreToRead,BookType,Theme,"
                "hc_token,ui_lang from users where UserName=?")
@@ -1566,13 +1570,13 @@ class WebInterface:
 
             if details['Email'] != kwargs['email']:
                 if kwargs['email'] and not is_valid_email(kwargs['email']):
-                    return "Invalid email given"
+                    return i18n.gettext("Invalid email given")
                 changes += ' email'
                 db.action('UPDATE users SET email=? WHERE UserID=?', (kwargs['email'], userid))
 
             if details['SendTo'] != kwargs['sendto']:
                 if kwargs['sendto'] and not is_valid_email(kwargs['sendto']):
-                    return "Invalid sendto email given"
+                    return i18n.gettext("Invalid sendto email given")
                 changes += ' sendto'
                 db.action('UPDATE users SET sendto=? WHERE UserID=?', (kwargs['sendto'], userid))
 
@@ -1634,15 +1638,15 @@ class WebInterface:
                             count += 1
                     if count < 2:
                         db.close()
-                        return "Unable to remove last administrator"
+                        return i18n.gettext("Unable to remove last administrator")
                 if oldperm != newperm:
                     changes += ' Perms'
                     db.action('UPDATE users SET Perms=? WHERE UserID=?', (kwargs['perms'], userid))
 
         if changes:
-            msg = f'Updated user details:{changes}'
+            msg = i18n.gettext('Updated user details: %(fields)s') % {'fields': changes.strip()}
         else:
-            msg = "No changes made"
+            msg = i18n.gettext("No changes made")
         db.close()
         return msg
 
@@ -1663,15 +1667,15 @@ class WebInterface:
                         if kwargs['email'] == res['Email']:
                             msg = ''
                         else:
-                            msg = 'Email does not match our records'
+                            msg = i18n.N_('Email does not match our records')
                     else:
-                        msg = 'No email address registered'
+                        msg = i18n.N_('No email address registered')
                 else:
-                    msg = 'No email address supplied'
+                    msg = i18n.N_('No email address supplied')
             else:
-                msg = "Unknown username"
+                msg = i18n.N_("Unknown username")
         else:
-            msg = "Who are you?"
+            msg = i18n.N_("Who are you?")
 
         if res and not msg:
             new_pwd = pwd_generator()
@@ -1680,13 +1684,15 @@ class WebInterface:
             if result:
                 pwd = md5_utf8(new_pwd)
                 db.action("UPDATE users SET Password=? WHERE UserID=?", (pwd, res['UserID']))
-                return "Password reset, check your email"
+                return i18n.gettext("Password reset, check your email")
             msg = f"Failed to send email to [{res['Email']}]"
             logger.debug(msg)
+            reason = i18n.gettext("Failed to send email to %(email)s") % {'email': res['Email']}
+        else:
+            reason = i18n.gettext(msg)
         db.close()
-        msg = f"Password not reset: {msg}"
-        logger.error(f"{msg} IP:{remote_ip}")
-        return msg
+        logger.error(f"Password not reset: {msg} IP:{remote_ip}")
+        return i18n.gettext("Password not reset: %(reason)s") % {'reason': reason}
 
     @cherrypy.expose
     @require_auth()
@@ -2347,15 +2353,15 @@ class WebInterface:
             if 'admin_email' in kwargs and kwargs['admin_email']:
                 email = kwargs['admin_email']
             else:
-                adminmsg += 'Please set a contact email so users can make requests<br>'
+                adminmsg += i18n.gettext('Please set a contact email so users can make requests') + '<br>'
 
             if email and not is_valid_email(email):
-                adminmsg += 'Contact email looks invalid, please check<br>'
+                adminmsg += i18n.gettext('Contact email looks invalid, please check') + '<br>'
 
             admin = db.match("SELECT password from users where name='admin'")
             if admin and admin['password'] == md5_utf8('admin'):
-                adminmsg += "The default admin user is \"admin\" and password is \"admin\"<br>"
-                adminmsg += "This is insecure, please change it on Config -> User Admin<br>"
+                adminmsg += i18n.gettext('The default admin user is "admin" and password is "admin"') + '<br>'
+                adminmsg += i18n.gettext("This is insecure, please change it on Config -> User Admin") + '<br>'
 
         # store any genre changes
         genre_changes = ''
@@ -4008,6 +4014,7 @@ class WebInterface:
         self.label_thread('REQUEST_BOOK')
         logger = logging.getLogger(__name__)
         prefix = ''
+        sent = False
         title = i18n.gettext('Request Error')
         cookie = cherrypy.request.cookie
         if cookie and 'll_uid' in list(cookie.keys()):
@@ -4046,22 +4053,23 @@ class WebInterface:
                     result = notifiers.email_notifier.notify_message('Request from LazyLibrarian User',
                                                                      msg, CONFIG['ADMIN_EMAIL'])
                     if result:
-                        prefix = "Message sent"
-                        msg = "You will receive a reply by email"
+                        sent = True
+                        prefix = i18n.gettext("Message sent")
+                        msg = i18n.gettext("You will receive a reply by email")
                     else:
                         logger.error(f"Unable to send message to: {msg}")
-                        prefix = "Message not sent"
-                        msg = "Please try again later"
+                        prefix = i18n.gettext("Message not sent")
+                        msg = i18n.gettext("Please try again later")
                 else:
-                    prefix = "Unable to send message"
-                    msg = "No email address supplied"
+                    prefix = i18n.gettext("Unable to send message")
+                    msg = i18n.gettext("No email address supplied")
             else:
-                msg = "Unknown user"
+                msg = i18n.gettext("Unknown user")
             db.close()
         else:
-            msg = "Nobody logged in?"
+            msg = i18n.gettext("Nobody logged in?")
 
-        if prefix == "Message sent":
+        if sent:
             timer = 5
         else:
             timer = 0
@@ -4371,11 +4379,10 @@ class WebInterface:
                                 else:
                                     logger.debug(f'Opening {library} {bookfile}')
                                 return self.send_file(bookfile, email=email)
-                            msg = "Please select which part to "
                             if email:
-                                msg += "email"
+                                msg = i18n.gettext("Please select which part to email")
                             else:
-                                msg += "download"
+                                msg = i18n.gettext("Please select which part to download")
                             itm = 1
                             partlist = ''
                             while itm <= cnt:
@@ -4413,24 +4420,24 @@ class WebInterface:
                         if preftype in types:
                             bookfile = fname + '.' + preftype
                         else:
-                            msg = f"{book_name}<br> Not available as {preftype}, only "
+                            msg = f"{book_name}<br> "
                             typestr = ''
                             for itm in types:
                                 if typestr:
                                     typestr += ' '
                                 typestr += itm
-                            msg += typestr
+                            msg += i18n.gettext("Not available as %(type)s, only %(types)s") % {
+                                'type': preftype, 'types': typestr}
                             return serve_template(templatename="choosetype.html",
                                                   title=i18n.gettext("Not Available"), pop_message=msg,
                                                   pop_types=typestr, bookid=bookid,
                                                   valid=get_list(CONFIG['EBOOK_TYPE']),
                                                   email=email)
                     elif len(types) > 1:
-                        msg = "Please select format to "
                         if email:
-                            msg += "email"
+                            msg = i18n.gettext("Please select format to email")
                         else:
-                            msg += "download"
+                            msg = i18n.gettext("Please select format to download")
                         typestr = ''
                         for itm in types:
                             if typestr:
@@ -7772,29 +7779,31 @@ class WebInterface:
         self.check_permitted(lazylibrarian.perm_force)
         self.label_thread('UPDATES')
         versioncheck.check_for_updates()
-        if CONFIG.get_int('COMMITS_BEHIND') == 0:
+        behind = CONFIG.get_int('COMMITS_BEHIND')
+        if behind == 0:
             if lazylibrarian.COMMIT_LIST:
-                message = "unknown status"
+                message = i18n.gettext("LazyLibrarian status is unknown")
                 messages = lazylibrarian.COMMIT_LIST.replace('\n', '<br>')
                 message = message + '<br><small>' + messages
             else:
-                message = "up to date"
-        elif CONFIG.get_int('COMMITS_BEHIND') > 0:
-            message = (f"behind by {CONFIG.get_int('COMMITS_BEHIND')} "
-                       f"{plural(CONFIG.get_int('COMMITS_BEHIND'), 'commit')}")
+                message = i18n.gettext("LazyLibrarian is up to date")
+        elif behind > 0:
+            message = i18n.ngettext("LazyLibrarian is behind by %(count)s commit",
+                                    "LazyLibrarian is behind by %(count)s commits", behind) % {'count': behind}
             messages = lazylibrarian.COMMIT_LIST.replace('\n', '<br>')
             message = message + '<br><small>' + messages
 
             if '** MANUAL **' in lazylibrarian.COMMIT_LIST:
-                message += "Update needs manual installation"
+                message += i18n.gettext("Update needs manual installation")
         else:
-            message = "unknown version"
-            messages = (f"Your version ({CONFIG['CURRENT_VERSION']}) is not recognized at<br>https://"
-                        f"{CONFIG['GIT_HOST']}/{CONFIG['GIT_USER']}/{CONFIG['GIT_REPO']}  "
-                        f"Branch: {CONFIG['GIT_BRANCH']}")
+            message = i18n.gettext("LazyLibrarian version is unknown")
+            messages = i18n.gettext("Your version (%(version)s) is not recognized at %(repo)s") % {
+                'version': CONFIG['CURRENT_VERSION'],
+                'repo': f"https://{CONFIG['GIT_HOST']}/{CONFIG['GIT_USER']}/{CONFIG['GIT_REPO']}"}
+            messages += '  ' + i18n.gettext('Branch: %(branch)s') % {'branch': CONFIG['GIT_BRANCH']}
             message = message + '<br><small>' + messages
 
-        return f"LazyLibrarian is {message}"
+        return message
 
     @cherrypy.expose
     @require_auth()
@@ -7834,8 +7843,8 @@ class WebInterface:
         logger.debug('(webServe-Update) - Performing update')
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'update'
-        message = 'Updating...'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Updating"),
+        message = i18n.gettext('LazyLibrarian is updating...')
+        return serve_template(templatename="shutdown.html", prefix='', title=i18n.gettext("Updating"),
                               message=message, timer=90)
 
     # IMPORT/EXPORT #####################################################
@@ -8025,17 +8034,19 @@ class WebInterface:
             try:
                 csvfile = csv_file(CONFIG['ALTERNATE_DIR'], library=library)
                 if path_exists(csvfile):
-                    message = f"Importing csv (background task) from {csvfile}"
+                    message = i18n.gettext("Importing csv (background task) from %(file)s") % {'file': csvfile}
                     threading.Thread(target=import_csv, name=f'IMPORTCSV_{library}',
                                      args=[CONFIG['ALTERNATE_DIR'], 'Wanted', library]).start()
                 else:
-                    message = f"No {library} CSV file in [{CONFIG['ALTERNATE_DIR']}]"
+                    message = i18n.gettext("No %(library)s CSV file in [%(folder)s]") % {
+                        'library': i18n.status_label(library), 'folder': CONFIG['ALTERNATE_DIR']}
             except Exception as e:
-                message = f'Unable to complete the import: {type(e).__name__} {str(e)}'
-                logger.error(message)
+                logger.error(f'Unable to complete the import: {type(e).__name__} {str(e)}')
+                message = i18n.gettext('Unable to complete the import: %(error)s') % {
+                    'error': f'{type(e).__name__} {str(e)}'}
         else:
-            message = 'IMPORTCSV already running'
-            logger.debug(message)
+            logger.debug('IMPORTCSV already running')
+            message = i18n.gettext('CSV import is already running')
         return message
 
     @cherrypy.expose
@@ -8058,8 +8069,8 @@ class WebInterface:
         # lazylibrarian.config_write()
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'shutdown'
-        message = 'closed'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Close library"),
+        message = i18n.gettext('LazyLibrarian is closed')
+        return serve_template(templatename="shutdown.html", prefix='', title=i18n.gettext("Close library"),
                               message=message, timer=0)
 
     @cherrypy.expose
@@ -8069,8 +8080,8 @@ class WebInterface:
         self.label_thread('RESTART')
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'restart'
-        message = 'reopening ...'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Reopen library"),
+        message = i18n.gettext('LazyLibrarian is reopening...')
+        return serve_template(templatename="shutdown.html", prefix='', title=i18n.gettext("Reopen library"),
                               message=message, timer=50)
 
     @cherrypy.expose
@@ -8410,7 +8421,7 @@ class WebInterface:
         if not title:
             title = i18n.gettext('BookID not found')
         if not text:
-            text = 'No Description'
+            text = i18n.gettext('No Description')
         return img + '^' + title + '^' + text
 
     @cherrypy.expose
@@ -8422,7 +8433,7 @@ class WebInterface:
         status, rowid = target.split('^')
         if status == 'Ignored':
             match = db.match('select ScanResult from books WHERE bookid=?', (rowid,))
-            message = f'Reason: {match["ScanResult"]}<br>'
+            message = i18n.gettext('Reason: %(reason)s') % {'reason': match["ScanResult"]} + '<br>'
         else:
             cmd = ("select NZBurl,NZBtitle,NZBdate,NZBprov,Status,NZBsize,AuxInfo,NZBmode,DLResult,Source,"
                    "DownloadID from wanted where rowid=?")
@@ -8433,20 +8444,23 @@ class WebInterface:
                     dltype = 'eBook'
                 else:
                     dltype = 'Magazine'
-            message = f"Title: {match['NZBtitle']}<br>"
-            message += f"Type: {match['NZBmode']} {dltype}<br>"
-            message += f"Date: {match['NZBdate']}<br>"
-            message += f"Size: {match['NZBsize']} Mb<br>"
-            message += f"Provider: {CONFIG.disp_name(match['NZBprov'])}<br>"
-            message += f"Downloader: {match['Source']}<br>"
-            message += f"DownloadID: {match['DownloadID']}<br>"
-            message += f"URL: {match['NZBurl']}<br>"
+            lines = [
+                i18n.gettext("Title: %(value)s") % {'value': match['NZBtitle']},
+                i18n.gettext("Type: %(value)s") % {'value': f"{match['NZBmode']} {i18n.status_label(dltype)}"},
+                i18n.gettext("Date: %(value)s") % {'value': match['NZBdate']},
+                i18n.gettext("Size: %(value)s Mb") % {'value': match['NZBsize']},
+                i18n.gettext("Provider: %(value)s") % {'value': CONFIG.disp_name(match['NZBprov'])},
+                i18n.gettext("Downloader: %(value)s") % {'value': match['Source']},
+                i18n.gettext("DownloadID: %(value)s") % {'value': match['DownloadID']},
+                i18n.gettext("URL: %(value)s") % {'value': match['NZBurl']},
+            ]
+            message = '<br>'.join(lines) + '<br>'
             if status == 'Processed':
-                message += f"File: {match['DLResult']}<br>"
+                message += i18n.gettext("File: %(value)s") % {'value': match['DLResult']} + '<br>'
             elif status == 'Seeding':
-                message += status
+                message += i18n.status_label(status)
             else:
-                message += f"Error: {match['DLResult']}<br>"
+                message += i18n.gettext("Error: %(value)s") % {'value': match['DLResult']} + '<br>'
         db.close()
         return message
 
@@ -8698,22 +8712,23 @@ class WebInterface:
             if not self.validate_param("provider api", api, ['<', '>'], None):
                 fail += 'api '
             if fail:
-                return f"{kwargs['name']} test FAILED, bad parameter: {fail}"
+                return i18n.gettext("%(name)s test FAILED, bad parameter: %(param)s") % {
+                    'name': kwargs['name'], 'param': fail}
 
             result, name = test_provider(kwargs['name'], host=host, api=api)
             if result is False:
-                msg = f"{name} test FAILED, check debug log"
+                msg = i18n.gettext("%(name)s test FAILED, check debug log") % {'name': name}
             elif result is True:
-                msg = f"{name} test PASSED"
+                msg = i18n.gettext("%(name)s test PASSED") % {'name': name}
                 CONFIG.save_config_and_backup_old(section=kwargs['name'])
             else:
                 wishtype = wishlist_type(host)
                 if wishtype:
                     name = f'Wishlist {wishtype} {name}'
-                msg = f"{name} test PASSED, found {result}"
+                msg = i18n.gettext("%(name)s test PASSED, found %(result)s") % {'name': name, 'result': result}
                 CONFIG.save_config_and_backup_old(section=kwargs['name'])
         else:
-            msg = "Invalid or missing name in testprovider"
+            msg = i18n.gettext("Invalid or missing name in testprovider")
         return msg
 
     @cherrypy.expose
@@ -8724,9 +8739,9 @@ class WebInterface:
         logger = logging.getLogger(__name__)
         # clear any currently blocked providers
         num = BLOCKHANDLER.clear_all()
-        result = f'Cleared {num} blocked {plural(num, "provider")}'
-        logger.debug(result)
-        return result
+        logger.debug(f'Cleared {num} blocked {plural(num, "provider")}')
+        return i18n.ngettext('Cleared %(count)s blocked provider', 'Cleared %(count)s blocked providers',
+                             num) % {'count': num}
 
     @cherrypy.expose
     @require_auth()
@@ -8752,12 +8767,12 @@ class WebInterface:
                 num = count['counter']
             else:
                 num = 0
-            result = f'Deleted download counter for {num} {plural(num, "provider")}'
             db.action('DELETE from downloads')
         finally:
             db.close()
-        logger.debug(result)
-        return result
+        logger.debug(f'Deleted download counter for {num} {plural(num, "provider")}')
+        return i18n.ngettext('Deleted download counter for %(count)s provider',
+                             'Deleted download counter for %(count)s providers', num) % {'count': num}
 
     @cherrypy.expose
     @require_auth()
@@ -8777,7 +8792,7 @@ class WebInterface:
             result += new_entry
 
         if result == '':
-            result = 'No downloads'
+            result = i18n.gettext('No downloads')
         return result
 
     @cherrypy.expose
@@ -8785,7 +8800,7 @@ class WebInterface:
     def sync_to_calibre(self):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         if 'CalSync' in [n.name for n in list(threading.enumerate())]:
-            msg = 'Calibre Sync is already running'
+            msg = i18n.gettext('Calibre Sync is already running')
         else:
             self.label_thread('CalSync')
             cookie = cherrypy.request.cookie
@@ -8794,7 +8809,7 @@ class WebInterface:
                 msg = sync_calibre_list(userid=userid)
                 self.label_thread('WEBSERVER')
             else:
-                msg = "No userid found"
+                msg = i18n.gettext("No userid found")
         return msg
 
     @cherrypy.expose
@@ -8893,7 +8908,7 @@ class WebInterface:
             else:
                 fail += "oauth_secret "
         if fail:
-            res = f'gr_auth failed, bad parameter: {fail}'
+            res = i18n.gettext('%(name)s failed, bad parameter: %(param)s') % {'name': 'GoodReads', 'param': fail}
         else:
             res = grsync.test_auth()
         if res.startswith('Pass:'):
@@ -8916,9 +8931,9 @@ class WebInterface:
             result = notifiers.twitter_notifier._get_credentials(key)
             if result:
                 CONFIG.save_config_and_backup_old(section='Twitter')
-                return "Key verification successful"
-            return "Unable to verify key"
-        return "No Key provided"
+                return i18n.gettext("Key verification successful")
+            return i18n.gettext("Unable to verify key")
+        return i18n.gettext("No key provided")
 
     @cherrypy.expose
     @require_auth()
@@ -8927,8 +8942,8 @@ class WebInterface:
         thread_name("WEBSERVER")
         result = notifiers.twitter_notifier.test_notify()
         if result:
-            return "Tweet successful, check your twitter to make sure it worked"
-        return "Error sending tweet"
+            return i18n.gettext("Tweet successful, check your twitter to make sure it worked")
+        return i18n.gettext("Error sending tweet")
 
     @cherrypy.expose
     @require_auth()
@@ -8957,10 +8972,10 @@ class WebInterface:
             result = notifiers.androidpn_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='AndroidPN')
-            return "Test AndroidPN notice sent successfully"
+            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'AndroidPN'}
         if fail:
-            return f"AndroidPN failed, bad parameter: {fail}"
-        return "Test AndroidPN notice failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'AndroidPN', 'param': fail}
+        return i18n.gettext("Test %(name)s notice failed") % {'name': 'AndroidPN'}
 
     @cherrypy.expose
     @require_auth()
@@ -8979,10 +8994,10 @@ class WebInterface:
             result = notifiers.boxcar_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='Boxcar')
-            return f"Boxcar notification successful,\n{result}"
+            return i18n.gettext("%(name)s notification successful") % {'name': 'Boxcar'} + f",\n{result}"
         if fail:
-            return f'boxcar failed, bad parameter: {fail}'
-        return "Boxcar notification failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Boxcar', 'param': fail}
+        return i18n.gettext("%(name)s notification failed") % {'name': 'Boxcar'}
 
     @cherrypy.expose
     @require_auth()
@@ -9006,10 +9021,10 @@ class WebInterface:
             result = notifiers.pushbullet_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='PushBullet')
-            return f"Pushbullet notification successful,\n{result}"
+            return i18n.gettext("%(name)s notification successful") % {'name': 'Pushbullet'} + f",\n{result}"
         if fail:
-            return f'Pushbullet failed, bad parameter: {fail}'
-        return "Pushbullet notification failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Pushbullet', 'param': fail}
+        return i18n.gettext("%(name)s notification failed") % {'name': 'Pushbullet'}
 
     @cherrypy.expose
     @require_auth()
@@ -9043,10 +9058,10 @@ class WebInterface:
             result = notifiers.pushover_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='Pushover')
-            return f"Pushover notification successful,\n{result}"
+            return i18n.gettext("%(name)s notification successful") % {'name': 'Pushover'} + f",\n{result}"
         if fail:
-            return f'Pushover failed, bad parameter: {fail}'
-        return "Pushover notification failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Pushover', 'param': fail}
+        return i18n.gettext("%(name)s notification failed") % {'name': 'Pushover'}
 
     @cherrypy.expose
     @require_auth()
@@ -9070,10 +9085,10 @@ class WebInterface:
             result = notifiers.telegram_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='Telegram')
-            return "Test Telegram notice sent successfully"
+            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'Telegram'}
         if fail:
-            return f'Telegram failed, bad parameter: {fail}'
-        return "Test Telegram notice failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Telegram', 'param': fail}
+        return i18n.gettext("Test %(name)s notice failed") % {'name': 'Telegram'}
 
     @cherrypy.expose
     @require_auth()
@@ -9097,10 +9112,10 @@ class WebInterface:
             result = notifiers.prowl_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='Prowl')
-            return "Test Prowl notice sent successfully"
+            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'Prowl'}
         if fail:
-            return f'Prowl failed, bad parameter: {fail}'
-        return "Test Prowl notice failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Prowl', 'param': fail}
+        return i18n.gettext("Test %(name)s notice failed") % {'name': 'Prowl'}
 
     @cherrypy.expose
     @require_auth()
@@ -9124,10 +9139,10 @@ class WebInterface:
             result = notifiers.growl_notifier.test_notify()
         if result:
             CONFIG.save_config_and_backup_old(section='Growl')
-            return "Test Growl notice sent successfully"
+            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'Growl'}
         if fail:
-            return f'Growl failed, bad parameter: {fail}'
-        return "Test Growl notice failed"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Growl', 'param': fail}
+        return i18n.gettext("Test %(name)s notice failed") % {'name': 'Growl'}
 
     @cherrypy.expose
     @require_auth()
@@ -9150,11 +9165,11 @@ class WebInterface:
         else:
             result = notifiers.slack_notifier.test_notify()
         if result != "ok":
-            return f"Slack notification failed,\n{result}"
+            return i18n.gettext("%(name)s notification failed") % {'name': 'Slack'} + f",\n{result}"
         if fail:
-            return f'Slack failed, bad parameter: {fail}'
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Slack', 'param': fail}
         CONFIG.save_config_and_backup_old(section='Slack')
-        return "Slack notification successful"
+        return i18n.gettext("%(name)s notification successful") % {'name': 'Slack'}
 
     @cherrypy.expose
     @require_auth()
@@ -9173,11 +9188,11 @@ class WebInterface:
         else:
             result = notifiers.custom_notifier.test_notify()
         if not result:
-            return "Custom notification failed"
+            return i18n.gettext("Custom notification failed")
         if fail:
-            return f'Custom notification failed, bad parameter: {fail}'
+            return i18n.gettext("Custom notification failed, bad parameter: %(param)s") % {'param': fail}
         CONFIG.save_config_and_backup_old(section='Custom')
-        return "Custom notification successful"
+        return i18n.gettext("Custom notification successful")
 
     @cherrypy.expose
     @require_auth()
@@ -9235,11 +9250,11 @@ class WebInterface:
         else:
             result = notifiers.email_notifier.test_notify()
         if not result:
-            return "Email notification failed"
+            return i18n.gettext("Email notification failed")
         if fail:
-            return f'email notificaton failed, bad parameter: {fail}'
+            return i18n.gettext("Email notification failed, bad parameter: %(param)s") % {'param': fail}
         CONFIG.save_config_and_backup_old(section='Email')
-        return "Email notification successful, check your email"
+        return i18n.gettext("Email notification successful, check your email")
 
     # API ###############################################################
 
@@ -9410,7 +9425,7 @@ class WebInterface:
             else:
                 fail += 'user '
         if fail:
-            return f"deluge failed, bad parameter: {fail}"
+            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Deluge', 'param': fail}
 
         try:
             if not CONFIG['DELUGE_USER']:
@@ -9431,13 +9446,13 @@ class WebInterface:
                                          CONFIG['DELUGE_USER'],
                                          CONFIG['DELUGE_PASS'])
                 client.connect()
-                msg = "Deluge: Daemon connection Successful\n"
+                msg = i18n.gettext("Deluge: Daemon connection successful") + "\n"
                 if CONFIG['DELUGE_LABEL']:
                     labels = client.call('label.get_labels')
                     if labels:
                         dlcommslogger.debug(f"Valid labels: {str(labels)}")
                     else:
-                        msg += "Deluge daemon seems to have no labels set\n"
+                        msg += i18n.gettext("Deluge daemon seems to have no labels set") + "\n"
 
                     mylabel = CONFIG['DELUGE_LABEL'].lower()
                     if mylabel != CONFIG['DELUGE_LABEL']:
@@ -9447,22 +9462,22 @@ class WebInterface:
                     if mylabel not in labels:
                         res = client.call('label.add', mylabel)
                         if not res:
-                            msg += f"Label [{CONFIG['DELUGE_LABEL']}] was added"
+                            msg += i18n.gettext("Label [%(label)s] was added") % {'label': CONFIG['DELUGE_LABEL']}
                         else:
                             msg = str(res)
                     else:
-                        msg += f'Label [{CONFIG["DELUGE_LABEL"]}] is valid'
+                        msg += i18n.gettext("Label [%(label)s] is valid") % {'label': CONFIG["DELUGE_LABEL"]}
             # success, save settings
             CONFIG.save_config_and_backup_old(section='DELUGE')
             return msg
 
         except Exception as e:
-            msg = "Deluge: Daemon connection FAILED\n"
+            msg = i18n.gettext("Deluge: Daemon connection FAILED") + "\n"
             if 'Connection refused' in str(e):
                 msg += str(e)
-                msg += "Check Deluge daemon HOST and PORT settings"
+                msg += i18n.gettext("Check Deluge daemon HOST and PORT settings")
             elif 'need more than 1 value' in str(e):
-                msg += "Invalid USERNAME or PASSWORD"
+                msg += i18n.gettext("Invalid USERNAME or PASSWORD")
             else:
                 msg += type(e).__name__ + ' ' + str(e)
             return msg
@@ -9506,7 +9521,7 @@ class WebInterface:
             else:
                 fail += 'subdir '
         if fail:
-            msg = f"sab failed, bad parameter: {fail}"
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'SABnzbd', 'param': fail}
         else:
             msg = sabnzbd.check_link()
             if 'success' in msg:
@@ -9544,7 +9559,7 @@ class WebInterface:
         if 'pri' in kwargs:
             CONFIG.set_int('NZBGET_PRIORITY', check_int(kwargs['pri'], 0))
         if fail:
-            msg = f'NzbGet failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'NZBGet', 'param': fail}
         else:
             msg = nzbget.check_link()
         if 'success' in msg:
@@ -9580,7 +9595,7 @@ class WebInterface:
         #    else:
         #        fail += 'password '
         if fail:
-            msg = f'Transmission failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Transmission', 'param': fail}
         else:
             msg = transmission.check_link()
         if 'success' in msg:
@@ -9623,7 +9638,7 @@ class WebInterface:
         if 'ignore_ssl' in kwargs:
             CONFIG.set_bool('QBITTORRENT_IGNORE_SSL', kwargs['ignore_ssl'] == '1')
         if fail:
-            msg = f'QbitTorrent failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'qBittorrent', 'param': fail}
         else:
             msg = qbittorrent.check_link()
         if 'success' in msg:
@@ -9664,7 +9679,7 @@ class WebInterface:
             else:
                 fail += 'label '
         if fail:
-            msg = f'utorrent failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'uTorrent', 'param': fail}
         else:
             msg = utorrent.check_link()
         if 'success' in msg:
@@ -9703,7 +9718,7 @@ class WebInterface:
             else:
                 fail += 'label '
         if fail:
-            msg = f'rtorrent failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'rTorrent', 'param': fail}
         else:
             msg = rtorrent.check_link()
         if 'success' in msg:
@@ -9739,7 +9754,7 @@ class WebInterface:
             else:
                 fail += 'dir '
         if fail:
-            msg = f'synology failed, bad parameter: {fail}'
+            msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Synology', 'param': fail}
         else:
             msg = synology.check_link()
         if 'success' in msg:
@@ -9757,7 +9772,7 @@ class WebInterface:
             if self.validate_param("ffmpeg program", kwargs['prg'], ['<', '>', '='], None):
                 CONFIG.set_str('FFMPEG', kwargs['prg'])
             else:
-                return 'ffmpeg failed, bad parameter: program'
+                return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'ffmpeg', 'param': 'program'}
         ffmpeg = CONFIG['FFMPEG']
         try:
             if postprocesslogger.isEnabledFor(logging.DEBUG):
@@ -9777,10 +9792,11 @@ class WebInterface:
 
             ff_ver = make_unicode(res).strip().split("Copyright")[0].split()[-1]
             lazylibrarian.FFMPEGVER = ff_ver
-            return f"Found ffmpeg version {ff_ver}"
+            return i18n.gettext("Found %(name)s version %(version)s") % {'name': 'ffmpeg', 'version': ff_ver}
         except Exception as e:
             lazylibrarian.FFMPEGVER = None
-            return f"ffmpeg -version failed: {type(e).__name__} {str(e)}"
+            return i18n.gettext("%(command)s failed: %(error)s") % {
+                'command': 'ffmpeg -version', 'error': f'{type(e).__name__} {str(e)}'}
 
     @cherrypy.expose
     @require_auth()
@@ -9792,16 +9808,17 @@ class WebInterface:
             if self.validate_param("ebook convert", kwargs['prg'], ['<', '>', '='], None):
                 CONFIG.set_str('EBOOK_CONVERT', kwargs['prg'])
             else:
-                return "ebook-convert failed, bad parameter"
+                return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'ebook-convert', 'param': 'program'}
 
         prg = CONFIG['EBOOK_CONVERT']
         try:
             params = [prg, "--version"]
             res = subprocess.check_output(params, stderr=subprocess.STDOUT)
             res = make_unicode(res).strip().split("(")[1].split(")")[0]
-            return f"Found ebook-convert version {res}"
+            return i18n.gettext("Found %(name)s version %(version)s") % {'name': 'ebook-convert', 'version': res}
         except Exception as e:
-            return f"ebook-convert --version failed: {type(e).__name__} {str(e)}"
+            return i18n.gettext("%(command)s failed: %(error)s") % {
+                'command': 'ebook-convert --version', 'error': f'{type(e).__name__} {str(e)}'}
 
     @cherrypy.expose
     @require_auth()
@@ -9813,7 +9830,7 @@ class WebInterface:
             if self.validate_param("calibredb", kwargs['prg'], ['<', '>', '='], None):
                 CONFIG.set_str('IMP_CALIBREDB', kwargs['prg'])
             else:
-                return 'calibredb failed, bad parameter: program'
+                return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'calibredb', 'param': 'program'}
         return calibre_test()
 
     @cherrypy.expose
@@ -9826,14 +9843,14 @@ class WebInterface:
             if self.validate_param("preprocessor", kwargs['prg'], ['<', '>', '='], None):
                 CONFIG.set_str('EXT_PREPROCESS', kwargs['prg'])
             else:
-                return 'preprocessor failed, bad parameter: program'
+                return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'preprocessor', 'param': 'program'}
         if len(CONFIG['EXT_PREPROCESS']):
             params = [CONFIG['EXT_PREPROCESS'], 'test', '']
             rc, res, err = run_script(params)
             if rc:
                 return f"Preprocessor returned {rc}: res[{res}] err[{err}]"
         else:
-            return "No preprocessor set in config"
+            return i18n.gettext("No preprocessor set in config")
         return res
 
     @cherrypy.expose
@@ -9884,12 +9901,13 @@ class WebInterface:
                     db.close()
                     msg = ''
                     if sent:
-                        msg = f"Emailed file {os.path.basename(myfile)} to {','.join(sent)} "
-                        logger.debug(msg)
+                        logger.debug(f"Emailed file {os.path.basename(myfile)} to {','.join(sent)}")
+                        msg = i18n.gettext("Emailed file %(file)s to %(addresses)s") % {
+                            'file': os.path.basename(myfile), 'addresses': ','.join(sent)} + ' '
                     if not_sent:
-                        msg2 = f"Failed to email file {os.path.basename(myfile)} to {','.join(not_sent)}"
-                        logger.error(msg2)
-                        msg += msg2
+                        logger.error(f"Failed to email file {os.path.basename(myfile)} to {','.join(not_sent)}")
+                        msg += i18n.gettext("Failed to email file %(file)s to %(addresses)s") % {
+                            'file': os.path.basename(myfile), 'addresses': ','.join(not_sent)}
                 return serve_template(templatename="choosetype.html", title=i18n.gettext('Send file'),
                                       pop_message=msg, pop_types='', bookid='', valid='', email=email)
         if not name:
@@ -9946,4 +9964,4 @@ class WebInterface:
         CONFIG.set_int('TELEMETRY_INTERVAL', 6)
         CONFIG.set_url('TELEMETRY_SERVER', 'https://lazylibrarian.telem.ch')
         CONFIG.save_config_and_backup_old(section='Telemetry')
-        return "Thank you for enabling Telemetry"
+        return i18n.gettext("Thank you for enabling Telemetry")

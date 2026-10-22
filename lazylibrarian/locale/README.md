@@ -61,6 +61,10 @@ Notes:
   because word order differs between languages.
 - Add a hint for translators with a Mako comment directly above the line:
   `## TRANSLATORS: _MAX_ is replaced by a number`
+- Python code that answers the browser (dialog texts, AJAX replies) uses `i18n.gettext()` /
+  `i18n.ngettext()`. Log messages stay in English: when a message is both logged and shown,
+  log the English text and return the translated one. `i18n.N_('Text')` marks a string for
+  extraction without translating it, for messages that are translated later with `i18n.gettext()`.
 
 After adding or changing strings, regenerate the template (`pip install babel` first):
 

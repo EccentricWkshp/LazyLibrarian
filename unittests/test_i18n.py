@@ -72,6 +72,10 @@ class I18nTest(unittest.TestCase):
         self.assertEqual(self.trans.gettext('Untranslated'), 'Untranslated')
         self.assertEqual(self.trans.gettext('Not in catalog'), 'Not in catalog')
 
+    def test_mark_only(self):
+        # N_() returns the English text, gettext() translates it later
+        self.assertEqual(i18n.N_('Authors'), 'Authors')
+
     def test_fuzzy_is_ignored(self):
         self.assertEqual(self.trans.gettext('Fuzzy'), 'Fuzzy')
 

@@ -149,12 +149,12 @@
               %if 'Open' in result['Status']:
                 <td class="status text-center">
                 <a class="button green btn btn-xs btn-warning" href="open_book?bookid=${result['BookID']}&library=eBook"
-                target="_self"><i class="fa fa-book"></i> Open${result['Flag']}</a>
+                target="_self"><i class="fa fa-book"></i> ${_('Open')}${result['Flag']}</a>
                 %if len(email):
                     <a class="button green btn btn-xs btn-info" href="send_book?bookid=${result['BookID']}&library=eBook" target="_self">${_('Send')}</a>
                 %endif
               %else:
-                <td class="status text-center"><i class="fa fa-book"></i> ${result['Status']}${result['Flag']}
+                <td class="status text-center"><i class="fa fa-book"></i> ${status_label(result['Status'])}${result['Flag']}
               %endif
             %endif
             % if CONFIG.get_int('AUDIO_TAB') != 0:
@@ -170,7 +170,7 @@
                     <a class="button green btn btn-xs btn-info" href="send_book?bookid=${result['BookID']}&library=AudioBook" target="_self">${_('Send')}</a>
                 %endif
               %else:
-                <i class="fa fa-headphones"></i> ${result['AudioStatus']}
+                <i class="fa fa-headphones"></i> ${status_label(result['AudioStatus'])}
               %endif
             % endif
             </td>

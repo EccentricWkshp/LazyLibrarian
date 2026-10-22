@@ -15,9 +15,9 @@
     <script type="text/javascript">
     $(document).ready(function()
     {
-        var title = '${title}';
-        var prefix = '${prefix}';
-        var message = '${message}';
+        var title = ${js(title)};
+        var prefix = ${js(prefix)};
+        var message = ${js(message)};
         bootbox.dialog({
             title: title,
             message: '<pre>'+prefix+' '+message+'</pre>',

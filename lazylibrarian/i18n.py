@@ -240,6 +240,12 @@ def gettext(message):
     return _current().gettext(message)
 
 
+def N_(message):
+    """ Mark a string for extraction without translating it, translate it later with gettext().
+        For messages that are logged in English and shown translated """
+    return message
+
+
 def ngettext(singular, plural, n):
     return _current().ngettext(singular, plural, n)
 
