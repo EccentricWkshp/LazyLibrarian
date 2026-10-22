@@ -195,6 +195,17 @@ class I18nTest(unittest.TestCase):
         self.assertEqual(i18n.resolve_language('sk'), 'sk')
         self.assertEqual(i18n.resolve_language('auto', 'sk-SK,en;q=0.5'), 'sk')
 
+    def test_resolve_browser_languages(self):
+        # navigator.languages from the browser cookie wins over the Accept-Language header
+        self.assertEqual(i18n.resolve_language('auto', 'en-US,en;q=0.5', 'sk-SK,sk'), 'sk')
+        self.assertEqual(i18n.resolve_language('auto', '', 'sk'), 'sk')
+        self.assertEqual(i18n.resolve_language('auto', 'sk', 'en-US'), 'en')
+        # nothing we have a translation for in the cookie, so use the header
+        self.assertEqual(i18n.resolve_language('auto', 'sk-SK', 'de-DE,fr'), 'sk')
+        self.assertEqual(i18n.resolve_language('auto', '', ''), 'en')
+        # an explicit language setting ignores the browser
+        self.assertEqual(i18n.resolve_language('en', 'sk', 'sk'), 'en')
+
     def test_thread_language(self):
         i18n.set_language('en')
         self.assertEqual(i18n.gettext('Authors'), 'Authors')

@@ -353,8 +353,12 @@ def set_request_language():
         uilang = cookie['ll_uilang'].value
     if not uilang:
         uilang = CONFIG.get_str('UI_LANGUAGE')
-    lang = i18n.resolve_language(uilang, cherrypy.request.headers.get('Accept-Language', ''))
+    browserlang = ''
+    if cookie and i18n.BROWSER_COOKIE in list(cookie.keys()):
+        browserlang = unquote(cookie[i18n.BROWSER_COOKIE].value)
+    lang = i18n.resolve_language(uilang, cherrypy.request.headers.get('Accept-Language', ''), browserlang)
     i18n.set_language(lang)
+    cherrypy.request.ui_lang_auto = uilang.strip().lower() in ('', i18n.AUTO)
     return lang
 
 
@@ -367,7 +371,9 @@ def template_i18n():
     lang = set_request_language()
     return {'_': i18n.gettext, '_js': i18n.gettext_js, '_jsn': i18n.ngettext_js, 'js': i18n.js_string,
             'ngettext': i18n.ngettext, 'pgettext': i18n.pgettext, 'js_plural': i18n.plural_expression,
-            'status_label': i18n.status_label, 'status_labels': i18n.status_labels, 'ui_lang': lang}
+            'status_label': i18n.status_label, 'status_labels': i18n.status_labels, 'ui_lang': lang,
+            'ui_lang_auto': getattr(cherrypy.request, 'ui_lang_auto', False),
+            'ui_langs': i18n.available_languages(), 'ui_lang_cookie': i18n.BROWSER_COOKIE}
 
 
 def mark_summary(headline, passed, failed):
