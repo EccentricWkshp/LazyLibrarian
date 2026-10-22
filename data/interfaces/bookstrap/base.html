@@ -1,8 +1,15 @@
 <%
+    import cherrypy
     import lazylibrarian
+    from lazylibrarian import i18n
     from lazylibrarian.common import docker
     from lazylibrarian.config2 import CONFIG
     from lazylibrarian.scheduling import show_running
+    # invite the user to help translate if their language has no translation or is only partly translated
+    user_lang = cherrypy.request.cookie.get('ll_uilang')
+    invite_lang, invite_percent = i18n.translation_invite(
+        user_lang.value if user_lang else '', CONFIG.get_str('UI_LANGUAGE'),
+        cherrypy.request.headers.get('Accept-Language', ''))
 %>
 <!doctype html>
 <html lang="${ui_lang}">
@@ -378,6 +385,47 @@
               delay: 20000
             });
         }
+
+        %if invite_lang:
+        <%
+            invite_name = i18n.language_name(invite_lang)
+            if invite_lang in i18n.available_languages():
+                invite_url = f'https://hosted.weblate.org/projects/lazylibrarian/webui/{invite_lang}/'
+            else:
+                invite_url = 'https://hosted.weblate.org/engage/lazylibrarian/'
+            if invite_percent:
+                invite_text = _('LazyLibrarian is only %(percent)s%% translated into %(language)s. '
+                                'You can help finish the translation on Hosted Weblate, no coding needed.') % {
+                                'percent': invite_percent, 'language': invite_name}
+            else:
+                invite_text = _('LazyLibrarian is not available in %(language)s yet. '
+                                'You can help translate it on Hosted Weblate, no coding needed.') % {
+                                'language': invite_name}
+        %>
+        if (readCookie('ll_translate_prompt') != ${js(invite_lang)}) {
+          var translateMsg = '<div>' + ${js(invite_text)} + '<br><br>' +
+              '<a href="' + ${js(invite_url)} + '" target="_blank" rel="noopener" class="btn btn-xs btn-primary"' +
+              ' id="translateYes">' + ${_js('Help translate')} + '</a>&nbsp;' +
+              '<a href="#" class="btn btn-xs btn-primary" id="translateNo">' + ${_js('No thanks')} + '</a></div>';
+          $.notify({
+              icon: "images/ll48.png",
+              title: '<strong>' + ${_js('Translate LazyLibrarian')} + '</strong>',
+              message: translateMsg
+          },{
+              icon_type: 'image',
+              type: 'info',
+              delay: 0
+          });
+          // the answer is remembered for this language, for 30 days after following the link
+          // and a year for "no thanks"
+          function hideTranslateNotice(link, days) {
+              createCookie('ll_translate_prompt', ${js(invite_lang)}, days);
+              $(link).closest('[data-notify="container"]').remove();
+          }
+          $(document).on('click', '#translateYes', function() { hideTranslateNotice(this, 30); });
+          $(document).on('click', '#translateNo', function(e) { e.preventDefault(); hideTranslateNotice(this, 365); });
+        }
+        %endif
 
         $('#ignoreTelemetry').click(function() {
             createCookie("ignoreTelemetry", true, 14);

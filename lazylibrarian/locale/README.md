@@ -66,7 +66,10 @@ Notes:
   log the English text and return the translated one. `i18n.N_('Text')` marks a string for
   extraction without translating it, for messages that are translated later with `i18n.gettext()`.
 
-After adding or changing strings, regenerate the template (`pip install babel` first):
+Don't include `lazylibrarian.pot` in merge requests that change templates or code. Every
+branch would regenerate the whole file, so open merge requests would keep conflicting with
+each other. Instead, once the code changes are merged, regenerate the template on an
+up-to-date `master` in a separate commit or merge request (`pip install babel` first):
 
 ```
 make translations
@@ -74,8 +77,9 @@ make translations
 
 Commit only the updated `.pot` file. Weblate watches the repository and merges the new
 strings into every `.po` file itself (msgmerge add-on), so translators see them after the
-push to `master`. Translations come back as merge requests from Weblate. Merging them
-is all that's needed, there's no compile step.
+`.pot` update is pushed to `master`. Until then the new strings show in English, which is
+harmless. Translations come back as merge requests from Weblate. Merging them is all
+that's needed, there's no compile step.
 
 The Weblate component is set up as:
 

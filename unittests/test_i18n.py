@@ -53,6 +53,29 @@ msgstr[2] ""
 '''
 
 
+TEMPLATE_POT = r"""msgid ""
+msgstr ""
+
+msgid "Authors"
+msgstr ""
+
+msgid "Fuzzy"
+msgstr ""
+
+msgctxt "verb"
+msgid "Search"
+msgstr ""
+
+msgid "Untranslated"
+msgstr ""
+
+msgid "%(count)s author"
+msgid_plural "%(count)s authors"
+msgstr[0] ""
+msgstr[1] ""
+"""
+
+
 class I18nTest(unittest.TestCase):
 
     def setUp(self):
@@ -112,6 +135,50 @@ class I18nTest(unittest.TestCase):
         ]
         for header, expected in data:
             self.assertEqual(i18n.match_accept_language(header, langs), expected, header)
+
+    def test_translation_invite(self):
+        langs = ['en', 'sk']
+        progress = {'sk': 100}
+        original = i18n.translation_progress
+        i18n.translation_progress = lambda lang: progress.get(lang, 100)
+        try:
+            data = [
+                ('', 'auto', 'de-DE,de;q=0.9,en;q=0.8', ('de', 0)),  # German wanted, no translation
+                ('', '', 'fr', ('fr', 0)),  # empty setting also follows the browser
+                ('', 'auto', 'sk-SK,sk;q=0.9', ('', 100)),  # complete translation
+                ('', 'auto', 'en-US,en;q=0.9,de;q=0.5', ('', 100)),  # never ask in English
+                ('', 'en', 'de-DE', ('', 100)),
+                ('', 'auto', '', ('', 100)),
+                ('', 'auto', '*', ('', 100)),
+                ('', 'sk', 'en', ('', 100)),  # set language, complete
+                ('en', 'sk', 'de', ('', 100)),  # the user's own choice wins
+                ('auto', 'auto', 'de', ('de', 0)),
+            ]
+            for user_lang, setting, header, expected in data:
+                self.assertEqual(i18n.translation_invite(user_lang, setting, header, langs), expected,
+                                 (user_lang, setting, header))
+            progress['sk'] = 85
+            self.assertEqual(i18n.translation_invite('', 'sk', 'en', langs), ('sk', 85))  # set, partly done
+            self.assertEqual(i18n.translation_invite('', 'auto', 'sk-SK', langs), ('sk', 85))
+            self.assertEqual(i18n.translation_invite('sk', 'en', 'en', langs), ('sk', 85))
+        finally:
+            i18n.translation_progress = original
+
+    def test_translation_progress(self):
+        fd, pot = tempfile.mkstemp(suffix='.pot')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(TEMPLATE_POT)
+        template = i18n.POTranslations(pot).msgids
+        os.remove(pot)
+        self.assertEqual(len(template), 5)
+        # Authors, Search (with context) and the plural are translated, Fuzzy and Untranslated are not
+        self.assertEqual(template & self.trans.translated, {'Authors', 'verb\x04Search', '%(count)s author'})
+        self.assertNotIn('Half done', self.trans.translated)  # plural with missing forms
+        self.assertEqual(i18n.translation_progress('en'), 100)
+
+    def test_parse_accept_language(self):
+        self.assertEqual(i18n.parse_accept_language('de;q=0.5,sk-SK,en;q=0.8,fr;q=0'), ['sk_sk', 'en', 'de'])
+        self.assertEqual(i18n.parse_accept_language(''), [])
 
     def test_default_is_automatic(self):
         from lazylibrarian.configdefs import BASE_DEFAULTS
