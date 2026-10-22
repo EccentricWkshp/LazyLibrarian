@@ -344,8 +344,9 @@ def valid_ui_lang(value: str) -> bool:
     return value in ('', i18n.AUTO) or value in i18n.available_languages()
 
 
-def template_i18n():
-    """ Set the UI language for this request and return the translation helpers for templates """
+def set_request_language():
+    """ Set the UI language for the current request: the user's own setting (cookie),
+        then UI_LANGUAGE from the config, which may be 'auto' to follow the browser """
     uilang = ''
     cookie = cherrypy.request.cookie
     if cookie and 'll_uilang' in list(cookie.keys()):
@@ -354,9 +355,33 @@ def template_i18n():
         uilang = CONFIG.get_str('UI_LANGUAGE')
     lang = i18n.resolve_language(uilang, cherrypy.request.headers.get('Accept-Language', ''))
     i18n.set_language(lang)
+    return lang
+
+
+# set the language before every request handler runs, so i18n.gettext() works in python code too
+cherrypy.tools.ui_language = cherrypy.Tool('before_handler', set_request_language)
+
+
+def template_i18n():
+    """ Set the UI language for this request and return the translation helpers for templates """
+    lang = set_request_language()
     return {'_': i18n.gettext, '_js': i18n.gettext_js, '_jsn': i18n.ngettext_js, 'js': i18n.js_string,
             'ngettext': i18n.ngettext, 'pgettext': i18n.pgettext, 'js_plural': i18n.plural_expression,
-            'status_label': i18n.status_label, 'ui_lang': lang}
+            'status_label': i18n.status_label, 'status_labels': i18n.status_labels, 'ui_lang': lang}
+
+
+def mark_summary(headline, passed, failed):
+    """ Translated result summary for the mark_*_ajax handlers, headline is already translated """
+    total = passed + failed
+    if not total:
+        return f"{headline} {i18n.gettext('No items were processed.')}"
+    if failed:
+        detail = i18n.ngettext('%(passed)s successful, %(failed)s failed out of %(total)s total item.',
+                               '%(passed)s successful, %(failed)s failed out of %(total)s total items.', total)
+    else:
+        detail = i18n.ngettext('%(passed)s successful out of %(total)s total item.',
+                               '%(passed)s successful out of %(total)s total items.', total)
+    return f"{headline} {detail % {'passed': passed, 'failed': failed, 'total': total}}"
 
 
 def serve_template(templatename, **kwargs):
@@ -386,8 +411,8 @@ def serve_template(templatename, **kwargs):
         usertheme = ''
         if lazylibrarian.UPDATE_MSG:
             template = _hplookup.get_template("dbupdate.html")
-            return template.render(perm=0, message="Database upgrade in progress, please wait...",
-                                   title="Database Upgrade", timer=5, style=style, **i18n_vars)
+            return template.render(perm=0, message=i18n.gettext("Database upgrade in progress, please wait..."),
+                                   title=i18n.gettext("Database Upgrade"), timer=5, style=style, **i18n_vars)
 
         adminlogger.debug(f"Request headers: {str(cherrypy.request.headers)}")
         adminlogger.debug(f"Request cookie: {str(cherrypy.request.cookie)}")
@@ -621,8 +646,8 @@ def serve_template(templatename, **kwargs):
             if CONFIG['HTTP_ROOT']:
                 img = f'{CONFIG["HTTP_ROOT"]}/{img}'
             if templatename == "login.html":
-                return template.render(perm=0, title="Redirected", img=img, style=style, **i18n_vars)
-            return template.render(perm=0, title='Login', img=img, from_page='/home', **i18n_vars)
+                return template.render(perm=0, title=i18n.gettext("Redirected"), img=img, style=style, **i18n_vars)
+            return template.render(perm=0, title=i18n.gettext('Login'), img=img, from_page='/home', **i18n_vars)
 
         # keep template name for help context
         cherrypy.response.cookie['ll_template'] = templatename
@@ -660,6 +685,7 @@ def status_mark_targets(action: str, library: str) -> tuple[str, str] | None:
 
 # noinspection PyProtectedMember,PyGlobalUndefined,PyGlobalUndefined
 class WebInterface:
+    _cp_config = {'tools.ui_language.on': True}
 
     auth = AuthController()
     issues_data = ''
@@ -742,12 +768,12 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def authors(self):
-        title = 'Authors'
+        title = i18n.gettext('Authors')
         if lazylibrarian.IGNORED_AUTHORS:
             if CONFIG.get_bool('IGNORE_PAUSED'):
-                title = 'Inactive Authors'
+                title = i18n.gettext('Inactive Authors')
             else:
-                title = 'Ignored Authors'
+                title = i18n.gettext('Ignored Authors')
         return serve_template(templatename="index.html", title=title, redirect=title.lower())
 
     @cherrypy.expose
@@ -771,7 +797,7 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def profile(self):
-        title = 'User Profile'
+        title = i18n.gettext('User Profile')
         cookie = cherrypy.request.cookie
         if cookie and 'll_uid' in list(cookie.keys()):
             db = database.DBConnection()
@@ -813,7 +839,7 @@ class WebInterface:
                                           typelist=get_list(CONFIG['EBOOK_TYPE']), themelist=themelist)
             finally:
                 db.close()
-        return serve_template(templatename="index.html", title='Authors', redirect='authors')
+        return serve_template(templatename="index.html", title=i18n.gettext('Authors'), redirect='authors')
 
     # noinspection PyUnusedLocal
     @cherrypy.expose
@@ -1094,7 +1120,7 @@ class WebInterface:
     @require_auth()
     def user_register(self):
         self.label_thread("REGISTER")
-        return serve_template(templatename="register.html", title="User Registration / Contact form")
+        return serve_template(templatename="register.html", title=i18n.gettext("User Registration / Contact form"))
 
     @cherrypy.expose
     @require_auth()
@@ -1315,7 +1341,7 @@ class WebInterface:
             uilang = cookie['ll_uilang'].value
         if not uilang:
             uilang = CONFIG.get_str('UI_LANGUAGE')
-        return serve_template(templatename="users.html", title="Manage User Accounts", users=users)
+        return serve_template(templatename="users.html", title=i18n.gettext("Manage User Accounts"), users=users)
 
     @cherrypy.expose
     @require_auth()
@@ -1707,7 +1733,7 @@ class WebInterface:
                 members.append(dict(itm))
             self.natural_sort(members, key=lambda y: y['SeriesNum'] if y['SeriesNum'] is not None else '')
             db.close()
-            return serve_template(templatename="editseries.html", title="Edit Series", config=seriesdata,
+            return serve_template(templatename="editseries.html", title=i18n.gettext("Edit Series"), config=seriesdata,
                                   members=members)
         logger.info(f'Missing series {seriesid}')
         db.close()
@@ -1920,7 +1946,7 @@ class WebInterface:
     @require_auth()
     def series(self, authorid=None, which_status=None, active=False):
         self.check_permitted(lazylibrarian.perm_series, redirect_unauth=True)
-        title = "Series"
+        title = i18n.gettext('Series')
         if authorid:
             db = database.DBConnection()
             try:
@@ -1928,7 +1954,7 @@ class WebInterface:
             finally:
                 db.close()
             if match:
-                title = f"{match['AuthorName']} Series"
+                title = i18n.gettext('%(author)s Series') % {'author': match['AuthorName']}
             if '&' in title and '&amp;' not in title:
                 title = title.replace('&', '&amp;')
 
@@ -2149,14 +2175,8 @@ class WebInterface:
 
         # Return JSON response instead of redirect
         total = passed + failed
-        summary = f"Mark Series '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Mark Series '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
         return {
             'success': True,
             'action': action,
@@ -2311,7 +2331,7 @@ class WebInterface:
         for itm in CONFIG.config.values():
             if isinstance(itm, ConfigBool):
                 itm.reset_read_count()  # Reset read counts as we use this to determine which settings have changed
-        return serve_template(templatename="config.html", title="Settings", config=config)
+        return serve_template(templatename="config.html", title=i18n.gettext("Settings"), config=config)
 
     @cherrypy.expose
     @require_auth()
@@ -2562,7 +2582,7 @@ class WebInterface:
 
         if adminmsg:
             return serve_template(templatename="response.html", prefix="",
-                                  title="User Accounts", message=adminmsg, timer=0)
+                                  title=i18n.gettext("User Accounts"), message=adminmsg, timer=0)
 
         raise cherrypy.HTTPRedirect("config")
 
@@ -2646,7 +2666,7 @@ class WebInterface:
         sortedlist = sorted(searchresults, key=lambda x: (x['highest_fuzz'], x['bookrate_count']),
                             reverse=True)
         lazylibrarian.SEARCHING = 0
-        return serve_template(templatename="searchresults.html", title='Search Results: "' + searchfor + '"',
+        return serve_template(templatename="searchresults.html", title=i18n.gettext('Search Results: "%(query)s"') % {'query': searchfor},
                               searchresults=sortedlist, authorlist=authorlist, loadlist=loadlist,
                               booklist=booklist, booksearch=booksearch)
 
@@ -2750,14 +2770,8 @@ class WebInterface:
 
         # Return JSON response instead of redirect
         total = passed + failed
-        summary = f"Mark Authors '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Mark Authors '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
         return {
             'success': True,
             'action': action,
@@ -3377,8 +3391,8 @@ class WebInterface:
         library = 'eBook'
         if action.startswith('a_'):
             library = 'AudioBook'
-        return serve_template(templatename="manualsearch.html", title=library + ' Search Results: "' +
-                              searchterm + '"', bookid=bookid, results=results, library=library)
+        return serve_template(templatename="manualsearch.html", title=i18n.gettext('%(library)s Search Results: "%(query)s"') % {
+                                  'library': i18n.status_label(library), 'query': searchterm}, bookid=bookid, results=results, library=library)
 
     @cherrypy.expose
     @require_auth()
@@ -3464,7 +3478,7 @@ class WebInterface:
                 "SELECT DISTINCT BookLang from books WHERE AUDIOSTATUS !='Skipped' AND AUDIOSTATUS !='Ignored'")
         finally:
             db.close()
-        return serve_template(templatename="audio.html", title='AudioBooks', books=[],
+        return serve_template(templatename="audio.html", title=i18n.gettext('AudioBooks'), books=[],
                               languages=languages, booklang=booklang, user=user, email=email, book_filter=book_filter)
 
     @cherrypy.expose
@@ -3486,7 +3500,7 @@ class WebInterface:
             languages = db.select("SELECT DISTINCT BookLang from books WHERE STATUS !='Skipped' AND STATUS !='Ignored'")
         finally:
             db.close()
-        return serve_template(templatename="books.html", title='eBooks', books=[],
+        return serve_template(templatename="books.html", title=i18n.gettext('eBooks'), books=[],
                               languages=languages, booklang=booklang, user=user, email=email, book_filter=book_filter)
 
     @cherrypy.expose
@@ -3746,7 +3760,7 @@ class WebInterface:
                         row[20] = ''
 
                     editpage = '<a href="edit_book?bookid=' + row[6] + '&library=' + library + \
-                        '"><small><i>Manual</i></a>'
+                        '"><small><i>' + i18n.gettext('Manual') + '</i></a>'
 
                     if not row[9]:
                         row[9] = ''
@@ -3994,7 +4008,7 @@ class WebInterface:
         self.label_thread('REQUEST_BOOK')
         logger = logging.getLogger(__name__)
         prefix = ''
-        title = 'Request Error'
+        title = i18n.gettext('Request Error')
         cookie = cherrypy.request.cookie
         if cookie and 'll_uid' in list(cookie.keys()):
             db = database.DBConnection()
@@ -4026,7 +4040,7 @@ class WebInterface:
                 if types and 'library' in kwargs and kwargs['library'] in types:
                     booktype = kwargs['library']
 
-                title = f"{booktype}: {bookdata['BookName']}"
+                title = f"{i18n.status_label(booktype)}: {bookdata['BookName']}"
 
                 if 'Email' in kwargs and kwargs['Email']:
                     result = notifiers.email_notifier.notify_message('Request from LazyLibrarian User',
@@ -4407,7 +4421,7 @@ class WebInterface:
                                 typestr += itm
                             msg += typestr
                             return serve_template(templatename="choosetype.html",
-                                                  title="Not Available", pop_message=msg,
+                                                  title=i18n.gettext("Not Available"), pop_message=msg,
                                                   pop_types=typestr, bookid=bookid,
                                                   valid=get_list(CONFIG['EBOOK_TYPE']),
                                                   email=email)
@@ -4423,7 +4437,7 @@ class WebInterface:
                                 typestr += ' '
                             typestr += itm
                         return serve_template(templatename="choosetype.html",
-                                              title="Choose Type", pop_message=msg,
+                                              title=i18n.gettext("Choose Type"), pop_message=msg,
                                               pop_types=typestr, bookid=bookid,
                                               valid=get_list(CONFIG['EBOOK_TYPE']),
                                               email=email)
@@ -4471,7 +4485,7 @@ class WebInterface:
                     basedir = res.replace(DIRS.DATADIR, '').lstrip('/')
                     for itm in listdir(res):
                         photos.append([itm, os.path.join(basedir, itm)])
-            return serve_template(templatename="editauthor.html", title="Edit Author", config=data,
+            return serve_template(templatename="editauthor.html", title=i18n.gettext("Edit Author"), config=data,
                                   showseries=CONFIG.get_int('SERIES_TAB'), user=user, email=email,
                                   images=photos)
         logger.info(f'Missing author {authorid}')
@@ -4938,7 +4952,7 @@ class WebInterface:
                 # can't modify replaces list while iterating so make a new list
                 if itm[0] not in ['title', 'creator', 'ISBN', 'date', 'description']:
                     subs.append(itm)
-            return serve_template(templatename="editbook.html", title="Edit Book", config=bookdata,
+            return serve_template(templatename="editbook.html", title=i18n.gettext("Edit Book"), config=bookdata,
                                   seriesdict=seriesdict, authors=authors, covers=covers, replaces=subs, series=series)
         logger.info(f'Missing book {bookid}')
         return None
@@ -5261,14 +5275,8 @@ class WebInterface:
                     failed += 1
 
         total = passed + failed
-        summary = f"Mark Results '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Mark Results '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
 
         return {
             'success': True,
@@ -5496,14 +5504,8 @@ class WebInterface:
             redirect = f"{redirect}&book_filter={book_filter}"
         # Return JSON response instead of redirect
         total = passed + failed
-        summary = f"Mark Books '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Mark Books '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
         return {
             'success': True,
             'action': action,
@@ -5553,7 +5555,7 @@ class WebInterface:
             this_issue['Title'] = issue['Title'].replace('&amp;', '&')
             mod_issues.append(this_issue)
             if maxcount and count >= maxcount:
-                title = f"{title} (Top {count})"
+                title = i18n.gettext('%(title)s (Top %(count)s)') % {'title': title, 'count': count}
                 break
 
         return serve_template(
@@ -5597,7 +5599,7 @@ class WebInterface:
                         this_issue['Cover'] = f"cache/{imgthumb[len(DIRS.CACHEDIR):].lstrip(os.sep)}"
             mod_issues.append(this_issue)
             if maxcount and count >= maxcount:
-                title = f"{title} (Top {count})"
+                title = i18n.gettext('%(title)s (Top %(count)s)') % {'title': title, 'count': count}
                 break
 
         return serve_template(
@@ -5610,10 +5612,10 @@ class WebInterface:
         self.label_thread('BOOKWALL')
         if have == '1':
             cmd = "SELECT BookLink,BookImg,BookID,BookName from books where Status='Open' order by BookLibrary DESC"
-            title = 'Recently Downloaded Books'
+            title = i18n.gettext('Recently Downloaded Books')
         else:
             cmd = "SELECT BookLink,BookImg,BookID,BookName from books where Status != 'Ignored' order by BookAdded DESC"
-            title = 'Recently Added Books'
+            title = i18n.gettext('Recently Added Books')
         db = database.DBConnection()
         try:
             results = db.select(cmd)
@@ -5624,7 +5626,7 @@ class WebInterface:
         maxcount = CONFIG.get_int('MAX_WALL')
         if maxcount and len(results) > maxcount:
             results = results[:maxcount]
-            title = f"{title} (Top {len(results)})"
+            title = i18n.gettext('%(title)s (Top %(count)s)') % {'title': title, 'count': len(results)}
         ret = []
         for result in results:
             itm = dict(result)
@@ -5657,10 +5659,10 @@ class WebInterface:
         cmd = "SELECT Status,AuthorImg,AuthorID,AuthorName,HaveBooks,TotalBooks from authors "
         if have == '1':
             cmd += "where Status='Active' or Status='Wanted' order by AuthorName ASC"
-            title = 'Active/Wanted Authors'
+            title = i18n.gettext('Active/Wanted Authors')
         else:
             cmd += "where Status !='Active' and Status != 'Wanted' order by AuthorName ASC"
-            title = 'Inactive Authors'
+            title = i18n.gettext('Inactive Authors')
         db = database.DBConnection()
         try:
             results = db.select(cmd)
@@ -5702,11 +5704,11 @@ class WebInterface:
             db.close()
         if not len(results):
             raise cherrypy.HTTPRedirect("audio")
-        title = "Recent AudioBooks"
+        title = i18n.gettext('Recent AudioBooks')
         maxcount = CONFIG.get_int('MAX_WALL')
         if maxcount and len(results) > maxcount:
             results = results[:maxcount]
-            title = f"{title} (Top {len(results)})"
+            title = i18n.gettext('%(title)s (Top %(count)s)') % {'title': title, 'count': len(results)}
         ret = []
         for result in results:
             itm = dict(result)
@@ -5768,7 +5770,7 @@ class WebInterface:
         finally:
             db.close()
         if data:
-            return serve_template(templatename="editcomic.html", title="Edit Comic", config=data)
+            return serve_template(templatename="editcomic.html", title=i18n.gettext("Edit Comic"), config=data)
         logger.info(f'Missing comic {comicid}:')
         raise cherrypy.HTTPError(404, f"Comic ID {comicid} not found")
 
@@ -5861,7 +5863,7 @@ class WebInterface:
         covers = 1
         if not CONFIG['TOGGLES']:
             covers = 0
-        return serve_template(templatename="comics.html", title="Comics", comics=[],
+        return serve_template(templatename="comics.html", title=i18n.gettext("Comics"), comics=[],
                               covercount=covers, user=user, comic_filter=comic_filter)
 
     # noinspection PyUnusedLocal
@@ -6222,7 +6224,7 @@ class WebInterface:
             comiclist = []
             for itm in comicids:
                 comiclist.append(itm['ComicID'])
-            return serve_template(templatename="comicresults.html", title="Comics",
+            return serve_template(templatename="comicresults.html", title=i18n.gettext("Comics"),
                                   results=comicresults, comicids=comiclist)
         db.close()
 
@@ -6571,7 +6573,7 @@ class WebInterface:
         covers = 1
         if not CONFIG['TOGGLES']:
             covers = 0
-        return serve_template(templatename="magazines.html", title="Magazines", magazines=[],
+        return serve_template(templatename="magazines.html", title=i18n.gettext("Magazines"), magazines=[],
                               covercount=covers, user=user, email=email, mag_filter=mag_filter)
 
     @cherrypy.expose
@@ -6607,18 +6609,18 @@ class WebInterface:
         new_title = kwargs.get('new_title')
         old_title = kwargs.get('old_title')
         if not old_title and not new_title:
-            summary = 'Insufficient information, need Old and New Title'
+            summary = i18n.gettext('Insufficient information, need Old and New Title')
         if not summary and old_title == new_title:
-            summary = f'Title for {old_title} unchanged'
+            summary = i18n.gettext('Title for %(title)s unchanged') % {'title': old_title}
         if not summary:
             valid = self.validate_param("magazine title", new_title, ['<', '>', '='], None)
             if not valid:
-                summary = 'Invalid new title, unable to rename'
+                summary = i18n.gettext('Invalid new title, unable to rename')
         if not summary:
             db = database.DBConnection()
             res = db.match("SELECT Title from magazines WHERE Title=? COLLATE NOCASE", (new_title,))
             if res:
-                summary = f'Title {new_title} already exists, unable to rename'
+                summary = i18n.gettext('Title %(title)s already exists, unable to rename') % {'title': new_title}
             db.close()
         if not summary:
             logger.debug(f"Changing title [{old_title}] to [{new_title}]")
@@ -6630,7 +6632,7 @@ class WebInterface:
                 db.action('PRAGMA foreign_keys = ON')
                 db.commit()
 
-                summary = f'Renamed {old_title} to {new_title}'
+                summary = i18n.gettext('Renamed %(old)s to %(new)s') % {'old': old_title, 'new': new_title}
 
                 # rename files/folders to match, and issuefile to match new location
                 issues = db.select("SELECT IssueDate,IssueFile,IssueID from issues WHERE Title=?", (new_title,))
@@ -6675,7 +6677,7 @@ class WebInterface:
         # Return JSON response instead of redirect
         total = passed + failed
         if not summary:
-            summary = "Rename completed. "
+            summary = i18n.gettext("Rename completed.")
         return {
             'success': True,
             'passed': passed,
@@ -6807,7 +6809,7 @@ class WebInterface:
 
         if issuedata:
             tagdict = read_pdf_tags(issuedata['IssueFile'])
-            return serve_template(templatename="editissue.html", title="Edit Issue", config=issuedata, tags=tagdict)
+            return serve_template(templatename="editissue.html", title=i18n.gettext("Edit Issue"), config=issuedata, tags=tagdict)
         logger.error(f"Missing issue {issueid}")
         return None
 
@@ -7068,7 +7070,7 @@ class WebInterface:
     def past_issues(self, mag=None, **kwargs):
         self.check_permitted(lazylibrarian.perm_magazines, redirect_unauth=True)
         if not mag or mag == 'None':
-            title = "Past Issues"
+            title = i18n.gettext('Past Issues')
         else:
             title = mag
         which_status = kwargs.get('whichStatus', '')
@@ -7417,14 +7419,8 @@ class WebInterface:
 
         # Return JSON response instead of redirect
         total = passed + failed
-        summary = f"Operation '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Operation '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
 
         self.issues_data = ''
         return {
@@ -7668,14 +7664,8 @@ class WebInterface:
 
         # Return JSON response instead of redirect
         total = passed + failed
-        summary = f"Operation '{action}' completed."
-        if total > 0:
-            summary += f" {passed} successful"
-            if failed > 0:
-                summary += f", {failed} failed"
-            summary += f" out of {total} total items."
-        else:
-            summary += " No items were processed."
+        summary = mark_summary(i18n.gettext("Operation '%(action)s' completed.") % {
+            'action': i18n.status_label(action)}, passed, failed)
 
         res = {
             'success': True,
@@ -7845,7 +7835,7 @@ class WebInterface:
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'update'
         message = 'Updating...'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title="Updating",
+        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Updating"),
                               message=message, timer=90)
 
     # IMPORT/EXPORT #####################################################
@@ -8069,7 +8059,7 @@ class WebInterface:
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'shutdown'
         message = 'closed'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title="Close library",
+        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Close library"),
                               message=message, timer=0)
 
     @cherrypy.expose
@@ -8080,7 +8070,7 @@ class WebInterface:
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'restart'
         message = 'reopening ...'
-        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title="Reopen library",
+        return serve_template(templatename="shutdown.html", prefix='LazyLibrarian is ', title=i18n.gettext("Reopen library"),
                               message=message, timer=50)
 
     @cherrypy.expose
@@ -8189,7 +8179,7 @@ class WebInterface:
     @require_auth()
     def logs(self):
         self.check_permitted(lazylibrarian.perm_logs, redirect_unauth=True)
-        return serve_template(templatename="logs.html", title="Log", lineList=[])  # lazylibrarian.LOGLIST)
+        return serve_template(templatename="logs.html", title=i18n.gettext("Log"), lineList=[])  # lazylibrarian.LOGLIST)
 
     # noinspection PyUnusedLocal
     @cherrypy.expose
@@ -8229,7 +8219,7 @@ class WebInterface:
     @require_auth()
     def history(self):
         self.check_permitted(lazylibrarian.perm_history, redirect_unauth=True)
-        return serve_template(templatename="history.html", title="History", history=[])
+        return serve_template(templatename="history.html", title=i18n.gettext("History"), history=[])
 
     # noinspection PyUnusedLocal
     @cherrypy.expose
@@ -8418,7 +8408,7 @@ class WebInterface:
         if not img:
             img = 'images/nocover.jpg'
         if not title:
-            title = 'BookID not found'
+            title = i18n.gettext('BookID not found')
         if not text:
             text = 'No Description'
         return img + '^' + title + '^' + text
@@ -9377,7 +9367,7 @@ class WebInterface:
             which_status = kwargs['whichStatus']
         if which_status == 'None':
             which_status = "Wanted"
-        return serve_template(templatename="managebooks.html", title=f"Manage {library}s",
+        return serve_template(templatename="managebooks.html", title=i18n.gettext('Manage AudioBooks') if library == 'AudioBook' else i18n.gettext('Manage eBooks'),
                               books=[], types=types, library=library, whichStatus=which_status)
 
     @cherrypy.expose
@@ -9900,7 +9890,7 @@ class WebInterface:
                         msg2 = f"Failed to email file {os.path.basename(myfile)} to {','.join(not_sent)}"
                         logger.error(msg2)
                         msg += msg2
-                return serve_template(templatename="choosetype.html", title='Send file',
+                return serve_template(templatename="choosetype.html", title=i18n.gettext('Send file'),
                                       pop_message=msg, pop_types='', bookid='', valid='', email=email)
         if not name:
             name = os.path.basename(myfile)

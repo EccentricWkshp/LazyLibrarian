@@ -252,16 +252,20 @@ def npgettext(context, singular, plural, n):
     return _current().npgettext(context, singular, plural, n)
 
 
-def status_label(status):
-    """ Translated label for a status or library value (Wanted, Have, eBook...).
-        The value itself stays in English, as that is what is stored and sent to the server """
-    labels = {
+def status_labels():
+    """ Translated labels for status and library values, keyed by the English value """
+    return {
         'All': _('All'), 'Active': _('Active'), 'Paused': _('Paused'), 'Wanted': _('Wanted'), 'Have': _('Have'),
         'Open': _('Open'), 'Ignored': _('Ignored'), 'Skipped': _('Skipped'), 'Snatched': _('Snatched'),
         'Remove': _('Remove'), 'Failed': _('Failed'), 'Processed': _('Processed'), 'Seeding': _('Seeding'),
         'Loading': _('Loading'), 'eBook': _('eBook'), 'AudioBook': _('AudioBook'),
     }
-    return labels.get(status, status)
+
+
+def status_label(status):
+    """ Translated label for a status or library value (Wanted, Have, eBook...).
+        The value itself stays in English, as that is what is stored and sent to the server """
+    return status_labels().get(status, status)
 
 
 def js_string(text):

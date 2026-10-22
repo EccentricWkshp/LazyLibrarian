@@ -233,10 +233,10 @@
                         'render': function(data, type, row) {
                           %if perm&lazylibrarian.perm_status:
                             bar = '<button onclick="reason(\'' + row[8] +
-                            '\')" class="button btn btn-xs btn-primary" type="button">' + row[3] +
+                            '\')" class="button btn btn-xs btn-primary" type="button">' + llStatus(row[3]) +
                             '</button>';
                           %else:
-                            bar = row[3];
+                            bar = llStatus(row[3]);
                           %endif
                           return bar;}
                     }

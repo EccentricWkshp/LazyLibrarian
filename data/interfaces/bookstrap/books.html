@@ -205,7 +205,7 @@
                     btn = btn + flag
                     if ( btn.indexOf('Open') >= 0 ) {
                         btn = '<a class="button green btn btn-xs btn-warning" href="open_book?bookid=' + row[9] +
-                            '&library=eBook" target="_self"><i class="fa fa-book"></i> ' + btn + '</a>'
+                            '&library=eBook" target="_self"><i class="fa fa-book"></i> ' + llStatus(btn) + '</a>'
                         %if len(email):
                             btn += '<a class="button green btn btn-xs btn-info" href="send_book?bookid=' + row[9] +
                                 '&library=eBook" target="_self">' + ${_js('Send')} + '</a>'
@@ -213,7 +213,7 @@
                     }
                     else if ( btn.indexOf('Wanted') >= 0 ) {
                         %if perm&lazylibrarian.perm_force:
-                            btn = '<p><a class="a btn btn-xs btn-danger">' + btn + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'
+                            btn = '<p><a class="a btn btn-xs btn-danger">' + llStatus(btn) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'
                         %else:
                             btn = '<p><a class="button btn btn-xs btn-default grey" href="request_book?bookid=' + row[9] + '&library=eBook" target="_self">' + ${_js('Request')} + '</a></p>'
                         %endif
@@ -222,14 +222,14 @@
                         btn = '<a class="button btn btn-xs btn-info">' + ${_js('Snatched')} + '</a>'}
                     else if ( btn.indexOf('Have') >= 0 ) {
                         %if perm&lazylibrarian.perm_status:
-                            btn = '<a class="button btn btn-xs btn-info">' + btn + '</a>'
+                            btn = '<a class="button btn btn-xs btn-info">' + llStatus(btn) + '</a>'
                         %else:
                           btn = '<p><a class="button btn btn-xs btn-default grey" href="request_book?bookid=' + row[9] + '&library=eBook" target="_self">' + ${_js('Request')} + '</a></p>'
                         %endif
                         }
                     else {
                         %if perm&lazylibrarian.perm_status:
-                        btn = '<a class="button btn btn-xs btn-default grey">' + btn + '</a>'
+                        btn = '<a class="button btn btn-xs btn-default grey">' + llStatus(btn) + '</a>'
                         %else:
                         btn = '<p><a class="button btn btn-xs btn-default grey" href="request_book?bookid=' + row[9] + '&library=eBook" target="_self">' + ${_js('Request')} + '</a></p>'
                         %endif

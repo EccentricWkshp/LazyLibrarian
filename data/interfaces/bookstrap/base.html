@@ -45,6 +45,12 @@
           var idx = msg.t ? Number(${js_plural()}) : Number(n != 1);
           return msg.f[Math.min(idx, msg.f.length - 1)].replace(/%\(count\)[sd]/g, n);
       }
+      // Translated status labels: the tables get English status values from the server and use
+      // them for logic, llStatus() only translates the leading status word for display
+      var llStatusLabels = ${js(status_labels())};
+      function llStatus(s) {
+          return String(s).replace(/^[A-Za-z]+/, function (w) { return llStatusLabels[w] || w; });
+      }
       // Shared DataTables labels, pages can extend this with their own sEmptyTable etc.
       var llDataTablesLanguage = {
           "sSearch": ${_js('Filter: ')},
