@@ -113,6 +113,13 @@ class I18nTest(unittest.TestCase):
         for header, expected in data:
             self.assertEqual(i18n.match_accept_language(header, langs), expected, header)
 
+    def test_default_is_automatic(self):
+        from lazylibrarian.configdefs import BASE_DEFAULTS
+        item = next(i for i in BASE_DEFAULTS if i.key == 'UI_LANGUAGE')
+        self.assertEqual(item.default, i18n.AUTO)
+        self.assertEqual(i18n.resolve_language(item.default, 'sk-SK,sk;q=0.9'), 'sk')
+        self.assertEqual(i18n.resolve_language(item.default, 'de-DE'), 'en')
+
     def test_resolve_language(self):
         self.assertEqual(i18n.resolve_language('en'), 'en')
         self.assertEqual(i18n.resolve_language('xx'), 'en')
