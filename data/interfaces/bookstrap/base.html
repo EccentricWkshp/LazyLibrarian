@@ -43,6 +43,40 @@
       cursor: pointer;
     }
     </style>
+    %if ui_lang_auto:
+    <script type="text/javascript">
+      // Interface language is automatic: the Accept-Language header doesn't always match the browser
+      // language, so pass navigator.languages to the server in a cookie, and reload once if that
+      // gives a different language than this page was rendered in. Matching is as in i18n.py
+      (function () {
+          var name = ${js(ui_lang_cookie)}, langs = ${js(ui_langs)}, current = ${js(ui_lang)};
+          var wanted = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+          var value = encodeURIComponent(Array.prototype.join.call(wanted, ','));
+          var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+          if (match && match[1] === value) {
+              return;
+          }
+          document.cookie = name + '=' + value + '; path=/; max-age=31536000; SameSite=Lax';
+          if (document.cookie.indexOf(name + '=' + value) < 0) {
+              return;  // cookies are blocked, don't reload in a loop
+          }
+          var lookup = {};
+          for (var i = 0; i < langs.length; i++) {
+              lookup[langs[i].toLowerCase().split('-').join('_')] = langs[i];
+          }
+          for (var j = 0; j < wanted.length; j++) {
+              var code = String(wanted[j]).toLowerCase().split('-').join('_');
+              var lang = lookup[code] || lookup[code.split('_')[0]];
+              if (lang) {
+                  if (lang !== current) {
+                      window.location.reload();
+                  }
+                  return;
+              }
+          }
+      })();
+    </script>
+    %endif
     <script src="js/jquery-3.4.1.min.js"></script>
     <script src="js/lazylibrarian-bs.js"></script>
     <script type="text/javascript">

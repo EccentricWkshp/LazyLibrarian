@@ -21,6 +21,9 @@ DOMAIN = 'lazylibrarian'
 LOCALE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'locale')
 DEFAULT_LANGUAGE = 'en'
 AUTO = 'auto'
+# cookie set by base.html from navigator.languages, for browsers whose Accept-Language header
+# doesn't match the browser language (privacy settings, proxies, or no header at all)
+BROWSER_COOKIE = 'll_browserlang'
 
 _local = threading.local()
 _catalogs = {}  # lang -> (mtime, translations)
@@ -240,7 +243,7 @@ def parse_accept_language(header):
     return [code for _, _, code in sorted(requested)]
 
 
-def match_accept_language(header, languages=None):
+def match_accept_language(header, languages=None, default=DEFAULT_LANGUAGE):
     """ Pick the best available language from an Accept-Language header """
     if languages is None:
         languages = available_languages()
@@ -251,7 +254,7 @@ def match_accept_language(header, languages=None):
         primary = code.split('_')[0]
         if primary in lookup:
             return lookup[primary]
-    return DEFAULT_LANGUAGE
+    return default
 
 
 def translation_invite(user_lang, setting, accept_header, languages=None):
@@ -281,11 +284,14 @@ def translation_invite(user_lang, setting, accept_header, languages=None):
     return lang, percent
 
 
-def resolve_language(setting, accept_header=''):
-    """ Turn the UI_LANGUAGE setting into a language code we have a translation for """
+def resolve_language(setting, accept_header='', browser_languages=''):
+    """ Turn the UI_LANGUAGE setting into a language code we have a translation for.
+        For auto, browser_languages (navigator.languages from the browser cookie) is tried first,
+        then the Accept-Language header """
     setting = (setting or '').strip()
     if not setting or setting.lower() == AUTO:
-        return match_accept_language(accept_header)
+        lang = match_accept_language(browser_languages, default=None)
+        return lang or match_accept_language(accept_header)
     if setting in available_languages():
         return setting
     return DEFAULT_LANGUAGE
