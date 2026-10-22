@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: LazyLibrarian VERSION\n"
 "Report-Msgid-Bugs-To: "
 "https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues\n"
-"POT-Creation-Date: 2026-10-22 04:14+0200\n"
+"POT-Creation-Date: 2026-10-22 04:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -25,6 +25,10 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:501
 #: data/interfaces/bookstrap/books.html:12
 #: data/interfaces/bookstrap/books.html:216
+#: data/interfaces/bookstrap/comicissues.html:10
+#: data/interfaces/bookstrap/comics.html:12
+#: data/interfaces/bookstrap/comics.html:187
+#: data/interfaces/bookstrap/editbook.html:33
 #: data/interfaces/bookstrap/index.html:42
 #: data/interfaces/bookstrap/issues.html:10
 #: data/interfaces/bookstrap/magazines.html:12
@@ -37,6 +41,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/audio.html:13
 #: data/interfaces/bookstrap/books.html:13
+#: data/interfaces/bookstrap/comicissues.html:11
+#: data/interfaces/bookstrap/comics.html:13
 #: data/interfaces/bookstrap/issues.html:11
 #: data/interfaces/bookstrap/magazines.html:13
 msgid "Run Post-Processor"
@@ -44,6 +50,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/audio.html:14
 #: data/interfaces/bookstrap/books.html:14
+#: data/interfaces/bookstrap/comicissues.html:12
+#: data/interfaces/bookstrap/comics.html:14
 #: data/interfaces/bookstrap/issues.html:12
 #: data/interfaces/bookstrap/magazines.html:14
 msgid "Library Scan"
@@ -55,6 +63,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/audio.html:19
 #: data/interfaces/bookstrap/books.html:20
+#: data/interfaces/bookstrap/comicissues.html:17
+#: data/interfaces/bookstrap/comics.html:19
 #: data/interfaces/bookstrap/magazines.html:21
 msgid "rss feed of recent downloads"
 msgstr ""
@@ -68,6 +78,8 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:25
 #: data/interfaces/bookstrap/books.html:24
 #: data/interfaces/bookstrap/books.html:26
+#: data/interfaces/bookstrap/comics.html:23
+#: data/interfaces/bookstrap/comics.html:25
 #: data/interfaces/bookstrap/index.html:20
 #: data/interfaces/bookstrap/index.html:22
 #: data/interfaces/bookstrap/magazines.html:25
@@ -85,6 +97,8 @@ msgstr ""
 #: data/interfaces/bookstrap/author_detail.html:58
 #: data/interfaces/bookstrap/books.html:30
 #: data/interfaces/bookstrap/books.html:32
+#: data/interfaces/bookstrap/editauthor.html:54
+#: data/interfaces/bookstrap/editauthor.html:56
 msgid "Primary Author, or Contributor"
 msgstr ""
 
@@ -99,6 +113,9 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:539
 #: data/interfaces/bookstrap/books.html:39
 #: data/interfaces/bookstrap/books.html:242
+#: data/interfaces/bookstrap/comicissues.html:123
+#: data/interfaces/bookstrap/comicresults.html:68
+#: data/interfaces/bookstrap/comics.html:205
 #: data/interfaces/bookstrap/history.html:184
 #: data/interfaces/bookstrap/index.html:240
 #: data/interfaces/bookstrap/issues.html:145
@@ -106,6 +123,7 @@ msgstr ""
 #: data/interfaces/bookstrap/magazines.html:209
 #: data/interfaces/bookstrap/managebooks.html:590
 #: data/interfaces/bookstrap/manageissues.html:102
+#: data/interfaces/bookstrap/manualsearch.html:68
 #: data/interfaces/bookstrap/members.html:204
 #: data/interfaces/bookstrap/series.html:75
 #: data/interfaces/bookstrap/series.html:251 lazylibrarian/i18n.py:258
@@ -114,6 +132,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/audio.html:54
 #: data/interfaces/bookstrap/books.html:53
+#: data/interfaces/bookstrap/comicissues.html:33
+#: data/interfaces/bookstrap/comics.html:52
 #: data/interfaces/bookstrap/issues.html:35
 #: data/interfaces/bookstrap/magazines.html:55
 msgid "Libraryscan in progress ..."
@@ -121,6 +141,7 @@ msgstr ""
 
 #: data/interfaces/bookstrap/audio.html:64
 #: data/interfaces/bookstrap/books.html:63
+#: data/interfaces/bookstrap/comics.html:60
 #: data/interfaces/bookstrap/index.html:79
 #: data/interfaces/bookstrap/magazines.html:63
 msgid "Mark selected as"
@@ -130,6 +151,7 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:18
 #: data/interfaces/bookstrap/author_detail.html:22
 #: data/interfaces/bookstrap/books.html:66
+#: data/interfaces/bookstrap/editauthor.html:20
 #: data/interfaces/bookstrap/index.html:83
 #: data/interfaces/bookstrap/members.html:77
 #: data/interfaces/bookstrap/series.html:78
@@ -149,6 +171,7 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:20
 #: data/interfaces/bookstrap/author_detail.html:24
 #: data/interfaces/bookstrap/books.html:68
+#: data/interfaces/bookstrap/editauthor.html:22
 #: data/interfaces/bookstrap/index.html:84
 #: data/interfaces/bookstrap/members.html:77
 #: data/interfaces/bookstrap/series.html:78
@@ -165,6 +188,9 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:70
 #: data/interfaces/bookstrap/author.html:293
 #: data/interfaces/bookstrap/books.html:70
+#: data/interfaces/bookstrap/comicissues.html:40
+#: data/interfaces/bookstrap/comics.html:66
+#: data/interfaces/bookstrap/editauthor.html:163
 #: data/interfaces/bookstrap/index.html:86
 #: data/interfaces/bookstrap/issues.html:42
 #: data/interfaces/bookstrap/magazines.html:69
@@ -175,11 +201,15 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:71
 #: data/interfaces/bookstrap/author.html:294
 #: data/interfaces/bookstrap/books.html:71
+#: data/interfaces/bookstrap/comicissues.html:41
+#: data/interfaces/bookstrap/comics.html:67
+#: data/interfaces/bookstrap/dlresult.html:33
 #: data/interfaces/bookstrap/history.html:81
 #: data/interfaces/bookstrap/index.html:87
 #: data/interfaces/bookstrap/issues.html:43
 #: data/interfaces/bookstrap/magazines.html:70
 #: data/interfaces/bookstrap/members.html:78
+#: data/interfaces/bookstrap/users.html:119
 msgid "Delete"
 msgstr ""
 
@@ -191,6 +221,8 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:75
 #: data/interfaces/bookstrap/author.html:307
 #: data/interfaces/bookstrap/books.html:82
+#: data/interfaces/bookstrap/comicissues.html:43
+#: data/interfaces/bookstrap/comics.html:75
 #: data/interfaces/bookstrap/index.html:96
 #: data/interfaces/bookstrap/issues.html:49
 #: data/interfaces/bookstrap/magazines.html:81
@@ -211,6 +243,14 @@ msgstr ""
 #: data/interfaces/bookstrap/books.html:87
 #: data/interfaces/bookstrap/books.html:108
 #: data/interfaces/bookstrap/books.html:154
+#: data/interfaces/bookstrap/comicissues.html:45
+#: data/interfaces/bookstrap/comicissues.html:62
+#: data/interfaces/bookstrap/comicissues.html:64
+#: data/interfaces/bookstrap/comicissues.html:101
+#: data/interfaces/bookstrap/comics.html:80
+#: data/interfaces/bookstrap/comics.html:101
+#: data/interfaces/bookstrap/comics.html:103
+#: data/interfaces/bookstrap/comics.html:145
 #: data/interfaces/bookstrap/index.html:184
 #: data/interfaces/bookstrap/issues.html:51
 #: data/interfaces/bookstrap/issues.html:68
@@ -234,6 +274,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:80
 #: data/interfaces/bookstrap/author.html:311
 #: data/interfaces/bookstrap/books.html:87
+#: data/interfaces/bookstrap/comics.html:80
 #: data/interfaces/bookstrap/history.html:30
 #: data/interfaces/bookstrap/index.html:101
 #: data/interfaces/bookstrap/issues.html:51
@@ -270,6 +311,11 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:602
 #: data/interfaces/bookstrap/books.html:89
 #: data/interfaces/bookstrap/books.html:110
+#: data/interfaces/bookstrap/comicresults.html:19
+#: data/interfaces/bookstrap/comics.html:81
+#: data/interfaces/bookstrap/comics.html:105
+#: data/interfaces/bookstrap/editissue.html:21
+#: data/interfaces/bookstrap/editmag.html:20
 #: data/interfaces/bookstrap/history.html:30
 #: data/interfaces/bookstrap/history.html:44
 #: data/interfaces/bookstrap/magazines.html:87
@@ -278,6 +324,7 @@ msgstr ""
 #: data/interfaces/bookstrap/managebooks.html:127
 #: data/interfaces/bookstrap/manageissues.html:30
 #: data/interfaces/bookstrap/manageissues.html:43
+#: data/interfaces/bookstrap/manualsearch.html:19
 #: data/interfaces/bookstrap/members.html:95
 #: data/interfaces/bookstrap/members.html:111
 #: data/interfaces/bookstrap/searchresults.html:49
@@ -293,6 +340,7 @@ msgstr ""
 #: data/interfaces/bookstrap/base.html:250
 #: data/interfaces/bookstrap/books.html:90
 #: data/interfaces/bookstrap/books.html:111
+#: data/interfaces/bookstrap/editauthor.html:39
 #: data/interfaces/bookstrap/managebooks.html:104
 #: data/interfaces/bookstrap/managebooks.html:128
 #: data/interfaces/bookstrap/series.html:92 lazylibrarian/webServe.py:1949
@@ -335,6 +383,10 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:332
 #: data/interfaces/bookstrap/books.html:93
 #: data/interfaces/bookstrap/books.html:114
+#: data/interfaces/bookstrap/comicissues.html:47
+#: data/interfaces/bookstrap/comicissues.html:67
+#: data/interfaces/bookstrap/comics.html:83
+#: data/interfaces/bookstrap/comics.html:107
 #: data/interfaces/bookstrap/index.html:103
 #: data/interfaces/bookstrap/index.html:123
 #: data/interfaces/bookstrap/issues.html:53
@@ -350,12 +402,16 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:333
 #: data/interfaces/bookstrap/books.html:94
 #: data/interfaces/bookstrap/books.html:115
+#: data/interfaces/bookstrap/comicresults.html:23
+#: data/interfaces/bookstrap/comics.html:85
+#: data/interfaces/bookstrap/comics.html:109
 #: data/interfaces/bookstrap/history.html:36
 #: data/interfaces/bookstrap/history.html:50
 #: data/interfaces/bookstrap/index.html:107
 #: data/interfaces/bookstrap/index.html:127
 #: data/interfaces/bookstrap/magazines.html:91
 #: data/interfaces/bookstrap/magazines.html:115
+#: data/interfaces/bookstrap/manualsearch.html:23
 #: data/interfaces/bookstrap/members.html:97
 #: data/interfaces/bookstrap/members.html:118
 #: data/interfaces/bookstrap/series.html:94
@@ -391,6 +447,9 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:273
 #: data/interfaces/bookstrap/author.html:586
 #: data/interfaces/bookstrap/books.html:293
+#: data/interfaces/bookstrap/comicissues.html:165
+#: data/interfaces/bookstrap/comicresults.html:71
+#: data/interfaces/bookstrap/comics.html:247
 #: data/interfaces/bookstrap/history.html:192
 #: data/interfaces/bookstrap/index.html:278
 #: data/interfaces/bookstrap/issues.html:187
@@ -398,6 +457,7 @@ msgstr ""
 #: data/interfaces/bookstrap/magazines.html:251
 #: data/interfaces/bookstrap/managebooks.html:621
 #: data/interfaces/bookstrap/manageissues.html:122
+#: data/interfaces/bookstrap/manualsearch.html:71
 #: data/interfaces/bookstrap/members.html:207
 #: data/interfaces/bookstrap/series.html:275
 msgid "Results filter"
@@ -417,9 +477,15 @@ msgstr[1] ""
 #: data/interfaces/bookstrap/author_detail.html:80
 #: data/interfaces/bookstrap/base.html:433
 #: data/interfaces/bookstrap/books.html:318
+#: data/interfaces/bookstrap/comicissues.html:185
+#: data/interfaces/bookstrap/comics.html:268
+#: data/interfaces/bookstrap/editauthor.html:266
+#: data/interfaces/bookstrap/editcomic.html:61
+#: data/interfaces/bookstrap/editseries.html:62
 #: data/interfaces/bookstrap/index.html:309
 #: data/interfaces/bookstrap/issues.html:207
 #: data/interfaces/bookstrap/magazines.html:271
+#: data/interfaces/bookstrap/users.html:276
 msgid "Yes"
 msgstr ""
 
@@ -428,9 +494,17 @@ msgstr ""
 #: data/interfaces/bookstrap/author_detail.html:81
 #: data/interfaces/bookstrap/base.html:437
 #: data/interfaces/bookstrap/books.html:322
+#: data/interfaces/bookstrap/comicissues.html:189
+#: data/interfaces/bookstrap/comics.html:272
+#: data/interfaces/bookstrap/editauthor.html:267
+#: data/interfaces/bookstrap/editauthor.html:291
+#: data/interfaces/bookstrap/editauthor.html:318
+#: data/interfaces/bookstrap/editcomic.html:65
+#: data/interfaces/bookstrap/editseries.html:66
 #: data/interfaces/bookstrap/index.html:313
 #: data/interfaces/bookstrap/issues.html:211
 #: data/interfaces/bookstrap/magazines.html:275
+#: data/interfaces/bookstrap/users.html:280
 msgid "No"
 msgstr ""
 
@@ -438,6 +512,7 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:619
 #: data/interfaces/bookstrap/base.html:64
 #: data/interfaces/bookstrap/books.html:351
+#: data/interfaces/bookstrap/editmag.html:57
 #: data/interfaces/bookstrap/index.html:348
 #: data/interfaces/bookstrap/issues.html:250
 #: data/interfaces/bookstrap/magazines.html:304
@@ -453,6 +528,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:358
 #: data/interfaces/bookstrap/author.html:646
 #: data/interfaces/bookstrap/books.html:378
+#: data/interfaces/bookstrap/editmag.html:91
 #: data/interfaces/bookstrap/index.html:375
 #: data/interfaces/bookstrap/issues.html:284
 #: data/interfaces/bookstrap/magazines.html:338
@@ -466,6 +542,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:361
 #: data/interfaces/bookstrap/author.html:649
 #: data/interfaces/bookstrap/books.html:381
+#: data/interfaces/bookstrap/editmag.html:95
 #: data/interfaces/bookstrap/index.html:378
 #: data/interfaces/bookstrap/issues.html:287
 #: data/interfaces/bookstrap/magazines.html:341
@@ -480,6 +557,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:363
 #: data/interfaces/bookstrap/author.html:651
 #: data/interfaces/bookstrap/books.html:383
+#: data/interfaces/bookstrap/editmag.html:97
 #: data/interfaces/bookstrap/index.html:380
 #: data/interfaces/bookstrap/issues.html:289
 #: data/interfaces/bookstrap/magazines.html:343
@@ -501,6 +579,8 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:372
 #: data/interfaces/bookstrap/author.html:660
 #: data/interfaces/bookstrap/books.html:392
+#: data/interfaces/bookstrap/editmag.html:107
+#: data/interfaces/bookstrap/editmag.html:127
 #: data/interfaces/bookstrap/index.html:389
 #: data/interfaces/bookstrap/issues.html:299
 #: data/interfaces/bookstrap/issues.html:319
@@ -516,6 +596,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:387
 #: data/interfaces/bookstrap/author.html:675
 #: data/interfaces/bookstrap/books.html:407
+#: data/interfaces/bookstrap/editmag.html:123
 #: data/interfaces/bookstrap/index.html:404
 #: data/interfaces/bookstrap/issues.html:315
 #: data/interfaces/bookstrap/magazines.html:369
@@ -529,6 +610,7 @@ msgstr ""
 #: data/interfaces/bookstrap/audio.html:388
 #: data/interfaces/bookstrap/author.html:676
 #: data/interfaces/bookstrap/books.html:408
+#: data/interfaces/bookstrap/editmag.html:124
 #: data/interfaces/bookstrap/index.html:405
 #: data/interfaces/bookstrap/issues.html:316
 #: data/interfaces/bookstrap/magazines.html:370
@@ -546,6 +628,8 @@ msgstr ""
 #: data/interfaces/bookstrap/base.html:418
 #: data/interfaces/bookstrap/base.html:537
 #: data/interfaces/bookstrap/books.html:411
+#: data/interfaces/bookstrap/choosetype.html:48
+#: data/interfaces/bookstrap/dlresult.html:39
 #: data/interfaces/bookstrap/history.html:88
 #: data/interfaces/bookstrap/history.html:114
 #: data/interfaces/bookstrap/index.html:408
@@ -561,13 +645,25 @@ msgstr ""
 #: data/interfaces/bookstrap/managebooks.html:507
 #: data/interfaces/bookstrap/managebooks.html:701
 #: data/interfaces/bookstrap/members.html:282
+#: data/interfaces/bookstrap/profile.html:117
+#: data/interfaces/bookstrap/profile.html:136
+#: data/interfaces/bookstrap/register.html:68
+#: data/interfaces/bookstrap/response.html:26
 #: data/interfaces/bookstrap/searchresults.html:336
 #: data/interfaces/bookstrap/series.html:350
+#: data/interfaces/bookstrap/users.html:199
+#: data/interfaces/bookstrap/users.html:228
+#: data/interfaces/bookstrap/users.html:247
+#: data/interfaces/bookstrap/users.html:262
+#: data/interfaces/bookstrap/users.html:293
+#: data/interfaces/bookstrap/users.html:328
 msgid "Close"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:12
 #: data/interfaces/bookstrap/author_detail.html:16
+#: data/interfaces/bookstrap/comics.html:64
+#: data/interfaces/bookstrap/editauthor.html:14
 #: data/interfaces/bookstrap/index.html:85
 #: data/interfaces/bookstrap/magazines.html:67
 #: data/interfaces/bookstrap/series.html:77
@@ -577,6 +673,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:15
 #: data/interfaces/bookstrap/author_detail.html:19
+#: data/interfaces/bookstrap/comics.html:63
+#: data/interfaces/bookstrap/editauthor.html:17
 #: data/interfaces/bookstrap/index.html:82
 #: data/interfaces/bookstrap/magazines.html:66
 #: data/interfaces/bookstrap/series.html:78
@@ -586,22 +684,26 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:26
 #: data/interfaces/bookstrap/author_detail.html:30
+#: data/interfaces/bookstrap/editauthor.html:28
 #: data/interfaces/bookstrap/members.html:14
 msgid "Refresh Author"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:27
 #: data/interfaces/bookstrap/author_detail.html:31
+#: data/interfaces/bookstrap/editauthor.html:29
 msgid "eBook Scan"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:29
 #: data/interfaces/bookstrap/author_detail.html:33
+#: data/interfaces/bookstrap/editauthor.html:31
 msgid "AudioBook Scan"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:33
 #: data/interfaces/bookstrap/author_detail.html:37
+#: data/interfaces/bookstrap/editauthor.html:35
 msgid "Remove Author"
 msgstr ""
 
@@ -622,6 +724,7 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:56
 #: data/interfaces/bookstrap/author_detail.html:47
 #: data/interfaces/bookstrap/author_detail.html:201
+#: data/interfaces/bookstrap/editauthor.html:45
 msgid "Following"
 msgstr ""
 
@@ -629,6 +732,8 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:61
 #: data/interfaces/bookstrap/author_detail.html:49
 #: data/interfaces/bookstrap/author_detail.html:52
+#: data/interfaces/bookstrap/editauthor.html:47
+#: data/interfaces/bookstrap/editauthor.html:50
 msgid "Not Following"
 msgstr ""
 
@@ -638,6 +743,7 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:93
 #: data/interfaces/bookstrap/author_detail.html:63
+#: data/interfaces/bookstrap/editauthor.html:61
 msgid "rss feed of recent ebooks"
 msgstr ""
 
@@ -648,12 +754,14 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:97
 #: data/interfaces/bookstrap/author_detail.html:66
+#: data/interfaces/bookstrap/editauthor.html:64
 msgid "rss feed of recent audiobooks"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:130
 #: data/interfaces/bookstrap/author_detail.html:12
 #: data/interfaces/bookstrap/book_detail.html:11
+#: data/interfaces/bookstrap/comicissues.html:28
 #: data/interfaces/bookstrap/members.html:31
 msgid "Edit"
 msgstr ""
@@ -748,6 +856,8 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:203
 #: data/interfaces/bookstrap/author_detail.html:192
+#: data/interfaces/bookstrap/editauthor.html:101
+#: data/interfaces/bookstrap/editseries.html:30
 msgid "Added by:"
 msgstr ""
 
@@ -755,11 +865,13 @@ msgstr ""
 #: data/interfaces/bookstrap/author.html:210
 #: data/interfaces/bookstrap/author_detail.html:158
 #: data/interfaces/bookstrap/author_detail.html:164
+#: data/interfaces/bookstrap/editauthor.html:91
 msgid "Born:"
 msgstr ""
 
 #: data/interfaces/bookstrap/author.html:207
 #: data/interfaces/bookstrap/author_detail.html:159
+#: data/interfaces/bookstrap/editauthor.html:95
 msgid "Died:"
 msgstr ""
 
@@ -886,6 +998,7 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author.html:352
 #: data/interfaces/bookstrap/author_detail.html:78
+#: data/interfaces/bookstrap/editauthor.html:264
 msgid "Are you sure you want to permanently delete the author?"
 msgstr ""
 
@@ -901,6 +1014,7 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:10
 #: data/interfaces/bookstrap/author_detail.html:213
+#: data/interfaces/bookstrap/editauthor.html:10
 msgid "Books"
 msgstr ""
 
@@ -965,6 +1079,7 @@ msgid "Last updated:"
 msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:201
+#: data/interfaces/bookstrap/editbook.html:110
 msgid "GoodReads:"
 msgstr ""
 
@@ -987,19 +1102,22 @@ msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:213
 #: data/interfaces/bookstrap/book_detail.html:90
+#: data/interfaces/bookstrap/editauthor.html:132
 msgid "Source"
 msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:213
 #: data/interfaces/bookstrap/book_detail.html:90
-msgid "Link"
+#: data/interfaces/bookstrap/editauthor.html:132
+#: data/interfaces/bookstrap/history.html:32
+#: data/interfaces/bookstrap/history.html:46
+msgid "ID"
 msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:213
 #: data/interfaces/bookstrap/book_detail.html:90
-#: data/interfaces/bookstrap/history.html:32
-#: data/interfaces/bookstrap/history.html:46
-msgid "ID"
+#: data/interfaces/bookstrap/editauthor.html:156
+msgid "Link"
 msgstr ""
 
 #: data/interfaces/bookstrap/author_detail.html:222
@@ -1260,6 +1378,7 @@ msgid "Update to the latest release"
 msgstr ""
 
 #: data/interfaces/bookstrap/base.html:355
+#: data/interfaces/bookstrap/profile.html:84
 msgid "Update"
 msgstr ""
 
@@ -1280,6 +1399,7 @@ msgid "Are you sure you want to logout?"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:14
+#: data/interfaces/bookstrap/editbook.html:11
 msgid "Refresh Book"
 msgstr ""
 
@@ -1296,6 +1416,7 @@ msgid "Series:"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:46
+#: data/interfaces/bookstrap/editbook.html:72
 msgid "Genre:"
 msgstr ""
 
@@ -1316,14 +1437,17 @@ msgid "Rating:"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:65
+#: data/interfaces/bookstrap/editbook.html:92
 msgid "Language:"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:68
+#: data/interfaces/bookstrap/editbook.html:77
 msgid "Narrator:"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:78
+#: data/interfaces/bookstrap/editbook.html:102
 msgid "ISBN:"
 msgstr ""
 
@@ -1352,6 +1476,7 @@ msgid "No other sources linked"
 msgstr ""
 
 #: data/interfaces/bookstrap/book_detail.html:134
+#: data/interfaces/bookstrap/comicresults.html:22
 msgid "Description"
 msgstr ""
 
@@ -1368,6 +1493,7 @@ msgid "Additions"
 msgstr ""
 
 #: data/interfaces/bookstrap/books.html:17
+#: data/interfaces/bookstrap/users.html:109
 msgid "Downloads"
 msgstr ""
 
@@ -1382,12 +1508,619 @@ msgid_plural "Are you sure you want to permanently delete the %(count)s selected
 msgstr[0] ""
 msgstr[1] ""
 
+#: data/interfaces/bookstrap/comicissues.html:14
+#: data/interfaces/bookstrap/comics.html:16
+#: data/interfaces/bookstrap/issues.html:16
+#: data/interfaces/bookstrap/magazines.html:18
+msgid "Recent Issues"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:18
+#: data/interfaces/bookstrap/comics.html:20
+msgid "LazyLibrarian latest comics"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:38
+#: data/interfaces/bookstrap/issues.html:40
+msgid "Selected issues:"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:46
+#: data/interfaces/bookstrap/comicissues.html:66
+#: data/interfaces/bookstrap/issues.html:52
+#: data/interfaces/bookstrap/issues.html:72
+#: data/interfaces/bookstrap/manageissues.html:32
+msgid "Issue"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:48
+#: data/interfaces/bookstrap/comicissues.html:68
+#: data/interfaces/bookstrap/comics.html:86
+#: data/interfaces/bookstrap/comics.html:110
+#: data/interfaces/bookstrap/issues.html:54
+#: data/interfaces/bookstrap/issues.html:74
+#: data/interfaces/bookstrap/magazines.html:92
+#: data/interfaces/bookstrap/magazines.html:116
+msgid "Select"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:114
+#: data/interfaces/bookstrap/comics.html:176
+#: data/interfaces/bookstrap/issues.html:132
+#: data/interfaces/bookstrap/magazines.html:178
+#: data/interfaces/bookstrap/members.html:168 lazylibrarian/i18n.py:259
+msgid "Open"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:118
+#: data/interfaces/bookstrap/issues.html:140
+msgid "No issues found"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicissues.html:179
+#: data/interfaces/bookstrap/issues.html:201
+#, python-format
+msgid "Are you sure you want to permanently delete the selected issue?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected issues?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: data/interfaces/bookstrap/comicresults.html:18
+#: data/interfaces/bookstrap/manualsearch.html:18
+#: data/interfaces/bookstrap/searchresults.html:54
+msgid "Match"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicresults.html:20
+msgid "Publisher"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicresults.html:21
+#: data/interfaces/bookstrap/history.html:34
+#: data/interfaces/bookstrap/history.html:48
+#: data/interfaces/bookstrap/manageissues.html:31
+#: data/interfaces/bookstrap/manualsearch.html:22
+msgid "Date"
+msgstr ""
+
+#: data/interfaces/bookstrap/comicresults.html:66
+#: data/interfaces/bookstrap/manualsearch.html:66
+msgid "No results found"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:32
+#: data/interfaces/bookstrap/comics.html:34
+#: data/interfaces/bookstrap/editcomic.html:22
+msgid "Comic Title"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:37
+msgid "Search for comic"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:37
+#: data/interfaces/bookstrap/comics.html:39
+msgid "Comic"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:39
+msgid "Add comic"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:65
+#: data/interfaces/bookstrap/magazines.html:68
+msgid "Reset"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:70
+#: data/interfaces/bookstrap/index.html:91
+#: data/interfaces/bookstrap/magazines.html:76
+#: data/interfaces/bookstrap/series.html:135
+msgid "Subscribe"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:71
+#: data/interfaces/bookstrap/index.html:92
+#: data/interfaces/bookstrap/magazines.html:77
+#: data/interfaces/bookstrap/series.html:136
+msgid "Unsubscribe"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:82
+#: data/interfaces/bookstrap/comics.html:106
+#: data/interfaces/bookstrap/magazines.html:88
+#: data/interfaces/bookstrap/magazines.html:112
+#: data/interfaces/bookstrap/members.html:96
+#: data/interfaces/bookstrap/members.html:117
+msgid "Num"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:84
+#: data/interfaces/bookstrap/index.html:104
+#: data/interfaces/bookstrap/magazines.html:90
+msgid "Latest"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:108
+#: data/interfaces/bookstrap/magazines.html:114
+msgid "Latest Issue"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:177
+#: data/interfaces/bookstrap/comics.html:179
+#: data/interfaces/bookstrap/magazines.html:184
+#: data/interfaces/bookstrap/magazines.html:186
+msgid "Show"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:200
+msgid "No comics found"
+msgstr ""
+
+#: data/interfaces/bookstrap/comics.html:262
+#, python-format
+msgid "Are you sure you want to permanently delete the selected comic?"
+msgid_plural "Are you sure you want to permanently delete the %(count)s selected comics?"
+msgstr[0] ""
+msgstr[1] ""
+
 #: data/interfaces/bookstrap/config.html:503
 msgid "Interface language:"
 msgstr ""
 
 #: data/interfaces/bookstrap/config.html:506
 msgid "Automatic (browser language)"
+msgstr ""
+
+#: data/interfaces/bookstrap/coverwall.html:8
+msgid "Columns"
+msgstr ""
+
+#: data/interfaces/bookstrap/coverwall.html:45
+#: data/interfaces/bookstrap/coverwall.html:47
+#: data/interfaces/bookstrap/coverwall.html:51
+#: data/interfaces/bookstrap/coverwall.html:54
+#: data/interfaces/bookstrap/coverwall.html:57
+#: data/interfaces/bookstrap/coverwall.html:60
+#: data/interfaces/bookstrap/editauthor.html:212
+#: data/interfaces/bookstrap/editbook.html:181
+msgid "cover"
+msgstr ""
+
+#: data/interfaces/bookstrap/dlresult.html:27
+#: data/interfaces/bookstrap/history.html:74
+msgid "Mark Failed"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:11
+#: data/interfaces/bookstrap/editbook.html:9
+msgid "Detail"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:76
+#: data/interfaces/bookstrap/editbook.html:7
+msgid "Searching, please wait..."
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:86
+msgid "Author Name:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:87
+msgid "Author Name"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:92
+msgid "Born (yyyy/mm/dd)"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:96
+msgid "Died (yyyy/mm/dd)"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:102
+#: data/interfaces/bookstrap/editseries.html:31
+msgid "Reason for inclusion"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:105
+msgid "AKA:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:111
+msgid "Amazon Author Page:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:112
+msgid ""
+"https://www.amazon.com/stores/.../author/... - no free lookup exists for "
+"this, paste it if you find it"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:117
+msgid "Source IDs:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:132
+msgid "Primary"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:150
+#, python-format
+msgid "Search %(source)s"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:153
+msgid "or enter ID"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:159
+#, python-format
+msgid "%(source)s not enabled"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:173
+msgid "Search for additional titles (book search only, no author linking):"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:176
+msgid "Search Google Books"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:180
+msgid "Search DNB"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:184
+msgid "Search BN"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:191
+msgid "Author Description"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:192
+#: data/interfaces/bookstrap/editbook.html:167
+#: data/interfaces/bookstrap/editcomic.html:35
+#: data/interfaces/bookstrap/profile.html:80
+#: data/interfaces/bookstrap/users.html:114
+msgid "Nothing to see here..."
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:195
+msgid "Current Image:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:197
+msgid "New Image file or URL"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:198
+msgid ""
+"Filenames must be full path to file or a URL, or put none to remove "
+"author image"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:198
+msgid "Filename and URL need to end with .jpg/.jpeg/.png/.webp"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:220
+msgid "Change image to:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:222
+msgid "No change"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:223
+msgid "File/URL"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:231
+#: data/interfaces/bookstrap/editbook.html:201
+msgid "Find Images"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:243
+#: data/interfaces/bookstrap/editbook.html:222
+msgid "Lock settings"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:247
+#: data/interfaces/bookstrap/editbook.html:225
+#: data/interfaces/bookstrap/editcomic.html:40
+#: data/interfaces/bookstrap/editissue.html:38
+#: data/interfaces/bookstrap/editmag.html:24
+#: data/interfaces/bookstrap/editseries.html:41
+msgid "Save changes"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:285
+msgid "Enter an ID first"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:287
+#, python-format
+msgid ""
+"Link this author to %(source)s id \"%(id)s\"? This is not verified "
+"against the name - double-check the id is correct before confirming."
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:290
+#: data/interfaces/bookstrap/editauthor.html:317
+msgid "Yes, link it"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:299
+#: data/interfaces/bookstrap/editauthor.html:326
+msgid "Link failed - check the logs"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:311
+#, python-format
+msgid "No match found on %(source)s"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:313
+#, python-format
+msgid "Found on %(source)s: \"%(name)s\" (id: %(id)s)"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:315
+msgid "Link this author to that entry?"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:333
+msgid "Search failed - check the logs"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:342
+msgid "Failed to set primary source - check the logs"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:348
+#, python-format
+msgid ""
+"Remove the %(source)s link for this author? You can search and re-link it"
+" afterward."
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:350
+msgid "Yes, remove"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:351
+#: data/interfaces/bookstrap/managebooks.html:262
+msgid "Cancel"
+msgstr ""
+
+#: data/interfaces/bookstrap/editauthor.html:359
+msgid "Remove failed - check the logs"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:19
+msgid "Searches:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:21
+msgid ""
+"// would be nice to use fontawesome icons here but options are not "
+"styleable // and some browsers don't show them, eg linux firefox, android"
+" chrome // They only show icons on closed select, not in dropdown"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:22
+msgid "eBook Title/Author"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:23
+msgid "eBook Title"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:24
+msgid "eBook Author"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:25
+msgid "General Search"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:27
+msgid "Audio Title/Author"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:28
+msgid "Audio Title"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:29
+msgid "Audio Author"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:48
+msgid "Change author to:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:64
+msgid "Book Title:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:68
+msgid "Subtitle:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:73
+msgid "Comma separated list of genres"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:78
+msgid "Audiobook narrator"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:82
+msgid "Added by"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:83
+msgid "Reason for adding/rejecting"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:87
+msgid "Import from"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:88
+msgid "Manual import folder"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:96
+msgid "Publication Date:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:97
+msgid "Publication Date (YYYY or YYYY-MM-DD)"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:103
+msgid "ISBN10 or ISBN13"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:106
+msgid "WorkID:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:114
+msgid "OpenLibrary:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:118
+msgid "GoogleBooks:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:122
+msgid "HardCover:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:130
+#, python-format
+msgid "Book Series %(number)s"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:131
+#: data/interfaces/bookstrap/editbook.html:151
+#: data/interfaces/bookstrap/editseries.html:22
+#: data/interfaces/bookstrap/series.html:111
+msgid "Series Name"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:135
+#: data/interfaces/bookstrap/editbook.html:161
+msgid "Number"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:140
+msgid "Add to Existing Author Series:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:150
+msgid "New Series"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:166
+msgid "Book Description"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:189
+msgid "Change cover to:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editbook.html:205
+msgid "OPF Fields"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:21
+msgid "Comic Title:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:25
+msgid "Comic ID:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:26
+msgid "Comic ID"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:30
+msgid "Aka:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:31
+msgid "Alternate IDs"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:34
+msgid "Comic Description"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:41
+msgid "Delete Comic"
+msgstr ""
+
+#: data/interfaces/bookstrap/editcomic.html:58
+msgid "Are you sure you want to permanently delete the comic?"
+msgstr ""
+
+#: data/interfaces/bookstrap/editissue.html:20
+msgid "Magazine Title:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editissue.html:24
+msgid "Issue Date/Num:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editissue.html:25
+msgid "Date/Num"
+msgstr ""
+
+#: data/interfaces/bookstrap/editissue.html:28
+msgid "PDF Tags"
+msgstr ""
+
+#: data/interfaces/bookstrap/editmag.html:19
+msgid "New Magazine Title:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editmag.html:93
+msgid "Issues Renamed"
+msgstr ""
+
+#: data/interfaces/bookstrap/editmag.html:103
+#: data/interfaces/bookstrap/issues.html:295
+#: data/interfaces/bookstrap/magazines.html:349
+#: data/interfaces/bookstrap/searchresults.html:313
+#: data/interfaces/bookstrap/series.html:327
+msgid "Operation Complete"
+msgstr ""
+
+#: data/interfaces/bookstrap/editseries.html:21
+msgid "Series Name:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editseries.html:25
+msgid "Series ID:"
+msgstr ""
+
+#: data/interfaces/bookstrap/editseries.html:26
+msgid "Series ID"
+msgstr ""
+
+#: data/interfaces/bookstrap/editseries.html:42
+msgid "Delete Series"
+msgstr ""
+
+#: data/interfaces/bookstrap/editseries.html:59
+msgid "Are you sure you want to permanently delete the series?"
 msgstr ""
 
 #: data/interfaces/bookstrap/formlogin.html:27
@@ -1431,17 +2164,13 @@ msgstr ""
 #: data/interfaces/bookstrap/history.html:47
 #: data/interfaces/bookstrap/manageissues.html:33
 #: data/interfaces/bookstrap/manageissues.html:46
+#: data/interfaces/bookstrap/manualsearch.html:20
 msgid "Provider"
-msgstr ""
-
-#: data/interfaces/bookstrap/history.html:34
-#: data/interfaces/bookstrap/history.html:48
-#: data/interfaces/bookstrap/manageissues.html:31
-msgid "Date"
 msgstr ""
 
 #: data/interfaces/bookstrap/history.html:35
 #: data/interfaces/bookstrap/history.html:49
+#: data/interfaces/bookstrap/manualsearch.html:21
 msgid "Size"
 msgstr ""
 
@@ -1451,10 +2180,6 @@ msgstr ""
 
 #: data/interfaces/bookstrap/history.html:70
 msgid "Download "
-msgstr ""
-
-#: data/interfaces/bookstrap/history.html:74
-msgid "Mark Failed"
 msgstr ""
 
 #: data/interfaces/bookstrap/history.html:77
@@ -1527,26 +2252,9 @@ msgstr ""
 msgid "Delete + Ignore"
 msgstr ""
 
-#: data/interfaces/bookstrap/index.html:91
-#: data/interfaces/bookstrap/magazines.html:76
-#: data/interfaces/bookstrap/series.html:135
-msgid "Subscribe"
-msgstr ""
-
-#: data/interfaces/bookstrap/index.html:92
-#: data/interfaces/bookstrap/magazines.html:77
-#: data/interfaces/bookstrap/series.html:136
-msgid "Unsubscribe"
-msgstr ""
-
 #: data/interfaces/bookstrap/index.html:101
 #: data/interfaces/bookstrap/index.html:121
 msgid "Image"
-msgstr ""
-
-#: data/interfaces/bookstrap/index.html:104
-#: data/interfaces/bookstrap/magazines.html:90
-msgid "Latest"
 msgstr ""
 
 #: data/interfaces/bookstrap/index.html:106
@@ -1604,11 +2312,6 @@ msgstr ""
 msgid "Past Issues"
 msgstr ""
 
-#: data/interfaces/bookstrap/issues.html:16
-#: data/interfaces/bookstrap/magazines.html:18
-msgid "Recent Issues"
-msgstr ""
-
 #: data/interfaces/bookstrap/issues.html:20
 #, python-format
 msgid "%(title)s latest issues"
@@ -1616,10 +2319,6 @@ msgstr ""
 
 #: data/interfaces/bookstrap/issues.html:30
 msgid "Rename"
-msgstr ""
-
-#: data/interfaces/bookstrap/issues.html:40
-msgid "Selected issues:"
 msgstr ""
 
 #: data/interfaces/bookstrap/issues.html:44
@@ -1638,49 +2337,12 @@ msgstr ""
 msgid "Tag issue"
 msgstr ""
 
-#: data/interfaces/bookstrap/issues.html:52
-#: data/interfaces/bookstrap/issues.html:72
-#: data/interfaces/bookstrap/manageissues.html:32
-msgid "Issue"
-msgstr ""
-
-#: data/interfaces/bookstrap/issues.html:54
-#: data/interfaces/bookstrap/issues.html:74
-#: data/interfaces/bookstrap/magazines.html:92
-#: data/interfaces/bookstrap/magazines.html:116
-msgid "Select"
-msgstr ""
-
 #: data/interfaces/bookstrap/issues.html:94
 msgid "Issue Update"
 msgstr ""
 
-#: data/interfaces/bookstrap/issues.html:132
-#: data/interfaces/bookstrap/magazines.html:178
-#: data/interfaces/bookstrap/members.html:168 lazylibrarian/i18n.py:259
-msgid "Open"
-msgstr ""
-
-#: data/interfaces/bookstrap/issues.html:140
-msgid "No issues found"
-msgstr ""
-
-#: data/interfaces/bookstrap/issues.html:201
-#, python-format
-msgid "Are you sure you want to permanently delete the selected issue?"
-msgid_plural "Are you sure you want to permanently delete the %(count)s selected issues?"
-msgstr[0] ""
-msgstr[1] ""
-
 #: data/interfaces/bookstrap/issues.html:232
 msgid "Scanning Magazine Issues"
-msgstr ""
-
-#: data/interfaces/bookstrap/issues.html:295
-#: data/interfaces/bookstrap/magazines.html:349
-#: data/interfaces/bookstrap/searchresults.html:313
-#: data/interfaces/bookstrap/series.html:327
-msgid "Operation Complete"
 msgstr ""
 
 #: data/interfaces/bookstrap/login.html:14
@@ -1688,10 +2350,14 @@ msgid "LazyLibrarian User Login"
 msgstr ""
 
 #: data/interfaces/bookstrap/login.html:20
+#: data/interfaces/bookstrap/profile.html:42
+#: data/interfaces/bookstrap/users.html:33
 msgid "Username"
 msgstr ""
 
 #: data/interfaces/bookstrap/login.html:24
+#: data/interfaces/bookstrap/profile.html:69
+#: data/interfaces/bookstrap/users.html:58
 msgid "Password"
 msgstr ""
 
@@ -1831,10 +2497,6 @@ msgstr ""
 msgid "Add Magazine"
 msgstr ""
 
-#: data/interfaces/bookstrap/magazines.html:68
-msgid "Reset"
-msgstr ""
-
 #: data/interfaces/bookstrap/magazines.html:71
 msgid "Tag issues"
 msgstr ""
@@ -1845,22 +2507,6 @@ msgstr ""
 
 #: data/interfaces/bookstrap/magazines.html:73
 msgid "Search issues"
-msgstr ""
-
-#: data/interfaces/bookstrap/magazines.html:88
-#: data/interfaces/bookstrap/magazines.html:112
-#: data/interfaces/bookstrap/members.html:96
-#: data/interfaces/bookstrap/members.html:117
-msgid "Num"
-msgstr ""
-
-#: data/interfaces/bookstrap/magazines.html:114
-msgid "Latest Issue"
-msgstr ""
-
-#: data/interfaces/bookstrap/magazines.html:184
-#: data/interfaces/bookstrap/magazines.html:186
-msgid "Show"
 msgstr ""
 
 #: data/interfaces/bookstrap/magazines.html:204
@@ -1968,10 +2614,6 @@ msgstr ""
 msgid "HardCover Sync Confirmation Required"
 msgstr ""
 
-#: data/interfaces/bookstrap/managebooks.html:262
-msgid "Cancel"
-msgstr ""
-
 #: data/interfaces/bookstrap/managebooks.html:267
 msgid "Ignore Updates"
 msgstr ""
@@ -2058,6 +2700,10 @@ msgstr ""
 msgid "No matching issues found"
 msgstr ""
 
+#: data/interfaces/bookstrap/manualsearch.html:39
+msgid "Snatch"
+msgstr ""
+
 #: data/interfaces/bookstrap/members.html:9
 #: data/interfaces/bookstrap/series.html:11
 msgid "Return to Author"
@@ -2109,6 +2755,103 @@ msgstr ""
 msgid "Manual"
 msgstr ""
 
+#: data/interfaces/bookstrap/profile.html:8
+msgid "LazyLibrarian User Profile"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:16
+#: data/interfaces/bookstrap/register.html:20
+#: data/interfaces/bookstrap/users.html:37
+msgid "Full Name"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:20
+msgid "Email"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:24
+msgid "Send To (eg kindle)"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:28
+#: data/interfaces/bookstrap/users.html:76
+msgid "Theme"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:46
+#: data/interfaces/bookstrap/users.html:72
+msgid "Preferred BookType to open/email"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:60
+#: data/interfaces/bookstrap/users.html:92
+msgid "HardCover Token"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:62
+#: data/interfaces/bookstrap/users.html:94
+msgid "Bearer token"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:64
+#: data/interfaces/bookstrap/users.html:96
+msgid "Test"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:71
+msgid "Leave empty to keep existing password"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:74
+msgid "Confirm Password"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:76
+msgid "If changing password, enter new password  again here"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:79
+msgid "Subscriptions (for information only)"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:113
+#: data/interfaces/bookstrap/users.html:324
+msgid "Update User"
+msgstr ""
+
+#: data/interfaces/bookstrap/profile.html:132
+#: data/interfaces/bookstrap/users.html:195
+msgid "Test HardCover Token"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:12
+msgid "Please complete this short form and press \"Submit\""
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:13
+msgid "Your message will be reviewed and you will receive a reply by email"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:24
+msgid "Username (if already registered)"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:28
+msgid "Email Address (required for reply)"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:34
+msgid "Message to Admin (optional)"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:40
+msgid "Submit"
+msgstr ""
+
+#: data/interfaces/bookstrap/register.html:64
+msgid "User Registration"
+msgstr ""
+
 #: data/interfaces/bookstrap/searchresults.html:19
 #: data/interfaces/bookstrap/series.html:48
 msgid "Search for book"
@@ -2120,10 +2863,6 @@ msgstr ""
 
 #: data/interfaces/bookstrap/searchresults.html:53
 msgid "Add"
-msgstr ""
-
-#: data/interfaces/bookstrap/searchresults.html:54
-msgid "Match"
 msgstr ""
 
 #: data/interfaces/bookstrap/searchresults.html:79
@@ -2205,16 +2944,138 @@ msgctxt "series status"
 msgid "Empty"
 msgstr ""
 
-#: data/interfaces/bookstrap/series.html:111
-msgid "Series Name"
-msgstr ""
-
 #: data/interfaces/bookstrap/series.html:120
 msgid "Change selected series to:"
 msgstr ""
 
 #: data/interfaces/bookstrap/series.html:245
 msgid "No series found"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:14
+msgid "Select user"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:16
+msgid "-- add a new user --"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:23
+msgid "Import/Export Users/edit feeds"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:25
+msgid "Import"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:26
+msgid "Export"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:27
+msgid "Feeds"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:41
+msgid "Email (for messages)"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:45
+msgid "Send To (eg kindle email)"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:50
+msgid "Permissions"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:52
+msgid "Admin"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:53
+msgid "Friend"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:54
+msgid "Guest"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:59
+msgid "keep existing password"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:60
+msgid "Generate Password"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:64
+msgid "Calibre Read Column"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:68
+msgid "Calibre ToRead Column"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:77
+#: data/interfaces/bookstrap/users.html:81
+msgid "Default"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:80
+msgid "UI Language"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:84
+msgid "UserID"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:88
+msgid "HardCoverID"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:101
+msgid "Last Login"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:105
+msgid "Logins"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:113
+msgid "Subscriptions"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:118
+msgid "Save"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:213
+msgid "No wishlists found"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:216
+msgid "User Feeds"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:224
+msgid "Updated User"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:243
+msgid "Export Users"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:258
+msgid "Import Users"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:273
+#, python-format
+msgid "Are you sure you want to permanently delete %(user)s?"
+msgstr ""
+
+#: data/interfaces/bookstrap/users.html:289
+msgid "Delete User"
 msgstr ""
 
 #: lazylibrarian/i18n.py:260
@@ -2366,6 +3227,11 @@ msgstr ""
 
 #: lazylibrarian/webServe.py:5773
 msgid "Edit Comic"
+msgstr ""
+
+#: lazylibrarian/webServe.py:6593
+#, python-format
+msgid "Rename Magazine %(title)s"
 msgstr ""
 
 #: lazylibrarian/webServe.py:6612

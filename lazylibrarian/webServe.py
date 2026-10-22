@@ -6590,7 +6590,7 @@ class WebInterface:
             db.close()
 
         if magdata:
-            return serve_template(templatename="editmag.html", title=f"Rename Magazine {magdata['Title']}",
+            return serve_template(templatename="editmag.html", title=i18n.gettext('Rename Magazine %(title)s') % {'title': magdata['Title']},
                                   config=magdata)
         logger.error(f'Missing magazine {mag}')
         raise cherrypy.HTTPRedirect("magazines")
