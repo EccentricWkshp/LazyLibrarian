@@ -214,7 +214,7 @@ class OPDS:
         multi += '<link href="'
         multi += f'{self.opdsroot}?cmd=Serve&amp;issueid={quote_plus(bookid)}{userid}'
         multi += '" rel="http://opds-spec.org/acquisition" type="' + mime_type(extn) + '"/>'
-        multi += f'<link href="{self.opdsroot}?cmd=Stream&amp;{idtype}={quote_plus(bookid)}'
+        multi += f'<link href="{self.opdsroot}?cmd=Serve&amp;{idtype}={quote_plus(bookid)}'
         multi += '&amp;page={pageNumber}&amp;width={maxWidth}"'
         multi += f' pse:count="{pagecount}"'
         multi += ' rel="http://vaemendis.net/opds-pse/stream" type="image/jpeg"/>'
@@ -1898,10 +1898,13 @@ class OPDS:
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
             if 'page' in kwargs:
-                pagefile = extract_image_from_page(res['IssueFile'], pagenum=kwargs['page'], cover=False)
-                if pagefile:
-                    self.filepath = pagefile
-                    self.filename = os.path.split(pagefile)[1]
+                # page number must be positive integer or zero
+                pagenum = check_int(kwargs['page'], -1, True)
+                if pagenum >= 0:
+                    pagefile = extract_image_from_page(res['IssueFile'], pagenum=pagenum, cover=False)
+                    if pagefile:
+                        self.filepath = pagefile
+                        self.filename = os.path.split(pagefile)[1]
             return
         if 'comicissueid' in kwargs:
             myid = kwargs['comicissueid']
@@ -1918,10 +1921,12 @@ class OPDS:
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
             if 'page' in kwargs:
-                pagefile = extract_image_from_page(res['IssueFile'], pagenum=kwargs['page'], cover=False)
-                if pagefile:
-                    self.filepath = pagefile
-                    self.filename = os.path.split(pagefile)[1]
+                pagenum = check_int(kwargs['page'], -1, True)
+                if pagenum >= 0:
+                    pagefile = extract_image_from_page(res['IssueFile'], pagenum=pagenum, cover=False)
+                    if pagefile:
+                        self.filepath = pagefile
+                        self.filename = os.path.split(pagefile)[1]
             return
         if 'audioid' in kwargs:
             myid = kwargs['audioid']
