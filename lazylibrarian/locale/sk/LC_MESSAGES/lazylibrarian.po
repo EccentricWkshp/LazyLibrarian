@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: LazyLibrarian VERSION\n"
 "Report-Msgid-Bugs-To: phil.borman@gmail.com\n"
 "POT-Creation-Date: 2026-10-22 14:31+0200\n"
-"PO-Revision-Date: 2026-10-22 21:19+0000\n"
+"PO-Revision-Date: 2026-10-23 22:51+0000\n"
 "Last-Translator: misko903 <misko903@users.noreply.hosted.weblate.org>\n"
 "Language-Team: Slovak <https://hosted.weblate.org/projects/lazylibrarian/"
 "webui/sk/>\n"
@@ -175,7 +175,7 @@ msgstr "Hľadané"
 #: data/interfaces/bookstrap/series.html:93
 #: data/interfaces/bookstrap/series.html:112 lazylibrarian/i18n.py:336
 msgid "Have"
-msgstr "Vlastním"
+msgstr "V knižnici"
 
 #: data/interfaces/bookstrap/audio.html:68
 #: data/interfaces/bookstrap/author.html:20
@@ -976,15 +976,15 @@ msgstr "Obidve: hľadané"
 
 #: data/interfaces/bookstrap/author.html:279
 msgid "eBook Have"
-msgstr "E-kniha: mám"
+msgstr "E-kniha v knižnici"
 
 #: data/interfaces/bookstrap/author.html:279
 msgid "Audio Have"
-msgstr "Audio: mám"
+msgstr "Audio v knižnici"
 
 #: data/interfaces/bookstrap/author.html:279
 msgid "Both Have"
-msgstr "Obidve: mám"
+msgstr "Obe v knižnici"
 
 #: data/interfaces/bookstrap/author.html:280
 msgid "eBook Ignored"
@@ -2644,24 +2644,25 @@ msgstr "ID používateľa na synchronizáciu:"
 
 #: data/interfaces/bookstrap/config.html:873
 msgid "Sync Wanted eBooks to Goodreads shelf:"
-msgstr "Synchronizovať hľadané e-knihy na políčku Goodreads:"
+msgstr "Synchronizovať hľadané e-knihy na policu Goodreads:"
 
 #: data/interfaces/bookstrap/config.html:875
 msgid "Sync Owned eBooks to Goodreads shelf:"
-msgstr "Synchronizovať vlastnené e-knihy na políčku Goodreads:"
+msgstr "Synchronizovať e-knihy v knižnici na policu Goodreads:"
 
 #: data/interfaces/bookstrap/config.html:880
 msgid "Sync Wanted AudioBooks to Goodreads shelf:"
-msgstr "Synchronizovať hľadané audioknihy na políčku Goodreads:"
+msgstr "Synchronizovať hľadané audioknihy na policu Goodreads:"
 
 #: data/interfaces/bookstrap/config.html:882
 msgid "Sync Owned AudioBooks to Goodreads shelf:"
-msgstr "Synchronizovať vlastnené audioknihy na políčku Goodreads:"
+msgstr "Synchronizovať audioknihy v knižnici na policu Goodreads:"
 
 #: data/interfaces/bookstrap/config.html:890
 msgid "Delete from GoodReads Wanted shelf if also on Open/Have shelf"
 msgstr ""
-"Vymazať z police Goodreads „Hľadané“, ak je kniha aj na polici „Otvorené/Mám“"
+"Vymazať z police Goodreads „Hľadané“, ak je kniha aj na polici „Otvorené/V "
+"knižnici“"
 
 #: data/interfaces/bookstrap/config.html:894
 msgid "Goodreads Sync Interval:"
