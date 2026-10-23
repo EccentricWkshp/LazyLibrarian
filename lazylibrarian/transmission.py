@@ -16,6 +16,7 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from lazylibrarian import i18n
 from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG
 
@@ -353,8 +354,8 @@ def check_link():
     tr_version = 0
     response, _ = torrent_action(method, arguments)  # type: dict
     if response:
-        return f"Transmission login successful, v{tr_version}, rpc v{rpc_version}"
-    return "Transmission login FAILED\nCheck debug log"
+        return i18n.gettext('%(name)s login successful, v%(version)s, rpc v%(rpc)s') % {'name': 'Transmission', 'version': tr_version, 'rpc': rpc_version}, True
+    return i18n.gettext('%(name)s login FAILED\nCheck debug log') % {'name': 'Transmission'}, False
 
 
 def torrent_action(method, arguments):

@@ -26,6 +26,7 @@ from urllib.parse import quote
 from xmlrpc.client import ProtocolError, ServerProxy
 
 import lazylibrarian
+from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import make_unicode
 
@@ -35,8 +36,8 @@ def check_link():
     version, res = send_nzb(cmd="test")
     # socket.setdefaulttimeout(None)
     if version:
-        return f"NZBget connection successful, version {version}"
-    return f"NZBget connection FAILED\n{res}"
+        return i18n.gettext('%(name)s connection successful, version %(version)s') % {'name': 'NZBget', 'version': version}, True
+    return i18n.gettext('%(name)s connection FAILED\n%(error)s') % {'name': 'NZBget', 'error': res}, False
 
 
 def delete_nzb(nzbid, remove_data=False):

@@ -155,6 +155,16 @@
     <script type="text/javascript" src="js/datatables.min.js"></script>
     <script type="text/javascript" src="js/natural.js"></script>
     <script type="text/javascript" src="js/bootbox.min.js"></script>
+    <script type="text/javascript">
+      // translated default buttons for bootbox dialogs that don't set their own labels
+      bootbox.addLocale('ll', {OK: ${_js('OK')}, CANCEL: ${_js('Cancel')}, CONFIRM: ${_js('OK')}});
+      bootbox.setLocale('ll');
+      // texts used by js/lazylibrarian-bs.js, which is a static file
+      var llTexts = {
+          restartConfirm: ${_js('Are you sure you want to restart LazyLibrarian?')},
+          shutdownConfirm: ${_js('Are you sure you want to shutdown LazyLibrarian?')}
+      };
+    </script>
     <script type="text/javascript" src="js/bootstrap-notify.min.js"></script>
 <style>
 

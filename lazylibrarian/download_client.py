@@ -563,8 +563,8 @@ def get_download_progress(source, downloadid):
         elif source == "SABNZBD":
             data = {}
             if not lazylibrarian.SAB_VER[0]:
-                res = sabnzbd.check_link()
-                if 'successful' not in res:
+                _, ok = sabnzbd.check_link()
+                if not ok:
                     progress = -2  # connection error
             if lazylibrarian.SAB_VER > (3, 2, 0):
                 res, _ = sabnzbd.sab_nzbd(nzburl="queue", nzo_ids=downloadid)

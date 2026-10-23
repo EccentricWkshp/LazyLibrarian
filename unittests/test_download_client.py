@@ -8,7 +8,7 @@
 import unittest
 from unittest import mock
 
-from lazylibrarian import download_client
+from lazylibrarian import download_client, sabnzbd, synology
 from lazylibrarian.download_client import check_contents, is_archive_file
 from unittests.unittesthelpers import LLTestCase
 
@@ -190,6 +190,29 @@ class CheckContentsTest(LLTestCase):
         # rtorrent and some deluge versions report a file list with no sizes
         self.files.return_value = [{'name': 'The Book/The Book.epub'}]
         self.assertEqual(check_contents('RTORRENT', 'deadbeef', 'ebook', 'a release'), '')
+
+
+class CheckLinkTest(LLTestCase):
+    # The connection tests return (message, ok), so callers don't have to look
+    # for English words in a message that may be translated
+
+    def test_failed_link_says_so(self):
+        with mock.patch.object(synology, '_host_url', return_value=''):
+            msg, ok = synology.check_link()
+        self.assertFalse(ok)
+        self.assertIn('Synology', msg)
+
+    def test_successful_link_says_so(self):
+        with mock.patch.object(synology, '_host_url', return_value='http://nas'),                 mock.patch.object(synology, '_login', return_value=('auth', '', 'sid')),                 mock.patch.object(synology, '_logout'):
+            msg, ok = synology.check_link()
+        self.assertTrue(ok)
+        self.assertIn('Synology', msg)
+
+    def test_sabnzbd_unreachable(self):
+        with mock.patch.object(sabnzbd, 'sab_nzbd', return_value=({}, 'refused')):
+            msg, ok = sabnzbd.check_link()
+        self.assertFalse(ok)
+        self.assertIn('SABnzbd', msg)
 
 
 if __name__ == '__main__':

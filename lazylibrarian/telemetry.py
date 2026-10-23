@@ -28,7 +28,7 @@ from http.client import responses
 
 import requests
 
-from lazylibrarian import database
+from lazylibrarian import database, i18n
 from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG, LLConfigHandler
 from lazylibrarian.formatter import thread_name
@@ -251,10 +251,10 @@ class LazyTelemetry:
                 # Use just the first line of both, in case there is an error
                 id1 = serverid.split('\n')[0]
                 status1 = status.split('\n')[0] if status else ''
-                return f"Server ID: {id1}\n\nStatus:\n{status1}"
-            return f"Error connecting to server: {serverid}"
+                return i18n.gettext('Server ID: %(id)s\n\nStatus:\n%(status)s') % {'id': id1, 'status': status1}
+            return i18n.gettext('Error connecting to server: %(error)s') % {'error': serverid}
         except requests.exceptions.RequestException:
-            return "Error connecting to server"
+            return i18n.gettext('Error connecting to server')
 
 
 # Global functions

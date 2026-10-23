@@ -25,6 +25,7 @@ from urllib.request import (
     install_opener,
 )
 
+from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int, get_list
 
@@ -225,17 +226,17 @@ def check_link():
             try:
                 _ = client.list()
             except Exception as err:
-                return f"uTorrent list FAILED: {type(err).__name__} {str(err)}"
+                return i18n.gettext('%(name)s list FAILED: %(error)s') % {'name': 'uTorrent', 'error': f'{type(err).__name__} {str(err)}'}, False
 
             # we would also like to check lazylibrarian.utorrent_label
             # but uTorrent only sends us a list of labels that have active torrents
             # so we can't tell if our label is known, or does it get created anyway?
             if CONFIG['UTORRENT_LABEL']:
-                return "uTorrent login successful, label not checked"
-            return "uTorrent login successful"
-        return "uTorrent login FAILED\nCheck debug log"
+                return i18n.gettext('%(name)s login successful, label not checked') % {'name': 'uTorrent'}, True
+            return i18n.gettext('%(name)s login successful') % {'name': 'uTorrent'}, True
+        return i18n.gettext('%(name)s login FAILED\nCheck debug log') % {'name': 'uTorrent'}, False
     except Exception as err:
-        return f"uTorrent login FAILED: {type(err).__name__} {str(err)}"
+        return i18n.gettext('%(name)s login FAILED: %(error)s') % {'name': 'uTorrent', 'error': f'{type(err).__name__} {str(err)}'}, False
 
 
 # noinspection PyUnresolvedReferences

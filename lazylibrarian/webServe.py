@@ -9436,8 +9436,8 @@ class WebInterface:
         try:
             if not CONFIG['DELUGE_USER']:
                 # no username, talk to the webui
-                msg = deluge.check_link()
-                if 'FAILED' in msg:
+                msg, ok = deluge.check_link()
+                if not ok:
                     return msg
             else:
                 # if there's a username, talk to the daemon directly
@@ -9529,8 +9529,8 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'SABnzbd', 'param': fail}
         else:
-            msg = sabnzbd.check_link()
-            if 'success' in msg:
+            msg, ok = sabnzbd.check_link()
+            if ok:
                 CONFIG.save_config_and_backup_old(section='sab_nzbd')
         return msg
 
@@ -9567,9 +9567,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'NZBGet', 'param': fail}
         else:
-            msg = nzbget.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='NZBGet')
+            msg, ok = nzbget.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='NZBGet')
         return msg
 
     @cherrypy.expose
@@ -9603,9 +9603,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Transmission', 'param': fail}
         else:
-            msg = transmission.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='TRANSMISSION')
+            msg, ok = transmission.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='TRANSMISSION')
         return msg
 
     @cherrypy.expose
@@ -9646,9 +9646,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'qBittorrent', 'param': fail}
         else:
-            msg = qbittorrent.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='QBITTORRENT')
+            msg, ok = qbittorrent.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='QBITTORRENT')
         return msg
 
     @cherrypy.expose
@@ -9687,9 +9687,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'uTorrent', 'param': fail}
         else:
-            msg = utorrent.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='UTORRENT')
+            msg, ok = utorrent.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='UTORRENT')
         return msg
 
     @cherrypy.expose
@@ -9726,9 +9726,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'rTorrent', 'param': fail}
         else:
-            msg = rtorrent.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='RTORRENT')
+            msg, ok = rtorrent.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='RTORRENT')
         return msg
 
     @cherrypy.expose
@@ -9762,9 +9762,9 @@ class WebInterface:
         if fail:
             msg = i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Synology', 'param': fail}
         else:
-            msg = synology.check_link()
-        if 'success' in msg:
-            CONFIG.save_config_and_backup_old(section='SYNOLOGY')
+            msg, ok = synology.check_link()
+            if ok:
+                CONFIG.save_config_and_backup_old(section='SYNOLOGY')
         return msg
 
     @cherrypy.expose
@@ -9854,7 +9854,8 @@ class WebInterface:
             params = [CONFIG['EXT_PREPROCESS'], 'test', '']
             rc, res, err = run_script(params)
             if rc:
-                return f"Preprocessor returned {rc}: res[{res}] err[{err}]"
+                return i18n.gettext('Preprocessor returned %(rc)s: res[%(res)s] err[%(err)s]') % {
+                    'rc': rc, 'res': res, 'err': err}
         else:
             return i18n.gettext("No preprocessor set in config")
         return res

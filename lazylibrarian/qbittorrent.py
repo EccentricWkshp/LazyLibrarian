@@ -17,6 +17,7 @@ import time
 
 import requests
 
+from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import get_list, redact_url
 from lib.qbittorrent import Client, WrongCredentialsError
@@ -424,10 +425,10 @@ def check_link():
             qb_api = qbclient.api_version
         if qb_api:
             qb_version = qbclient.qbittorrent_version
-            return f"qBittorrent login successful, api: {qb_api} version: {qb_version}"
-        return "qBittorrent login FAILED\nCheck debug log"
+            return i18n.gettext('%(name)s login successful, api: %(api)s version: %(version)s') % {'name': 'qBittorrent', 'api': qb_api, 'version': qb_version}, True
+        return i18n.gettext('%(name)s login FAILED\nCheck debug log') % {'name': 'qBittorrent'}, False
     except Exception as err:
-        return f"qBittorrent login FAILED: {type(err).__name__} {str(err)}"
+        return i18n.gettext('%(name)s login FAILED: %(error)s') % {'name': 'qBittorrent', 'error': f'{type(err).__name__} {str(err)}'}, False
 
 
 def classify_add_response(result):

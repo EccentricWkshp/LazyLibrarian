@@ -217,7 +217,9 @@ class I18nTest(unittest.TestCase):
 
     def test_status_label(self):
         i18n.set_language('sk')
-        self.assertEqual(i18n.status_label('Wanted'), 'Hľadaný')
+        # compare with the catalog, so the test doesn't depend on the exact wording on Weblate
+        self.assertEqual(i18n.status_label('Wanted'), i18n.gettext('Wanted'))
+        self.assertNotEqual(i18n.status_label('Wanted'), 'Wanted')
         self.assertEqual(i18n.status_label('SomethingNew'), 'SomethingNew')
         i18n.set_language('en')
         self.assertEqual(i18n.status_label('Wanted'), 'Wanted')
