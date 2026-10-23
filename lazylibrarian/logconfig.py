@@ -10,6 +10,7 @@ import logging.config
 import logging.handlers
 import os
 
+from lazylibrarian import i18n
 from lazylibrarian.configenums import OnChangeReason
 from lazylibrarian.filesystem import DIRS, splitext, syspath
 
@@ -472,11 +473,12 @@ class LogConfig:
         # Let the user know what happened
         if deleted == 0:
             if error:
-                return f'Failed to clear logfiles: {error}'
-            return 'No log files to delete'
+                return i18n.gettext('Failed to clear logfiles: %(error)s') % {'error': error}
+            return i18n.gettext('No log files to delete')
         if error:
-            return f"{deleted} log file(s) deleted from {logdir}. An error also occurred: {error}"
-        return f"{deleted} log file(s) deleted from {logdir}"
+            return i18n.gettext('%(count)s log file(s) deleted from %(folder)s. An error also occurred: %(error)s') % {
+                'count': deleted, 'folder': logdir, 'error': error}
+        return i18n.gettext('%(count)s log file(s) deleted from %(folder)s') % {'count': deleted, 'folder': logdir}
 
 
 # Global access variable
