@@ -80,11 +80,11 @@ COMMON_COUNT = 24  # BOOK_LANGUAGES entries shown without "Show all"
 def language_picker(preflang: str) -> dict:
     """ Split an IMP_PREFLANG value into picker languages and the entries the picker doesn't know.
         A language is selected if any of its codes is in the value. Selected languages are listed
-        first in the order they appear in the value, as the first one is used for the magazine
-        language, which allows only one. Then the common ones, then the rest sorted by their translated name.
+        first in the order they appear in the value, then the common ones, then the rest sorted
+        by their translated name.
         Each language also carries its value for the other language settings the picker fills in:
-        'code' for magazines, 'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
-        Returns {'languages': [{'name', 'label', 'codes', 'code', 'anna', 'zlib', 'selected', 'common'}],
+        'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
+        Returns {'languages': [{'name', 'label', 'codes', 'anna', 'zlib', 'selected', 'common'}],
                  'other': str} """
     from lazylibrarian.annas import Language as AnnaLanguage
 
@@ -103,7 +103,6 @@ def language_picker(preflang: str) -> dict:
             'name': name,
             'label': i18n.gettext(name),
             'codes': ', '.join(codes),
-            'code': codes[0],
             'anna': anna if anna in AnnaLanguage.__members__ else '',
             'zlib': name.lower(),
             'selected': bool(found),
@@ -146,3 +145,17 @@ def country_picker(gb_country: str) -> dict:
         Returns {'countries': [codes], 'selected': str} """
     country = gb_country.strip().upper()
     return {'countries': GB_COUNTRIES, 'selected': country if country in GB_COUNTRIES else ''}
+
+
+def magazine_language_picker(pref_maglang: str) -> dict:
+    """ Languages for the default magazine language select, sorted by their translated name.
+        Magazines take a single code, the ISO 639-1 one. A stored value that isn't one of these
+        codes is returned as 'other' so the select can keep it and saving doesn't change it.
+        Returns {'languages': [{'code', 'label'}], 'selected': str, 'other': str | None} """
+    languages = sorted(({'code': codes[0], 'label': i18n.gettext(name)} for name, codes in BOOK_LANGUAGES),
+                       key=lambda lang: lang['label'].lower())
+    value = pref_maglang.strip()
+    for lang in languages:
+        if lang['code'].lower() == value.lower():
+            return {'languages': languages, 'selected': lang['code'], 'other': None}
+    return {'languages': languages, 'selected': value, 'other': value}

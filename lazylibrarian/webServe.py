@@ -67,7 +67,7 @@ from lazylibrarian.auth import (
     require_auth,
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
-from lazylibrarian.booklanguages import country_picker, language_picker
+from lazylibrarian.booklanguages import country_picker, language_picker, magazine_language_picker
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import (
     add_series_members,
@@ -2341,6 +2341,7 @@ class WebInterface:
             "months": months,
             "book_languages": language_picker(CONFIG['IMP_PREFLANG']),
             "gb_countries": country_picker(CONFIG['GB_COUNTRY']),
+            "mag_languages": magazine_language_picker(CONFIG['PREF_MAGLANG']),
             "updated": time.ctime(CONFIG.get_int('GIT_UPDATED'))
         }
         for itm in CONFIG.config.values():

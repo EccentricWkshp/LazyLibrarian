@@ -1156,10 +1156,9 @@
             });
             $("#imp_preflang").val(unique.join(", "));
 
-            // the other language settings follow the picker, the first language is used where only one is allowed
+            // the other book search language settings follow the picker
             const chips = $("#langpicker .langchip.btn-primary");
             if (chips.length) {
-                $("#pref_maglang").val(chips.first().data("code"));
                 const anna = chips.map(function() { return $(this).data("anna"); }).get().filter(code => code);
                 $("#anna_search_lang").val(anna.length ? anna.join(", ") : "ANY");
                 $("#bok_search_lang").val(chips.map(function() { return $(this).data("zlib"); }).get().join(", "));

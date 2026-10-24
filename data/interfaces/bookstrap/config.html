@@ -3919,7 +3919,7 @@
                     <div id="langpicker" class="langpicker">
                       %for lang in picker['languages']:
                       <button type="button" class="btn ${'btn-primary' if lang['selected'] else 'btn-default'} langchip${'' if lang['common'] or lang['selected'] else ' langchip-more hidden'}"
-                        data-codes="${lang['codes'] | h}" data-code="${lang['code'] | h}" data-anna="${lang['anna'] | h}" data-zlib="${lang['zlib'] | h}" aria-pressed="${'true' if lang['selected'] else 'false'}" title="${lang['codes'] | h}">${lang['label'] | h}</button>
+                        data-codes="${lang['codes'] | h}" data-anna="${lang['anna'] | h}" data-zlib="${lang['zlib'] | h}" aria-pressed="${'true' if lang['selected'] else 'false'}" title="${lang['codes'] | h}">${lang['label'] | h}</button>
                       %endfor
                     </div>
                     %if hidden_count:
@@ -3927,7 +3927,7 @@
                       <i class="fa fa-chevron-down"></i> <span>${_('Show all %d options') % len(picker['languages'])}</span></a>
                     %endif
                     <span class="help-block">${_('Each language adds all of its codes, hover a language to see them.')}<br/>
-                      ${_('The languages also fill in the magazine, Annas Archive and Z-Library languages below. The magazine language takes only one, the first selected one (marked with ★).')}</span>
+                      ${_('The languages also fill in the Annas Archive and Z-Library languages below.')}</span>
                     <label for="imp_preflang_other" class="control-label">${_('Other language codes:')}</label>
                     <input type="text" id="imp_preflang_other" value="${picker['other'] | h}" class="form-control" placeholder="${_('e.g: Unknown') | h}">
                     <span class="help-block">${_('Comma separated codes not covered above')}<br/>
@@ -3945,10 +3945,17 @@
                   </div>
                   <div class="form-group">
                     <label for="pref_maglang" class="control=label">${_('Default language for magazines:')}</label>
-                    <input type="text" id="pref_maglang" name="pref_maglang" value="${CONFIG['PREF_MAGLANG']}" class="form-control">
-                    <span class="help-block">${_('Default language code for magazines:')}<br/>
-                      ${_('e.g: en or fr or de')}<br/>
-                      ${_('Filled in from the first selected language')}</span>
+                    <% maglangs = config['mag_languages'] %>
+                    <select id="pref_maglang" name="pref_maglang" class="form-control">
+                      %if maglangs['other'] is not None:
+                      <option value="${maglangs['other'] | h}" selected>${maglangs['other'] or _('Not set') | h}</option>
+                      %endif
+                      %for lang in maglangs['languages']:
+                      <option value="${lang['code']}"${' selected' if lang['code'] == maglangs['selected'] else ''}>${lang['label'] | h} (${lang['code']})</option>
+                      %endfor
+                    </select>
+                    <span class="help-block">${_('The language a magazine gets when it is added. It is written into the metadata of every issue (the opf file and the pdf), so readers and Calibre show the right language.')}<br/>
+                      ${_('It does not filter searches. Each magazine can have its own language, set it under Magazines below.')}</span>
                   </div>
                   <div class="form-group">
                     <label for="anna_search_lang" class="control=label">${_('Annas Archive Search Languages:')}</label>

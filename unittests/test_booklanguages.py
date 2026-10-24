@@ -12,6 +12,7 @@ from lazylibrarian.booklanguages import (
     GB_COUNTRIES,
     country_picker,
     language_picker,
+    magazine_language_picker,
 )
 
 
@@ -51,11 +52,9 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertEqual(picker['other'], '')
 
     def test_selected_keep_their_order(self):
-        # the first language is used for the single language settings
         picker = language_picker('sk, slo, slk, Slovak, cs, cze, ces, Czech, Unknown')
         selected = [lang for lang in picker['languages'] if lang['selected']]
         self.assertEqual([lang['name'] for lang in selected], ['Slovak', 'Czech'])
-        self.assertEqual([lang['code'] for lang in selected], ['sk', 'cs'])
         self.assertEqual([lang['anna'] for lang in selected], ['SK', 'CS'])
         self.assertEqual([lang['zlib'] for lang in selected], ['slovak', 'czech'])
 
@@ -93,3 +92,18 @@ class BookLanguagesTest(unittest.TestCase):
         # GoogleBooks ignored anything but one country, so these stay automatic
         self.assertEqual(country_picker('SK CZ')['selected'], '')
         self.assertEqual(country_picker('XX')['selected'], '')
+
+    def test_magazine_language_picker(self):
+        picker = magazine_language_picker('SK')
+        self.assertEqual(picker['selected'], 'sk')
+        self.assertIsNone(picker['other'])
+        self.assertEqual(len(picker['languages']), len(BOOK_LANGUAGES))
+        labels = [lang['label'].lower() for lang in picker['languages']]
+        self.assertEqual(labels, sorted(labels))
+
+    def test_magazine_language_keeps_unknown_value(self):
+        # a value the list doesn't have stays selected, so saving doesn't change it
+        picker = magazine_language_picker('sk cz de en')
+        self.assertEqual(picker['selected'], 'sk cz de en')
+        self.assertEqual(picker['other'], 'sk cz de en')
+        self.assertEqual(magazine_language_picker('')['other'], '')

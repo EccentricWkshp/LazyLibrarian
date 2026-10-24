@@ -108,7 +108,3 @@ textarea#telemetry_data {
 .langpicker .langchip.btn-primary::before {
     content: "\2713\00a0";
 }
-/* selected languages come first, the first one is used where only one language is allowed */
-.langpicker .langchip.btn-primary:first-child::after {
-    content: "\00a0\2605";
-}
