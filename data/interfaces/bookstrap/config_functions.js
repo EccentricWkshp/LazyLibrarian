@@ -1155,10 +1155,27 @@
                 return true;
             });
             $("#imp_preflang").val(unique.join(", "));
+
+            // the other language settings follow the picker, the first language is used where only one is allowed
+            const chips = $("#langpicker .langchip.btn-primary");
+            if (chips.length) {
+                $("#pref_maglang").val(chips.first().data("code"));
+                $("#anna_search_lang").val(chips.first().data("anna") || "ANY");
+                $("#bok_search_lang").val(chips.map(function() { return $(this).data("zlib"); }).get().join(", "));
+            }
         }
 
         $("#langpicker .langchip").on("click", function() {
             const selected = !$(this).hasClass("btn-primary");
+            if (selected) {
+                // keep selected languages in the order they were picked
+                const last = $("#langpicker .langchip.btn-primary").last();
+                if (last.length) {
+                    $(this).insertAfter(last);
+                } else {
+                    $(this).prependTo("#langpicker");
+                }
+            }
             $(this).toggleClass("btn-primary", selected).toggleClass("btn-default", !selected)
                 .attr("aria-pressed", selected ? "true" : "false");
             updatePreflang();

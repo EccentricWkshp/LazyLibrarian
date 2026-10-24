@@ -43,6 +43,19 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertFalse(any(lang['selected'] for lang in picker['languages']))
         self.assertEqual(picker['other'], '')
 
+    def test_selected_keep_their_order(self):
+        # the first language is used for the single language settings
+        picker = language_picker('sk, slo, slk, Slovak, cs, cze, ces, Czech, Unknown')
+        selected = [lang for lang in picker['languages'] if lang['selected']]
+        self.assertEqual([lang['name'] for lang in selected], ['Slovak', 'Czech'])
+        self.assertEqual([lang['code'] for lang in selected], ['sk', 'cs'])
+        self.assertEqual([lang['anna'] for lang in selected], ['SK', 'CS'])
+        self.assertEqual([lang['zlib'] for lang in selected], ['slovak', 'czech'])
+
+    def test_anna_unsupported(self):
+        picker = language_picker('Welsh')
+        self.assertEqual(picker['languages'][0]['anna'], '')
+
     def test_order(self):
         # selected first, then the common languages, then the rest by name
         picker = language_picker('Yiddish')

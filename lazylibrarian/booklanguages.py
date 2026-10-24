@@ -80,25 +80,39 @@ COMMON_COUNT = 24  # BOOK_LANGUAGES entries shown without "Show all"
 def language_picker(preflang: str) -> dict:
     """ Split an IMP_PREFLANG value into picker languages and the entries the picker doesn't know.
         A language is selected if any of its codes is in the value. Selected languages are listed
-        first, then the common ones, then the rest sorted by their translated name.
-        Returns {'languages': [{'name', 'label', 'codes', 'selected', 'common'}], 'other': str} """
+        first in the order they appear in the value, as the first one is used where only one
+        language is allowed. Then the common ones, then the rest sorted by their translated name.
+        Each language also carries its value for the other language settings the picker fills in:
+        'code' for magazines, 'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
+        Returns {'languages': [{'name', 'label', 'codes', 'code', 'anna', 'zlib', 'selected', 'common'}],
+                 'other': str} """
+    from lazylibrarian.annas import Language as AnnaLanguage
+
     wanted = [item for item in get_list(preflang, ',') if item]
-    wanted_lower = {item.lower() for item in wanted}
+    position = {}
+    for idx, item in enumerate(wanted):
+        position.setdefault(item.lower(), idx)
     known = set()
     languages = []
     for idx, (name, codes) in enumerate(BOOK_LANGUAGES):
         lower_codes = {code.lower() for code in codes}
         known.update(lower_codes)
+        found = [position[code] for code in lower_codes if code in position]
+        anna = codes[0].upper()
         languages.append({
             'name': name,
             'label': i18n.gettext(name),
             'codes': ', '.join(codes),
-            'selected': bool(lower_codes & wanted_lower),
+            'code': codes[0],
+            'anna': anna if anna in AnnaLanguage.__members__ else '',
+            'zlib': name.lower(),
+            'selected': bool(found),
+            'position': min(found) if found else 0,
             'common': idx < COMMON_COUNT,
         })
     common = [lang for lang in languages if lang['common']]
     rest = sorted((lang for lang in languages if not lang['common']), key=lambda lang: lang['label'].lower())
-    ordered = common + rest
-    ordered = [lang for lang in ordered if lang['selected']] + [lang for lang in ordered if not lang['selected']]
+    selected = sorted((lang for lang in common + rest if lang['selected']), key=lambda lang: lang['position'])
+    ordered = selected + [lang for lang in common + rest if not lang['selected']]
     other = [item for item in wanted if item.lower() not in known]
     return {'languages': ordered, 'other': ', '.join(other)}
