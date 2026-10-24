@@ -1182,6 +1182,19 @@
         });
         $("#imp_preflang_other").on("input", updatePreflang);
 
+        // GoogleBooks countries are sent as codes, show their names in the UI language, sorted by name
+        try {
+            const regions = new Intl.DisplayNames([document.documentElement.lang, "en"], {type: "region"});
+            const select = $("#gb_country");
+            const options = select.find("option").filter(function() { return this.value; });
+            options.each(function() {
+                $(this).text(regions.of(this.value) + " (" + this.value + ")");
+            });
+            options.sort((a, b) => a.text.localeCompare(b.text, document.documentElement.lang)).appendTo(select);
+        } catch (e) {
+            // older browsers keep the codes
+        }
+
         $("#langpicker_more").on("click", function(e) {
             e.preventDefault();
             const label = $(this).find("span");

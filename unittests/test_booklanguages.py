@@ -5,7 +5,13 @@
 
 import unittest
 
-from lazylibrarian.booklanguages import BOOK_LANGUAGES, COMMON_COUNT, language_picker
+from lazylibrarian.booklanguages import (
+    BOOK_LANGUAGES,
+    COMMON_COUNT,
+    GB_COUNTRIES,
+    country_picker,
+    language_picker,
+)
 
 
 class BookLanguagesTest(unittest.TestCase):
@@ -64,3 +70,16 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertEqual(names[1:COMMON_COUNT + 1], [name for name, _ in BOOK_LANGUAGES[:COMMON_COUNT]])
         rest = [lang['label'].lower() for lang in picker['languages'][COMMON_COUNT + 1:]]
         self.assertEqual(rest, sorted(rest))
+
+    def test_countries(self):
+        self.assertEqual(len(GB_COUNTRIES), 249)
+        self.assertEqual(len(set(GB_COUNTRIES)), 249)
+        self.assertEqual(list(GB_COUNTRIES), sorted(GB_COUNTRIES))
+        self.assertTrue(all(len(code) == 2 and code.isupper() for code in GB_COUNTRIES))
+
+    def test_country_picker(self):
+        self.assertEqual(country_picker('sk ')['selected'], 'SK')
+        self.assertEqual(country_picker('')['selected'], '')
+        # GoogleBooks ignored anything but one country, so these stay automatic
+        self.assertEqual(country_picker('SK CZ')['selected'], '')
+        self.assertEqual(country_picker('XX')['selected'], '')

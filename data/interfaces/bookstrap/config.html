@@ -3935,8 +3935,13 @@
                   </div>
                   <div class="form-group">
                     <label for="gb_country" class="control-label">${_('GoogleBooks Country:')}</label>
-                    <input type="text" id="gb_country" name="gb_country" value="${CONFIG['GB_COUNTRY']}" class="form-control">
-                    <span class="help-block">${_('Two letter country code for geographically restricted content e.g: US GB ES')}</span>
+                    <select id="gb_country" name="gb_country" class="form-control">
+                      <option value="">${_('Automatic (where the server is)')}</option>
+                      %for code in config['gb_countries']['countries']:
+                      <option value="${code}"${' selected' if code == config['gb_countries']['selected'] else ''}>${code}</option>
+                      %endfor
+                    </select>
+                    <span class="help-block">${_('Country for geographically restricted content. GoogleBooks takes only one country. It does not limit the book languages.')}</span>
                   </div>
                   <div class="form-group">
                     <label for="pref_maglang" class="control=label">${_('Default language for magazines:')}</label>
