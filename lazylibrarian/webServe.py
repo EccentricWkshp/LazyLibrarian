@@ -67,6 +67,7 @@ from lazylibrarian.auth import (
     require_auth,
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.booklanguages import language_picker
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import (
     add_series_members,
@@ -2338,6 +2339,7 @@ class WebInterface:
             "namevars": testvars,
             "seasons": seasons,
             "months": months,
+            "book_languages": language_picker(CONFIG['IMP_PREFLANG']),
             "updated": time.ctime(CONFIG.get_int('GIT_UPDATED'))
         }
         for itm in CONFIG.config.values():

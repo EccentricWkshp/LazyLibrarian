@@ -3910,12 +3910,26 @@
                 <fieldset>
                   <legend>${_('Language')}</legend>
                   <div class="form-group">
-                    <label for="imp_preflang" class="control-label">${_('Import languages:')}</label>
-                    <input type="text" id="imp_preflang" name="imp_preflang" value="${CONFIG['IMP_PREFLANG']}" class="form-control" placeholder="${_('Import Languages') | h}">
-                    <span class="help-block">${_('Comma separated country shortcodes:')}<br/>
-                      ${_('GoodReads e.g: eng, en-US, spa, ita')}<br/>
-                      ${_('GoogleBooks e.g: en, es, it')}<br/>
-                      ${_('Default: en, eng, en-US')}<br/>
+                    <%
+                        picker = config['book_languages']
+                        hidden_count = len([lang for lang in picker['languages'] if not lang['common'] and not lang['selected']])
+                    %>
+                    <label class="control-label">${_('Import languages:')}</label>
+                    <input type="hidden" id="imp_preflang" name="imp_preflang" value="${CONFIG['IMP_PREFLANG'] | h}">
+                    <div id="langpicker" class="langpicker">
+                      %for lang in picker['languages']:
+                      <button type="button" class="btn ${'btn-primary' if lang['selected'] else 'btn-default'} langchip${'' if lang['common'] or lang['selected'] else ' langchip-more hidden'}"
+                        data-codes="${lang['codes'] | h}" aria-pressed="${'true' if lang['selected'] else 'false'}" title="${lang['codes'] | h}">${lang['label'] | h}</button>
+                      %endfor
+                    </div>
+                    %if hidden_count:
+                    <a href="#" id="langpicker_more" data-less="${_('Show fewer') | h}">
+                      <i class="fa fa-chevron-down"></i> <span>${_('Show all %d options') % len(picker['languages'])}</span></a>
+                    %endif
+                    <span class="help-block">${_('Each language adds all of its codes, hover a language to see them.')}</span>
+                    <label for="imp_preflang_other" class="control-label">${_('Other language codes:')}</label>
+                    <input type="text" id="imp_preflang_other" value="${picker['other'] | h}" class="form-control" placeholder="${_('e.g: Unknown') | h}">
+                    <span class="help-block">${_('Comma separated codes not covered above')}<br/>
                       ${_('Try adding "Unknown" to list if GoodReads is missing results, or "All" if you don\'t want to check for language')}</span>
                   </div>
                   <div class="form-group">
@@ -4171,6 +4185,7 @@
   <script type="text/javascript">
     $(document).ready(function() {
         initThisPage();
+        initLanguagePicker();
     });
 
     function reveal() {

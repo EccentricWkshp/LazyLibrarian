@@ -1133,4 +1133,49 @@
             $("head #theme").attr("href", "https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/" + $(this).val() + "/bootstrap.min.css");
         });
     }
+
+    function initLanguagePicker()
+    {
+        "use strict";
+        // imp_preflang keeps the saved value until the user changes the picker,
+        // so saving other settings doesn't rewrite the language list
+        function updatePreflang() {
+            const codes = [];
+            $("#langpicker .langchip.btn-primary").each(function() {
+                codes.push(...$(this).data("codes").split(","));
+            });
+            codes.push(...$("#imp_preflang_other").val().split(","));
+            const seen = new Set();
+            const unique = codes.map(code => code.trim()).filter(code => {
+                const key = code.toLowerCase();
+                if (!code || seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+            $("#imp_preflang").val(unique.join(", "));
+        }
+
+        $("#langpicker .langchip").on("click", function() {
+            const selected = !$(this).hasClass("btn-primary");
+            $(this).toggleClass("btn-primary", selected).toggleClass("btn-default", !selected)
+                .attr("aria-pressed", selected ? "true" : "false");
+            updatePreflang();
+        });
+        $("#imp_preflang_other").on("input", updatePreflang);
+
+        $("#langpicker_more").on("click", function(e) {
+            e.preventDefault();
+            const label = $(this).find("span");
+            const more = $("#langpicker .langchip-more");
+            const showing = $(this).find("i").hasClass("fa-chevron-down");
+            // languages selected while expanded stay visible
+            more.filter(showing ? "*" : ":not(.btn-primary)").toggleClass("hidden", !showing);
+            const text = label.text();
+            label.text($(this).data("less"));
+            $(this).data("less", text);
+            $(this).find("i").toggleClass("fa-chevron-down", !showing).toggleClass("fa-chevron-up", showing);
+        });
+    }
 </script>

@@ -101,3 +101,10 @@ form label {
 textarea#telemetry_data {
     font-family: monospace;
 }
+.langpicker .langchip {
+    border-radius: 18px;
+    margin: 0 6px 8px 0;
+}
+.langpicker .langchip.btn-primary::before {
+    content: "\2713\00a0";
+}
