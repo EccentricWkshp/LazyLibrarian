@@ -1039,6 +1039,10 @@ class WebInterface:
                     rows = filtered
                 else:
                     rows = filtered[displaystart:(displaystart + displaylength)]
+                # format DateAdded only after sorting, as the display format may not sort as text
+                for row in rows:
+                    row[13] = date_format(row[13], CONFIG['DATE_FORMAT'], context=row[1],
+                                          datelang=CONFIG['DATE_LANG'])
             serversidelogger.debug(f"get_index returning {displaystart} to {displaystart + displaylength}")
             serversidelogger.debug(f"get_index filtered {len(filtered)} from {len(rowlist)}:{len(rows)}")
         except Exception:

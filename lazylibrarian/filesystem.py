@@ -209,6 +209,8 @@ def syspath(path: str | bytes, prefix: bool = True) -> str:
         # Don't affect relative paths
         # Add the magic prefix if it isn't already there.
         # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx
+        # The prefix turns off path normalisation, so forward slashes are no longer separators
+        path = path.replace('/', '\\')
         if path.startswith('\\\\'):
             # UNC path. Final path should look like \\?\UNC\...
             path = f"UNC{path[1:]}"
