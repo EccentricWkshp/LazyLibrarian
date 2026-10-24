@@ -3927,7 +3927,7 @@
                       <i class="fa fa-chevron-down"></i> <span>${_('Show all %d options') % len(picker['languages'])}</span></a>
                     %endif
                     <span class="help-block">${_('Each language adds all of its codes, hover a language to see them.')}<br/>
-                      ${_('The languages also fill in the magazine, Annas Archive and Z-Library languages below. Where only one language is allowed, the first selected one (marked with ★) is used.')}</span>
+                      ${_('The languages also fill in the magazine, Annas Archive and Z-Library languages below. The magazine language takes only one, the first selected one (marked with ★).')}</span>
                     <label for="imp_preflang_other" class="control-label">${_('Other language codes:')}</label>
                     <input type="text" id="imp_preflang_other" value="${picker['other'] | h}" class="form-control" placeholder="${_('e.g: Unknown') | h}">
                     <span class="help-block">${_('Comma separated codes not covered above')}<br/>
@@ -3951,10 +3951,10 @@
                       ${_('Filled in from the first selected language')}</span>
                   </div>
                   <div class="form-group">
-                    <label for="anna_search_lang" class="control=label">${_('Annas Archive Search Language:')}</label>
-                    <input type="text" placeholder="${_('eg EN or DE') | h}" id="anna_search_lang" name="anna_search_lang" value="${CONFIG['ANNA_SEARCH_LANG']}" class="form-control">
-                    <span class="help-block">${_('Single language code for Annas Archive:')}<br/>${_('e.g: EN or DE or ANY')}<br/>
-                      ${_('Filled in from the first selected language')}</span>
+                    <label for="anna_search_lang" class="control=label">${_('Annas Archive Search Languages:')}</label>
+                    <input type="text" placeholder="${_('eg EN, DE') | h}" id="anna_search_lang" name="anna_search_lang" value="${CONFIG['ANNA_SEARCH_LANG']}" class="form-control">
+                    <span class="help-block">${_('Comma separated language codes for Annas Archive:')}<br/>${_('e.g: EN, DE or ANY')}<br/>
+                      ${_('Filled in from the selected languages')}</span>
                   </div>
                   <div class="form-group">
                     <label for="bok_search_lang" class="control=label">${_('Z-Library Search Languages:')}</label>

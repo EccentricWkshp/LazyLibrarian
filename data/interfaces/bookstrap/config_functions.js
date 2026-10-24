@@ -1160,7 +1160,8 @@
             const chips = $("#langpicker .langchip.btn-primary");
             if (chips.length) {
                 $("#pref_maglang").val(chips.first().data("code"));
-                $("#anna_search_lang").val(chips.first().data("anna") || "ANY");
+                const anna = chips.map(function() { return $(this).data("anna"); }).get().filter(code => code);
+                $("#anna_search_lang").val(anna.length ? anna.join(", ") : "ANY");
                 $("#bok_search_lang").val(chips.map(function() { return $(this).data("zlib"); }).get().join(", "));
             }
         }

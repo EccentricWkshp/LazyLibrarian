@@ -223,7 +223,8 @@ def html_parser(url: str, params: dict = None) -> BeautifulSoup:
         params = {}
     params = dict(filter(lambda i: i[1], params.items()))
     if params:
-        url = f"{url}?{urlencode(params)}"
+        # a list value is sent as a repeated parameter, eg lang=en&lang=de
+        url = f"{url}?{urlencode(params, doseq=True)}"
     response = ANNAS_SESSION.get(url)
     if response.status_code >= 400:
         uri = urlparse(url)
@@ -249,9 +250,22 @@ def annas_hosts_update():
     CONFIG['ANNA_HOST'] = ','.join(annas_hosts)
 
 
+def anna_languages(value: str) -> list[Language]:
+    """ The Anna's Archive languages in a comma separated ANNA_SEARCH_LANG value, unknown codes
+        are skipped. An empty list searches all languages, as does ANY anywhere in the value """
+    codes = [code.strip().upper() for code in get_list(value, ',')]
+    if 'ANY' in codes:
+        return []
+    languages = []
+    for code in codes:
+        if code in Language.__members__ and Language[code] not in languages:
+            languages.append(Language[code])
+    return languages
+
+
 def annas_search(
     query: str,
-    language: Language = Language.ANY,
+    languages: list[Language] | None = None,
     file_type: FileType = FileType.ANY,
     order_by: OrderBy = OrderBy.MOST_RELEVANT,
 ) -> str | None:
@@ -261,7 +275,7 @@ def annas_search(
         raise ValueError("query can not be empty")
     params = {
         "q": query,
-        "lang": language.value,
+        "lang": [language.value for language in languages or []],
         "ext": file_type.value,
         "sort": order_by.value,
     }
@@ -502,11 +516,7 @@ def annas_download(md5, folder, title, extn, domain_index=0):
 def anna_search(book=None, searchtype='ebook', test=False):
     logger = logging.getLogger(__name__)
     provider = "annas"
-    lang = CONFIG['ANNA_SEARCH_LANG'].split(',')[0].strip().upper()
-    if lang and lang in Language.__members__:
-        language = Language[lang]
-    else:
-        language = Language.ANY
+    languages = anna_languages(CONFIG['ANNA_SEARCH_LANG'])
 
     if BLOCKHANDLER.is_blocked(provider):
         if test:
@@ -545,9 +555,9 @@ def anna_search(book=None, searchtype='ebook', test=False):
             cachelogger.debug(f"CacheHandler: Found CACHED response {hashfilename} for {book['searchterm']}")
         else:
             lazylibrarian.CACHE_MISS = int(lazylibrarian.CACHE_MISS) + 1
-            hashfilename = annas_search(book['searchterm'], language=language)
+            hashfilename = annas_search(book['searchterm'], languages=languages)
     else:
-        hashfilename = annas_search(book['searchterm'], language=language)
+        hashfilename = annas_search(book['searchterm'], languages=languages)
 
     if not hashfilename:
         return [], ''

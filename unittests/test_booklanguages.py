@@ -5,6 +5,7 @@
 
 import unittest
 
+from lazylibrarian.annas import Language, anna_languages
 from lazylibrarian.booklanguages import (
     BOOK_LANGUAGES,
     COMMON_COUNT,
@@ -61,6 +62,15 @@ class BookLanguagesTest(unittest.TestCase):
     def test_anna_unsupported(self):
         picker = language_picker('Welsh')
         self.assertEqual(picker['languages'][0]['anna'], '')
+
+    def test_anna_languages(self):
+        # the picker fills in several languages, older configs have a single one
+        self.assertEqual(anna_languages('SK, CS'), [Language.SK, Language.CS])
+        self.assertEqual(anna_languages('de'), [Language.DE])
+        self.assertEqual(anna_languages('EN, XX, en'), [Language.EN])
+        self.assertEqual(anna_languages('ANY'), [])
+        self.assertEqual(anna_languages('EN, ANY'), [])
+        self.assertEqual(anna_languages(''), [])
 
     def test_order(self):
         # selected first, then the common languages, then the rest by name

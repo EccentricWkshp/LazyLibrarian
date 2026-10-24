@@ -80,8 +80,8 @@ COMMON_COUNT = 24  # BOOK_LANGUAGES entries shown without "Show all"
 def language_picker(preflang: str) -> dict:
     """ Split an IMP_PREFLANG value into picker languages and the entries the picker doesn't know.
         A language is selected if any of its codes is in the value. Selected languages are listed
-        first in the order they appear in the value, as the first one is used where only one
-        language is allowed. Then the common ones, then the rest sorted by their translated name.
+        first in the order they appear in the value, as the first one is used for the magazine
+        language, which allows only one. Then the common ones, then the rest sorted by their translated name.
         Each language also carries its value for the other language settings the picker fills in:
         'code' for magazines, 'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
         Returns {'languages': [{'name', 'label', 'codes', 'code', 'anna', 'zlib', 'selected', 'common'}],
