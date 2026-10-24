@@ -2562,14 +2562,14 @@
                   <div class="form-group">
                     <label for="ebook_dest_folder">${_('eBook Foldername Pattern:')}</label>
                     <input type="text" id="ebook_dest_folder" name="ebook_dest_folder" value="${CONFIG['EBOOK_DEST_FOLDER']}" class="form-control" placeholder="${_('eBook Destination Folder') | h}">
-                    <span class="help-block">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
+                    <span class="help-block help-keep">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
                       <strong>${_('Current limitation: Each title has to be in unique subfolder')}</strong></span>
                     <small>${_('Example:')}  <mark>${config['namevars']['FolderName']}</mark></small>
                   </div>
                   <div class="form-group">
                     <label for="ebook_dest_file">${_('eBook Filename Pattern:')}</label>
                     <input type="text" id="ebook_dest_file" name="ebook_dest_file" value="${CONFIG['EBOOK_DEST_FILE']}" class="form-control" placeholder="${_('eBook Destination File') | h}">
-                    <span class="help-block">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
+                    <span class="help-block help-keep">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
                       <strong>${_('Current limitation: Each title has to be in unique subfolder')}</strong></span>
                       <small>${_('Example:')}  <mark>${config['namevars']['BookFile']}</mark></small>
                   </div>
@@ -2577,21 +2577,21 @@
                   <div class="form-group">
                     <label for="audiobook_dest_folder">${_('AudioBook Foldername Pattern:')}</label>
                     <input type="text" id="audiobook_dest_folder" name="audiobook_dest_folder" value="${CONFIG['AUDIOBOOK_DEST_FOLDER']}" class="form-control" placeholder="${_('AudioBook Destination Folder') | h}">
-                    <span class="help-block">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
+                    <span class="help-block help-keep">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $$, any string.')}<br/>
                       <strong>${_('Current limitation: Each title has to be in unique subfolder')}</strong></span>
                     <small>${_('Example:')}  <mark>${config['namevars']['AudioFolderName']}</mark></small>
                   </div>
                   <div class="form-group">
                     <label for="audiobook_dest_file">${_('AudioBook Filename Pattern:')}</label>
                     <input type="text" id="audiobook_dest_file" name="audiobook_dest_file" value="${CONFIG['AUDIOBOOK_DEST_FILE']}" class="form-control" placeholder="${_('audioBook Destination File') | h}">
-                    <span class="help-block">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $Part, $Total, $$, any string.')}<br/>
+                    <span class="help-block help-keep">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged, $Part, $Total, $$, any string.')}<br/>
                       <strong>${_('Current limitation: Has to include $Title or $SortTitle and $Part')}</strong></span>
                       <small>${_('Example:')}  <mark>${config['namevars']['AudioFile']}</mark></small>
                   </div>
                   <div class="form-group">
                     <label for="audiobook_single_file">${_('AudioBook Filename Pattern for single file:')}</label>
                     <input type="text" id="audiobook_single_file" name="audiobook_single_file" value="${CONFIG['AUDIOBOOK_SINGLE_FILE']}" class="form-control" placeholder="${_('Single file audioBook') | h}">
-                    <span class="help-block">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged $$, any string.')}<br/>
+                    <span class="help-block help-keep">${_('Options: $Author, $SortAuthor, $Title, $SortTitle, $Language, $Series, $SerName, $SerNum, $FmtName, $FmtNum, $PadNum, $PubYear, $SerYear, $Abridged $$, any string.')}<br/>
                       <strong>${_('Current limitation: Has to include $Title or $SortTitle')}</strong></span>
                       <small>${_('Example:')}  <mark>${config['namevars']['AudioSingleFile']}</mark></small>
                   </div>
@@ -2612,7 +2612,7 @@
                   <div class="form-group">
                     <label for="mag_dest_folder">${_('Magazine Foldername Pattern:')}</label>
                     <input type="text" id="mag_dest_folder" name="mag_dest_folder" value="${CONFIG['MAG_DEST_FOLDER']}" class="form-control" placeholder="${_('Magazines Destination Folder') | h}">
-                    <span class="help-block">${_('Absolute path, or inside book folder. Options: $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay, any string')}
+                    <span class="help-block help-keep">${_('Absolute path, or inside book folder. Options: $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay, any string')}
                       <BR><strong>${_('All options are discretionary but Title is recommended unless included in Filename to prevent issue name collisions')}</strong></span>
                   </div>
                   <div class="checkbox">
@@ -2630,7 +2630,7 @@
                   <div class="form-group">
                     <label for="mag_dest_file">${_('Magazine Filename Pattern:')}</label>
                     <input type="text" id="mag_dest_file" name="mag_dest_file" value="${CONFIG['MAG_DEST_FILE']}" class="form-control" placeholder="${_('Magazine Issue Filename') | h}">
-                    <span class="help-block">${_('Options: $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay, any string')}
+                    <span class="help-block help-keep">${_('Options: $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay, any string')}
                       <BR><strong>${_('Current limitation: Filename must contain IssueDate, or IssueYear and one of IssueNum/IssueMonth/IssueMNum')}</strong></span>
                   </div>
                   %endif
@@ -2638,7 +2638,7 @@
                   <div class="form-group">
                     <label for="comic_dest_folder">${_('Comic Foldername Pattern:')}</label>
                     <input type="text" id="comic_dest_folder" name="comic_dest_folder" value="${CONFIG['COMIC_DEST_FOLDER']}" class="form-control" placeholder="${_('Comics Destination Folder') | h}">
-                    <span class="help-block">${_('Absolute path, or inside book folder')}<br>${_('Options: $Title, $Issue, $Publisher, any string')}</span>
+                    <span class="help-block help-keep">${_('Absolute path, or inside book folder')}<br>${_('Options: $Title, $Issue, $Publisher, any string')}</span>
                   </div>
                   <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['COMIC_RELATIVE'] else '' %>
@@ -2678,7 +2678,7 @@
                   <div class="form-group">
                     <label for="alternate_dir" class="control-label">${_('Alternate Import/Export Folder:')}</label>
                     <input type="text" id="alternate_dir" name="alternate_dir" value="${CONFIG['ALTERNATE_DIR']}" class="form-control" placeholder="${_('Alternate Directory') | h}">
-                    <span class="help-block">${_('Directory for wishlists and manually importing books')}<br>
+                    <span class="help-block help-keep">${_('Directory for wishlists and manually importing books')}<br>
                       <strong>${_('If "keep original files" is not set, LazyLibrarian can delete this folder after import')}</strong></span>
                   </div>
                   <legend>${_('Permissions')}</legend>
@@ -3969,7 +3969,7 @@
                       %endfor
                     </select>
                   </div>
-                  <span class="help-block">${_('$d Day of the month as a number')}<br>${_('$D Day of the month as a number if not 01')}<br>${_('$b Month as abbreviated name')}<br>${_('$B Month as full name')}<br>${_('$m Month as a number')}<br>${_('$y Year without century')}<br>${_('$Y Year with century')}<br>eg $Y-$m-$d</span>
+                  <span class="help-block help-keep">${_('$d Day of the month as a number')}<br>${_('$D Day of the month as a number if not 01')}<br>${_('$b Month as abbreviated name')}<br>${_('$B Month as full name')}<br>${_('$m Month as a number')}<br>${_('$y Year without century')}<br>${_('$Y Year with century')}<br>eg $Y-$m-$d</span>
                 </fieldset>
                   <legend>${_('Name Formatting')}</legend>
                   <div class="form-group">
