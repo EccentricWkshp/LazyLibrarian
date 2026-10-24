@@ -130,11 +130,14 @@ from lazylibrarian.filesystem import (
     syspath,
 )
 from lazylibrarian.formatter import (
+    DISPLAY_DATE_FORMATS,
+    ISSUE_DATE_FORMATS,
     check_float,
     check_int,
     check_year,
     clean_name,
     date_format,
+    date_format_picker,
     format_author_name,
     get_list,
     make_unicode,
@@ -2348,6 +2351,10 @@ class WebInterface:
             "book_languages": language_picker(CONFIG['IMP_PREFLANG']),
             "gb_countries": country_picker(CONFIG['GB_COUNTRY']),
             "mag_languages": magazine_language_picker(CONFIG['PREF_MAGLANG']),
+            "author_date_formats": date_format_picker(CONFIG['AUTHOR_DATE_FORMAT'], DISPLAY_DATE_FORMATS,
+                                                      CONFIG['DATE_LANG']),
+            "date_formats": date_format_picker(CONFIG['DATE_FORMAT'], DISPLAY_DATE_FORMATS, CONFIG['DATE_LANG']),
+            "iss_formats": date_format_picker(CONFIG['ISS_FORMAT'], ISSUE_DATE_FORMATS, CONFIG['DATE_LANG']),
             "anna_auto": anna_search_languages('', CONFIG['IMP_PREFLANG']),
             "zlib_auto": zlib_search_languages('', CONFIG['IMP_PREFLANG']),
             "updated": time.ctime(CONFIG.get_int('GIT_UPDATED'))

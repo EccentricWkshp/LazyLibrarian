@@ -324,6 +324,25 @@ class FormatterTest(LLTestCaseWithStartup):
         for d in dates:
             self.assertEqual(formatter.date_format(d[0]), d[1])
 
+    def test_date_format_picker(self):
+        picker = formatter.date_format_picker('$d.$m.$Y', formatter.DISPLAY_DATE_FORMATS)
+        self.assertEqual(picker['selected'], '$d.$m.$Y')
+        self.assertIsNone(picker['other'])
+        self.assertEqual(len(picker['formats']), len(formatter.DISPLAY_DATE_FORMATS))
+        examples = {fmt['format']: fmt['example'] for fmt in picker['formats']}
+        self.assertEqual(examples['$d.$m.$Y'], '31.12.2026')
+        self.assertEqual(examples['$m/$d/$Y'], '12/31/2026')
+
+    def test_date_format_picker_keeps_unknown_format(self):
+        # A hand written format must survive saving the config page unchanged
+        picker = formatter.date_format_picker('$y$m$d', formatter.DISPLAY_DATE_FORMATS)
+        self.assertEqual(picker['other'], {'format': '$y$m$d', 'example': '261231'})
+        self.assertEqual(picker['selected'], '$y$m$d')
+
+    def test_issue_formats_include_display_formats(self):
+        for fmt in formatter.DISPLAY_DATE_FORMATS:
+            self.assertIn(fmt, formatter.ISSUE_DATE_FORMATS)
+
     def test_versiontuple(self):
         versions = [
             ("1.2", (1, 2, 0)),

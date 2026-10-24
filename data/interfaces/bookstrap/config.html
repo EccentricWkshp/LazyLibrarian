@@ -632,6 +632,32 @@
                         ${_('Ignore paused authors')}</label>
                       </div>
                   </fieldset>
+                  <fieldset>
+                    <legend>${_('Display Date Formats')}</legend>
+                    <%
+                      date_selects = [('author_date_format', _('Author Dates:'), config['author_date_formats'],
+                                       _('Author born and died dates, and release dates on the book page.')),
+                                      ('date_format', _('Added Dates:'), config['date_formats'],
+                                       _('The Added column of the author, book, magazine and comic lists, and the history.')),
+                                      ('iss_format', _('Issue Dates:'), config['iss_formats'],
+                                       _('Magazine and comic issue dates.'))]
+                    %>
+                    %for name, label, picker, help in date_selects:
+                    <div class="form-group">
+                      <label for="${name}" class="control-label">${label}</label>
+                      <select id="${name}" name="${name}" class="form-control">
+                        %if picker['other'] is not None:
+                        <option value="${picker['other']['format'] | h}" selected>${picker['other']['example'] | h} (${picker['other']['format'] | h})</option>
+                        %endif
+                        %for fmt in picker['formats']:
+                        <option value="${fmt['format'] | h}"${' selected' if fmt['format'] == picker['selected'] else ''}>${fmt['example'] | h} (${fmt['format'] | h})</option>
+                        %endfor
+                      </select>
+                      <span class="help-block">${help}</span>
+                    </div>
+                    %endfor
+                    <span class="help-block">${_('Month names follow the Date Language in the Languages tab.')}</span>
+                  </fieldset>
                 </div>
               </div>
             </div>
@@ -3979,29 +4005,16 @@
                       <span class="help-block">${_('Re-evaluates book languages across the database using title, description, and smart language heuristics. Corrects false-positive foreign assignments on English titles (e.g. English titles misclassified as German/French/Spanish), normalizes English dialects (e.g. en-CA), resolves "Unknown" entries, and automatically restores books that were falsely ignored due to incorrect language detection. Runs safely in the background.')}</span>
                     </div>
                   </div>
-                  <legend>${_('Display Date Formats')}</legend>
                    <div class="form-group">
-                    <label for="date_format" class="control=label">${_('Author Dates:')}</label>
-                    <input type="text" id="author_date_format" name="author_date_format" value="${CONFIG['AUTHOR_DATE_FORMAT']}" class="form-control" placeholder="${_('Format for author born/died dates (where available)') | h}">
-                   </div>
-                   <div class="form-group">
-                    <label for="date_format" class="control=label">${_('Added Dates:')}</label>
-                    <input type="text" id="date_format" name="date_format" value="${CONFIG['DATE_FORMAT']}" class="form-control" placeholder="${_('Format for column dates') | h}">
-                   </div>
-                   <div class="form-group">
-                    <label for="iss_format" class="control=label">${_('Issue Dates:')}</label>
-                    <input type="text" id="iss_format" name="iss_format" value="${CONFIG['ISS_FORMAT']}" class="form-control" placeholder="${_('Format for issue dates') | h}">
-                   </div>
-                   <div class="form-group">
-                    <label for="date_lang" class="control=label">${_('Date Language:')}</label>
+                    <label for="date_lang" class="control-label">${_('Date Language:')}</label>
                     <select id="date_lang" name="date_lang" class="form-control">
                       %for date_lang in list(dict.fromkeys(lazylibrarian.MONTHNAMES[0][0])):
                         <% selected = 'selected="selected"' if date_lang == CONFIG['DATE_LANG'] else '' %>
                         <option value="${date_lang}" ${selected}>${date_lang}</option>
                       %endfor
                     </select>
+                    <span class="help-block">${_('The language of month names, both when reading magazine dates and when showing dates with a month name. The date formats are under Interface.')}</span>
                   </div>
-                  <span class="help-block">${_('$d Day of the month as a number')}<br>${_('$D Day of the month as a number if not 01')}<br>${_('$b Month as abbreviated name')}<br>${_('$B Month as full name')}<br>${_('$m Month as a number')}<br>${_('$y Year without century')}<br>${_('$Y Year with century')}<br>eg $Y-$m-$d</span>
                 </fieldset>
                   <legend>${_('Name Formatting')}</legend>
                   <div class="form-group">
