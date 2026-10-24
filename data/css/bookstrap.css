@@ -108,3 +108,11 @@ textarea#telemetry_data {
 .langpicker .langchip.btn-primary::before {
     content: "\2713\00a0";
 }
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    column-gap: 16px;
+}
+.checkbox-grid .checkbox {
+    margin: 0 0 4px 0;
+}

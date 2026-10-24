@@ -65,6 +65,119 @@
               <div class="row">
                 <div class="col-md-6">
                   <fieldset>
+                    <legend>${_('Appearance')}</legend>
+                    <div class="form-group">
+                      <label for="homepage">${_('Homepage:')}</label>
+                      <select id="homepage" name="homepage" class="form-control">
+                        <%
+                          homepages = [('Authors', _('Authors')), ('eBooks', _('eBooks')), ('Series', _('Series')),
+                                       ('AudioBooks', _('AudioBooks')), ('Magazines', _('Magazines')),
+                                       ('Comics', _('Comics'))]
+                        %>
+                        %for page, page_label in homepages:
+                        <% selected = 'selected="selected"' if CONFIG['HOMEPAGE'] == page else '' %>
+                        <option value="${page}" ${selected}>${page_label}</option>
+                        %endfor
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="ui_language">${_('Interface language:')}</label>
+                      <select id="ui_language" name="ui_language" class="form-control">
+                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == 'auto' else '' %>
+                        <option value="auto" ${selected}>${_('Automatic (browser language)')}</option>
+                        %for lang in i18n.available_languages():
+                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == lang else '' %>
+                        <option value="${lang}" ${selected}>${i18n.language_name(lang)} (${lang})</option>
+                        %endfor
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="http_look">${_('Interface:')}</label>
+                      <select id="http_look" name="http_look" class="form-control">
+                        %for http_look in config['http_look_list']:
+                        <% selected = 'selected="selected"' if http_look == CONFIG['HTTP_LOOK'] else '' %>
+                        <option value="${http_look}" ${selected}>${http_look}</option>
+                        %endfor
+                      </select>
+                    </div>
+                    <div class="checkbox hidden"> <!-- Not really required? -->
+                      <% checked = 'checked="checked"' if CONFIG['HTTP_LOOK'] == 'bookstrap' else '' %>
+                      <label for="bookstrap" class="control-label">
+                        <input type="checkbox" name="use_bookstrap" id="bookstrap" value="1" ${checked} />
+                        ${_('Use Bookstrap')}</label>
+                    </div>
+                    <fieldset id="bookstrap_options">
+                      <div class="form_group">
+                        <label for="bookstrap_theme" class="control-label">${_('Bootswatch Theme:')}</label>
+                        <select name="bookstrap_theme" id="bookstrap_theme" class="form-control">
+                          %for bookstrap_theme in lazylibrarian.BOOKSTRAP_THEMELIST:
+                          <% selected = 'selected="selected"' if bookstrap_theme == CONFIG['BOOKSTRAP_THEME'] else '' %>
+                          <option value="${bookstrap_theme}" ${selected}>${bookstrap_theme}</option>
+                          %endfor
+                        </select>
+                      </div>
+                    </fieldset>
+                    <%
+                      appearance_groups = [
+                        (_('Show in the menu:'), [('ebook_tab', 'EBOOK_TAB', _('Show eBooks')),
+                                                  ('audio_tab', 'AUDIO_TAB', _('Show AudioBooks')),
+                                                  ('mag_tab', 'MAG_TAB', _('Show Magazines')),
+                                                  ('comic_tab', 'COMIC_TAB', _('Show Comics')),
+                                                  ('series_tab', 'SERIES_TAB', _('Show Series'))]),
+                        (_('Lists:'), [('ratestars', 'RATESTARS', _('Show rating as stars')),
+                                       ('toggles', 'TOGGLES', _('Show column toggles')),
+                                       ('show_genres', 'SHOW_GENRES', _('Show genres')),
+                                       ('show_reason', 'SHOW_REASON', _('Show reason author was added')),
+                                       ('sort_surname', 'SORT_SURNAME', _('Show author surname first')),
+                                       ('sort_definite', 'SORT_DEFINITE', _('Show titles ignoring article (The, A)')),
+                                       ('ignore_paused', 'IGNORE_PAUSED', _('Ignore paused authors'))]),
+                      ]
+                      if APPRISE_VER and APPRISE_VER[0].isdigit():
+                          appearance_groups.append((_('Settings page:'), [('hide_old_notifiers', 'HIDE_OLD_NOTIFIERS',
+                                                                           _('Hide old notifiers'))]))
+                    %>
+                    %for group_label, boxes in appearance_groups:
+                    <div class="form-group">
+                      <label class="control-label">${group_label}</label>
+                      <div class="checkbox-grid">
+                        %for name, key, box_label in boxes:
+                        <div class="checkbox">
+                          <label for="${name}">
+                            <input type="checkbox" id="${name}" name="${name}" value="1"${' checked="checked"' if CONFIG[key] else ''} />
+                            ${box_label}</label>
+                        </div>
+                        %endfor
+                      </div>
+                    </div>
+                    %endfor
+                  </fieldset>
+                  <fieldset>
+                    <legend>${_('Display Date Formats')}</legend>
+                    <%
+                      date_selects = [('author_date_format', _('Author Dates:'), config['author_date_formats'],
+                                       _('Author born and died dates, and release dates on the book page.')),
+                                      ('date_format', _('Added Dates:'), config['date_formats'],
+                                       _('The Added column of the author, book, magazine and comic lists, and the history.')),
+                                      ('iss_format', _('Issue Dates:'), config['iss_formats'],
+                                       _('Magazine and comic issue dates.'))]
+                    %>
+                    %for name, label, picker, help in date_selects:
+                    <div class="form-group">
+                      <label for="${name}" class="control-label">${label}</label>
+                      <select id="${name}" name="${name}" class="form-control">
+                        %if picker['other'] is not None:
+                        <option value="${picker['other']['format'] | h}" selected>${picker['other']['example'] | h} (${picker['other']['format'] | h})</option>
+                        %endif
+                        %for fmt in picker['formats']:
+                        <option value="${fmt['format'] | h}"${' selected' if fmt['format'] == picker['selected'] else ''}>${fmt['example'] | h} (${fmt['format'] | h})</option>
+                        %endfor
+                      </select>
+                      <span class="help-block">${help}</span>
+                    </div>
+                    %endfor
+                    <span class="help-block">${_('Month names follow the Date Language in the Languages tab.')}</span>
+                  </fieldset>
+                  <fieldset>
                     <legend>${_('Server Details')}</legend>
                     <input type="text" id="config_tab_num" name="config_tab_num" value="${CONFIG['CONFIG_TAB_NUM']}" class="hidden">
                     <div class="input-group">
@@ -487,176 +600,6 @@
                         <small>${_('Current API Read-Only key:')} <strong>${CONFIG['API_RO_KEY']}</strong></small>
                       </div>
                     </fieldset>
-                  </fieldset>
-                  <fieldset>
-                    <legend>${_('Appearance')}</legend>
-                    <div class="form-group">
-                      <label for="homepage">${_('Homepage:')}</label>
-                      <select id="homepage" name="homepage" class="form-control">
-                        <%
-                          homepages = [('Authors', _('Authors')), ('eBooks', _('eBooks')), ('Series', _('Series')),
-                                       ('AudioBooks', _('AudioBooks')), ('Magazines', _('Magazines')),
-                                       ('Comics', _('Comics'))]
-                        %>
-                        %for page, page_label in homepages:
-                        <% selected = 'selected="selected"' if CONFIG['HOMEPAGE'] == page else '' %>
-                        <option value="${page}" ${selected}>${page_label}</option>
-                        %endfor
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label for="ui_language">${_('Interface language:')}</label>
-                      <select id="ui_language" name="ui_language" class="form-control">
-                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == 'auto' else '' %>
-                        <option value="auto" ${selected}>${_('Automatic (browser language)')}</option>
-                        %for lang in i18n.available_languages():
-                        <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == lang else '' %>
-                        <option value="${lang}" ${selected}>${i18n.language_name(lang)} (${lang})</option>
-                        %endfor
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label for="http_look">${_('Interface:')}</label>
-                      <select id="http_look" name="http_look" class="form-control">
-                        %for http_look in config['http_look_list']:
-                        <% selected = 'selected="selected"' if http_look == CONFIG['HTTP_LOOK'] else '' %>
-                        <option value="${http_look}" ${selected}>${http_look}</option>
-                        %endfor
-                      </select>
-                    </div>
-                    <div class="checkbox hidden"> <!-- Not really required? -->
-                      <label for="bookstrap" class="control-label">
-                        <input type="checkbox" name="use_bookstrap" id="bookstrap" value="1" ${checked} />
-                        ${_('Use Bookstrap')}</label>
-                    </div>
-                    <fieldset id="bookstrap_options">
-                      <div class="form_group">
-                        <label for="bookstrap_theme" class="control-label">${_('Bootswatch Theme:')}</label>
-                        <select name="bookstrap_theme" id="bookstrap_theme" class="form-control">
-                          %for bookstrap_theme in lazylibrarian.BOOKSTRAP_THEMELIST:
-                          <% selected = 'selected="selected"' if bookstrap_theme == CONFIG['BOOKSTRAP_THEME'] else '' %>
-                          <option value="${bookstrap_theme}" ${selected}>${bookstrap_theme}</option>
-                          %endfor
-                        </select>
-                      </div>
-                    </fieldset>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['EBOOK_TAB'] else '' %>
-                        <label for="ebook_tab" class="control-label">
-                          <input type="checkbox" id="ebook_tab" name="ebook_tab" value="1" ${checked} />
-                          ${_('Show eBooks')}</label>
-                      </div>
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['AUDIO_TAB'] else '' %>
-                        <label for="audio_tab" class="control-label">
-                          <input type="checkbox" id="audio_tab" name="audio_tab" value="1" ${checked} />
-                          ${_('Show AudioBooks')}</label>
-                      </div>
-                    </div>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['MAG_TAB'] else '' %>
-                        <label for="mag_tab" class="control-label">
-                          <input type="checkbox" id="mag_tab" name="mag_tab" value="1" ${checked} />
-                          ${_('Show Magazines')}</label>
-                      </div>
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['COMIC_TAB'] else '' %>
-                        <label for="comic_tab" class="control-label">
-                          <input type="checkbox" id="comic_tab" name="comic_tab" value="1" ${checked} />
-                          ${_('Show Comics')}</label>
-                      </div>
-                    </div>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['SERIES_TAB'] else '' %>
-                        <label for="series_tab" class="control-label">
-                          <input type="checkbox" id="series_tab" name="series_tab" value="1" ${checked} />
-                          ${_('Show Series')}</label>
-                      </div>
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['RATESTARS'] else '' %>
-                        <label for="ratestars" class="control-label">
-                          <input type="checkbox" id="ratestars" name="ratestars" value="1" ${checked} />
-                          ${_('Show rating as stars')}</label>
-                      </div>
-                    </div>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['TOGGLES'] else '' %>
-                        <label for="toggles" class="control-label">
-                          <input type="checkbox" id="toggles" name="toggles" value="1" ${checked} />
-                          ${_('Show column toggles')}</label>
-                      </div>
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['SORT_SURNAME'] else '' %>
-                        <label for="sort_surname" class="control-label">
-                          <input type="checkbox" id="sort_surname" name="sort_surname" value="1" ${checked} />
-                          ${_('Show author surname first')}</label>
-                      </div>
-                    </div>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['SHOW_GENRES'] else '' %>
-                        <label for="show_genres" class="control-label">
-                          <input type="checkbox" id="show_genres" name="show_genres" value="1" ${checked} />
-                          ${_('Show genres')}</label>
-                      </div>
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['SHOW_REASON'] else '' %>
-                        <label for="show_reason" class="control-label">
-                          <input type="checkbox" id="show_reason" name="show_reason" value="1" ${checked} />
-                          ${_('Show reason author was added')}</label>
-                      </div>
-                    </div>
-                    <div class="row checkbox">
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['SORT_DEFINITE'] else '' %>
-                        <label for="sort_definite" class="control-label">
-                        <input type="checkbox" id="sort_definite" name="sort_definite" value="1" ${checked} />
-                        ${_('Show titles ignoring article (The, A)')}</label>
-                      </div>
-                      %if APPRISE_VER and APPRISE_VER[0].isdigit():
-                      <div class="col-md-6">
-                        <% checked = 'checked="checked"' if CONFIG['HIDE_OLD_NOTIFIERS'] else '' %>
-                        <label for="hide_old_notifiers" class="control-label">
-                          <input type="checkbox" id="hide_old_notifiers" name="hide_old_notifiers" value="1" ${checked} />
-                          ${_('Hide old notifiers')}</label>
-                      </div>
-                    %endif
-                      <div class="col-md-12">
-                      <% checked = 'checked="checked"' if CONFIG['IGNORE_PAUSED'] else '' %>
-                      <label for="ignore_paused" class="control-label">
-                        <input type="checkbox" id="ignore_paused" name="ignore_paused" value="1" ${checked} />
-                        ${_('Ignore paused authors')}</label>
-                      </div>
-                  </fieldset>
-                  <fieldset>
-                    <legend>${_('Display Date Formats')}</legend>
-                    <%
-                      date_selects = [('author_date_format', _('Author Dates:'), config['author_date_formats'],
-                                       _('Author born and died dates, and release dates on the book page.')),
-                                      ('date_format', _('Added Dates:'), config['date_formats'],
-                                       _('The Added column of the author, book, magazine and comic lists, and the history.')),
-                                      ('iss_format', _('Issue Dates:'), config['iss_formats'],
-                                       _('Magazine and comic issue dates.'))]
-                    %>
-                    %for name, label, picker, help in date_selects:
-                    <div class="form-group">
-                      <label for="${name}" class="control-label">${label}</label>
-                      <select id="${name}" name="${name}" class="form-control">
-                        %if picker['other'] is not None:
-                        <option value="${picker['other']['format'] | h}" selected>${picker['other']['example'] | h} (${picker['other']['format'] | h})</option>
-                        %endif
-                        %for fmt in picker['formats']:
-                        <option value="${fmt['format'] | h}"${' selected' if fmt['format'] == picker['selected'] else ''}>${fmt['example'] | h} (${fmt['format'] | h})</option>
-                        %endfor
-                      </select>
-                      <span class="help-block">${help}</span>
-                    </div>
-                    %endfor
-                    <span class="help-block">${_('Month names follow the Date Language in the Languages tab.')}</span>
                   </fieldset>
                 </div>
               </div>
