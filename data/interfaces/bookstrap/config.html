@@ -67,20 +67,6 @@
                   <fieldset>
                     <legend>${_('Appearance')}</legend>
                     <div class="form-group">
-                      <label for="homepage">${_('Homepage:')}</label>
-                      <select id="homepage" name="homepage" class="form-control">
-                        <%
-                          homepages = [('Authors', _('Authors')), ('eBooks', _('eBooks')), ('Series', _('Series')),
-                                       ('AudioBooks', _('AudioBooks')), ('Magazines', _('Magazines')),
-                                       ('Comics', _('Comics'))]
-                        %>
-                        %for page, page_label in homepages:
-                        <% selected = 'selected="selected"' if CONFIG['HOMEPAGE'] == page else '' %>
-                        <option value="${page}" ${selected}>${page_label}</option>
-                        %endfor
-                      </select>
-                    </div>
-                    <div class="form-group">
                       <label for="ui_language">${_('Interface language:')}</label>
                       <select id="ui_language" name="ui_language" class="form-control">
                         <% selected = 'selected="selected"' if CONFIG['UI_LANGUAGE'] == 'auto' else '' %>
@@ -107,7 +93,7 @@
                         ${_('Use Bookstrap')}</label>
                     </div>
                     <fieldset id="bookstrap_options">
-                      <div class="form_group">
+                      <div class="form-group">
                         <label for="bookstrap_theme" class="control-label">${_('Bootswatch Theme:')}</label>
                         <select name="bookstrap_theme" id="bookstrap_theme" class="form-control">
                           %for bookstrap_theme in lazylibrarian.BOOKSTRAP_THEMELIST:
@@ -117,6 +103,20 @@
                         </select>
                       </div>
                     </fieldset>
+                    <div class="form-group">
+                      <label for="homepage">${_('Homepage:')}</label>
+                      <select id="homepage" name="homepage" class="form-control">
+                        <%
+                          homepages = [('Authors', _('Authors')), ('eBooks', _('eBooks')), ('Series', _('Series')),
+                                       ('AudioBooks', _('AudioBooks')), ('Magazines', _('Magazines')),
+                                       ('Comics', _('Comics'))]
+                        %>
+                        %for page, page_label in homepages:
+                        <% selected = 'selected="selected"' if CONFIG['HOMEPAGE'] == page else '' %>
+                        <option value="${page}" ${selected}>${page_label}</option>
+                        %endfor
+                      </select>
+                    </div>
                     <%
                       appearance_groups = [
                         (_('Show in the menu:'), [('ebook_tab', 'EBOOK_TAB', _('Show eBooks')),
