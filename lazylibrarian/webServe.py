@@ -372,6 +372,16 @@ def set_request_language():
     return lang
 
 
+def browser_languages() -> list:
+    """ Languages the browser asks for, from navigator.languages (browser cookie) and Accept-Language """
+    browserlang = ''
+    cookie = cherrypy.request.cookie
+    if cookie and i18n.BROWSER_COOKIE in list(cookie.keys()):
+        browserlang = unquote(cookie[i18n.BROWSER_COOKIE].value)
+    return (i18n.parse_accept_language(browserlang)
+            + i18n.parse_accept_language(cherrypy.request.headers.get('Accept-Language', '')))
+
+
 # set the language before every request handler runs, so i18n.gettext() works in python code too
 cherrypy.tools.ui_language = cherrypy.Tool('before_handler', set_request_language)
 
@@ -2348,7 +2358,7 @@ class WebInterface:
             "namevars": testvars,
             "seasons": seasons,
             "months": months,
-            "book_languages": language_picker(CONFIG['IMP_PREFLANG']),
+            "book_languages": language_picker(CONFIG['IMP_PREFLANG'], browser_languages()),
             "gb_countries": country_picker(CONFIG['GB_COUNTRY']),
             "mag_languages": magazine_language_picker(CONFIG['PREF_MAGLANG']),
             "author_date_formats": date_format_picker(CONFIG['AUTHOR_DATE_FORMAT'], DISPLAY_DATE_FORMATS,

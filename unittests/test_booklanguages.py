@@ -4,11 +4,11 @@
 #   Test the language picker table in booklanguages.py
 
 import unittest
+from unittest import mock
 
 from lazylibrarian.annas import Language, anna_languages
 from lazylibrarian.booklanguages import (
     BOOK_LANGUAGES,
-    COMMON_COUNT,
     GB_COUNTRIES,
     anna_search_languages,
     country_picker,
@@ -73,14 +73,22 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertEqual(anna_languages('EN, ANY'), [])
         self.assertEqual(anna_languages(''), [])
 
-    def test_order(self):
-        # selected first, then the common languages, then the rest by name
-        picker = language_picker('Yiddish')
+    @mock.patch('lazylibrarian.i18n.available_languages', return_value=['de', 'en', 'qps', 'sk'])
+    def test_order(self, _):
+        # selected first in their order, then the interface and browser languages, then the rest, by name
+        picker = language_picker('Yiddish, Welsh', ['cs', 'nb_no', 'sk'])
+        shown = [lang['name'] for lang in picker['languages'] if lang['shown']]
+        self.assertEqual(shown, ['Yiddish', 'Welsh', 'Czech', 'English', 'German', 'Norwegian', 'Slovak'])
         names = [lang['name'] for lang in picker['languages']]
-        self.assertEqual(names[0], 'Yiddish')
-        self.assertEqual(names[1:COMMON_COUNT + 1], [name for name, _ in BOOK_LANGUAGES[:COMMON_COUNT]])
-        rest = [lang['label'].lower() for lang in picker['languages'][COMMON_COUNT + 1:]]
+        self.assertEqual(names[:len(shown)], shown)
+        rest = [lang['label'].lower() for lang in picker['languages'][len(shown):]]
         self.assertEqual(rest, sorted(rest))
+        self.assertEqual(len(picker['languages']), len(BOOK_LANGUAGES))
+
+    @mock.patch('lazylibrarian.i18n.available_languages', return_value=['en'])
+    def test_shown_without_browser(self, _):
+        picker = language_picker('')
+        self.assertEqual([lang['name'] for lang in picker['languages'] if lang['shown']], ['English'])
 
     def test_countries(self):
         self.assertEqual(len(GB_COUNTRIES), 249)

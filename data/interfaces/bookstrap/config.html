@@ -3881,13 +3881,13 @@
                   <div class="form-group">
                     <%
                         picker = config['book_languages']
-                        hidden_count = len([lang for lang in picker['languages'] if not lang['common'] and not lang['selected']])
+                        hidden_count = len([lang for lang in picker['languages'] if not lang['shown']])
                     %>
                     <label class="control-label">${_('Import languages:')}</label>
                     <input type="hidden" id="imp_preflang" name="imp_preflang" value="${CONFIG['IMP_PREFLANG'] | h}">
                     <div id="langpicker" class="langpicker">
                       %for lang in picker['languages']:
-                      <button type="button" class="btn ${'btn-primary' if lang['selected'] else 'btn-default'} langchip${'' if lang['common'] or lang['selected'] else ' langchip-more hidden'}"
+                      <button type="button" class="btn ${'btn-primary' if lang['selected'] else 'btn-default'} langchip${'' if lang['shown'] else ' langchip-more hidden'}"
                         data-codes="${lang['codes'] | h}" data-anna="${lang['anna'] | h}" data-zlib="${lang['zlib'] | h}" aria-pressed="${'true' if lang['selected'] else 'false'}" title="${lang['codes'] | h}">${lang['label'] | h}</button>
                       %endfor
                     </div>

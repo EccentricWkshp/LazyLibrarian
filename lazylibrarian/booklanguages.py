@@ -12,7 +12,6 @@ from lazylibrarian.i18n import N_
 
 # Name, then the codes that mean this language: ISO 639-1, ISO 639-2 (B and T), regional
 # variants and the English name. The name is translated for display only, the config stores codes.
-# The first entries are the most common book languages, shown before "Show all".
 BOOK_LANGUAGES = [
     (N_('English'), ['en', 'eng', 'en-US', 'en-GB', 'English']),
     (N_('Spanish'), ['es', 'spa', 'Spanish']),
@@ -74,17 +73,17 @@ BOOK_LANGUAGES = [
     (N_('Welsh'), ['cy', 'wel', 'cym', 'Welsh']),
     (N_('Yiddish'), ['yi', 'yid', 'Yiddish']),
 ]
-COMMON_COUNT = 24  # BOOK_LANGUAGES entries shown without "Show all"
 
 
-def language_picker(preflang: str) -> dict:
+def language_picker(preflang: str, browser_languages: list | tuple = ()) -> dict:
     """ Split an IMP_PREFLANG value into picker languages and the entries the picker doesn't know.
-        A language is selected if any of its codes is in the value. Selected languages are listed
-        first in the order they appear in the value, then the common ones, then the rest sorted
-        by their translated name.
+        A language is selected if any of its codes is in the value.
+        Before "Show all" the picker shows the selected languages, in the order they appear in the
+        value, then the languages the web interface is translated into and the browser_languages
+        (codes like 'sk' or 'en_us'), sorted by their translated name. The rest follow, sorted the same.
         Each language also carries what it searches for when Anna's Archive and Z-Library are automatic:
         'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
-        Returns {'languages': [{'name', 'label', 'codes', 'anna', 'zlib', 'selected', 'common'}],
+        Returns {'languages': [{'name', 'label', 'codes', 'anna', 'zlib', 'selected', 'shown'}],
                  'other': str} """
     from lazylibrarian.annas import Language as AnnaLanguage
 
@@ -92,9 +91,10 @@ def language_picker(preflang: str) -> dict:
     position = {}
     for idx, item in enumerate(wanted):
         position.setdefault(item.lower(), idx)
+    shown = {lang.split('_')[0].lower() for lang in list(i18n.available_languages()) + list(browser_languages)}
     known = set()
     languages = []
-    for idx, (name, codes) in enumerate(BOOK_LANGUAGES):
+    for name, codes in BOOK_LANGUAGES:
         lower_codes = {code.lower() for code in codes}
         known.update(lower_codes)
         found = [position[code] for code in lower_codes if code in position]
@@ -107,12 +107,12 @@ def language_picker(preflang: str) -> dict:
             'zlib': name.lower(),
             'selected': bool(found),
             'position': min(found) if found else 0,
-            'common': idx < COMMON_COUNT,
+            'shown': bool(found or lower_codes & shown),
         })
-    common = [lang for lang in languages if lang['common']]
-    rest = sorted((lang for lang in languages if not lang['common']), key=lambda lang: lang['label'].lower())
-    selected = sorted((lang for lang in common + rest if lang['selected']), key=lambda lang: lang['position'])
-    ordered = selected + [lang for lang in common + rest if not lang['selected']]
+    languages.sort(key=lambda lang: lang['label'].lower())
+    selected = sorted((lang for lang in languages if lang['selected']), key=lambda lang: lang['position'])
+    ordered = (selected + [lang for lang in languages if lang['shown'] and not lang['selected']]
+               + [lang for lang in languages if not lang['shown']])
     other = [item for item in wanted if item.lower() not in known]
     return {'languages': ordered, 'other': ', '.join(other)}
 
