@@ -3927,7 +3927,7 @@
                       <i class="fa fa-chevron-down"></i> <span>${_('Show all %d options') % len(picker['languages'])}</span></a>
                     %endif
                     <span class="help-block">${_('Each language adds all of its codes, hover a language to see them.')}<br/>
-                      ${_('The languages also fill in the magazine, Annas Archive and Z-Library languages below. Where only one language is allowed, the first selected one is used.')}</span>
+                      ${_('The languages also fill in the magazine, Annas Archive and Z-Library languages below. Where only one language is allowed, the first selected one (marked with ★) is used.')}</span>
                     <label for="imp_preflang_other" class="control-label">${_('Other language codes:')}</label>
                     <input type="text" id="imp_preflang_other" value="${picker['other'] | h}" class="form-control" placeholder="${_('e.g: Unknown') | h}">
                     <span class="help-block">${_('Comma separated codes not covered above')}<br/>
