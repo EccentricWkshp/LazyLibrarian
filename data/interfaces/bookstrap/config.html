@@ -3927,7 +3927,7 @@
                       <i class="fa fa-chevron-down"></i> <span>${_('Show all %d options') % len(picker['languages'])}</span></a>
                     %endif
                     <span class="help-block">${_('Each language adds all of its codes, hover a language to see them.')}<br/>
-                      ${_('The languages also fill in the Annas Archive and Z-Library languages below.')}</span>
+                      ${_('Annas Archive and Z-Library search these languages too, unless you enter their own below.')}</span>
                     <label for="imp_preflang_other" class="control-label">${_('Other language codes:')}</label>
                     <input type="text" id="imp_preflang_other" value="${picker['other'] | h}" class="form-control" placeholder="${_('e.g: Unknown') | h}">
                     <span class="help-block">${_('Comma separated codes not covered above')}<br/>
@@ -3959,15 +3959,17 @@
                   </div>
                   <div class="form-group">
                     <label for="anna_search_lang" class="control=label">${_('Annas Archive Search Languages:')}</label>
-                    <input type="text" placeholder="${_('eg EN, DE') | h}" id="anna_search_lang" name="anna_search_lang" value="${CONFIG['ANNA_SEARCH_LANG']}" class="form-control">
-                    <span class="help-block">${_('Comma separated language codes for Annas Archive:')}<br/>${_('e.g: EN, DE or ANY')}<br/>
-                      ${_('Filled in from the selected languages')}</span>
+                    <input type="text" id="anna_search_lang" name="anna_search_lang" value="${CONFIG['ANNA_SEARCH_LANG'] | h}" class="form-control"
+                      placeholder="${_('Automatic: %s') % config['anna_auto'] | h}" data-auto="${_('Automatic: %s') | h}">
+                    <span class="help-block">${_('Leave empty to search the Import languages above.')}<br/>
+                      ${_('Anything entered here replaces the Import languages for Annas Archive: comma separated language codes, e.g: EN, DE, or ANY for all languages.')}</span>
                   </div>
                   <div class="form-group">
                     <label for="bok_search_lang" class="control=label">${_('Z-Library Search Languages:')}</label>
-                    <input type="text" placeholder="eg spanish, german" id="bok_search_lang" name="bok_search_lang" value="${CONFIG['BOK_SEARCH_LANG']}" class="form-control">
-                    <span class="help-block">${_('Comma separated languages for ZLibrary:')}<br/>${_('e.g: spanish, german')}<br/>
-                      ${_('Filled in from the selected languages')}</span>
+                    <input type="text" id="bok_search_lang" name="bok_search_lang" value="${CONFIG['BOK_SEARCH_LANG'] | h}" class="form-control"
+                      placeholder="${_('Automatic: %s') % config['zlib_auto'] | h}" data-auto="${_('Automatic: %s') | h}">
+                    <span class="help-block">${_('Leave empty to search the Import languages above.')}<br/>
+                      ${_('Anything entered here replaces the Import languages for Z-Library: comma separated language names, e.g: spanish, german, or ANY for all languages.')}</span>
                   </div>
                   <div class="form-group" id="lang_refresh_options">
                     <label class="control-label">${_('Language Maintenance:')}</label>

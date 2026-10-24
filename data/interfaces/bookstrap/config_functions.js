@@ -1156,13 +1156,16 @@
             });
             $("#imp_preflang").val(unique.join(", "));
 
-            // the other book search language settings follow the picker
+            // Annas Archive and Z-Library search the import languages unless they have their own,
+            // show what that is, matching anna_search_languages() and zlib_search_languages()
             const chips = $("#langpicker .langchip.btn-primary");
-            if (chips.length) {
-                const anna = chips.map(function() { return $(this).data("anna"); }).get().filter(code => code);
-                $("#anna_search_lang").val(anna.length ? anna.join(", ") : "ANY");
-                $("#bok_search_lang").val(chips.map(function() { return $(this).data("zlib"); }).get().join(", "));
-            }
+            const all = unique.some(code => code.toLowerCase() === "all");
+            const anna = all ? [] : chips.map(function() { return $(this).data("anna"); }).get().filter(code => code);
+            const zlib = all ? [] : chips.map(function() { return $(this).data("zlib"); }).get();
+            $.each({"#anna_search_lang": anna, "#bok_search_lang": zlib}, function(id, langs) {
+                const field = $(id);
+                field.attr("placeholder", field.data("auto").replace("%s", langs.length ? langs.join(", ") : "ANY"));
+            });
         }
 
         $("#langpicker .langchip").on("click", function() {

@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.booklanguages import zlib_search_languages
 from lazylibrarian.cache import fetch_url
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import (
@@ -148,8 +149,9 @@ def direct_bok(book=None, prov=None, test=False):
         limit = 10
 
     try:
-        langs = CONFIG['BOK_SEARCH_LANG']
-        if not langs:  # full language names, lower case, eg spanish, german
+        # full language names, lower case, eg spanish, german, or ANY
+        langs = zlib_search_languages(CONFIG['BOK_SEARCH_LANG'], CONFIG['IMP_PREFLANG'])
+        if langs.strip().upper() == 'ANY':
             langs = None
         lazylibrarian.test_data = f"Searching {provider}"
         searchresults = zlib.search(book['searchterm'], limit=limit, languages=langs)

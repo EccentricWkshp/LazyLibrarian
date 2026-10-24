@@ -31,6 +31,7 @@ from requests.exceptions import JSONDecodeError
 import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.booklanguages import anna_search_languages
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, get_directory, path_isfile, remove_file
 from lazylibrarian.formatter import check_int, get_list, md5_utf8, plural, sanitize, size_in_bytes
@@ -516,7 +517,7 @@ def annas_download(md5, folder, title, extn, domain_index=0):
 def anna_search(book=None, searchtype='ebook', test=False):
     logger = logging.getLogger(__name__)
     provider = "annas"
-    languages = anna_languages(CONFIG['ANNA_SEARCH_LANG'])
+    languages = anna_languages(anna_search_languages(CONFIG['ANNA_SEARCH_LANG'], CONFIG['IMP_PREFLANG']))
 
     if BLOCKHANDLER.is_blocked(provider):
         if test:

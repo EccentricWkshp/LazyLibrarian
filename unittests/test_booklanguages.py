@@ -10,9 +10,11 @@ from lazylibrarian.booklanguages import (
     BOOK_LANGUAGES,
     COMMON_COUNT,
     GB_COUNTRIES,
+    anna_search_languages,
     country_picker,
     language_picker,
     magazine_language_picker,
+    zlib_search_languages,
 )
 
 
@@ -107,3 +109,28 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertEqual(picker['selected'], 'sk cz de en')
         self.assertEqual(picker['other'], 'sk cz de en')
         self.assertEqual(magazine_language_picker('')['other'], '')
+
+    def test_anna_automatic(self):
+        # empty means automatic, from the import languages in their order
+        self.assertEqual(anna_search_languages('', 'sk, slo, Slovak, cs, cze, Czech, Unknown'), 'SK, CS')
+        self.assertEqual(anna_search_languages(' ', 'cs, sk'), 'CS, SK')
+        # languages Anna's Archive doesn't have are skipped, ANY if none are left
+        self.assertEqual(anna_search_languages('', 'cy, de'), 'DE')
+        self.assertEqual(anna_search_languages('', 'Welsh, Unknown'), 'ANY')
+        # import languages that don't limit the language
+        self.assertEqual(anna_search_languages('', 'All, sk'), 'ANY')
+        self.assertEqual(anna_search_languages('', ''), 'ANY')
+
+    def test_anna_override(self):
+        # anything entered replaces the import languages
+        self.assertEqual(anna_search_languages('DE', 'sk, cs'), 'DE')
+        self.assertEqual(anna_search_languages('ANY', 'sk, cs'), 'ANY')
+
+    def test_zlib_automatic(self):
+        self.assertEqual(zlib_search_languages('', 'sk, slo, Slovak, cs, cze, Czech, Unknown'), 'slovak, czech')
+        self.assertEqual(zlib_search_languages('', 'Unknown'), 'ANY')
+        self.assertEqual(zlib_search_languages('', 'all'), 'ANY')
+
+    def test_zlib_override(self):
+        self.assertEqual(zlib_search_languages('english', 'sk, cs'), 'english')
+        self.assertEqual(zlib_search_languages('ANY', 'sk, cs'), 'ANY')

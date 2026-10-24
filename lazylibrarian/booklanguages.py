@@ -82,7 +82,7 @@ def language_picker(preflang: str) -> dict:
         A language is selected if any of its codes is in the value. Selected languages are listed
         first in the order they appear in the value, then the common ones, then the rest sorted
         by their translated name.
-        Each language also carries its value for the other language settings the picker fills in:
+        Each language also carries what it searches for when Anna's Archive and Z-Library are automatic:
         'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
         Returns {'languages': [{'name', 'label', 'codes', 'anna', 'zlib', 'selected', 'common'}],
                  'other': str} """
@@ -115,6 +115,39 @@ def language_picker(preflang: str) -> dict:
     ordered = selected + [lang for lang in common + rest if not lang['selected']]
     other = [item for item in wanted if item.lower() not in known]
     return {'languages': ordered, 'other': ', '.join(other)}
+
+
+def _search_languages(preflang: str) -> list | None:
+    """ The BOOK_LANGUAGES entries in an IMP_PREFLANG value, in the order they appear in it.
+        None if the value doesn't limit languages: empty, or "All" in it """
+    wanted = [item.lower() for item in get_list(preflang, ',') if item]
+    if not wanted or 'all' in wanted:
+        return None
+    found = []
+    for name, codes in BOOK_LANGUAGES:
+        positions = [wanted.index(code.lower()) for code in codes if code.lower() in wanted]
+        if positions:
+            found.append((min(positions), name, codes))
+    return [(name, codes) for _, name, codes in sorted(found)]
+
+
+def anna_search_languages(anna_search_lang: str, preflang: str) -> str:
+    """ ANNA_SEARCH_LANG, or when it's empty (automatic) the Import languages Anna's Archive supports.
+        ANY if none of them are, as searching a language we don't want is better than finding nothing """
+    if anna_search_lang.strip():
+        return anna_search_lang
+    from lazylibrarian.annas import Language as AnnaLanguage
+
+    codes = [codes[0].upper() for _, codes in _search_languages(preflang) or []]
+    return ', '.join(code for code in codes if code in AnnaLanguage.__members__) or 'ANY'
+
+
+def zlib_search_languages(bok_search_lang: str, preflang: str) -> str:
+    """ BOK_SEARCH_LANG, or when it's empty (automatic) the Import languages as Z-Library names.
+        ANY if they don't limit the language """
+    if bok_search_lang.strip():
+        return bok_search_lang
+    return ', '.join(name.lower() for name, _ in _search_languages(preflang) or []) or 'ANY'
 
 
 # ISO 3166-1 alpha-2 codes for the GoogleBooks country setting, the browser shows their names
