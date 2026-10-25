@@ -365,13 +365,9 @@
                 % endif
                 <li><a id="help" href="help" target="_new"><i class="fa fa-question-circle"></i> ${_('Help')}</a></li>
                 %if perm > 0:
-                  %if CONFIG['USER_ACCOUNTS']:
-                    %if perm&lazylibrarian.perm_config == 0:
-                      <li><a href="profile" class="navbarele" id="profile">${_('User')}</a></li>
-                    %endif
-                    %if lazylibrarian.SHOWLOGOUT == 1:
-                      <li>&nbsp<button class="button btn btn-primary" type="button" value="logoutbtn" id="logoutbtn">  ${_('Logout')}</button></li>
-                    %endif
+                  <li><a href="profile" class="navbarele" id="profile"><i class="fa fa-user"></i> ${_('Profile')}</a></li>
+                  %if showlogout:
+                    <li>&nbsp<button class="button btn btn-primary" type="button" value="logoutbtn" id="logoutbtn">  ${_('Logout')}</button></li>
                   %endif
                 %endif
               </ul>
@@ -549,7 +545,7 @@
                 callback: function (result) {
                   if (result) { $.get("logout", { },
                       function (data) {
-                         window.location = "${CONFIG['HTTP_ROOT'] or ''}/login";
+                         window.location = "${CONFIG['HTTP_ROOT'] or ''}/auth/login";
                       }); }
                 }
             });

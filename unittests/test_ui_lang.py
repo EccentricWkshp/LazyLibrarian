@@ -1,7 +1,7 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test per-user UI language handling in webServe.py
+#   Test the owner account UI language handling in webServe.py
 
 import contextlib
 from http.cookies import SimpleCookie
@@ -10,6 +10,7 @@ from unittest import mock
 import cherrypy
 
 from lazylibrarian import webServe
+from lazylibrarian.auth import reset_owner_cache
 from lazylibrarian.database import DBConnection
 from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
 from lazylibrarian.filesystem import DIRS, remove_file
@@ -32,19 +33,21 @@ class FakeResponse:
 class UILangTest(LLTestCaseWithConfigandDIRS):
 
     def setUp(self):
+        self.addCleanup(setattr, DIRS, 'DBFILENAME', DIRS.DBFILENAME)
         DIRS.DBFILENAME = "test-uilang.db"
         with contextlib.suppress(FileNotFoundError):
             remove_file(DIRS.get_dbfile())
         db_upgrade(upgrade_needed(), restartjobs=False)
         db = DBConnection()
         try:
-            # ui_lang left NULL, as it is for every user that existed before the column was added
-            db.action("INSERT into users (UserID, UserName, Name, Password, Email, SendTo, BookType, "
-                      "Theme, hc_token, Perms, Prefs, Login_Count) VALUES "
-                      "('u1', 'alice', 'Alice', '', '', '', 'epub', '', '', 65535, 0, 0)")
+            # a new database has just the owner account. ui_lang left NULL, as it is for
+            # every user that existed before the column was added
+            db.action("UPDATE users SET UserID='u1', UserName='alice', Name='Alice', Password='', Email='', "
+                      "SendTo='', BookType='epub', Theme='', hc_token='', Perms=65535, Prefs=0, Login_Count=0")
         finally:
             db.close()
-        self.request = FakeRequest({'ll_uid': 'u1'})
+        reset_owner_cache()
+        self.request = FakeRequest({})
         self.response = FakeResponse()
         patches = [mock.patch.object(cherrypy, 'request', self.request),
                    mock.patch.object(cherrypy, 'response', self.response)]
@@ -91,27 +94,15 @@ class UILangTest(LLTestCaseWithConfigandDIRS):
     def test_profile_save_empty_ui_lang_is_not_a_change(self):
         self.assertEqual(self.profile_save(ui_lang=''), 'No changes made')
 
-    def admin_save(self, ui_lang: str) -> str:
-        kwargs = {'user': 'alice', 'username': 'alice', 'fullname': 'Alice', 'email': '', 'sendto': '',
-                  'password': '', 'perms': '65535', 'calread': '', 'caltoread': '', 'booktype': 'epub',
-                  'theme': '', 'hc_token': '', 'ui_lang': ui_lang}
-        with mock.patch.object(webServe.WebInterface, 'check_permitted'):
-            return webServe.WebInterface().admin_users(**kwargs)
-
-    def test_admin_can_set_and_clear_ui_lang(self):
-        self.assertIn('UI_Language', self.admin_save('auto'))
+    def test_profile_can_set_and_clear_ui_lang(self):
+        self.assertIn('UI_Lang', self.profile_save(ui_lang='auto'))
         self.assertEqual(self.user_field('UI_Lang'), 'auto')
-        self.assertIn('UI_Language', self.admin_save(''))
+        self.assertIn('UI_Lang', self.profile_save(ui_lang=''))
         self.assertEqual(self.user_field('UI_Lang'), '')
 
-    def test_admin_rejects_unknown_ui_lang(self):
-        self.assertNotIn('UI_Language', self.admin_save('xx_YY'))
-        self.assertIsNone(self.user_field('UI_Lang'))
-
-    def test_cookie_login_without_ui_lang_sends_empty_cookie(self):
-        with mock.patch.object(webServe.CONFIG, 'get_bool', side_effect=lambda key: key == 'USER_ACCOUNTS'), \
-                mock.patch.object(webServe, 'TemplateLookup') as lookup:
+    def test_serve_template_sends_owner_ui_lang(self):
+        with mock.patch.object(webServe, 'TemplateLookup') as lookup:
             webServe.serve_template(templatename='index.html', title='test')
         lookup.return_value.get_template.assert_called_with('index.html')
-        self.assertEqual(self.response.cookie['ll_uid'].value, 'u1')
+        self.assertNotIn('ll_uid', self.response.cookie)
         self.assertEqual(self.response.cookie['ll_uilang'].value, '')

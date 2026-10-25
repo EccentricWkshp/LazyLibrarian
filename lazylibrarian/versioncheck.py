@@ -524,7 +524,7 @@ def update():
                                 zf.add(os.path.join(root, item), arcname=os.path.join(base, item))
                 for item in ['LazyLibrarian.py', 'epubandmobi.py', 'example_custom_notification.py',
                              'example_custom_notification.sh', 'example_ebook_convert.py', 'example_filetemplate.txt',
-                             'example.genres.json', 'example_html_filetemplate.txt', 'example_logintemplate.txt',
+                             'example.genres.json', 'example_html_filetemplate.txt',
                              'example.monthnames.json', 'updater.py', 'pyproject.toml']:
                     path = os.path.join(DIRS.PROG_DIR, item)
                     if os.path.exists(path):

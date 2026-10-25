@@ -25,10 +25,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate
 
-import cherrypy
-
 import lazylibrarian
 from lazylibrarian import database, ebook_convert
+from lazylibrarian.auth import owner_id
 from lazylibrarian.common import is_valid_email, mime_type, run_script
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_isfile, splitext, syspath
@@ -218,31 +217,20 @@ class EmailNotifier:
                     custom_typelist = get_list(CONFIG['EMAIL_SEND_TYPE'])
                     typelist = get_list(CONFIG['EBOOK_TYPE'])
 
-                    if not CONFIG.get_bool('USER_ACCOUNTS'):
-                        if custom_typelist:
-                            preftype = custom_typelist[0]
-                            logger.debug(f'Preferred filetype = {preftype}')
-                        elif typelist:
-                            preftype = typelist[0]
-                            logger.debug(f'Default preferred filetype = {preftype}')
-                    else:
-                        cookie = cherrypy.request.cookie
-                        if cookie and 'll_uid' in list(cookie.keys()):
-                            db = database.DBConnection()
-                            try:
-                                res = db.match('SELECT BookType from users where UserID=?', (cookie['ll_uid'].value,))
-                            finally:
-                                db.close()
-                            if res and res['BookType']:
-                                preftype = res['BookType']
-                                logger.debug(f'User preferred filetype = {preftype}')
-                            else:
-                                logger.debug(f"No user preference for {cookie['ll_uid'].value}")
-                        else:
-                            logger.debug('No user login cookie')
-                        if not preftype and typelist:
-                            preftype = typelist[0]
-                            logger.debug(f'Default preferred filetype = {preftype}')
+                    db = database.DBConnection()
+                    try:
+                        res = db.match('SELECT BookType from users where UserID=?', (owner_id(),))
+                    finally:
+                        db.close()
+                    if res and res['BookType']:
+                        preftype = res['BookType']
+                        logger.debug(f'User preferred filetype = {preftype}')
+                    elif custom_typelist:
+                        preftype = custom_typelist[0]
+                        logger.debug(f'Preferred filetype = {preftype}')
+                    elif typelist:
+                        preftype = typelist[0]
+                        logger.debug(f'Default preferred filetype = {preftype}')
 
                     db = database.DBConnection()
                     try:

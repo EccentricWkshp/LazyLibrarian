@@ -20,9 +20,6 @@
       <button class="button btn btn-sm btn-primary" type="button" value="Show Jobs" id="show_jobs"><i class="fa fa-list-ul"></i> ${_('Job Status')}</button>
       <button class="button btn btn-sm btn-primary" type="button" value="Show Stats" id="show_stats"><i class="fa fa-list-ul"></i> ${_('DB Stats')}</button>
       <button class="button btn btn-sm btn-primary" type="button" value="checkforupdates" id="checkforupdates"><i class="fa fa-list-alt"></i> ${_('Check Version')}</button>
-      %if CONFIG['USER_ACCOUNTS']:
-      <a class="button btn btn-sm btn-primary" href="user_admin"><i class="fa fa-user"></i> ${_('User Admin')}</a>
-      %endif
      <button class="hidden" onclick="" id="myAlert" title=""><i class="fa fa-circle-notch fa-spin"></i> ${_('Checking, please wait...')}</button>
     </div>
 </div>
@@ -486,85 +483,50 @@
                 </div>
                 <div class="col-md-6">
                   <fieldset>
-                    <legend>${_('Access Control')}</legend>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['USER_ACCOUNTS'] else '' %>
-                      <label for="user_accounts" title="${_('User accounts') | h}">
-                      <input type="checkbox" id="user_accounts" name="user_accounts" value="1" ${checked} />
-                      ${_('Enable user accounts')}</label>
-                    </div>
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['SINGLE_USER'] else '' %>
-                      <label for="single_user" title="${_('Bypass login') | h}">
-                      <input type="checkbox" id="single_user" name="single_user" value="1" ${checked} />
-                      ${_('Single user bypass login')}</label>
-                    </div>
-                    </div>
-                  </fieldset>
-                  <fieldset>
-                    <fieldset id="admin_options">
-                      <div class="form-group">
-                        <label for="admin_email" class="control-label">${_('Admin Email:')}</label>
-                        <input type="text" id="admin_email" name="admin_email" value="${CONFIG['ADMIN_EMAIL']}" class="form-control" placeholder="${_('Contact email for requests/registration') | h}">
-                      </div>
-                      <div class="row checkbox">
-                        <div class="col-md-6">
-                          <% checked = 'checked="checked"' if CONFIG['PROXY_AUTH'] else '' %>
-                          <label for="proxy_auth" title="${_('Allow login by proxy headers') | h}">
-                          <input type="checkbox" id="proxy_auth" name="proxy_auth" value="1" ${checked} />
-                          ${_('Use Proxy Login Headers')}</label>
-                        </div>
-                      </div>
-                      <fieldset id=proxy_auth_options>
-                        <div class="form-group">
-                          <label for="proxy_auth_user" class="control-label">${_('Proxy Auth User Header:')}</label>
-                          <input type="text" id="proxy_auth_user" name="proxy_auth_user" value="${CONFIG['PROXY_AUTH_USER']}" class="form-control" placeholder="${_('User Name Header') | h}">
-                        </div>
-                        <div class="row checkbox">
-                          <div class="col-md-6">
-                            <% checked = 'checked="checked"' if CONFIG['PROXY_REGISTER'] else '' %>
-                            <label for="proxy_register" title="${_('Allow new registrations by proxy headers') | h}">
-                            <input type="checkbox" id="proxy_register" name="proxy_register" value="1" ${checked} />
-                            ${_('Use Proxy Registration Headers')}</label>
-                          </div>
-                        </div>
-                        <fieldset id=proxy_register_options>
-                          <div class="form-group">
-                            <label for="proxy_auth_name" class="control-label">${_('Proxy Auth Name Header:')}</label>
-                            <input type="text" id="proxy_auth_name" name="proxy_auth_name" value="${CONFIG['PROXY_AUTH_NAME']}" class="form-control" placeholder="${_('Full Name Header') | h}">
-                          </div>
-                          <div class="form-group">
-                            <label for="proxy_auth_email" class="control-label">${_('Proxy Auth Email Header:')}</label>
-                            <input type="text" id="proxy_auth_email" name="proxy_auth_email" value="${CONFIG['PROXY_AUTH_EMAIL']}" class="form-control" placeholder="${_('Email Header') | h}">
-                          </div>
-                        </fieldset>
-                      </fieldset>
-                        <div class="form-group">
-                          <label for="whitelist" class="control-label">${_('Whitelist Admin IPs:')}</label>
-                          <input type="text" id="whitelist" name="whitelist" value="${CONFIG['WHITELIST']}" class="form-control" placeholder="${_('Whitelisted admin ip addresses') | h}">
-                        </div>
-                      </fieldset>
-                    <fieldset id="webserver_options">
-                    ${_('WebServer Options:')}
-                    <div class="input-group">
-                      <label for="http_user" class="input-group-addon">${_('User')}</label>
-                      <input type="text" id="http_user" name="http_user" value="${CONFIG['HTTP_USER']}" class="form-control" placeholder="${_('Username') | h}">
-                      <label for="http_pass" class="input-group-addon">${_('Pass')}</label>
-                      <input type="password" id="http_pass" name="http_pass" value="${CONFIG['HTTP_PASS']}" class="form-control" placeholder="${_('Password') | h}">
-                    </div>
-                    <legend>${_('Authentication')}</legend>
-                    <div class="input-group col-md-6">
-                      <label for="auth_type" class="input-group-addon">${_('Auth:')}</label>
+                    <legend>${_('Security')}</legend>
+                    <div class="form-group">
+                      <label for="auth_type" class="control-label">${_('Authentication:')}</label>
                       <select id="auth_type" name="auth_type" class="form-control">
+                        <% selected = 'selected="selected"' if CONFIG['AUTH_TYPE'] == 'FORM' else '' %>
+                        <option value="FORM" ${selected}>${_('Forms (Login Page)')}</option>
                         <% selected = 'selected="selected"' if CONFIG['AUTH_TYPE'] == 'BASIC' else '' %>
                         <option value="BASIC" ${selected}>${_('Basic (Browser Popup)')}</option>
-                        <% selected = 'selected="selected"' if CONFIG['AUTH_TYPE'] == 'FORM' else '' %>
-                        <option value="FORM" ${selected}>${_('Form (Login Page)')}</option>
                       </select>
                     </div>
+                    <div class="form-group">
+                      <label for="owner_username" class="control-label">${_('Username:')}</label>
+                      <input type="text" id="owner_username" name="owner_username" value="${config['owner']['username'] | h}" class="form-control" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                      <label for="owner_password" class="control-label">${_('Password:')}</label>
+                      %if config['owner']['password_set']:
+                      <input type="password" id="owner_password" name="owner_password" value="" class="form-control" autocomplete="new-password" placeholder="${_('Leave blank to keep the current password') | h}">
+                      %else:
+                      <input type="password" id="owner_password" name="owner_password" value="" class="form-control" autocomplete="new-password" placeholder="${_('No password set, LazyLibrarian is open to anyone who can reach it') | h}">
+                      %endif
+                    </div>
+                    <div class="row checkbox">
+                      <div class="col-md-6">
+                        <% checked = 'checked="checked"' if CONFIG['PROXY_AUTH'] else '' %>
+                        <label for="proxy_auth" title="${_('Allow login by proxy headers') | h}">
+                        <input type="checkbox" id="proxy_auth" name="proxy_auth" value="1" ${checked} />
+                        ${_('Use Proxy Login Headers')}</label>
+                      </div>
+                    </div>
+                    <fieldset id=proxy_auth_options>
+                      <div class="form-group">
+                        <label for="proxy_auth_user" class="control-label">${_('Proxy Auth User Header:')}</label>
+                        <input type="text" id="proxy_auth_user" name="proxy_auth_user" value="${CONFIG['PROXY_AUTH_USER']}" class="form-control" placeholder="${_('User Name Header') | h}">
+                      </div>
                     </fieldset>
-                    <small>${_('Enabling/Disabling user accounts or changing webserver user/pass requires restart')}<br></small>
+                    <div class="form-group">
+                      <label for="whitelist" class="control-label">${_('Whitelist Admin IPs:')}</label>
+                      <input type="text" id="whitelist" name="whitelist" value="${CONFIG['WHITELIST']}" class="form-control" placeholder="${_('Whitelisted admin ip addresses') | h}">
+                    </div>
+                    <div class="form-group">
+                      <label for="admin_email" class="control-label">${_('Contact Email:')}</label>
+                      <input type="text" id="admin_email" name="admin_email" value="${CONFIG['ADMIN_EMAIL']}" class="form-control" placeholder="${_('Sender address for emails, and contact for OpenLibrary') | h}">
+                    </div>
                   </fieldset>
                   <fieldset>
                     <legend>${_('Startup')}</legend>
@@ -828,9 +790,6 @@
                         <label for="GR_SYNCUSER" class="control-label">
                           <input type="checkbox" id="gr_syncuser" name="gr_syncuser" value="1" ${checked} />
                           ${_('Use GoodReads shelves as user reading list')}
-                        %if not CONFIG['USER_ACCOUNTS']:
-                           <p>${_('(enable USER_ACCOUNTS to get user ID)')}
-                        %endif
                         </label>
                       </div>
                       <fieldset id="gruser_options">

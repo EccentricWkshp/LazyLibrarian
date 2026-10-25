@@ -10,13 +10,13 @@ import time
 import traceback
 from queue import Queue
 
-import cherrypy
 import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import database
+from lazylibrarian.auth import owner_id
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookdict import (
     add_author_books_to_db,
@@ -86,16 +86,9 @@ def hc_api_sleep(limit=1.1):  # official limit is 60 requests per minute. limit=
 
 
 def get_current_userid():
-    """Get the current user's ID from cookies."""
-    userid = ''
-    msg = ''
-    cookie = cherrypy.request.cookie
-    if 'll_uid' in list(cookie.keys()):
-        userid = cookie['ll_uid'].value
-    else:
-        msg = 'No current lazylibrarian userid'
-        if not CONFIG.get_bool('USER_ACCOUNTS'):
-            msg += ', you need to enable user accounts in LazyLibrarian for this feature'
+    """Get the owner account ID, reading lists belong to the owner."""
+    userid = owner_id()
+    msg = '' if userid else 'No current lazylibrarian userid'
     return userid, msg
 
 
@@ -1758,19 +1751,13 @@ query FindAuthor { authors_by_pk(id: [authorid])
         Args:
             self:
             library: 'eBook', 'AudioBook' or empty for both
-            userid: User ID to sync, or None to get from cookies
+            userid: User ID to sync, or None for the owner account
             confirmed: True if user has confirmed large sync operations
             readonly: Forced readonly mode
         """
         msg = ''
         if not userid:
-            if not CONFIG.get_bool('USER_ACCOUNTS'):
-                msg = "User accounts are not enabled"
-                self.logger.error(msg)
-
-            cookie = cherrypy.request.cookie
-            if 'll_uid' in list(cookie.keys()):
-                userid = cookie['ll_uid'].value
+            userid = owner_id()
             if not userid:
                 msg = "No userid to sync"
                 self.logger.error(msg)

@@ -40,7 +40,6 @@ class LLTestCase(unittest.TestCase):
         lazylibrarian.DAEMON = False
         lazylibrarian.SIGNAL = None
         lazylibrarian.SYS_ENCODING = ''
-        lazylibrarian.LOGINUSER = None
         lazylibrarian.COMMIT_LIST = None
         lazylibrarian.STOPTHREADS = False
 

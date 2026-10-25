@@ -14,7 +14,6 @@
         <a href="library_scan?library=AudioBook" class="btn btn-sm btn-primary" id="scan"><i class="fa fa-bolt"></i> ${_('Library Scan')}</a>
         %endif
         <a href="audio_wall" class="button btn btn-sm btn-primary"><i class="fa fa-calendar-check"></i> ${_('Recent AudioBooks')}</a>
-        %if CONFIG['USER_ACCOUNTS']:
           %if CONFIG['RSS_ENABLED']:
             <a href="rss_feed?user=${user}&type=AudioBook&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent downloads') | h}"><i class="fa fa-rss"></i></a>
             <link rel="alternate" type="application/rss+xml" title="${_('LazyLibrarian latest AudioBooks') | h}" href="rss_feed?user=${user}&type=AudioBook&limit=10.xml">
@@ -24,7 +23,6 @@
           %else:
             <a href="toggle_my_a_feeds" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-users"></i></a>
           %endif
-        %endif
         %if lazylibrarian.PRIMARY_AUTHORS == True:
             <a href="toggle_primary?page=audio" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('Primary Author, or Contributor') | h}"><i class="fa fa-star"></i></a>
         %else:

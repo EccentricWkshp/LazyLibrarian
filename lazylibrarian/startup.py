@@ -128,9 +128,6 @@ class StartupLazyLibrarian:
         p.add_option('-p', '--pidfile',
                      dest='pidfile', default=None,
                      help="Store the process id in the given file")
-        p.add_option('-u', '--userid',
-                     dest='userid', default=None,
-                     help="Login as this userid")
         p.add_option('--loglevel',
                      dest='loglevel', default=None,
                      help="Set loglevel to either DEBUG, INFO or ERROR, or 10, 20 or 40.")
@@ -337,7 +334,6 @@ class StartupLazyLibrarian:
         lazylibrarian.GRGENRES = self.build_genres()
         lazylibrarian.DICTS = self.build_dicts()
         lazylibrarian.MONTHNAMES, lazylibrarian.SEASONS = self.build_monthtable(config)
-        lazylibrarian.NEWUSER_MSG = self.build_logintemplate()
         lazylibrarian.NEWFILE_MSG = self.build_filetemplate()
         lazylibrarian.BOOKSTRAP_THEMELIST = self.build_bookstrap_themes(DIRS.PROG_DIR)
         lazylibrarian.INFOSOURCES = self.build_sources()
@@ -447,27 +443,6 @@ class StartupLazyLibrarian:
 
         self.logger.info(f"Bookstrap found {len(themelist)} themes")
         return themelist
-
-    def build_logintemplate(self):
-        default_msg = ("Your lazylibrarian username is {username}\nYour password is {password}\n"
-                        "You can log in to lazylibrarian and change these to something more memorable\n"
-                        "You have been given {permission} access\n")
-        msg_file = os.path.join(DIRS.DATADIR, 'logintemplate.text')
-        if path_isfile(msg_file):
-            try:
-                # noinspection PyArgumentList
-                with open(syspath(msg_file), encoding='utf-8') as msg_data:
-                    res = msg_data.read()
-                for item in ["{username}", "{password}", "{permission}"]:
-                    if item not in res:
-                        self.logger.warning(f"Invalid login template in {msg_file}, no {item}")
-                        return default_msg
-                self.logger.info(f"Loaded login template from {msg_file}")
-                return res
-            except Exception as e:
-                self.logger.error(f'Failed to load {msg_file}, {type(e).__name__} {str(e)}')
-        self.logger.debug("Using default login template")
-        return default_msg
 
     def build_filetemplate(self):
         default_msg = "{name}{method}{link}"

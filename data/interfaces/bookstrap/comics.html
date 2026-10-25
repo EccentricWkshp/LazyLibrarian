@@ -14,7 +14,6 @@
         <a href="comic_scan" class="button btn btn-sm btn-primary"><i class="fa fa-bolt"></i> ${_('Library Scan')}</a>
         %endif
         <a href="comic_wall" class="button btn btn-sm btn-primary"><i class="fa fa-calendar-check"></i> ${_('Recent Issues')}</a>
-        %if CONFIG['USER_ACCOUNTS']:
           %if CONFIG['RSS_ENABLED']:
             <a href="rss_feed?user=${user}&type=Comic&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent downloads') | h}"><i class="fa fa-rss"></i></a>
             <link rel="alternate" type="application/rss+xml" title="${_('LazyLibrarian latest comics') | h}" href="rss_feed?user=${user}&type=Comic&limit=10.xml">
@@ -24,7 +23,6 @@
           %else:
             <a href="toggle_my_comics" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-users"></i></a>
           %endif
-        %endif
       </div>
       <div class="clearfix visible-xs"><hr/></div>
       <div class="col-xs-12 col-md-4">
@@ -54,7 +52,6 @@
   %endif
   <form name="mark_comics" id="mark_comics" action="mark_comics" method="get" class="form-inline" onsubmit="return false;">
     <div class="row">
-      % if perm%lazylibrarian.perm_status or CONFIG['USER_ACCOUNTS']:
       <div class="col-xs-12 col-sm-5">
         <div class="form-group">
           <label for="action" class="">${_('Mark selected as')}</label>
@@ -66,15 +63,12 @@
             <option value="Remove">${_('Remove')}</option>
             <option value="Delete">${_('Delete')}</option>
             %endif
-            %if CONFIG['USER_ACCOUNTS']:
             <option value="Subscribe">${_('Subscribe')}</option>
             <option value="Unsubscribe">${_('Unsubscribe')}</option>
-            %endif
           </select>
         </div>
         <button type="submit" class="btn btn-sm btn-primary" onclick="validateForm()">${_('Go')}</button>
       </div>
-      %endif
       %if CONFIG['TOGGLES']:
       <div class="toggles col-xs-12 col-sm-7 text-right">
       ${_('Toggle:')} <a class="toggle-vis" data-column="1"> ${_('Cover')}</a>

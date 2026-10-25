@@ -79,8 +79,6 @@ def main():
         'http_port': lazylibrarian.config2.CONFIG.get_int('HTTP_PORT'),
         'http_host': lazylibrarian.config2.CONFIG['HTTP_HOST'],
         'http_root': lazylibrarian.config2.CONFIG['HTTP_ROOT'],
-        'http_user': lazylibrarian.config2.CONFIG['HTTP_USER'],
-        'http_pass': lazylibrarian.config2.CONFIG['HTTP_PASS'],
         'http_proxy': lazylibrarian.config2.CONFIG.get_bool('HTTP_PROXY'),
         'https_enabled': lazylibrarian.config2.CONFIG.get_bool('HTTPS_ENABLED'),
         'https_cert': lazylibrarian.config2.CONFIG['HTTPS_CERT'],
@@ -89,15 +87,7 @@ def main():
         'opds_authentication': lazylibrarian.config2.CONFIG.get_bool('OPDS_AUTHENTICATION'),
         'opds_username': lazylibrarian.config2.CONFIG['OPDS_USERNAME'],
         'opds_password': lazylibrarian.config2.CONFIG['OPDS_PASSWORD'],
-        'authentication': lazylibrarian.config2.CONFIG['AUTH_TYPE'],
-        'user_accounts': lazylibrarian.config2.CONFIG.get_bool('USER_ACCOUNTS'),
-        'login_timeout': 43800,
     })
-
-    if options.userid:
-        lazylibrarian.LOGINUSER = options.userid
-    else:
-        lazylibrarian.LOGINUSER = None
 
     if lazylibrarian.config2.CONFIG.get_bool('LAUNCH_BROWSER') and not options.nolaunch:
         starter.launch_browser(lazylibrarian.config2.CONFIG['HTTP_HOST'],

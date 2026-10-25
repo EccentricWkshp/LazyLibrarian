@@ -22,8 +22,9 @@ from shutil import copyfile
 
 import lazylibrarian
 from lazylibrarian import database
+from lazylibrarian.auth import ensure_owner, reset_owner_cache
 from lazylibrarian.bookwork import set_genres
-from lazylibrarian.common import path_exists, pwd_generator
+from lazylibrarian.common import path_exists
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, setperm, splitext, syspath
 from lazylibrarian.formatter import check_int, get_list, plural
@@ -131,8 +132,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 98 add bn_id to book table
 # 99 add ui_lang to users table
 # 100 add dbk_id to books and authors tables, dbk_link to authors table
+# 101 single owner account instead of user accounts, add sessions table
 
-db_current_version = 100
+db_current_version = 101
 
 
 def upgrade_needed():
@@ -289,10 +291,6 @@ def db_upgrade(current_version: int, restartjobs: bool = False):
                     res = db.match("SELECT sql FROM sqlite_master WHERE type='table' AND name='wanted'")
                     db.action(res['sql'].replace('wanted', 'pastissues'))
                     db.action('ALTER TABLE pastissues ADD COLUMN Added INTEGER DEFAULT 0')
-
-                    cmd = "INSERT into users (UserID, UserName, Name, Password, Perms) VALUES (?, ?, ?, ?, ?)"
-                    db.action(cmd, (pwd_generator(), 'admin', 'admin', hash_password('admin'), 65535))
-                    logger.debug('Added admin user')
 
                     db.action('CREATE INDEX issues_Title_index ON issues (Title)')
                     db.action('CREATE INDEX books_index_authorid ON books(AuthorID)')
@@ -1160,6 +1158,61 @@ def db_v60(db, upgradelog):
     upgradelog.write(f"{time.ctime()} v60: complete\n")
 
 
+def migrate_to_owner_account(db, upgradelog):
+    """ v101: LazyLibrarian has a single owner account, like Sonarr and Radarr.
+    With user accounts enabled the most recently active admin becomes the owner, otherwise
+    the web server login from the config file does. Other accounts and their data are removed. """
+    logger = logging.getLogger(__name__)
+
+    def most_recent(rows):
+        return max(rows, key=lambda u: (check_int(u['Last_Login'], 0), check_int(u['Login_Count'], 0)))
+
+    users = [dict(u) for u in db.select('SELECT UserID,UserName,Password,Perms,Last_Login,Login_Count from users')]
+    admins = [u for u in users if check_int(u['Perms'], 0) & lazylibrarian.perm_config]
+    owner = None
+    if CONFIG.get_bool('USER_ACCOUNTS'):
+        if admins or users:
+            owner = most_recent(admins or users)
+            msg = f"User accounts replaced by single owner account [{owner['UserName']}]"
+    else:
+        # the users table always had a default admin entry, even when accounts were off
+        http_user = CONFIG['HTTP_USER']
+        matches = [u for u in users if http_user and u['UserName'] == http_user]
+        if matches or admins:
+            owner = matches[0] if matches else most_recent(admins)
+        else:
+            owner = {'UserID': ensure_owner(db)}
+        password = hash_password(CONFIG['HTTP_PASS']) if CONFIG['HTTP_PASS'] else ''
+        db.action('UPDATE users SET UserName=?, Password=? WHERE UserID=?', (http_user, password, owner['UserID']))
+        if password:
+            msg = f"Web server login [{http_user}] moved to the owner account"
+        else:
+            msg = 'No web server login was set, the owner account has no credentials yet'
+    if not owner:
+        owner = {'UserID': ensure_owner(db)}
+        msg = 'Created owner account'
+
+    for user in users:
+        if user['UserID'] != owner['UserID']:
+            logger.warning(f"Removing user account [{user['UserName']}]")
+            upgradelog.write(f"{time.ctime()} v101: Removing user account [{user['UserName']}]\n")
+    for table in ['readinglists', 'subscribers', 'sync', 'sent_file', 'unauthorised']:
+        if has_column(db, table, 'UserID'):
+            db.action(f'DELETE from {table} WHERE UserID!=?', (owner['UserID'],))
+    db.action('DELETE from users WHERE UserID!=?', (owner['UserID'],))
+    db.action('UPDATE users SET Perms=? WHERE UserID=?', (lazylibrarian.perm_admin, owner['UserID']))
+    reset_owner_cache()
+
+    logger.info(msg)
+    upgradelog.write(f"{time.ctime()} v101: {msg}\n")
+    # the password now lives hashed in the database, not in the config file
+    if CONFIG['HTTP_PASS'] or CONFIG.get_bool('USER_ACCOUNTS') or CONFIG.get_bool('SINGLE_USER'):
+        CONFIG.set_str('HTTP_PASS', '')
+        CONFIG.set_bool('USER_ACCOUNTS', False)
+        CONFIG.set_bool('SINGLE_USER', False)
+        CONFIG.save_config_and_backup_old()
+
+
 def update_schema(db, upgradelog):
     logger = logging.getLogger(__name__)
     db_version = get_db_version(db)
@@ -1635,6 +1688,15 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding dbk_link column to authors table'
         upgradelog.write(f"{time.ctime()} v100: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE authors ADD COLUMN dbk_link TEXT')
+
+    if not has_column(db, "sessions", "TokenHash"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating sessions table, moving to a single owner account'
+        upgradelog.write(f"{time.ctime()} v101: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('CREATE TABLE sessions (TokenHash TEXT UNIQUE, UserID TEXT REFERENCES users (UserID) '
+                  'ON DELETE CASCADE, Created INTEGER, Expires INTEGER, LastSeen INTEGER, '
+                  'Persistent INTEGER DEFAULT 0, RemoteIP TEXT, UserAgent TEXT)')
+        migrate_to_owner_account(db, upgradelog)
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")

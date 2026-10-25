@@ -15,13 +15,11 @@
             %else:
               <a href="toggle_auth" class="button btn btn-sm btn-primary"><i class="fa fa-user-secret"></i> ${_('Show Inactive Authors')}</a>
             %endif
-            %if CONFIG['USER_ACCOUNTS']:
               %if pref&lazylibrarian.pref_myauthors:
                 <a href="toggle_my_auth" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-user-circle"></i></a>
               %else:
                 <a href="toggle_my_auth" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-users"></i></a>
               %endif
-            %endif
             %if lazylibrarian.IGNORED_AUTHORS == True:
                 <a href="author_wall?have=0" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('Grid view') | h}"><i class="fa fa-th"></i></a>
             %else:
@@ -73,7 +71,6 @@
 
 <form name="mark_authors" id="mark_authors" action="mark_authors" method="get" class="form-inline" onsubmit="return false;">
   <div class="row">
-    %if perm&lazylibrarian.perm_status or CONFIG['USER_ACCOUNTS']:
       <div class="col-xs-12 col-sm-5">
           <div class="form-group">
             <label for="mark_authors" class="control-label">${_('Mark selected as')}</label>
@@ -87,15 +84,12 @@
               <option value="Delete">${_('Delete')}</option>
               <option value="Delete+Ignore">${_('Delete + Ignore')}</option>
               %endif
-              %if CONFIG['USER_ACCOUNTS']:
                 <option value="Subscribe">${_('Subscribe')}</option>
                 <option value="Unsubscribe">${_('Unsubscribe')}</option>
-              %endif
             </select>
           </div>
           <button type="submit" class="btn btn-sm btn-primary" onclick="validateForm()">${_('Go')}</button>
       </div>
-    %endif
     %if CONFIG['TOGGLES']:
       <div class="toggles col-xs-12 col-sm-7 text-right">
         ${_('Toggle:')} <a class="toggle-vis" data-column="1"> ${_('Image')}</a>

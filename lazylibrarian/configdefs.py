@@ -39,6 +39,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('General', 'SHOW_IRC_PROV', 1),
     ConfigBool('General', 'SHOW_GEN_PROV', False),  # Unused
     ConfigBool('General', 'SHOW_DIRECT_PROV', 1),
+    # Only read by the db v101 upgrade to pick the owner account, see migrate_to_owner_account
     ConfigBool('General', 'USER_ACCOUNTS', 0),
     ConfigBool('General', 'SINGLE_USER', 0),
     ConfigEmail('General', 'ADMIN_EMAIL', ''),
@@ -90,10 +91,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('Proxy', 'PROXY_LOCAL', ''),
     ConfigStr('Proxy', 'FALLBACK_PROXY', ''),
     ConfigBool('Proxy', 'PROXY_AUTH', 0),
-    ConfigBool('Proxy', 'PROXY_REGISTER', 0),
     ConfigStr('Proxy', 'PROXY_AUTH_USER', 'X-WEBAUTH-USER'),
-    ConfigStr('Proxy', 'PROXY_AUTH_EMAIL', 'X-WEBAUTH-EMAIL'),
-    ConfigStr('Proxy', 'PROXY_AUTH_NAME', 'X-WEBAUTH-FULLNAME'),
 
     ConfigCSV('Postprocess', 'SKIPPED_EXT', 'fail, part, bts, !ut, torrent, magnet, nzb, unpack'),
     ConfigCSV('Postprocess', 'BANNED_EXT', 'avi, mp4, mov, iso, m4v', force_lower=True),
@@ -122,6 +120,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
 
     ConfigRangedInt('WebServer', 'HTTP_PORT', 5299, 21, 65535),
     ConfigStr('WebServer', 'HTTP_HOST', '0.0.0.0'),
+    # Only read by the db v101 upgrade, the login now lives hashed in the users table
     ConfigStr('WebServer', 'HTTP_USER', ''),
     ConfigStr('WebServer', 'HTTP_PASS', ''),
     ConfigBool('WebServer', 'HTTP_PROXY', 0),

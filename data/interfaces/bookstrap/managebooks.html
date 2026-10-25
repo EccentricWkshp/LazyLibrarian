@@ -12,7 +12,7 @@
             %if library != 'AudioBook':
               <a href="import_alternate" class="button btn btn-sm btn-primary"><i class="fa fa-book"></i> ${_('Import eBooks')}</a>
               <a href="include_alternate" class="button btn btn-sm btn-primary"><i class="fa fa-book"></i> ${_('Include eBooks')}</a>
-              %if CONFIG['USER_ACCOUNTS'] and CONFIG['IMP_CALIBREDB']:
+              %if CONFIG['IMP_CALIBREDB']:
                 <button class="button btn btn-sm btn-primary" type="button" value="synctocalibre" id="synctocalibre">
                 <i class="fa fa-link"></i> ${_('Calibre Sync')}</button>
               %endif
@@ -70,7 +70,6 @@
                     %endif
                 >${status_label(item)}</option>
             %endfor
-            %if CONFIG['USER_ACCOUNTS']:
             <option value="Read"
                 %if whichStatus == "Read":
                     selected = "selected"
@@ -91,7 +90,6 @@
                     selected = "selected"
                 %endif
                 >${_('Abandoned')}</option >
-            %endif
           </select>
         </div>
       </div>
@@ -139,7 +137,6 @@
         </thead>
       </table>
     </div>
-    %if perm&lazylibrarian.perm_status or CONFIG['USER_ACCOUNTS']:
     <div class="form-group">
       <label for="mark_as" class="control-label">${_('Mark selected AudioBooks as') if library == 'AudioBook' else _('Mark selected eBooks as')}</label>
       <select id="mark_as" class="mark_as form-control input-sm" name="action">
@@ -161,20 +158,17 @@
             <option value="${item}">${status_label(item)}</option>
           %endfor
         %endif
-        %if CONFIG['USER_ACCOUNTS']:
         <option value="Unread">${_('Unread')}</option>
         <option value="Read">${_('Read')}</option>
         <option value="ToRead">${_('To Read')}</option>
         <option value="Reading">${_('Reading')}</option>
         <option value="Abandoned">${_('Abandoned')}</option>
-        %endif
         %if CONFIG['DELAYSEARCH']:
         <option value="NoDelay">${_('No Delay')}</option>
         %endif
       </select>
     </div>
     <input type="submit" class="mark_books btn btn-sm btn-default"  onclick="submitFormAjax()" value="${_('Go') | h}">
-    %endif
   </form>
   <p>&nbsp;</p>
 </%def>

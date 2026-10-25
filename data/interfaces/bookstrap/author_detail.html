@@ -57,7 +57,6 @@
         %else:
             <a href="toggle_primary?page=author_detail&authorid=${author['AuthorID']}" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('Primary Author, or Contributor') | h}"><i class="fa fa-handshake"></i></a>
         %endif
-        %if CONFIG['USER_ACCOUNTS']:
           %if CONFIG['RSS_ENABLED']:
             %if CONFIG.get_int('EBOOK_TAB') > 0:
             <a href="rss_feed?user=${user}&type=eBook&authorid=${author['AuthorID']}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent ebooks') | h}"><i class="fa fa-rss"></i>&nbsp;<i class="fa fa-book"></i></a>
@@ -66,7 +65,6 @@
             <a href="rss_feed?user=${user}&type=AudioBook&authorid=${author['AuthorID']}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent audiobooks') | h}"><i class="fa fa-rss"></i>&nbsp;<i class="fa fa-headphones"></i></a>
             %endif
           %endif
-        %endif
         </form>
     </div>
 </%def>

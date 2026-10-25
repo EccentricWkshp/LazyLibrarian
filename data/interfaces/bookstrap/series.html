@@ -12,14 +12,12 @@
         %else:
           <label class="control-label"> </label>
         %endif
-            %if CONFIG['USER_ACCOUNTS']:
             %if authorid == None:
               %if pref&lazylibrarian.pref_myseries:
                 <a href="toggle_my_series" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-user-circle"></i></a>
               %else:
                 <a href="toggle_my_series" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-users"></i></a>
               %endif
-            %endif
             %endif
             %if authorid == None:
             %if active == 'True':
@@ -115,7 +113,6 @@
         </thead>
       </table>
     </div>
-    %if perm&lazylibrarian.perm_status or CONFIG['USER_ACCOUNTS']:
     <div class="form-group">
       <label for="series" class="control-label">${_('Change selected series to:')} </label>
       <select id="series" class="mark_series form-control input-sm" name="action">
@@ -126,7 +123,6 @@
         <option value="${item}">${label}</option>
         %endfor
         %endif
-        %if CONFIG['USER_ACCOUNTS']:
         <option value="Unread">${_('Unread')}</option>
         <option value="Read">${_('Read')}</option>
         <option value="ToRead">${_('To Read')}</option>
@@ -134,14 +130,12 @@
         <option value="Abandoned">${_('Abandoned')}</option>
         <option value="Subscribe">${_('Subscribe')}</option>
         <option value="Unsubscribe">${_('Unsubscribe')}</option>
-        %endif
       </select>
     </div>
     %if authorid != None:
     <input type="hidden" name="redirect" value="${authorid}">
     %endif
     <input type="submit" class="mark_series btn btn-sm btn-default" onclick="submitFormAjax()" value="${_('Go') | h}">
-    %endif
   </form>
   <p>&nbsp;</p>
 </%def>

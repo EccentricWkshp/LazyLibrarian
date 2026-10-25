@@ -14,15 +14,15 @@
           <div class="col-xs-12">
               <div class="form-group">
                 <label for="fullname">${_('Full Name')}</label>
-                <input id="fullname" name="fullname" class="form-control" value="${user['Name']}">
+                <input id="fullname" name="fullname" class="form-control" value="${user['Name'] or '' | h}">
               </div>
               <div class="form-group">
                 <label for="email">${_('Email')}</label>
-                <input id="email" name="email" class="form-control" value="${user['Email']}">
+                <input id="email" name="email" class="form-control" value="${user['Email'] or '' | h}">
               </div>
               <div class="form-group">
                 <label for="sendto">${_('Send To (eg kindle)')}</label>
-                <input id="sendto" name="sendto" class="form-control" value="${user['SendTo']}">
+                <input id="sendto" name="sendto" class="form-control" value="${user['SendTo'] or '' | h}">
               </div>
               <div class="form-group">
                 <label for="lltheme">${_('Theme')}</label>
@@ -40,7 +40,7 @@
               </div>
               <div class="form-group">
                 <label for="username">${_('Username (UserID=%(userid)s)') % {'userid': user['UserID']}}</label>
-                <input id="username" class="form-control" name="username" value="${user['UserName']}">
+                <input id="username" class="form-control" name="username" value="${user['UserName'] or '' | h}">
               </div>
               <div class="form-group">
                 <label for="booktype">${_('Preferred BookType to open/email')}</label>
@@ -59,10 +59,24 @@
               <div class="form-group">
                 <label for="hc_token">${_('HardCover Token')}</label>
                 <div class="input-group">
-                  <input type="text" id="hc_token" name="hc_token" value="${user['hc_token'] if 'hc_token' in user else ''}" class="form-control" placeholder="${_('Bearer token') | h}">
+                  <input type="text" id="hc_token" name="hc_token" value="${user['hc_token'] or '' | h}" class="form-control" placeholder="${_('Bearer token') | h}">
                   <span class="input-group-btn">
                     <button class="btn btn-default" type="button" id="test_hc_token">${_('Test')}</button>
                   </span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="calread">${_('Calibre Read Column')}</label>
+                <input id="calread" name="calread" class="form-control" value="${user['CalibreRead'] or '' | h}">
+              </div>
+              <div class="form-group">
+                <label for="caltoread">${_('Calibre ToRead Column')}</label>
+                <input id="caltoread" name="caltoread" class="form-control" value="${user['CalibreToRead'] or '' | h}">
+              </div>
+              <div class="form-group">
+                <label for="userfeeds">${_('Wishlist feeds to follow')}</label>
+                <div>
+                  <input type="button" value="${_('Feeds') | h}" id="userfeeds" class="btn btn-default" />
                 </div>
               </div>
               <div class="form-group">
@@ -107,7 +121,10 @@
           var lltheme = $.trim($("#lltheme").val());
           var fullname = $.trim($("#fullname").val());
           var hc_token = $.trim($("#hc_token").val());
-          $.get("user_update", {'username': username, 'fullname': fullname, 'password': password, 'password2': password2, 'email': email, 'sendto': sendto, 'booktype': booktype, 'theme': lltheme, 'hc_token': hc_token},
+          var calread = $.trim($("#calread").val());
+          var caltoread = $.trim($("#caltoread").val());
+          // POST so the password doesn't end up in the url, and the access log
+          $.post("user_update", {'username': username, 'fullname': fullname, 'password': password, 'password2': password2, 'email': email, 'sendto': sendto, 'booktype': booktype, 'theme': lltheme, 'hc_token': hc_token, 'calread': calread, 'caltoread': caltoread},
                 function (data) {
                 bootbox.dialog({
                     title: ${_js('Update User')},
@@ -123,6 +140,37 @@
           });
       });
       
+      $('#userfeeds').on('click', function(e) {
+          $.get('user_feeds', {}, function(data) {
+            var obj = JSON.parse(data);
+            var feeds = obj['feeds']
+            if (feeds.length === 0) {
+              alert(${_js('No wishlists found')});
+            }
+            bootbox.prompt({
+                title: ${_js('User Feeds')},
+                value: obj['value'],
+                inputType: 'checkbox',
+                inputOptions: feeds,
+                callback: function (result) {
+                    $.get("update_feeds", {'value': result, 'feeds': obj['feeds']},
+                          function (data) {
+                          bootbox.dialog({
+                              title: ${_js('Update User')},
+                              message: '<pre>'+data+'</pre>',
+                              buttons: {
+                                  primary: {
+                                      label: ${_js('Close')},
+                                      className: 'btn-primary'
+                                  }
+                              }
+                          });
+                    });
+                }
+            });
+          });
+      });
+
       $('#test_hc_token').click(function() {
           var hc_token = $.trim($("#hc_token").val());
           var userid = $.trim($("#userid").val());

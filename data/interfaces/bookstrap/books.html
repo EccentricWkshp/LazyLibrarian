@@ -15,7 +15,6 @@
         %endif
         <a href="book_wall?have=0" class="button btn btn-sm btn-primary"><i class="fa fa-calendar-plus"></i> ${_('Additions')}</a>
         <a href="book_wall?have=1" class="button btn btn-sm btn-primary"><i class="fa fa-calendar-alt"></i> ${_('Downloads')}</a>
-        %if CONFIG['USER_ACCOUNTS']:
           %if CONFIG['RSS_ENABLED']:
             <a href="rss_feed?user=${user}&type=eBook&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent downloads') | h}"><i class="fa fa-rss"></i></a>
             <link rel="alternate" type="application/rss+xml" title="${_('LazyLibrarian latest eBooks') | h}" href="rss_feed?user=${user}&type=eBook&limit=10.xml">
@@ -25,7 +24,6 @@
           %else:
             <a href="toggle_my_feeds" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('All, or just mine') | h}"><i class="fa fa-users"></i></a>
           %endif
-        %endif
         %if lazylibrarian.PRIMARY_AUTHORS == True:
             <a href="toggle_primary?page=books" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('Primary Author, or Contributor') | h}"><i class="fa fa-star"></i></a>
         %else:
@@ -57,7 +55,6 @@
     <div class="row">
       <input type="hidden" name="booklang" value=${booklang}>
       <input type="hidden" name="redirect" value='books'>
-      %if perm&lazylibrarian.perm_status or CONFIG['USER_ACCOUNTS']:
       <div class="col-xs-12 col-sm-5">
         <div class="form-group">
           <label for="mark_books" class="control-label">${_('Mark selected as')}</label>
@@ -70,18 +67,15 @@
             <option value="Remove">${_('Remove')}</option>
             <option value="Delete">${_('Delete')}</option>
           %endif
-            %if CONFIG['USER_ACCOUNTS']:
               <option value="Unread">${_('Unread')}</option>
               <option value="Read">${_('Read')}</option>
               <option value="ToRead">${_('To Read')}</option>
               <option value="Reading">${_('Reading')}</option>
               <option value="Abandoned">${_('Abandoned')}</option>
-            %endif
           </select>
         </div>
         <button type="submit" class="btn btn-sm btn-primary" onclick="validateForm()">${_('Go')}</button>
       </div>
-      %endif
       %if CONFIG['TOGGLES']:
         <div class="toggles col-xs-12 col-sm-7 text-right">
           ${_('Toggle:')} <a class="toggle-vis" data-column="1"> ${_('Cover')}</a>

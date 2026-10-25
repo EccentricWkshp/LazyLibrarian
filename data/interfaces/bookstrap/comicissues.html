@@ -12,12 +12,10 @@
         <a href="comic_scan?comicid=${comicid}" class="button btn btn-sm btn-primary"><i class="fa fa-bolt"></i> ${_('Library Scan')}</a>
       %endif
       <a href="comic_wall?comicid=${comicid}" class="button btn btn-sm btn-primary"><i class="fa fa-calendar-check"></i> ${_('Recent Issues')}</a>
-        %if CONFIG['USER_ACCOUNTS']:
           %if CONFIG['RSS_ENABLED']:
             <a href="rss_feed?user=${user}&type=Comic&onetitle=${comicid}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent downloads') | h}"><i class="fa fa-rss"></i></a>
             <link rel="alternate" type="application/rss+xml" title="${_('LazyLibrarian latest comics') | h}" href="rss_feed?user=${user}&type=Comic&onetitle=${comicid}&limit=10.xml">
           %endif
-        %endif
     </div>
   </div>
 </%def>

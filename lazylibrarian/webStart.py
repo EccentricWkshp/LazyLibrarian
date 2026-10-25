@@ -10,6 +10,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
 
+import hmac
 import os
 import sys
 
@@ -29,6 +30,8 @@ import logging
 from shutil import copyfile
 
 import lazylibrarian
+from lazylibrarian import database
+from lazylibrarian.auth import check_user_password, get_owner
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, syspath
 from lazylibrarian.logconfig import LOGCONFIG
@@ -162,57 +165,24 @@ def initialize(options=None):
             # 'tools.proxy.local': 'X-Forwarded-For' or 'X-Real-IP' # this is for caddy
             'tools.proxy.local': CONFIG['PROXY_LOCAL']
         })
-    if options['http_pass'] != "" and not options['user_accounts']:
-        logger.info(f"Web server {options['authentication']} authentication is enabled, "
-                    f"username is '{options['http_user']}'")
-        if options['authentication'] == 'FORM':
-            # Set up a sessions based login page instead of using basic auth,
-            # using the credentials set for basic auth. Attempting to browse to
-            # a restricted page without a session token will result in a
-            # redirect to the login page. A sucessful login should then redirect
-            # to the originally requested page.
-            #
-            # Login sessions timeout after 43800 minutes (1 month) unless
-            # changed in the config.
-            cherrypy.tools.sessions.timeout = options['login_timeout']
-            conf['/'].update({
-                'tools.sessions.on': True,
-                'tools.auth.on': True,
-                'auth.forms_username': options['http_user'],
-                'auth.forms_password': options['http_pass'],
-                # Set all pages to require authentication with 'auth.require': []
-                # You can also set auth requirements on a per-method basis by
-                # using the @require_auth() decorator on the methods in webserve.py
-            })
-        elif options['authentication'] == 'BASIC':
-            # noinspection PyUnresolvedReferences
-            conf['/'].update({
-                'tools.auth_basic.on': True,
-                'tools.auth_basic.realm': 'LazyLibrarian',
-                'tools.auth_basic.checkpassword': cherrypy.lib.auth_basic.checkpassword_dict({
-                    options['http_user']: options['http_pass']
-                })
-            })
-        # exempt api, login page and static elements from authentication requirements
-        for i in ('/api', '/auth/login', '/css', '/images', '/js', 'favicon.ico', '/rss_feed', '/nzbfile.nzb',
-                    '/serve_img', '/serve_issue', '/serve_book', '/serve_audio', '/serve_comic'):
-            if i in conf:
-                conf[i].update({'tools.auth.on': False, 'tools.auth_basic.on': False})
-            else:
-                conf[i] = {'tools.auth.on': False, 'tools.auth_basic.on': False}
+    # Every page decorated with @require_auth() needs a logged-in owner, see auth.py.
+    # The api, login page and static elements are exempt. The feed and serve_* links
+    # carry the owner UserID and are checked by the handlers, so feed readers can use them.
+    conf['/'].update({'tools.auth.on': True})
+    for i in ('/api', '/auth', '/css', '/images', '/js', '/favicon.ico', '/rss_feed', '/nzbfile.nzb',
+              '/serve_img', '/serve_issue', '/serve_book', '/serve_audio', '/serve_comic', '/opds'):
+        if i in conf:
+            conf[i].update({'tools.auth.on': False})
+        else:
+            conf[i] = {'tools.auth.on': False}
 
     if options['opds_authentication']:
-        user_list = {}
-        if len(options['opds_username']) > 0:
-            user_list[options['opds_username']] = options['opds_password']
-        if options['http_pass'] is not None and options['http_user'] != options['opds_username']:
-            user_list[options['http_user']] = options['http_pass']
         # noinspection PyUnresolvedReferences
-        conf['/opds'] = {'tools.auth_basic.on': True,
-                         'tools.auth_basic.realm': 'LazyLibrarian OPDS',
-                         'tools.auth_basic.checkpassword': cherrypy.lib.auth_basic.checkpassword_dict(user_list)}
+        conf['/opds'].update({'tools.auth_basic.on': True,
+                              'tools.auth_basic.realm': 'LazyLibrarian OPDS',
+                              'tools.auth_basic.checkpassword': check_opds_password})
     else:
-        conf['/opds'] = {'tools.auth_basic.on': False}
+        conf['/opds'].update({'tools.auth_basic.on': False})
 
     opensearch = os.path.join(DIRS.PROG_DIR, 'data', 'opensearch.template')
     if path_exists(opensearch):
@@ -268,6 +238,19 @@ def initialize(options=None):
         sys.exit(1)
 
     cherrypy.server.wait()
+
+
+def check_opds_password(realm, username, password):
+    """ OPDS readers can log in with the OPDS credentials or the owner account """
+    opds_user = CONFIG['OPDS_USERNAME']
+    if opds_user and hmac.compare_digest(username.encode('utf-8'), opds_user.encode('utf-8')):
+        return hmac.compare_digest(password.encode('utf-8'), CONFIG['OPDS_PASSWORD'].encode('utf-8'))
+    db = database.DBConnection()
+    try:
+        owner = get_owner(db)
+        return bool(owner and username == owner['UserName'] and check_user_password(db, username, password))
+    finally:
+        db.close()
 
 
 def error_page_403(status, message, traceback, version):

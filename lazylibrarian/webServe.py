@@ -12,7 +12,6 @@
 
 
 import ast
-import base64
 import contextlib
 import datetime
 import json
@@ -59,12 +58,13 @@ from lazylibrarian import (
     versioncheck,
 )
 from lazylibrarian.auth import (
-    SESSION_KEY,
     AuthController,
-    check_user_password,
-    get_remote_ip,
-    is_whitelisted_ip,
+    end_session,
+    get_owner,
+    owner_id,
     require_auth,
+    session_token,
+    set_owner_credentials,
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.booklanguages import (
@@ -188,7 +188,7 @@ from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.oldump import update_openlibrary_dump
 from lazylibrarian.opds import OPDS
 from lazylibrarian.opfedit import opf_read, opf_write
-from lazylibrarian.passwords import hash_password, verify_password
+from lazylibrarian.passwords import verify_password
 from lazylibrarian.postprocess import process_dir
 from lazylibrarian.processcontrol import get_info_on_caller
 from lazylibrarian.providers import test_provider
@@ -239,6 +239,17 @@ def clear_mako_cache(userid=0):
         os.makedirs(makocache, exist_ok=True)
     except Exception as e:
         logger.error(f"Error clearing mako cache: {str(e)}")
+
+
+def owner_details() -> dict:
+    """ Owner account fields the config page shows, never the password hash """
+    db = database.DBConnection()
+    try:
+        owner = get_owner(db) or {}
+    finally:
+        db.close()
+    return {'username': owner.get('UserName') or '', 'userid': owner.get('UserID') or '',
+            'password_set': bool(owner.get('Password'))}
 
 
 def clear_our_cookies():
@@ -440,244 +451,52 @@ def serve_template(templatename, **kwargs):
             return template.render(perm=0, message=i18n.gettext("Database upgrade in progress, please wait..."),
                                    title=i18n.gettext("Database Upgrade"), timer=5, style=style, **i18n_vars)
 
-        adminlogger.debug(f"Request headers: {str(cherrypy.request.headers)}")
-        adminlogger.debug(f"Request cookie: {str(cherrypy.request.cookie)}")
-        if not CONFIG.get_bool('USER_ACCOUNTS'):
-            adminlogger.debug("User accounts are NOT active")
-            perm = lazylibrarian.perm_admin
-            try:
-                template = _hplookup.get_template(templatename)
-            except (AttributeError, KeyError):
-                clear_mako_cache()
-                template = _hplookup.get_template(templatename)
-        else:
-            adminlogger.debug(f"User accounts are active, Login user is {lazylibrarian.LOGINUSER}")
-            username = ''  # anyone logged in yet?
-            userid = 0
-            perm = 0
-            res = {}
-            cookie = None
-            db = database.DBConnection()
-
-            if lazylibrarian.LOGINUSER:
-                formauth = lazylibrarian.LOGINUSER.startswith('!')
-                lazylibrarian.LOGINUSER = lazylibrarian.LOGINUSER.strip('!')
-                res = db.match('SELECT * from users where UserID=?', (lazylibrarian.LOGINUSER,))
-                if res:
-                    cherrypy.response.cookie['ll_uid'] = res['UserID']
-                    cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                    userid = res['UserID']
-                    if formauth:
-                        logger.debug(f"Auth-login for {res['UserName']}")
-                    else:
-                        logger.debug(f"Auto-login for {res['UserName']}")
-                        # lazylibrarian.SHOWLOGOUT = 0
-                    db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                              (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-                else:
-                    logger.debug(f"Login failed for userid {lazylibrarian.LOGINUSER}")
-                    clear_our_cookies()
-                lazylibrarian.LOGINUSER = None
-
-            else:
-                authorization = cherrypy.request.headers.get('Authorization')
-                if authorization:
-                    adminlogger.debug(f"Authorization header: {authorization}")
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    adminlogger.debug(f"Cookie UserID: {cookie['ll_uid'].value}")
-                    res = db.match('SELECT * from users where UserID=?', (cookie['ll_uid'].value,))
-                    if res:
-                        cherrypy.response.cookie['ll_uid'] = res['UserID']
-                        cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                    else:
-                        adminlogger.debug(f"No user for uid {cookie['ll_uid'].value}")
-                        clear_our_cookies()
-                elif authorization and authorization.startswith('Basic '):
-                    auth_bytes = authorization.split('Basic ')[1].encode('ascii')
-                    value_bytes = base64.b64decode(auth_bytes)
-                    values = value_bytes.decode('ascii')
-                    res = {}
-                    user = ''
-                    if ':' in values:
-                        user, pwd = values.split(':', 1)
-                        res = check_user_password(db, user, pwd)
-                    if res:
-                        cherrypy.response.cookie['ll_uid'] = res['UserID']
-                        cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                    else:
-                        adminlogger.debug(f"No user for basic auth {user} or invalid password")
-                if not res and CONFIG.get_bool('PROXY_AUTH'):
-                    adminlogger.debug('Proxy Auth enabled')
-                    user = cherrypy.request.headers.get(CONFIG.get_str('PROXY_AUTH_USER'))
-                    if user:
-                        adminlogger.debug(f"{CONFIG.get_str('PROXY_AUTH_USER')}: {user}")
-                        res = db.match('SELECT * from users where UserName=?', (user,))
-                        if res:
-                            logger.debug(f"{user} is a registered user")
-                            cherrypy.response.cookie['ll_uid'] = res['UserID']
-                            cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                            db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                                      (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-                        else:
-                            adminlogger.debug(f"{user} is NOT a registered user")
-                        if not res and CONFIG.get_bool('PROXY_REGISTER'):
-                            logger.debug(f"User {user} not registered, trying to add...")
-                            fullname = cherrypy.request.headers.get(CONFIG.get_str('PROXY_AUTH_NAME'))
-                            logger.debug(f"{CONFIG.get_str('PROXY_AUTH_NAME')}: {fullname}")
-                            email = cherrypy.request.headers.get(CONFIG.get_str('PROXY_AUTH_EMAIL'))
-                            logger.debug(f"{CONFIG.get_str('PROXY_AUTH_NAME')}: {email}")
-                            if fullname and email:
-                                new_pwd = pwd_generator()
-                                msg = lazylibrarian.NEWUSER_MSG.replace('{username}', user).replace(
-                                    '{password}', new_pwd).replace('{permission}', 'Friend')
-
-                                result = notifiers.email_notifier.notify_message('LazyLibrarian New Account',
-                                                                                 msg, email)
-                                if result:
-                                    cmd = ('INSERT into users (UserID, UserName, Name, Password, Email, '
-                                           'SendTo, Perms) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                                    db.action(cmd, (pwd_generator(), user, fullname, hash_password(new_pwd),
-                                                    email, '', lazylibrarian.perm_friend))
-                                    msg = (f"New user added from proxy auth: {user}: Friend"
-                                            f"<br>Email sent to {email}")
-                                    cnt = db.match("select count(*) as counter from users")
-                                    if cnt['counter'] > 1:
-                                        lazylibrarian.SHOWLOGOUT = 1
-                                    res = db.match('SELECT * from users where UserName=?', (user,))
-                                    cherrypy.response.cookie['ll_uid'] = res['UserID']
-                                    cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                                    cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                                    db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                                              (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-                                else:
-                                    msg = f"New user NOT added<br>Failed to send email to {email}"
-                                logger.debug(msg)
-
-                if not res:
-                    columns = db.select('PRAGMA table_info(users)')
-                    if not columns:  # no such table
-                        cnt = 0
-                    else:
-                        cnt = db.match("select count(*) as counter from users")
-                    if cnt and cnt['counter'] == 1 and CONFIG.get_bool('SINGLE_USER') and \
-                            templatename not in ["register.html", "response.html", "opds.html"]:
-                        res = db.match('SELECT * from users')
-                        cherrypy.response.cookie['ll_uid'] = res['UserID']
-                        cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                        cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                        logger.debug(f"Single user login for {res['UserName']}")
-                        db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                                  (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-                        lazylibrarian.SHOWLOGOUT = 0
-                    else:
-                        lazylibrarian.SHOWLOGOUT = 1
-
-                if not res:
-                    remote_ip = get_remote_ip()
-                    to_whitelist = is_whitelisted_ip(remote_ip)
-                    if to_whitelist:
-                        adminlogger.debug(f"Whitelisted login from {remote_ip}")
-                        columns = db.select('PRAGMA table_info(users)')
-                        if not columns:  # no such table
-                            cnt = 0
-                        else:
-                            cnt = db.match('SELECT count(*) as counter from users where Perms=65535')
-                        if cnt and templatename not in ["register.html", "response.html", "opds.html"]:
-                            res = db.match('SELECT * from users where Perms=65535')
-                            cherrypy.response.cookie['ll_uid'] = res['UserID']
-                            cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-                            cherrypy.response.cookie['ll_uilang'] = res['UI_Lang'] or ''
-                            logger.debug(f"Auto-login for {res['UserName']} at {remote_ip}")
-                            db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                                      (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-                            lazylibrarian.SHOWLOGOUT = 0
-                        else:
-                            lazylibrarian.SHOWLOGOUT = 1
-            if res:
-                perm = check_int(res['Perms'], 0)
-                username = res['UserName']
-                userid = res['UserID']
-                try:
-                    res2 = db.match('SELECT Theme from users where UserID=?', (userid,))
-                    if res2:
-                        usertheme = res2['Theme']
-                        if not usertheme:
-                            usertheme = ''
-                except Exception as e:
-                    logger.debug(f"Unable to get user theme for {userid}: {str(e)}")
+        db = database.DBConnection()
+        try:
+            owner = get_owner(db) or {}
+        finally:
             db.close()
-            if cookie and 'll_prefs' in list(cookie.keys()):
-                userprefs = check_int(cookie['ll_prefs'].value, 0)
+        perm = lazylibrarian.perm_admin
+        userid = owner.get('UserID', '')
+        usertheme = owner.get('Theme') or ''
+        cherrypy.response.cookie['ll_uilang'] = owner.get('UI_Lang') or ''
+        cookie = cherrypy.request.cookie
+        if cookie and 'll_prefs' in list(cookie.keys()):
+            userprefs = check_int(cookie['ll_prefs'].value, 0)
+        else:
+            userprefs = check_int(owner.get('Prefs'), 0)
+        adminlogger.debug(f"User: {owner.get('UserName')} Prefs: {userprefs} Theme: {usertheme} "
+                          f"Template: {templatename}")
 
-            if perm == 0 and templatename not in ["register.html", "response.html", "opds.html"]:
-                if CONFIG.get_str('auth_type') == 'FORM' and not CONFIG.get_bool('USER_ACCOUNTS'):
-                    templatename = "formlogin.html"
-                else:
-                    templatename = "login.html"
-            elif (templatename == 'config.html' and not perm & lazylibrarian.perm_config) or \
-                    (templatename == 'logs.html' and not perm & lazylibrarian.perm_logs) or \
-                    (templatename == 'history.html' and not perm & lazylibrarian.perm_history) or \
-                    (templatename == 'managebooks.html' and not perm & lazylibrarian.perm_managebooks) or \
-                    (templatename == 'books.html' and not perm & lazylibrarian.perm_ebook) or \
-                    (templatename == 'author.html' and not perm & lazylibrarian.perm_ebook
-                     and not perm & lazylibrarian.perm_audio) or \
-                    (templatename in ['magazines.html', 'issues.html', 'manageissues.html']
-                     and not perm & lazylibrarian.perm_magazines) or \
-                    (templatename in ['comics.html', 'comicissues.html', 'comicresults.html']
-                     and not perm & lazylibrarian.perm_comics) or \
-                    (templatename == 'audio.html' and not perm & lazylibrarian.perm_audio) or \
-                    (templatename == 'choosetype.html' and not perm & lazylibrarian.perm_download) or \
-                    (templatename in ['series.html', 'members.html'] and not perm & lazylibrarian.perm_series) or \
-                    (templatename in ['editauthor.html', 'editbook.html', 'editissue.html'] and not
-                        perm & lazylibrarian.perm_edit) or \
-                    (templatename in ['manualsearch.html', 'searchresults.html']
-                     and not perm & lazylibrarian.perm_search):
-                logger.warning(f'User {username} attempted to access {templatename}')
-                if not CONFIG.get_bool('USER_ACCOUNTS') and CONFIG.get_str('auth_type') == 'FORM':
-                    templatename = "formlogin.html"
-                else:
-                    templatename = "login.html"
+        theme = usertheme.split('_', 1)[0]
+        if theme and theme != CONFIG['HTTP_LOOK']:
+            template_dir = os.path.join(str(interface_dir), theme)
+            if not path_isdir(template_dir):
+                logger.error(f"Unable to locate template [{template_dir}], reverting to bookstrap")
+                CONFIG.set_str('HTTP_LOOK', 'bookstrap')
+                template_dir = os.path.join(str(interface_dir), CONFIG['HTTP_LOOK'])
 
-            adminlogger.debug(f"User: {username} Perm: {perm} Prefs: {userprefs} Theme: {usertheme} Template: {templatename}")
-
-            theme = usertheme.split('_', 1)[0]
-            if theme and theme != CONFIG['HTTP_LOOK']:
-                template_dir = os.path.join(str(interface_dir), theme)
-                if not path_isdir(template_dir):
-                    logger.error(f"Unable to locate template [{template_dir}], reverting to bookstrap")
-                    CONFIG.set_str('HTTP_LOOK', 'bookstrap')
-                    template_dir = os.path.join(str(interface_dir), CONFIG['HTTP_LOOK'])
-
-                module_directory = os.path.join(DIRS.CACHEDIR, 'mako', str(userid))
-                _hplookup = TemplateLookup(directories=[template_dir], input_encoding='utf-8',
-                                           module_directory=module_directory)
-            try:
-                template = _hplookup.get_template(templatename)
-            except (AttributeError, KeyError):
-                clear_mako_cache(userid)
-                template = _hplookup.get_template(templatename)
+            module_directory = os.path.join(DIRS.CACHEDIR, 'mako', str(userid))
+            _hplookup = TemplateLookup(directories=[template_dir], input_encoding='utf-8',
+                                       module_directory=module_directory)
+        try:
+            template = _hplookup.get_template(templatename)
+        except (AttributeError, KeyError):
+            clear_mako_cache(userid)
+            template = _hplookup.get_template(templatename)
 
         theme = usertheme.split('_', 1)
         if len(theme) > 1:
             style = theme[1]
 
-        if templatename in ["login.html", "formlogin.html"]:
+        if templatename == "formlogin.html":
             cherrypy.response.cookie['ll_template'] = ''
-            img = 'images/ll.png'
-            if CONFIG['HTTP_ROOT']:
-                img = f'{CONFIG["HTTP_ROOT"]}/{img}'
-            if templatename == "login.html":
-                return template.render(perm=0, title=i18n.gettext("Redirected"), img=img, style=style, **i18n_vars)
-            return template.render(perm=0, title=i18n.gettext('Login'), img=img, from_page='/home', **i18n_vars)
+            return template.render(perm=0, style=style, **kwargs)
 
         # keep template name for help context
         cherrypy.response.cookie['ll_template'] = templatename
-        return template.render(perm=perm, pref=userprefs, style=style, **kwargs)
+        showlogout = getattr(cherrypy.request, 'll_auth', '') == 'session'
+        return template.render(perm=perm, pref=userprefs, style=style, showlogout=showlogout, **kwargs)
 
     except Exception:
         return exceptions.html_error_template().render()
@@ -731,56 +550,6 @@ class WebInterface:
                 return False
         return True
 
-    @staticmethod
-    def check_permitted(required_perm, redirect_unauth=False):
-        adminlogger = logging.getLogger('special.admin')
-        userid = ''
-        if not CONFIG.get_bool('USER_ACCOUNTS'):
-            perm = lazylibrarian.perm_admin
-        else:
-            perm = 0
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                cookie_userid = cookie['ll_uid'].value
-                db = database.DBConnection()
-                res = db.match('SELECT * from users where UserID=?', (cookie_userid,))
-                if res:
-                    perm = check_int(res['Perms'], 0)
-                    userid = res['UserID']
-                else:
-                    adminlogger.debug(f"No match for userid [{cookie_userid}]")
-                    clear_our_cookies()
-                db.close()
-
-        if perm & required_perm:
-            return
-
-        if redirect_unauth and not userid and CONFIG.get_bool('USER_ACCOUNTS') and not CONFIG.get_bool('PROXY_AUTH'):
-            # Only used by the small set of top-level page handlers that are reachable
-            # as a HOMEPAGE target and call check_permitted() before serve_template() ever
-            # gets a chance to render its own login.html fallback (books/audio/magazines/
-            # series/comics) - NOT a general check_permitted() behavior change, so the many
-            # AJAX/action endpoints that also call check_permitted() are unaffected and keep
-            # returning a plain 403 rather than a redirect a JS fetch() would otherwise
-            # transparently follow and try to parse as JSON.
-            root = CONFIG['HTTP_ROOT'].rstrip('/') if CONFIG['HTTP_ROOT'] else ''
-            get_params = quote(cherrypy.request.request_line.split()[1])
-            raise cherrypy.HTTPRedirect(f"{root}/auth/login?from_page={get_params}")
-
-        _, method, _ = get_info_on_caller(depth=1)
-        TELEMETRY.record_usage_data()
-        logger = logging.getLogger(__name__)
-        msg = f"Unauthorised attempt to access {method}"
-        if userid:
-            logger.warning(f'{msg} by user {userid}')
-            db = database.DBConnection()
-            cmd = 'INSERT into unauthorised (AccessTime, UserID, Attempt) VALUES (?, ?, ?)'
-            db.action(cmd, (now(), userid, method))
-        else:
-            logger.warning(f'{msg}')
-
-        raise cherrypy.HTTPError(403, msg)
-
     @cherrypy.expose
     @require_auth()
     def index(self):
@@ -824,14 +593,14 @@ class WebInterface:
     @require_auth()
     def profile(self):
         title = i18n.gettext('User Profile')
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
+        userid = owner_id()
+        if userid:
             db = database.DBConnection()
             try:
-                user = db.match('SELECT UserName,UserID,Name,Email,SendTo,BookType,Theme,hc_id,hc_token '
-                                'from users where UserID=?', (cookie['ll_uid'].value,))
+                user = db.match('SELECT UserName,UserID,Name,Email,SendTo,BookType,Theme,hc_id,hc_token,'
+                                'CalibreRead,CalibreToRead from users where UserID=?', (userid,))
                 if user:
-                    subs = db.select('SELECT Type,WantID from subscribers WHERE UserID=?', (cookie['ll_uid'].value,))
+                    subs = db.select('SELECT Type,WantID from subscribers WHERE UserID=?', (userid,))
                     subscriptions = ''
                     for itm in subs:
                         if subscriptions:
@@ -885,12 +654,10 @@ class WebInterface:
         db = database.DBConnection()
         # noinspection PyBroadException
         try:
-            if CONFIG.get_bool('USER_ACCOUNTS'):
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_prefs' in list(cookie.keys()):
-                    userprefs = check_int(cookie['ll_prefs'].value, 0)
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    userid = cookie['ll_uid'].value
+            cookie = cherrypy.request.cookie
+            if cookie and 'll_prefs' in list(cookie.keys()):
+                userprefs = check_int(cookie['ll_prefs'].value, 0)
+            userid = owner_id()
             displaystart = int(iDisplayStart)
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
@@ -1109,7 +876,6 @@ class WebInterface:
                         ['config.html', 'config_menus'],
                         ['author.html', 'authors'],
                         ['issues.html', 'magazine_detail'],
-                        ['users.html', 'config_users'],
                         ]:
                 if template == itm[0]:
                     page = itm[1]
@@ -1125,32 +891,20 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def logout(self):
-        userprefs = 0
         cookie = cherrypy.request.cookie
         if cookie and 'll_prefs' in list(cookie.keys()):
-            userprefs = check_int(cookie['ll_prefs'].value, 0)
-        if cookie and 'll_uid' in list(cookie.keys()):
             db = database.DBConnection()
-            db.action('UPDATE users SET prefs=? where UserID=?', (userprefs, cookie['ll_uid'].value))
-            db.close()
+            try:
+                db.action('UPDATE users SET prefs=? where UserID=?',
+                          (check_int(cookie['ll_prefs'].value, 0), owner_id()))
+            finally:
+                db.close()
+        end_session()
         clear_our_cookies()
-        lazylibrarian.LOGINUSER = None
-        if cherrypy.request.config.get('tools.sessions.on', False):
-            # Only active when USER_ACCOUNTS is off (form/basic auth mode) - webStart.py never
-            # enables the sessions tool when USER_ACCOUNTS is on, so cherrypy.session doesn't
-            # exist as an attribute in that mode and touching it unconditionally raises
-            # AttributeError, crashing every logout.
-            cherrypy.session[SESSION_KEY] = None
         if cherrypy.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return "OK"
         root = CONFIG['HTTP_ROOT'].rstrip('/') if CONFIG['HTTP_ROOT'] else ''
-        raise cherrypy.HTTPRedirect(f"{root}/login")
-
-    @cherrypy.expose
-    @require_auth()
-    def user_register(self):
-        self.label_thread("REGISTER")
-        return serve_template(templatename="register.html", title=i18n.gettext("User Registration / Contact form"))
+        raise cherrypy.HTTPRedirect(f"{root}/auth/login")
 
     @cherrypy.expose
     @require_auth()
@@ -1162,21 +916,16 @@ class WebInterface:
             return i18n.gettext("Password must be at least 8 characters long\nand not contain spaces")
         logger = logging.getLogger(__name__)
         changes = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            userid = cookie['ll_uid'].value
+        userid = owner_id()
+        if userid:
             db = database.DBConnection()
-            user = db.match('SELECT UserName,Name,Email,Password,BookType,SendTo,Theme,hc_token,ui_lang '
-                            'from users where UserID=?', (userid,))
+            user = db.match('SELECT UserName,Name,Email,Password,BookType,SendTo,Theme,hc_token,ui_lang,'
+                            'CalibreRead,CalibreToRead from users where UserID=?', (userid,))
             if user:
                 if kwargs['username'] and user['UserName'] != kwargs['username']:
-                    # if username changed, must not have same username as another user
-                    match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
-                    if match:
-                        return i18n.gettext("Unable to change username: already exists")
                     if self.validate_param("username", kwargs['username'], ['<', '>', '='], None):
                         changes += ' username'
-                        db.action('UPDATE users SET UserName=? WHERE UserID=?', (kwargs['username'], userid))
+                        set_owner_credentials(db, username=kwargs['username'])
                     else:
                         logger.warning("Invalid username")
 
@@ -1242,17 +991,16 @@ class WebInterface:
 
                 if kwargs['password'] and not verify_password(kwargs['password'], user['password']):
                     changes += ' password'
-                    db.action('UPDATE users SET password=? WHERE UserID=?',
-                              (hash_password(kwargs['password']), userid))
+                    # logs out everywhere else, but not this browser
+                    set_owner_credentials(db, password=kwargs['password'], keep_token=session_token())
 
-                # only allow admin to change these
-                # if kwargs['calread'] and user['CalibreRead'] != kwargs['calread']:
-                #     changes += ' CalibreRead'
-                #     db.action('UPDATE users SET CalibreRead=? WHERE UserID=?', (kwargs['calread'], userid))
-
-                # if kwargs['caltoread'] and user['CalibreToRead'] != kwargs['caltoread']:
-                #     changes += ' CalibreToRead'
-                #     db.action('UPDATE users SET CalibreToRead=? WHERE UserID=?', (kwargs['caltoread'], userid))
+                for key, column in [('calread', 'CalibreRead'), ('caltoread', 'CalibreToRead')]:
+                    if key in kwargs and (user[column] or '') != kwargs[key]:
+                        if self.validate_param(column, kwargs[key], ['<', '>', '='], None):
+                            changes += f' {column}'
+                            db.action(f'UPDATE users SET {column}=? WHERE UserID=?', (kwargs[key], userid))
+                        else:
+                            logger.warning(f"Invalid {column}")
             db.close()
 
             if changes:
@@ -1261,126 +1009,13 @@ class WebInterface:
 
     @cherrypy.expose
     @require_auth()
-    def user_login(self, **kwargs):
-        # anti-phishing
-        # block ip address if over 3 failed usernames in a row.
-        # don't count attempts older than 24 hrs
-        logger = logging.getLogger(__name__)
-        self.label_thread("LOGIN")
-        limit = int(time.time()) - 1 * 60 * 60
-        lazylibrarian.USER_BLOCKLIST[:] = [x for x in lazylibrarian.USER_BLOCKLIST if x[1] > limit]
-        remote_ip = cherrypy.request.remote.ip
-        cnt = 0
-        for itm in lazylibrarian.USER_BLOCKLIST:
-            if itm[0] == remote_ip:
-                cnt += 1
-        if cnt >= 3:
-            logger.warning(f"IP address [{remote_ip}] is blocked")
-            return i18n.gettext("IP address [%(ip)s] is blocked") % {'ip': remote_ip}
-
-        username = ''
-        password = ''
-        res = {}
-        password_ok = False
-        if 'username' in kwargs:
-            username = kwargs['username']
-        if 'password' in kwargs:
-            password = kwargs['password']
-        if username and password:
-            db = database.DBConnection()
-            try:
-                res = db.match('SELECT * from users where username=?', (username,))  # type: dict
-                password_ok = bool(res) and check_user_password(db, username, password) is not None
-            finally:
-                db.close()
-        if password_ok:
-            cherrypy.response.cookie['ll_uid'] = res['UserID']
-            cherrypy.response.cookie['ll_prefs'] = res['Prefs']
-            if res['UI_Lang']:
-                cherrypy.response.cookie['ll_uilang'] = res['UI_Lang']
-            if 'remember' in kwargs:
-                cherrypy.response.cookie['ll_uid']['Max-Age'] = '86400'
-
-            # successfully logged in, clear any failed attempts
-            lazylibrarian.USER_BLOCKLIST[:] = [x for x in lazylibrarian.USER_BLOCKLIST if x[0] != username]
-            logger.debug(f"User {username} logged in")
-            db = database.DBConnection()
-            try:
-                db.action("UPDATE users SET Last_Login=?,Login_Count=? WHERE UserID=?",
-                          (str(int(time.time())), int(res['Login_Count']) + 1, res['UserID']))
-            finally:
-                db.close()
-            lazylibrarian.SHOWLOGOUT = 1
-            msg = ''
-        elif res:
-            # anti-phishing. Block user if 3 failed passwords in a row.
-            cnt = 0
-            for itm in lazylibrarian.USER_BLOCKLIST:
-                if itm[0] == username:
-                    cnt += 1
-            if cnt >= 2:
-                logger.warning(f"Blocked user: {username}: [{remote_ip}] Too many failed attempts")
-                msg = i18n.gettext("Too many failed attempts. Reset password or retry after 1 hour")
-            else:
-                lazylibrarian.USER_BLOCKLIST.append((username, int(time.time())))
-                msg = i18n.ngettext('Wrong password entered. You have %(count)s attempt left',
-                                    'Wrong password entered. You have %(count)s attempts left',
-                                    2 - cnt) % {'count': 2 - cnt}
-            logger.warning(f"Failed login attempt: {username}: [{remote_ip}] {lazylibrarian.LOGIN_MSG}")
-        else:
-            # invalid or missing username, or valid user but missing password
-            logger.warning(f"Blocked IP: {username}: [{remote_ip}] Invalid user or password.")
-            msg = i18n.gettext("Invalid user or password.")
-            lazylibrarian.USER_BLOCKLIST.append((remote_ip, int(time.time())))
-        return msg
-
-    @cherrypy.expose
-    @require_auth()
-    def user_contact(self, **kwargs):
-        self.label_thread('USERCONTACT')
-        logger = logging.getLogger(__name__)
-        remote_ip = cherrypy.request.remote.ip
-        msg = f'IP: {remote_ip}\n'
-        for itm in kwargs:
-            if kwargs[itm]:
-                line = f"{itm}: {unaccented(kwargs[itm], only_ascii=False)}\n"
-            else:
-                line = f"{itm}: \n"
-            msg += line
-        if 'email' in kwargs and kwargs['email']:
-            result = notifiers.email_notifier.notify_message('Message from LazyLibrarian User',
-                                                             msg, CONFIG['ADMIN_EMAIL'])
-            if result:
-                return i18n.gettext("Message sent to admin, you will receive a reply by email")
-            logger.error(f"Unable to send message to admin: {msg}")
-            return i18n.gettext("Message not sent, please try again later")
-        return i18n.gettext("No message sent, no return email address")
-
-    @cherrypy.expose
-    @require_auth()
-    def user_admin(self):
-        self.label_thread('USERADMIN')
-        db = database.DBConnection()
-        try:
-            users = db.select('SELECT UserName from users')
-        finally:
-            db.close()
-        uilang = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uilang' in list(cookie.keys()):
-            uilang = cookie['ll_uilang'].value
-        if not uilang:
-            uilang = CONFIG.get_str('UI_LANGUAGE')
-        return serve_template(templatename="users.html", title=i18n.gettext("Manage User Accounts"), users=users)
-
-    @cherrypy.expose
-    @require_auth()
     def update_feeds(self, **kwargs):
         logger = logging.getLogger(__name__)
         if 'value' in kwargs and kwargs['value'] == '':
             # cancel or [x] pressed
             return i18n.gettext('No changes made')
-        user = kwargs.pop('user', '')
+        kwargs.pop('user', None)
+        user = owner_id()
         value = get_list(kwargs.pop('value[]', ''))
         cnt = 0
         db = database.DBConnection()
@@ -1414,7 +1049,7 @@ class WebInterface:
     @require_auth()
     def user_feeds(self, **kwargs):
         logger = logging.getLogger(__name__)
-        user = kwargs['user']
+        user = owner_id()
         if user:
             feedlist = []
             value = []
@@ -1443,285 +1078,6 @@ class WebInterface:
 
     @cherrypy.expose
     @require_auth()
-    def admin_delete(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
-        db = database.DBConnection()
-        try:
-            user = kwargs['user']
-            if user:
-                match = db.match('SELECT Perms from users where UserName=?', (user,))
-                if match:
-                    perm = check_int(match['Perms'], 0)
-                    if perm & 1:
-                        count = 0
-                        perms = db.select('SELECT Perms from users')
-                        for itm in perms:
-                            val = check_int(itm['Perms'], 0)
-                            if val & lazylibrarian.perm_config:
-                                count += 1
-                        if count < 2:
-                            return i18n.gettext("Unable to delete last administrator")
-                    db.action('DELETE from users WHERE UserName=?', (user,))
-                    return i18n.gettext("User %(user)s deleted") % {'user': user}
-                return i18n.gettext("User not found")
-            return i18n.gettext("No user!")
-        finally:
-            db.close()
-
-    @cherrypy.expose
-    @require_auth()
-    def get_user_profile(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
-        db = database.DBConnection()
-        match = db.match('SELECT * from users where UserName=?', (kwargs['user'],))
-        if match:
-            subs = db.select('SELECT Type,WantID from subscribers WHERE UserID=?', (match['userid'],))
-            cnt = db.match('select count(*) as counter from sent_file where UserID=?', (match['userid'],))
-            last_login = check_int(match['Last_Login'], 0)
-            subscriptions = ''
-            for itm in subs:
-                if itm['Type'] != 'ebook':
-                    if subscriptions:
-                        subscriptions += '\n'
-                    subscriptions += f'{itm["Type"]} {itm["WantID"]}'
-            res = json.dumps({'email': match['Email'], 'name': match['Name'], 'perms': match['Perms'],
-                              'calread': match['CalibreRead'], 'caltoread': match['CalibreToRead'],
-                              'sendto': match['SendTo'], 'booktype': match['BookType'], 'userid': match['UserID'],
-                              'lastlogin': datetime.datetime.fromtimestamp(last_login).ctime()
-                              if last_login else '',
-                              'logins': match['Login_Count'], 'downloads': cnt['counter'], 'subs': subscriptions,
-                              'theme': match['Theme'], 'hc_id': match['hc_id'], 'hc_token': match['hc_token'],
-                              'ui_lang': match['UI_Lang']})
-        else:
-            res = json.dumps({'email': '', 'name': '', 'perms': '0', 'calread': '', 'caltoread': '', 'sendto': '',
-                              'booktype': '', 'userid': '', 'lastlogin': '', 'logins': '0', 'subs': '',
-                              'theme': '', 'hc_id': '', 'hc_token': '', 'ui_lang': ''})
-        db.close()
-        return res
-
-    @cherrypy.expose
-    @require_auth()
-    def admin_users(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
-        logger = logging.getLogger(__name__)
-        db = database.DBConnection()
-
-        user = kwargs['user']
-        new_user = not user
-        changes = ''
-
-        if new_user:
-            msg = i18n.gettext("New user NOT added: %(reason)s")
-            if not kwargs['username']:
-                db.close()
-                return msg % {'reason': i18n.gettext("No username given")}
-            # new user must not have same username as an existing one
-            match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
-            if match:
-                db.close()
-                return msg % {'reason': i18n.gettext("Username already exists")}
-
-            if not kwargs['fullname']:
-                db.close()
-                return msg % {'reason': i18n.gettext("No fullname given")}
-
-            if not kwargs['email']:
-                db.close()
-                return msg % {'reason': i18n.gettext("No email given")}
-
-            if not is_valid_email(kwargs['email']):
-                db.close()
-                return msg % {'reason': i18n.gettext("Invalid email given")}
-
-            perms = check_int(kwargs['perms'], 0)
-            if not perms:
-                db.close()
-                return msg % {'reason': i18n.gettext("No permissions or invalid permissions given")}
-            if not kwargs['password']:
-                db.close()
-                return msg % {'reason': i18n.gettext("No password given")}
-
-            # perm_msg also goes into the welcome email, which stays in English
-            if perms == lazylibrarian.perm_admin:
-                perm_msg = 'ADMIN'
-            elif perms == lazylibrarian.perm_friend:
-                perm_msg = 'Friend'
-            elif perms == lazylibrarian.perm_guest:
-                perm_msg = 'Guest'
-            else:
-                perm_msg = f'Custom {perms}'
-
-            self.validate_param("username", kwargs['username'], ['<', '>', '='], 404)
-            self.validate_param("fullname", kwargs['fullname'], ['<', '>', '='], 404)
-            msg = lazylibrarian.NEWUSER_MSG.replace('{username}', kwargs['username']).replace(
-                '{password}', kwargs['password']).replace(
-                '{permission}', perm_msg)
-
-            result = notifiers.email_notifier.notify_message('LazyLibrarian New Account', msg, kwargs['email'])
-
-            if result:
-                cmd = ("INSERT into users (UserID, UserName, Name, Password, Email, SendTo, Perms, hc_token) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                db.action(cmd, (pwd_generator(), kwargs['username'], kwargs['fullname'],
-                                hash_password(kwargs['password']), kwargs['email'], kwargs['sendto'], perms,
-                                kwargs.get('hc_token', '')))
-                msg = i18n.gettext("New user added: %(user)s: %(perm)s") % {'user': kwargs['username'], 'perm': perm_msg}
-                msg += '<br>' + i18n.gettext("Email sent to %(email)s") % {'email': kwargs['email']}
-                cnt = db.match("select count(*) as counter from users")
-                if cnt['counter'] > 1:
-                    lazylibrarian.SHOWLOGOUT = 1
-            else:
-                msg = i18n.gettext("New user NOT added") + '<br>' + i18n.gettext("Failed to send email to %(email)s") % {
-                    'email': kwargs['email']}
-            db.close()
-            return msg
-
-        if user != kwargs['username']:
-            # if username changed, must not have same username as another user
-            match = db.match('SELECT UserName from users where UserName=?', (kwargs['username'],))
-            if match:
-                db.close()
-                return i18n.gettext("Username already exists")
-
-        cmd = ("SELECT UserID,Name,Email,SendTo,Password,Perms,CalibreRead,CalibreToRead,BookType,Theme,"
-               "hc_token,ui_lang from users where UserName=?")
-        details = db.match(cmd, (user,))
-
-        if details:
-            userid = details['UserID']
-            if kwargs['username'] and kwargs['username'] != user:
-                changes += ' username'
-                db.action('UPDATE users SET UserName=? WHERE UserID=?', (kwargs['username'], userid))
-
-            if kwargs['fullname'] and details['Name'] != kwargs['fullname']:
-                changes += ' name'
-                db.action('UPDATE users SET Name=? WHERE UserID=?', (kwargs['fullname'], userid))
-
-            if details['Email'] != kwargs['email']:
-                if kwargs['email'] and not is_valid_email(kwargs['email']):
-                    return i18n.gettext("Invalid email given")
-                changes += ' email'
-                db.action('UPDATE users SET email=? WHERE UserID=?', (kwargs['email'], userid))
-
-            if details['SendTo'] != kwargs['sendto']:
-                if kwargs['sendto'] and not is_valid_email(kwargs['sendto']):
-                    return i18n.gettext("Invalid sendto email given")
-                changes += ' sendto'
-                db.action('UPDATE users SET sendto=? WHERE UserID=?', (kwargs['sendto'], userid))
-
-            if kwargs['password'] and not verify_password(kwargs['password'], details['Password']):
-                changes += ' password'
-                db.action('UPDATE users SET password=? WHERE UserID=?', (hash_password(kwargs['password']), userid))
-
-            # empty means use the global UI_LANGUAGE setting
-            if 'ui_lang' in kwargs and (details['UI_Lang'] or '') != kwargs['ui_lang']:
-                if valid_ui_lang(kwargs['ui_lang']):
-                    changes += ' UI_Language'
-                    db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
-                else:
-                    logger.warning(f"Invalid UI Language [{kwargs['ui_lang']}]")
-
-            if details['Theme'] != kwargs['theme']:
-                valid = False
-                if kwargs['theme'] == 'legacy':
-                    valid = True
-                elif kwargs['theme']:
-                    parts = kwargs['theme'].split('_', 1)
-                    if parts[0] == 'bookstrap' and len(parts) == 2 and parts[1] in lazylibrarian.BOOKSTRAP_THEMELIST:
-                        valid = True
-                else:
-                    valid = True
-                if valid:
-                    changes += ' Theme'
-                    db.action('UPDATE users SET Theme=? WHERE UserID=?', (kwargs['theme'], userid))
-                else:
-                    logger.warning(f"Invalid user theme [{kwargs['theme']}]")
-
-            if details['CalibreRead'] != kwargs['calread']:
-                changes += ' CalibreRead'
-                db.action('UPDATE users SET CalibreRead=? WHERE UserID=?', (kwargs['calread'], userid))
-
-            if details['CalibreToRead'] != kwargs['caltoread']:
-                changes += ' CalibreToRead'
-                db.action('UPDATE users SET CalibreToRead=? WHERE UserID=?', (kwargs['caltoread'], userid))
-
-            if details['BookType'] != kwargs['booktype']:
-                changes += ' BookType'
-                db.action('UPDATE users SET BookType=? WHERE UserID=?', (kwargs['booktype'], userid))
-
-            if details['hc_token'] != kwargs['hc_token']:
-                changes += ' hc_token'
-                db.action('UPDATE users SET hc_token=? WHERE UserID=?', (kwargs['hc_token'], userid))
-
-            if details['Perms'] != kwargs['perms']:
-                oldperm = check_int(details['Perms'], 0)
-                newperm = check_int(kwargs['perms'], 0)
-                if oldperm & 1 and not newperm & 1:
-                    count = 0
-                    perms = db.select('SELECT Perms from users')
-                    for itm in perms:
-                        val = check_int(itm['Perms'], 0)
-                        if val & 1:
-                            count += 1
-                    if count < 2:
-                        db.close()
-                        return i18n.gettext("Unable to remove last administrator")
-                if oldperm != newperm:
-                    changes += ' Perms'
-                    db.action('UPDATE users SET Perms=? WHERE UserID=?', (kwargs['perms'], userid))
-
-        if changes:
-            msg = i18n.gettext('Updated user details: %(fields)s') % {'fields': changes.strip()}
-        else:
-            msg = i18n.gettext("No changes made")
-        db.close()
-        return msg
-
-    @cherrypy.expose
-    @require_auth()
-    def password_reset(self, **kwargs):
-        self.label_thread('PASSWORD_RESET')
-        logger = logging.getLogger(__name__)
-        res = {}
-        remote_ip = cherrypy.request.remote.ip
-        db = database.DBConnection()
-        if 'username' in kwargs and kwargs['username']:
-            logger.debug(f"Reset password request from {kwargs['username']}, IP:{remote_ip}")
-            res = db.match('SELECT UserID,Email from users where username=?', (kwargs['username'],))  # type: dict
-            if res:
-                if 'email' in kwargs and kwargs['email']:
-                    if res['Email']:
-                        if kwargs['email'] == res['Email']:
-                            msg = ''
-                        else:
-                            msg = i18n.N_('Email does not match our records')
-                    else:
-                        msg = i18n.N_('No email address registered')
-                else:
-                    msg = i18n.N_('No email address supplied')
-            else:
-                msg = i18n.N_("Unknown username")
-        else:
-            msg = i18n.N_("Who are you?")
-
-        if res and not msg:
-            new_pwd = pwd_generator()
-            msg = f"Your new password is {new_pwd}"
-            result = notifiers.email_notifier.notify_message('LazyLibrarian New Password', msg, res['Email'])
-            if result:
-                db.action("UPDATE users SET Password=? WHERE UserID=?", (hash_password(new_pwd), res['UserID']))
-                return i18n.gettext("Password reset, check your email")
-            msg = f"Failed to send email to [{res['Email']}]"
-            logger.debug(msg)
-            reason = i18n.gettext("Failed to send email to %(email)s") % {'email': res['Email']}
-        else:
-            reason = i18n.gettext(msg)
-        db.close()
-        logger.error(f"Password not reset: {msg} IP:{remote_ip}")
-        return i18n.gettext("Password not reset: %(reason)s") % {'reason': reason}
-
-    @cherrypy.expose
-    @require_auth()
     def generatepwd(self):
         return pwd_generator()
 
@@ -1729,7 +1085,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def remove_series(self, seriesid):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         seriesdata = db.match("SELECT * from series WHERE seriesid=?", (seriesid,))
@@ -1774,7 +1129,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def series_update(self, seriesid='', **kwargs):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         db = database.DBConnection()
@@ -1814,7 +1168,6 @@ class WebInterface:
     @require_auth()
     def refresh_series(self, seriesid):
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_force)
         threadname = f'SERIESMEMBERS_{seriesid}'
         if threadname in [n.name for n in list(threading.enumerate())]:
             logger.warning(f"{threadname} is already running")
@@ -1833,8 +1186,7 @@ class WebInterface:
         userid = None
         userprefs = 0
         cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            userid = cookie['ll_uid'].value
+        userid = owner_id()
         if cookie and 'll_prefs' in list(cookie.keys()):
             userprefs = check_int(cookie['ll_prefs'].value, 0)
 
@@ -1977,7 +1329,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def series(self, authorid=None, which_status=None, active=False):
-        self.check_permitted(lazylibrarian.perm_series, redirect_unauth=True)
         title = i18n.gettext('Series')
         if authorid:
             db = database.DBConnection()
@@ -1996,7 +1347,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def series_members(self, seriesid, ignored=False):
-        self.check_permitted(lazylibrarian.perm_series, redirect_unauth=True)
         db = database.DBConnection()
         cmd = ("SELECT SeriesName,series.SeriesID,AuthorName,seriesauthors.AuthorID from "
                "series,authors,seriesauthors where authors.AuthorID=seriesauthors.AuthorID and "
@@ -2028,10 +1378,9 @@ class WebInterface:
         have_read = set()
         reading = set()
         abandoned = set()
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
+        if owner_id():
             cmd = "SELECT UserName,Perms,SendTo from users where UserID=?"
-            userid = cookie['ll_uid'].value
+            userid = owner_id()
             res = db.match(cmd, (userid,))
             if res:
                 to_read = get_readinglist('ToRead', userid)
@@ -2083,7 +1432,6 @@ class WebInterface:
         # alongside the checked series - left in args it's iterated as if it were a
         # SeriesID, fails to match any series, and is counted as a failed item
         # (Issue #2850).
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         for arg in ['book_table_length', 'series_table_length', 'author_table_length', 'ignored', '_', 'action', 'which_status']:
@@ -2113,9 +1461,8 @@ class WebInterface:
                             # stop monitoring
                             db.action("UPDATE series SET Updated=0 WHERE SeriesID=?", (seriesid,))
                 elif action in ["Unread", "Read", "ToRead", "Reading", "Abandoned"]:
-                    cookie = cherrypy.request.cookie
-                    if cookie and 'll_uid' in list(cookie.keys()):
-                        userid = cookie['ll_uid'].value
+                    userid = owner_id()
+                    if userid:
                         to_read = set(get_readinglist('ToRead', userid))
                         have_read = set(get_readinglist('HaveRead', userid))
                         reading = set(get_readinglist('Reading', userid))
@@ -2169,9 +1516,8 @@ class WebInterface:
                         logger.debug(f"Subscribe failed, series {seriesid} not found")
                         failed += 1
                     else:
-                        cookie = cherrypy.request.cookie
-                        if cookie and 'll_uid' in list(cookie.keys()):
-                            userid = cookie['ll_uid'].value
+                        userid = owner_id()
+                        if userid:
                             res = db.match("SELECT * from subscribers WHERE UserID=? and Type=? and WantID=?",
                                            (userid, 'series', seriesid))
                             if res:
@@ -2187,9 +1533,8 @@ class WebInterface:
                             failed += 1
 
                 elif action == 'Unsubscribe':
-                    cookie = cherrypy.request.cookie
-                    if cookie and 'll_uid' in list(cookie.keys()):
-                        userid = cookie['ll_uid'].value
+                    userid = owner_id()
+                    if userid:
                         db.action('DELETE from subscribers WHERE UserID=? and Type=? and WantID=?',
                                   (userid, 'series', seriesid))
                         passed += 1
@@ -2224,7 +1569,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def save_filters(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         self.label_thread('WEBSERVER')
         savedir = DIRS.DATADIR
         mags = dump_table('magazines', savedir)
@@ -2233,32 +1577,11 @@ class WebInterface:
 
     @cherrypy.expose
     @require_auth()
-    def save_users(self):
-        self.check_permitted(lazylibrarian.perm_admin)
-        self.label_thread('WEBSERVER')
-        savedir = DIRS.DATADIR
-        users = dump_table('users', savedir)
-        msg = f"{users} {plural(users, 'user')} exported"
-        return msg
-
-    @cherrypy.expose
-    @require_auth()
     def load_filters(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         self.label_thread('WEBSERVER')
         savedir = DIRS.DATADIR
         mags = restore_table('magazines', savedir)
         msg = f"{mags} {plural(mags, 'magazine')} imported"
-        return msg
-
-    @cherrypy.expose
-    @require_auth()
-    def load_users(self):
-        self.check_permitted(lazylibrarian.perm_admin)
-        self.label_thread('WEBSERVER')
-        savedir = DIRS.DATADIR
-        users = restore_table('users', savedir)
-        msg = f"{users} {plural(users, 'user')} imported"
         return msg
 
     @cherrypy.expose
@@ -2367,7 +1690,8 @@ class WebInterface:
             "iss_formats": date_format_picker(CONFIG['ISS_FORMAT'], ISSUE_DATE_FORMATS, CONFIG['DATE_LANG']),
             "anna_auto": anna_search_languages('', CONFIG['IMP_PREFLANG']),
             "zlib_auto": zlib_search_languages('', CONFIG['IMP_PREFLANG']),
-            "updated": time.ctime(CONFIG.get_int('GIT_UPDATED'))
+            "updated": time.ctime(CONFIG.get_int('GIT_UPDATED')),
+            "owner": owner_details(),
         }
         for itm in CONFIG.config.values():
             if isinstance(itm, ConfigBool):
@@ -2379,24 +1703,29 @@ class WebInterface:
     def config_update(self, **kwargs):
         """ Update config based on settings in the UI """
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_config, redirect_unauth=True)
         db = database.DBConnection()
         adminmsg = ''
-        if 'user_accounts' in kwargs and kwargs['user_accounts']:
-            # logger.error('CFG2: Need to handle user account changes')
-            email = ''
-            if 'admin_email' in kwargs and kwargs['admin_email']:
-                email = kwargs['admin_email']
+        if kwargs.get('admin_email') and not is_valid_email(kwargs['admin_email']):
+            adminmsg += i18n.gettext('Contact email looks invalid, please check') + '<br>'
+
+        # the owner login is stored hashed in the users table, not in the config file
+        owner = get_owner(db) or {}
+        new_username = kwargs.pop('owner_username', '').strip()
+        new_password = kwargs.pop('owner_password', '')
+        if new_username and new_username != owner.get('UserName'):
+            if self.validate_param('username', new_username, ['<', '>', '='], None):
+                set_owner_credentials(db, username=new_username)
+                adminmsg += i18n.gettext('Username changed') + '<br>'
             else:
-                adminmsg += i18n.gettext('Please set a contact email so users can make requests') + '<br>'
-
-            if email and not is_valid_email(email):
-                adminmsg += i18n.gettext('Contact email looks invalid, please check') + '<br>'
-
-            admin = db.match("SELECT password from users where name='admin'")
-            if admin and verify_password('admin', admin['password']):
-                adminmsg += i18n.gettext('The default admin user is "admin" and password is "admin"') + '<br>'
-                adminmsg += i18n.gettext("This is insecure, please change it on Config -> User Admin") + '<br>'
+                adminmsg += i18n.gettext('Invalid username') + '<br>'
+        if new_password:
+            if not pwd_check(new_password):
+                adminmsg += i18n.gettext("Password must be at least 8 characters long\nand not contain spaces") + '<br>'
+            elif not (new_username or owner.get('UserName')):
+                adminmsg += i18n.gettext('Set a username before setting a password') + '<br>'
+            else:
+                set_owner_credentials(db, password=new_password, keep_token=session_token())
+                adminmsg += i18n.gettext('Password changed') + '<br>'
 
         # store any genre changes
         genre_changes = ''
@@ -2623,7 +1952,7 @@ class WebInterface:
 
         if adminmsg:
             return serve_template(templatename="response.html", prefix="",
-                                  title=i18n.gettext("User Accounts"), message=adminmsg, timer=0)
+                                  title=i18n.gettext("Access Control"), message=adminmsg, timer=0)
 
         raise cherrypy.HTTPRedirect("config")
 
@@ -2632,7 +1961,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search(self, searchfor, btnsearch=None):
-        self.check_permitted(lazylibrarian.perm_search, redirect_unauth=True)
         logger = logging.getLogger('special.searching')
         logger.debug(f"Search {btnsearch}: {searchfor}")
         searchresults = None
@@ -2717,7 +2045,6 @@ class WebInterface:
     @require_auth()
     @cherrypy.tools.json_out()
     def mark_authors_ajax(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         for arg in ['author_table_length', 'series_table_length', 'book_table_length', 'ignored', '_', 'action', 'which_status']:
             args.pop(arg, None)
@@ -2780,9 +2107,8 @@ class WebInterface:
                         db.action('DELETE from authors WHERE AuthorID=?', (authorid,))
                         passed += 1
                     elif action == 'Subscribe':
-                        cookie = cherrypy.request.cookie
-                        if cookie and 'll_uid' in list(cookie.keys()):
-                            userid = cookie['ll_uid'].value
+                        userid = owner_id()
+                        if userid:
                             res = db.match("SELECT * from subscribers WHERE UserID=? and Type=? and WantID=?",
                                            (userid, 'author', authorid))
                             if res:
@@ -2794,9 +2120,8 @@ class WebInterface:
                                 logger.debug(f"Subscribe {userid} to author {authorid}")
                                 passed += 1
                     elif action == 'Unsubscribe':
-                        cookie = cherrypy.request.cookie
-                        if cookie and 'll_uid' in list(cookie.keys()):
-                            userid = cookie['ll_uid'].value
+                        userid = owner_id()
+                        if userid:
                             db.action('DELETE from subscribers WHERE UserID=? and Type=? and WantID=?',
                                       (userid, 'author', authorid))
                             res = db.select('SELECT bookid from books where authorid=?', (authorid, ))
@@ -2826,13 +2151,11 @@ class WebInterface:
     @require_auth()
     def author_page(self, authorid, book_lang=None, library='eBook', ignored=False, **args):
         global lastauthor
-        self.check_permitted(lazylibrarian.perm_ebook + lazylibrarian.perm_audio, redirect_unauth=True)
         db = database.DBConnection()
         user = 0
         email = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
+        user = owner_id()
+        if user:
             res = db.match('SELECT SendTo from users where UserID=?', (user,))
             if res and res['SendTo']:
                 email = res['SendTo']
@@ -2930,13 +2253,11 @@ class WebInterface:
         name on author_page. Surfaces fields that exist in the authors table but
         have never had anywhere to display on the read-only side (AKA, About,
         DateAdded, Updated, ...) - see author_page for the book-listing view. """
-        self.check_permitted(lazylibrarian.perm_ebook + lazylibrarian.perm_audio, redirect_unauth=True)
         db = database.DBConnection()
         user = 0
         email = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
+        user = owner_id()
+        if user:
             res = db.match('SELECT SendTo from users where UserID=?', (user,))
             if res and res['SendTo']:
                 email = res['SendTo']
@@ -3036,7 +2357,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def set_author(self, authorid, status):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         authorsearch = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
@@ -3077,7 +2397,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def remove_author(self, authorid):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         authorsearch = db.match('SELECT AuthorName from authors WHERE AuthorID=?', (authorid,))
@@ -3095,7 +2414,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def refresh_author(self, authorid):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         authorsearch = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
@@ -3131,7 +2449,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def refresh_book(self, bookid):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,bn_id,dbk_id,gb_id FROM books WHERE BookID=?",
@@ -3213,7 +2530,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def library_scan_author(self, authorid, **kwargs):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         fuzzlogger = logging.getLogger('special.fuzz')
         db = database.DBConnection()
@@ -3299,7 +2615,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def add_author(self, authorname):
-        self.check_permitted(lazylibrarian.perm_search)
         threading.Thread(target=add_author_name_to_db, name='ADDAUTHOR',
                          args=[authorname, False, True, f'WebServer add_author {authorname}']).start()
         time.sleep(2)  # so we get some data before going to authorpage
@@ -3308,7 +2623,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def add_author_id(self, authorid, authorname=''):
-        self.check_permitted(lazylibrarian.perm_search)
         threading.Thread(target=add_author_to_db, name='ADDAUTHORID',
                          args=[authorname, False, authorid, True, f'WebServer add_author_id {authorid}']).start()
         time.sleep(2)  # so we get some data before going to authorpage
@@ -3409,7 +2723,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def booksearch(self, author=None, title=None, bookid=None, action=''):
-        self.check_permitted(lazylibrarian.perm_search, redirect_unauth=True)
         self.label_thread('BOOKSEARCH')
         if '_title' in action:
             searchterm = title
@@ -3445,7 +2758,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def snatch_book(self, bookid=None, mode=None, provider=None, url=None, size=None, library=None, title=''):
-        self.check_permitted(lazylibrarian.perm_download)
         logger = logging.getLogger(__name__)
         logger.debug(f"snatch {library} bookid {bookid} mode={mode} from {provider} url=[{url}] {title}")
         db = database.DBConnection()
@@ -3502,14 +2814,12 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def audio(self, booklang=None, book_filter=''):
-        self.check_permitted(lazylibrarian.perm_audio, redirect_unauth=True)
         user = 0
         email = ''
         db = database.DBConnection()
         try:
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                user = cookie['ll_uid'].value
+            user = owner_id()
+            if user:
                 res = db.match('SELECT SendTo from users where UserID=?', (user,))
                 if res and res['SendTo']:
                     email = res['SendTo']
@@ -3525,14 +2835,12 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def books(self, booklang=None, book_filter=''):
-        self.check_permitted(lazylibrarian.perm_ebook, redirect_unauth=True)
         user = 0
         email = ''
         db = database.DBConnection()
-        cookie = cherrypy.request.cookie
         try:
-            if cookie and 'll_uid' in list(cookie.keys()):
-                user = cookie['ll_uid'].value
+            user = owner_id()
+            if user:
                 res = db.match('SELECT SendTo from users where UserID=?', (user,))
                 if res and res['SendTo']:
                     email = res['SendTo']
@@ -3565,28 +2873,20 @@ class WebInterface:
             abandoned = set()
             flag_to = 0
             flag_have = 0
-            userid = None
             userprefs = 0
-            if not CONFIG.get_bool('USER_ACCOUNTS'):
-                perm = lazylibrarian.perm_admin
-            else:
-                perm = 0
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_prefs' in list(cookie.keys()):
-                    userprefs = check_int(cookie['ll_prefs'].value, 0)
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    userid = cookie['ll_uid'].value
-                    cmd = "SELECT UserName,Perms from users where UserID=?"
-                    res = db.match(cmd, (userid,))
-                    if res:
-                        perm = check_int(res['Perms'], 0)
-                        to_read = get_readinglist("ToRead", userid)
-                        have_read = get_readinglist("HaveRead", userid)
-                        reading = get_readinglist("Reading", userid)
-                        abandoned = get_readinglist("Abandoned", userid)
-                        serversidelogger.debug(
-                            f"get_books userid {cookie['ll_uid'].value} read {len(to_read)},{len(have_read)},"
-                            f"{len(reading)},{len(abandoned)}")
+            perm = lazylibrarian.perm_admin
+            cookie = cherrypy.request.cookie
+            if cookie and 'll_prefs' in list(cookie.keys()):
+                userprefs = check_int(cookie['ll_prefs'].value, 0)
+            userid = owner_id()
+            if userid:
+                to_read = get_readinglist("ToRead", userid)
+                have_read = get_readinglist("HaveRead", userid)
+                reading = get_readinglist("Reading", userid)
+                abandoned = get_readinglist("Abandoned", userid)
+                serversidelogger.debug(
+                    f"get_books userid {userid} read {len(to_read)},{len(have_read)},"
+                    f"{len(reading)},{len(abandoned)}")
 
             cmd = ("SELECT bookimg,authorname,bookname,bookrate,bookdate,books.status,books.bookid,booklang, "
                    "booksub,booklink,workpage,bookauthors.authorid,seriesdisplay,booklibrary,audiostatus,audiolibrary, "
@@ -3938,7 +3238,6 @@ class WebInterface:
     @require_auth()
     def add_book(self, bookid=None, authorid=None, library=None, source=None):
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_search)
         TELEMETRY.record_usage_data()
         if library == 'eBook':
             ebook_status = "Wanted"
@@ -4003,7 +3302,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def start_book_search(self, books=None, library=None, force=False):
-        self.check_permitted(lazylibrarian.perm_search)
         logger = logging.getLogger(__name__)
         if books:
             if CONFIG.use_any():
@@ -4051,10 +3349,9 @@ class WebInterface:
         prefix = ''
         sent = False
         title = i18n.gettext('Request Error')
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
+        if owner_id():
             db = database.DBConnection()
-            res = db.match('SELECT Name,UserName,UserID,Email from users where UserID=?', (cookie['ll_uid'].value,))
+            res = db.match('SELECT Name,UserName,UserID,Email from users where UserID=?', (owner_id(),))
             if res:
                 cmd = ("SELECT BookFile,AudioFile,AuthorName,BookName from books,authors WHERE BookID=? and "
                        "books.AuthorID = authors.AuthorID")
@@ -4200,7 +3497,7 @@ class WebInterface:
                     if not target:
                         target = os.path.join(DIRS.DATADIR, bookimg)
                     if path_isfile(target):
-                        return self.send_file(target, name=res['BookName'] + splitext(bookimg)[1], perm_check=False)
+                        return self.send_file(target, name=res['BookName'] + splitext(bookimg)[1])
                 else:
                     res = db.match('SELECT Title,Cover from issues WHERE IssueID=?', (itemid,))
                     if res:
@@ -4210,7 +3507,7 @@ class WebInterface:
                         if not target:
                             target = os.path.join(DIRS.DATADIR, res['Cover'])
                         if path_isfile(target):
-                            return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1], perm_check=False)
+                            return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1])
                     else:
                         try:
                             comicid, issueid = itemid.split('_')
@@ -4226,12 +3523,12 @@ class WebInterface:
                             if not target:
                                 target = os.path.join(DIRS.DATADIR, res['Cover'])
                             if path_isfile(target):
-                                return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1], perm_check=False)
+                                return self.send_file(target, name=res['Title'] + splitext(res['Cover'])[1])
 
             logger.debug(f"Itemid {itemid} no match")
             target = os.path.join(DIRS.PROG_DIR, 'data', 'images', 'll192.png')
             if path_isfile(target):
-                return self.send_file(target, name='lazylibrarian.png', perm_check=False)
+                return self.send_file(target, name='lazylibrarian.png')
 
         elif ftype == 'comic':
             try:
@@ -4247,7 +3544,7 @@ class WebInterface:
                 target = res['IssueFile']
                 if target and path_isfile(target):
                     logger.debug(f'Opening {ftype} {target}')
-                    return self.send_file(target, name=f"{res['Title']} {issueid}{splitext(target)[1]}", perm_check=False)
+                    return self.send_file(target, name=f"{res['Title']} {issueid}{splitext(target)[1]}")
 
         elif ftype == 'audio':
             res = db.match('SELECT AudioFile,BookName from books WHERE BookID=?', (itemid,))
@@ -4266,11 +3563,11 @@ class WebInterface:
                     target = zip_audio(os.path.dirname(myfile), res['BookName'], itemid)
                     if target and path_isfile(target):
                         logger.debug(f'Opening {ftype} {target}')
-                        return self.send_file(target, name=res['BookName'] + '.zip', perm_check=False)
+                        return self.send_file(target, name=res['BookName'] + '.zip')
 
                 if myfile and path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile, perm_check=False)
+                    return self.send_file(myfile)
 
         elif ftype == 'book':
             res = db.match('SELECT BookFile,BookName from books WHERE BookID=?', (itemid,))
@@ -4291,7 +3588,7 @@ class WebInterface:
                 myfile = fname + '.' + extn
                 if path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile, perm_check=False)
+                    return self.send_file(myfile)
 
         elif ftype == 'issue':
             res = db.match('SELECT Title,IssueFile from issues WHERE IssueID=?', (itemid,))
@@ -4299,7 +3596,7 @@ class WebInterface:
                 myfile = res['IssueFile']
                 if myfile and path_isfile(myfile):
                     logger.debug(f'Opening {ftype} {myfile}')
-                    return self.send_file(myfile, name=f"{res['Title']} {itemid}{splitext(myfile)[1]}", perm_check=False)
+                    return self.send_file(myfile, name=f"{res['Title']} {itemid}{splitext(myfile)[1]}")
         db.close()
         logger.warning(f"No file found for {ftype} {itemid}")
         return None
@@ -4318,19 +3615,11 @@ class WebInterface:
         self.label_thread('OPEN_BOOK')
         # we need to check the user priveleges and see if they can download the book
         db = database.DBConnection()
-        if not CONFIG.get_bool('USER_ACCOUNTS'):
-            perm = lazylibrarian.perm_admin
-            preftype = ''
-        else:
-            perm = 0
-            preftype = ''
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                res = db.match('SELECT UserName,Perms,BookType from users where UserID=?',
-                               (cookie['ll_uid'].value,))
-                if res:
-                    perm = check_int(res['Perms'], 0)
-                    preftype = res['BookType']
+        perm = lazylibrarian.perm_admin
+        preftype = ''
+        res = db.match('SELECT BookType from users where UserID=?', (owner_id(),))
+        if res:
+            preftype = res['BookType'] or ''
 
         if booktype is not None:
             preftype = booktype
@@ -4509,9 +3798,8 @@ class WebInterface:
         db = database.DBConnection()
         user = 0
         email = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
+        user = owner_id()
+        if user:
             res = db.match('SELECT SendTo from users where UserID=?', (user,))
             if res and res['SendTo']:
                 email = res['SendTo']
@@ -4539,7 +3827,6 @@ class WebInterface:
     @require_auth()
     def author_update(self, authorid='', authorname='', authorborn='', authordeath='', authorimg='',
                       editordata='', manual='0', aka='', amazonauthorurl='', **kwargs):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         authdata = db.match('SELECT * from authors WHERE AuthorID=?', (authorid,))
@@ -4683,7 +3970,6 @@ class WebInterface:
         """ AJAX: search a single source for this author by name, return the best
         candidate (if any) for the edit-author screen to show for confirmation.
         Does not write anything - see link_author_source for that. """
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.author_linkable_sources():
             return {'error': f'{source} does not support author search'}
@@ -4717,7 +4003,6 @@ class WebInterface:
         stores that source's own author-page link immediately (into its INFOSOURCES
         author_link column) rather than waiting for the next scheduled refresh to
         backfill it via get_all_author_details(). """
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be linked to an author'}
@@ -4759,7 +4044,6 @@ class WebInterface:
         author-page name link and source badge. Re-fetches the canonical link for the
         stored id rather than guessing a URL template, so AuthorLink always matches
         whatever that source's own get_author_info() would build. """
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be a primary source'}
@@ -4806,7 +4090,6 @@ class WebInterface:
         just cosmetically wrong on the badge. Falls back to the priority order
         (same as an author nobody's set a primary for) until the user picks a new
         one. """
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if source not in self.author_linkable_sources():
             return {'error': f'{source} cannot be unlinked'}
@@ -4834,7 +4117,6 @@ class WebInterface:
         """ Read-only "master" detail view for a book, replacing the old bookinfo()
         popup (which only ever showed image/title/description via bookdesc) for plain
         book ids - see base.html's bookinfo() for the author/comic cases, unchanged. """
-        self.check_permitted(lazylibrarian.perm_ebook + lazylibrarian.perm_audio, redirect_unauth=True)
         db = database.DBConnection()
         book = db.match("SELECT books.*, AuthorName from books,authors WHERE "
                         "books.AuthorID=authors.AuthorID AND BookID=?", (bookid,))
@@ -4877,7 +4159,6 @@ class WebInterface:
         used during normal refresh doesn't, so this can't be backfilled for free the way
         author source links were - see gr.py's add_bookid_to_db). Not run automatically
         for every book, only when the detail page is actually viewed and asks for it. """
-        self.check_permitted(lazylibrarian.perm_ebook)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         book = db.match("SELECT gr_id from books WHERE BookID=?", (bookid,))
@@ -4914,7 +4195,6 @@ class WebInterface:
     def force_language_refresh(self):
         """ AJAX: kick off refresh_book_languages() in the background to re-evaluate
         languages across candidate books in the database. """
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if 'LANGREFRESH' in [n.name for n in list(threading.enumerate())]:
             return {'error': 'Language refresh is already running'}
@@ -5005,7 +4285,6 @@ class WebInterface:
                     manual='0', authorname='', cover='', newid='', editordata='', bookisbn='', workid='',
                     **kwargs):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if bookid:
             db = database.DBConnection()
@@ -5337,7 +4616,6 @@ class WebInterface:
         book_filter = None
         if 'bookfilter' in args:
             book_filter = args['bookfilter']
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         if 'library' in args:
             library = args['library']
@@ -5374,9 +4652,8 @@ class WebInterface:
         reading_lists = ["Unread", "Read", "ToRead", "Reading", "Abandoned"]
         if action:
             if action in reading_lists:
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    userid = cookie['ll_uid'].value
+                userid = owner_id()
+                if userid:
                     to_read = set(get_readinglist("ToRead", userid))
                     have_read = set(get_readinglist("HaveRead", userid))
                     reading = set(get_readinglist("Reading", userid))
@@ -5821,7 +5098,6 @@ class WebInterface:
     @require_auth()
     def comic_update(self, comicid='', new_name='', new_id='', aka='', editordata='', **kwargs):
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_edit)
         db = database.DBConnection()
         comicdata = db.match('SELECT * from comics WHERE ComicID=?', (comicid,))
         if comicdata:
@@ -5865,7 +5141,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search_for_comic(self, comicid=None):
-        self.check_permitted(lazylibrarian.perm_search)
         TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
@@ -5881,7 +5156,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def start_comic_search(self, comicid=None):
-        self.check_permitted(lazylibrarian.perm_search)
         logger = logging.getLogger(__name__)
         if comicid:
             if CONFIG.use_any():
@@ -5895,12 +5169,7 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def comics(self, comic_filter=''):
-        self.check_permitted(lazylibrarian.perm_comics, redirect_unauth=True)
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
-        else:
-            user = 0
+        user = owner_id()
         # use server-side processing
         covers = 1
         if not CONFIG['TOGGLES']:
@@ -5921,8 +5190,7 @@ class WebInterface:
         userid = None
         userprefs = 0
         cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            userid = cookie['ll_uid'].value
+        userid = owner_id()
         if cookie and 'll_prefs' in list(cookie.keys()):
             userprefs = check_int(cookie['ll_prefs'].value, 0)
         # noinspection PyBroadException
@@ -6031,7 +5299,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def comic_scan(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_force)
         TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         comicid = kwargs.get('comicid')
@@ -6058,7 +5325,6 @@ class WebInterface:
     def comicissue_page(self, comicid):
         global lastcomic
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_comics, redirect_unauth=True)
         db = database.DBConnection()
         try:
             mag_data = db.match('SELECT * from comics WHERE ComicID=?', (comicid,))
@@ -6074,11 +5340,7 @@ class WebInterface:
         else:
             safetitle = title
 
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
-        else:
-            user = 0
+        user = owner_id()
         # use server-side processing
         if not CONFIG['TOGGLES']:
             covercount = 0
@@ -6099,7 +5361,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def open_comic(self, comicid=None, issueid=None):
-        self.check_permitted(lazylibrarian.perm_download)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         try:
@@ -6235,7 +5496,6 @@ class WebInterface:
         # noinspection PyGlobalUndefined
         global comicresults
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_search, redirect_unauth=True)
         TELEMETRY.record_usage_data()
         comicresults = []
         if not title or title == 'None':
@@ -6280,7 +5540,6 @@ class WebInterface:
         # add a comic from a list in comicresults.html
         global comicresults
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_comics)
         TELEMETRY.record_usage_data()
         apikey = CONFIG['CV_APIKEY']
         if not comicid or comicid == 'None':
@@ -6331,7 +5590,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def mark_comics(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         args.pop('book_table_length', None)
@@ -6377,9 +5635,8 @@ class WebInterface:
                 logger.info(f'Comic {itm} details reset')
 
             if action == 'Subscribe':
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    userid = cookie['ll_uid'].value
+                userid = owner_id()
+                if userid:
                     res = db.match("SELECT * from subscribers WHERE UserID=? and Type=? and WantID=?",
                                    (userid, 'comic', itm))
                     if res:
@@ -6389,9 +5646,8 @@ class WebInterface:
                                   (userid, 'comic', itm))
                         logger.debug(f"Subscribe {userid} to comic {itm}")
             if action == 'Unsubscribe':
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    userid = cookie['ll_uid'].value
+                userid = owner_id()
+                if userid:
                     db.action('DELETE from subscribers WHERE UserID=? and Type=? and WantID=?',
                               (userid, 'comic', itm))
                     res = db.select('SELECT issueid from comicissues where comicid=?', (itm,))
@@ -6405,7 +5661,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def mark_comic_issues(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         args.pop('book_table_length', None)
@@ -6481,8 +5736,7 @@ class WebInterface:
         userid = None
         userprefs = 0
         cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            userid = cookie['ll_uid'].value
+        userid = owner_id()
         if cookie and 'll_prefs' in list(cookie.keys()):
             userprefs = check_int(cookie['ll_prefs'].value, 0)
         # noinspection PyBroadException
@@ -6597,11 +5851,9 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def magazines(self, mag_filter=''):
-        self.check_permitted(lazylibrarian.perm_magazines, redirect_unauth=True)
         db = database.DBConnection()
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
+        user = owner_id()
+        if user:
             res = db.match('SELECT SendTo from users where UserID=?', (user,))
             if res and res['SendTo']:
                 email = res['SendTo']
@@ -6643,7 +5895,6 @@ class WebInterface:
     @cherrypy.tools.json_out()
     def magazine_update_ajax(self, **kwargs):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         summary = ''
         passed = 0
@@ -6743,18 +5994,7 @@ class WebInterface:
             displaylength = int(iDisplayLength)
             CONFIG.set_int('DISPLAYLENGTH', displaylength)
 
-            if not CONFIG.get_bool('USER_ACCOUNTS'):
-                perm = lazylibrarian.perm_admin
-            else:
-                perm = 0
-                cookie = cherrypy.request.cookie
-                if cookie and 'll_uid' in list(cookie.keys()):
-                    db = database.DBConnection()
-                    res = db.match('SELECT Perms from users where UserID=?', (cookie['ll_uid'].value,))
-                    if res:
-                        perm = check_int(res['Perms'], 0)
-                    db.close()
-
+            perm = lazylibrarian.perm_admin
             title = kwargs['title'].replace('&amp;', '&')
             db = database.DBConnection()
             rowlist = db.select('SELECT * from issues WHERE Title=? order by IssueDate DESC', (title,))
@@ -6859,7 +6099,6 @@ class WebInterface:
     @require_auth()
     def issue_update(self, **kwargs):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         issueid = kwargs.get('issueid')
         if not issueid:
@@ -7007,7 +6246,6 @@ class WebInterface:
     @require_auth()
     def issue_page(self, title, response=''):
         global lastmagazine
-        self.check_permitted(lazylibrarian.perm_magazines, redirect_unauth=True)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         res = db.match('SELECT Title from magazines where Title=? COLLATE NOCASE', (title,))
@@ -7038,9 +6276,8 @@ class WebInterface:
 
         user = 0
         email = ''
-        cookie = cherrypy.request.cookie
-        if cookie and 'll_uid' in list(cookie.keys()):
-            user = cookie['ll_uid'].value
+        user = owner_id()
+        if user:
             db = database.DBConnection()
             try:
                 res = db.match('SELECT SendTo from users where UserID=?', (user,))
@@ -7053,6 +6290,7 @@ class WebInterface:
                               user=user, email=email, firstpage=firstpage, response=response)
 
     @cherrypy.expose
+    @require_auth()
     def abort_progress(self):
         logger = logging.getLogger(__name__)
         lazylibrarian.MARK_ISSUES = False
@@ -7060,10 +6298,12 @@ class WebInterface:
         return False
 
     @cherrypy.expose
+    @require_auth()
     def test_progress(self):
         return lazylibrarian.test_data
 
     @cherrypy.expose
+    @require_auth()
     def issues_progress(self):
         current = '0'
         total = '0'
@@ -7080,6 +6320,7 @@ class WebInterface:
         return bar
 
     @cherrypy.expose
+    @require_auth()
     def magazinescan_progress(self):
         try:
             current, total, percent = lazylibrarian.magazinescan_data.split('/')
@@ -7094,6 +6335,7 @@ class WebInterface:
         return bar
 
     @cherrypy.expose
+    @require_auth()
     def libraryscan_progress(self):
         try:
             current, total, percent = lazylibrarian.libraryscan_data.split('/')
@@ -7110,7 +6352,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def past_issues(self, mag=None, **kwargs):
-        self.check_permitted(lazylibrarian.perm_magazines, redirect_unauth=True)
         if not mag or mag == 'None':
             title = i18n.gettext('Past Issues')
         else:
@@ -7203,7 +6444,6 @@ class WebInterface:
     @require_auth()
     def open_mag(self, bookid=None, email=False):
         logger = logging.getLogger(__name__)
-        self.check_permitted(lazylibrarian.perm_download)
         db = database.DBConnection()
         try:
             # we may want to open an issue with a hashed bookid
@@ -7250,7 +6490,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def mark_past_issues(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         maglist = []
@@ -7324,7 +6563,6 @@ class WebInterface:
     @require_auth()
     @cherrypy.tools.json_out()
     def mark_issues_ajax(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         passed = 0
@@ -7535,7 +6773,6 @@ class WebInterface:
             logger.debug(f"Update result: {res} [{err}] {rc}")
 
     def delete_issue(self, issuefile):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         try:
             # delete the magazine file and any cover image / opf
@@ -7562,7 +6799,6 @@ class WebInterface:
     @require_auth()
     @cherrypy.tools.json_out()
     def mark_magazines_ajax(self, action=None, **args):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         total_items = 0
@@ -7672,9 +6908,8 @@ class WebInterface:
                     logger.info(f'Magazine {title} details reset')
                     passed += 1
                 elif action == 'Subscribe':
-                    cookie = cherrypy.request.cookie
-                    if cookie and 'll_uid' in list(cookie.keys()):
-                        userid = cookie['ll_uid'].value
+                    userid = owner_id()
+                    if userid:
                         res = db.match("SELECT * from subscribers WHERE UserID=? and Type=? and WantID=?",
                                        (userid, 'magazine', title))
                         if res:
@@ -7686,9 +6921,8 @@ class WebInterface:
                             logger.debug(f"Subscribe {userid} to magazine {title}")
                             passed += 1
                 elif action == 'Unsubscribe':
-                    cookie = cherrypy.request.cookie
-                    if cookie and 'll_uid' in list(cookie.keys()):
-                        userid = cookie['ll_uid'].value
+                    userid = owner_id()
+                    if userid:
                         db.action('DELETE from subscribers WHERE UserID=? and Type=? and WantID=?',
                                   (userid, 'magazine', title))
                         res = db.select('SELECT issueid from issues where title=?', (title, ))
@@ -7724,7 +6958,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search_for_mag(self, bookid=None):
-        self.check_permitted(lazylibrarian.perm_search)
         TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
@@ -7741,7 +6974,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def start_magazine_search(self, mags=None):
-        self.check_permitted(lazylibrarian.perm_search)
         logger = logging.getLogger(__name__)
         if mags:
             if CONFIG.use_any():
@@ -7755,7 +6987,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def add_magazine(self, title=None, **kwargs):
-        self.check_permitted(lazylibrarian.perm_magazines)
         TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         if not title or title == 'None':
@@ -7811,7 +7042,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def check_for_updates(self):
-        self.check_permitted(lazylibrarian.perm_force)
         self.label_thread('UPDATES')
         versioncheck.check_for_updates()
         behind = CONFIG.get_int('COMMITS_BEHIND')
@@ -7843,7 +7073,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def force_update(self):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if 'AAUPDATE' not in [n.name for n in list(threading.enumerate())]:
             threading.Thread(target=all_author_update, name='AAUPDATE', args=[False]).start()
@@ -7859,7 +7088,6 @@ class WebInterface:
         waiting for its next scheduled run. Resumes any partially-downloaded file left
         from a previous interrupted run via the same Range-resume logic the scheduled
         job itself uses - see oldump.download_dump_file. """
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if not CONFIG['OL_USE_DUMP']:
             return {'error': 'OpenLibrary local dump indexing is not enabled in Config -> Importing'}
@@ -7872,7 +7100,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def update(self):
-        self.check_permitted(lazylibrarian.perm_force, redirect_unauth=True)
         logger = logging.getLogger(__name__)
         self.label_thread('UPDATING')
         logger.debug('(webServe-Update) - Performing update')
@@ -7887,7 +7114,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def library_scan(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         types = []
         if CONFIG.get_bool('EBOOK_TAB'):
@@ -7916,14 +7142,12 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def clean_magazine_library(self):
-        self.check_permitted(lazylibrarian.perm_force)
         magazinescan.clean_maglibrary()
         raise cherrypy.HTTPRedirect("magazines")
 
     @cherrypy.expose
     @require_auth()
     def magazine_scan(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if 'title' in kwargs:
             title = kwargs['title']
@@ -7951,7 +7175,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def include_alternate(self, library='eBook'):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if 'ALT-LIBRARYSCAN' not in [n.name for n in list(threading.enumerate())]:
             try:
@@ -7966,7 +7189,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def import_issues(self, title=None):
-        self.check_permitted(lazylibrarian.perm_force)
         logger = logging.getLogger(__name__)
         if not title:
             logger.error("No title to import")
@@ -7985,7 +7207,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def import_alternate(self, library='eBook'):
-        self.check_permitted(lazylibrarian.perm_force)
         self.validate_param("library name", library, ['<', '>', '='], 404)
         logger = logging.getLogger(__name__)
         if f'IMPORTALT_{library}' not in [n.name for n in list(threading.enumerate())]:
@@ -8022,9 +7243,7 @@ class WebInterface:
         if 'user' in kwargs:
             userid = kwargs['user']
         else:
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                userid = cookie['ll_uid'].value
+            userid = owner_id()
 
         scheme, netloc, path, qs, anchor = urlsplit(cherrypy.url())
 
@@ -8061,7 +7280,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def import_csv(self, library=''):
-        self.check_permitted(lazylibrarian.perm_force)
         self.validate_param("library name", library, ['<', '>', '='], 404)
         logger = logging.getLogger(__name__)
         if f'IMPORTCSV_{library}' not in [n.name for n in list(threading.enumerate())]:
@@ -8087,7 +7305,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def export_csv(self, library=''):
-        self.check_permitted(lazylibrarian.perm_force)
         self.validate_param("library name", library, ['<', '>', '='], 404)
         self.label_thread('EXPORTCSV')
         message = export_csv(CONFIG['ALTERNATE_DIR'], library=library)
@@ -8099,7 +7316,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def shutdown(self):
-        self.check_permitted(lazylibrarian.perm_admin, redirect_unauth=True)
         self.label_thread('SHUTDOWN')
         # lazylibrarian.config_write()
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
@@ -8111,7 +7327,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def restart(self):
-        self.check_permitted(lazylibrarian.perm_admin, redirect_unauth=True)
         self.label_thread('RESTART')
         remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
         lazylibrarian.SIGNAL = 'restart'
@@ -8122,7 +7337,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def show_jobs(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         # show the current status of LL cron jobs
         resultlist = show_jobs()
@@ -8134,7 +7348,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def show_apprise(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)
         # show the available notifiers
@@ -8154,7 +7367,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def show_stats(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         # show some database status info
         resultlist = show_stats()
@@ -8166,13 +7378,11 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def restart_jobs(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         restart_jobs(command=SchedulerCommand.RESTART)
 
     @cherrypy.expose
     @require_auth()
     def stop_jobs(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         restart_jobs(command=SchedulerCommand.STOP)
 
     # LOGGING ###########################################################
@@ -8180,7 +7390,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def clear_log(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         logger = logging.getLogger(__name__)
         LOGCONFIG.clear_ui_log()
         logger.info('Screen log cleared')
@@ -8196,7 +7405,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def delete_logs(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         logger = logging.getLogger(__name__)
         result = LOGCONFIG.delete_log_files(CONFIG['LOGDIR'])
         logger.info(result)
@@ -8224,7 +7432,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def logs(self):
-        self.check_permitted(lazylibrarian.perm_logs, redirect_unauth=True)
         return serve_template(templatename="logs.html", title=i18n.gettext("Log"), lineList=[])  # lazylibrarian.LOGLIST)
 
     # noinspection PyUnusedLocal
@@ -8264,7 +7471,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def history(self):
-        self.check_permitted(lazylibrarian.perm_history, redirect_unauth=True)
         return serve_template(templatename="history.html", title=i18n.gettext("History"), history=[])
 
     # noinspection PyUnusedLocal
@@ -8502,7 +7708,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def deletehistory(self, rowid=None):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         if not rowid:
             logger.warning("No rowid in deletehistory")
@@ -8521,7 +7726,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def markhistory(self, rowid=None):
-        self.check_permitted(lazylibrarian.perm_status)
         logger = logging.getLogger(__name__)
         if not rowid:
             return
@@ -8544,7 +7748,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def clearhistory(self, status=None):
-        self.check_permitted(lazylibrarian.perm_edit)
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         if not status or status == 'all':
@@ -8769,7 +7972,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def clearblocked(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)
         # clear any currently blocked providers
@@ -8791,7 +7993,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def cleardownloads(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)
         # clear download counters
@@ -8812,7 +8013,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def showdownloads(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         # show provider download totals
         result = ''
@@ -8838,9 +8038,8 @@ class WebInterface:
             msg = i18n.gettext('Calibre Sync is already running')
         else:
             self.label_thread('CalSync')
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                userid = cookie['ll_uid'].value
+            userid = owner_id()
+            if userid:
                 msg = sync_calibre_list(userid=userid)
                 self.label_thread('WEBSERVER')
             else:
@@ -9209,7 +8408,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_custom(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         thread_name("WEBSERVER")
         fail = ''
@@ -9304,13 +8502,11 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def generate_ro_api(self):
-        self.check_permitted(lazylibrarian.perm_admin)
         return self.generate_api(ro=True)
 
     @cherrypy.expose
     @require_auth()
     def generate_api(self, ro=False):
-        self.check_permitted(lazylibrarian.perm_admin)
         logger = logging.getLogger(__name__)
         api_key = secrets.token_hex(16)
         if ro:
@@ -9401,7 +8597,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def manage(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_managebooks, redirect_unauth=True)
         types = []
         if CONFIG.get_bool('EBOOK_TAB'):
             types.append('eBook')
@@ -9799,7 +8994,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_ffmpeg(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
         thread_name("WEBSERVER")
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         postprocesslogger = logging.getLogger('special.postprocess')
@@ -9836,7 +9030,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_ebook_convert(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
         thread_name("WEBSERVER")
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         if 'prg' in kwargs and kwargs['prg']:
@@ -9858,7 +9051,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_calibredb(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
         thread_name("WEBSERVER")
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         if 'prg' in kwargs and kwargs['prg']:
@@ -9871,7 +9063,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def test_preprocessor(self, **kwargs):
-        self.check_permitted(lazylibrarian.perm_admin)
         thread_name("WEBSERVER")
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         if 'prg' in kwargs and kwargs['prg']:
@@ -9897,16 +9088,10 @@ class WebInterface:
         data = op.fetch_data()
         return data
 
-    def send_file(self, myfile, name=None, email=False, perm_check=True):
+    def send_file(self, myfile, name=None, email=False):
         logger = logging.getLogger(__name__)
-        # serve_item() may have already validated the embedded feed token and perm_download
-        if perm_check:
-            self.check_permitted(lazylibrarian.perm_download, redirect_unauth=True)
-        userid = ''
-        if CONFIG.get_bool('USER_ACCOUNTS'):
-            cookie = cherrypy.request.cookie
-            if 'll_uid' in list(cookie.keys()):
-                userid = cookie['ll_uid'].value
+        userid = owner_id()
+        if userid:
             msg = ''
             if email and userid:
                 db = database.DBConnection()

@@ -612,7 +612,7 @@ def dbbackup(source='lazylibrarian'):
         with tarfile.open(backup_file, mode='w:gz') as zf:
             zf.add(fname, arcname=DIRS.DBFILENAME)
             remove_file(fname)
-            for f in ['config.ini', 'dicts.json', 'genres.json', 'filetemplate.text', 'logintemplate.text']:
+            for f in ['config.ini', 'dicts.json', 'genres.json', 'filetemplate.text']:
                 target = os.path.join(DIRS.DATADIR, f)
                 if path_isfile(target):
                     zf.add(target, arcname=f)

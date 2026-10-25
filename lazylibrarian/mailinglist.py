@@ -23,8 +23,6 @@ from lazylibrarian.notifiers import email_notifier
 
 
 def mailing_list(book_type, global_name, book_id):
-    if not CONFIG.get_bool('USER_ACCOUNTS'):
-        return
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
     try:

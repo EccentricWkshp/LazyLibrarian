@@ -18,13 +18,13 @@ import time
 import traceback
 from urllib.parse import quote, urlencode
 
-import cherrypy
 import requests
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 
 from lazylibrarian import database
+from lazylibrarian.auth import owner_id
 from lazylibrarian.common import get_readinglist, run_script, set_readinglist
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import get_directory
@@ -221,9 +221,7 @@ def sync_calibre_list(col_read=None, col_toread=None, userid=None):
         readlist = []
         toreadlist = []
         if not userid:
-            cookie = cherrypy.request.cookie
-            if cookie and 'll_uid' in list(cookie.keys()):
-                userid = cookie['ll_uid'].value
+            userid = owner_id()
         if userid:
             res = db.match('SELECT UserName,CalibreRead,CalibreToRead,Perms from users where UserID=?',
                            (userid,))

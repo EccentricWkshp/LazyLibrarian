@@ -76,13 +76,11 @@
           %for item, label in mark_options:
             <option value="${item}">${label}</option>
           %endfor
-          %if CONFIG['USER_ACCOUNTS']:
             <option value="Unread">${_('Unread')}</option>
             <option value="Read">${_('Read')}</option>
             <option value="ToRead">${_('To Read')}</option>
             <option value="Reading">${_('Reading')}</option>
             <option value="Abandoned">${_('Abandoned')}</option>
-          %endif
         </select>
       </div>
       <input type="submit" class="mark_books btn btn-sm btn-primary" onclick="submitFormAjax()" value="${_('Go') | h}">

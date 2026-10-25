@@ -87,7 +87,6 @@
               </select>
             %endif
          </div>
-         %if CONFIG['USER_ACCOUNTS']:
            %if CONFIG['RSS_ENABLED']:
              %if CONFIG.get_int('EBOOK_TAB') > 0:
              <a href="rss_feed?user=${user}&type=eBook&authorid=${author['AuthorID']}&limit=10.xml" class="button btn btn-sm btn-primary" data-toggle="tooltip" title="${_('rss feed of recent ebooks') | h}"><i class="fa fa-rss"></i>&nbsp;<i class="fa fa-book"></i></a>
@@ -98,7 +97,6 @@
              <link rel="alternate" type="application/rss+xml" title="${_('LazyLibrarian latest AudioBooks') | h}" href="rss_feed?user=${user}&type=AudioBook&authorid=${author['AuthorID']}&limit=10.xml">
              %endif
            %endif
-         %endif
         </form>
     </div>
 <script type="text/javascript">
@@ -263,7 +261,6 @@
     <input type="hidden" name="library" value=${library}>
     <input type="hidden" name="ignored" value=${ignored}>
     <input type="hidden" name="bookfilter" id="bookfilter" value=''>
-    %if perm&lazylibrarian.perm_status or  CONFIG['USER_ACCOUNTS']:
     <div class="col-xs-12 col-sm-5">
       <div class="form-group">
         <label for="mark_books" class="">${_('Mark selected AudioBooks as') if library == 'AudioBook' else _('Mark selected eBooks as')}</label>
@@ -294,14 +291,11 @@
             <option value="Delete">${_('Delete')}</option>
             <option value="Leave" hidden>${_('Leave')}</option>
           %endif
-          % endif
-          %if CONFIG['USER_ACCOUNTS']:
             <option value="Unread">${_('Unread')}</option>
             <option value="Read">${_('Read')}</option>
             <option value="ToRead">${_('To Read')}</option>
             <option value="Reading">${_('Reading')}</option>
             <option value="Abandoned">${_('Abandoned')}</option>
-          %endif
         </select>
       </div>
       <input type="submit" class="mark_books btn btn-sm btn-primary" onclick="submitFormAjax()" value="${_('Go') | h}">
