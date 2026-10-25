@@ -3,16 +3,16 @@
 # Purpose:
 #   Testing the functions in filesystem.py
 
+import logging
 import os
 import sys
 import tempfile
-import mock
 import unittest
-import logging
+from unittest import mock
 
-from unittests.unittesthelpers import TESTDIR, LLTestCaseWithConfigandDIRS
 from lazylibrarian import filesystem
-from lazylibrarian.filesystem import DIRS, get_directory, syspath, remove_dir
+from lazylibrarian.filesystem import DIRS, get_directory, remove_dir, syspath
+from unittests.unittesthelpers import TESTDIR, LLTestCaseWithConfigandDIRS
 
 
 class FilesystemTest(LLTestCaseWithConfigandDIRS):
@@ -118,7 +118,7 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
     def test_get_tmpfilename(self):
         # Create lots of temp filenames, make sure they are unique
         tmpnames = {}
-        for i in range(10000):
+        for _i in range(10000):
             tmpname = DIRS.get_tmpfilename()
             self.assertFalse(tmpname in tmpnames, f'Temp file name not unique: {tmpname} duplicated!')
             tmpnames[tmpname] = 1

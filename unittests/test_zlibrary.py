@@ -1,7 +1,7 @@
 """Tests for the bundled zlibrary client library."""
 
-import sys
 import os
+import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -48,8 +48,8 @@ class ZlibrarySessionTest(unittest.TestCase):
         self.assertIsInstance(session.proxies, dict)
 
     def test_exception_hierarchy(self):
-        from curl_cffi.requests.exceptions import RequestException
         from curl_cffi.curl import CurlError
+        from curl_cffi.requests.exceptions import RequestException
         from zlibrary import ZlibraryError
         self.assertTrue(issubclass(RequestException, CurlError))
         self.assertFalse(issubclass(CurlError, RequestException))

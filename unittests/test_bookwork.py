@@ -1,17 +1,15 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test the language identifier to make sure it returns sensible results 
+#   Test the language identifier to make sure it returns sensible results
 #   This test uses examples from GoodReads Agatha Christie books
 
-import os
 import unittest
 from unittest.mock import patch
 
-from unittests.unittesthelpers import LLTestCase
-from lazylibrarian.bookwork import language_from_words, is_set_or_part
-from lazylibrarian.formatter import check_year
 from lazylibrarian import TIMERS
+from lazylibrarian.bookwork import is_set_or_part, language_from_words
+from unittests.unittesthelpers import LLTestCase
 
 TESTS = [
     ("Why Didn't they ask Evans?", 'en'),
@@ -43,9 +41,9 @@ class TestIsSetOrPart(unittest.TestCase):
     def test_dash_range_valid_year(self, mock_check_year):
         """Should accept titles where the hyphenated numbers look like a valid year."""
         mock_check_year.return_value = True
-        
+
         rejected, msg = is_set_or_part("History 1990-2000")
-        
+
         self.assertFalse(rejected)
         self.assertEqual(msg, '')
 

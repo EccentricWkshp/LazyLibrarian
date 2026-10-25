@@ -38,17 +38,14 @@ class FormatterTest(LLTestCaseWithStartup):
             ("Dune: Messiah", False, 'Dune Messiah'),
             ("Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*", True, 'Stuff here  &!-\\s+~='),
             ("Not C:\\\\// usable [as a] file name.jpg", True, 'Not C\\__ usable [as a] file name.jpg'),
-            (u'\2160' + u'\0049', False, '\x8e09'),
+            ('\2160' + '\0049', False, '\x8e09'),
             ('Hello Über', False, 'Hello Über'),  # Unicode-string in NFKD->NFC format
             ("\\\\Server\\Test An odd one:2131", True, '\\Server\\Test An odd one2131'),
         ]
         for s in strings:
             sn = str(formatter.sanitize(s[0], s[1]))
             self.assertEqual(sn, s[2])
-            try:
-                self.assertTrue(unicodedata.is_normalized("NFC", sn))
-            except AttributeError:
-                pass  # P37: unicodedata.is_normalized is not valid in Python 3.7
+            self.assertTrue(unicodedata.is_normalized("NFC", sn))
 
     def test_url_fix(self):
         urls = [
@@ -86,8 +83,8 @@ class FormatterTest(LLTestCaseWithStartup):
         strings = [
             ("", ""),
             ("Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*", "Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*"),
-            (u'\2160' + u'\0049', u'\2160' + u'\0049'),
-            (u'\x8e09', u'\x8e09'),
+            ('\2160' + '\0049', '\2160' + '\0049'),
+            ('\x8e09', '\x8e09'),
             ('Hello Über', 'Hello Über'),
             (b'\xc3\x28', "b'\\xc3('"),  # Invalid 2-byte sequence
             (b"\xf0\x28\x8c\xbc", "b'\\xf0(\\x8c\\xbc'"),  # Invalid 4-byte sequence
@@ -410,7 +407,7 @@ class FormatterTest(LLTestCaseWithStartup):
             # below for the case that was actually reported (a lead byte the un-fixed code
             # never recognised at all, e.g. 0xC5).
             ("ÆØÅ, æøå and ½é",
-             "ÆØÅ, æøå and ½é".encode('utf-8'), 'UTF-8'),
+             "ÆØÅ, æøå and ½é".encode(), 'UTF-8'),
         ]
         for teststr in strings:
             encoded, name = formatter.make_utf8bytes(teststr[0])
@@ -428,14 +425,14 @@ class FormatterTest(LLTestCaseWithStartup):
         # re-processed on every later pass.
         strings = [
             # The actual reported case.
-            ("Kondō", "Kondō".encode('utf-8'), 'UTF-8'),
+            ("Kondō", "Kondō".encode(), 'UTF-8'),
             # Two more lead bytes from within the widened 0xC2-0xDF range, to confirm the
             # fix isn't a one-off special case for 0xC5 specifically.
-            ("Ā", "Ā".encode('utf-8'), 'UTF-8'),  # U+0100, lead byte 0xC4
-            ("ڠ", "ڠ".encode('utf-8'), 'UTF-8'),  # U+06A0, lead byte 0xDA
+            ("Ā", "Ā".encode(), 'UTF-8'),  # U+0100, lead byte 0xC4
+            ("ڠ", "ڠ".encode(), 'UTF-8'),  # U+06A0, lead byte 0xDA
             # Upper boundary of the widened range: U+07FF is the last code point encodable
             # in two UTF-8 bytes, lead byte 0xDF.
-            ("߿", "߿".encode('utf-8'), 'UTF-8'),
+            ("߿", "߿".encode(), 'UTF-8'),
         ]
         for teststr in strings:
             encoded, name = formatter.make_utf8bytes(teststr[0])
@@ -679,7 +676,6 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_normal_return(self):
         """Test that decorator restores thread name on normal return"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         # Set initial thread name
@@ -695,7 +691,6 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_exception(self):
         """Test that decorator restores thread name even when exception raised"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         # Set initial thread name
@@ -713,7 +708,6 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_wrong_prefix(self):
         """Test that decorator doesn't change unrelated thread names"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         # Set thread name without the expected prefix
@@ -730,12 +724,11 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_multiple_returns(self):
         """Test that decorator works with multiple return paths"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         @restore_thread_name('IMPORTISSUES')
         def test_func(condition):
-            if not condition:
+            if not condition:  # noqa: SIM103 - testing an early return
                 return False  # Early return
             # ... processing ...
             return True  # Normal return
@@ -754,7 +747,6 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_custom_restore_target(self):
         """Test that decorator can restore to custom thread name"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         # Set thread name
@@ -771,7 +763,6 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_restore_thread_name_decorator_default_webserver(self):
         """Test that decorator defaults to WEBSERVER when restore_to not specified"""
-        import threading
         from lazylibrarian.formatter import restore_thread_name, thread_name
 
         # Set thread name

@@ -1634,11 +1634,7 @@ class ProcessDirEndToEndTest(LLTestCaseWithStartup):
         mock_is_valid_media.return_value = True
 
         def get_bool_side_effect(key):
-            if key == "AUDIO_TAB":
-                return True
-            if key == "DESTINATION_COPY":
-                return True
-            return False
+            return key in ("AUDIO_TAB", "DESTINATION_COPY")
 
         mock_get_bool.side_effect = get_bool_side_effect
 

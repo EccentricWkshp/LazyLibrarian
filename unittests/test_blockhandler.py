@@ -3,15 +3,15 @@
 # Purpose:
 #   Test functions in blockhandler.py
 
-import time
 import logging
+import time
 from unittest import mock
 
-from unittests.unittesthelpers import LLTestCase
+from lazylibrarian.blockhandler import BlockHandler
 from lazylibrarian.config2 import LLConfigHandler
 from lazylibrarian.configarray import ArrayConfig
 from lazylibrarian.configdefs import BASE_DEFAULTS
-from lazylibrarian.blockhandler import BlockHandler
+from unittests.unittesthelpers import LLTestCase
 
 
 class BlockhandlerTest(LLTestCase):

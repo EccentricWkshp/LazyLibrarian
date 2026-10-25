@@ -4,6 +4,7 @@
 #   Hold helper functions only needed for testing
 
 import atexit
+import contextlib
 import logging
 import os
 import sys
@@ -11,16 +12,15 @@ import tempfile
 import unittest
 from collections import Counter
 from shutil import copyfile, rmtree
-from typing import List
 
 import lazylibrarian
-from lazylibrarian.dbupgrade import upgrade_needed, db_upgrade
-from lazylibrarian.configenums import Access
-from lazylibrarian.filesystem import DIRS, path_isdir
-from lazylibrarian.startup import StartupLazyLibrarian
-from lazylibrarian.config2 import LLConfigHandler, CONFIG  # One day, won't need this any more
+from lazylibrarian.config2 import CONFIG, LLConfigHandler  # One day, won't need this any more
 from lazylibrarian.configdefs import BASE_DEFAULTS
+from lazylibrarian.configenums import Access
+from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
+from lazylibrarian.filesystem import DIRS, path_isdir
 from lazylibrarian.logconfig import LOGCONFIG
+from lazylibrarian.startup import StartupLazyLibrarian
 
 # Everything the tests write (config saves and their backups, databases, caches, json files)
 # goes here instead of the repository. One directory for the whole run, as the global CONFIG
@@ -60,10 +60,8 @@ class LLTestCase(unittest.TestCase):
     def removeDirectory(cls, cachedir: str, reason: str):
         if len(cachedir):
             logging.getLogger(None).debug(reason)
-            try:
+            with contextlib.suppress(Exception):
                 rmtree(cachedir)
-            except Exception:
-                pass
 
     @classmethod
     def prepareTestDB(cls):
@@ -86,7 +84,7 @@ class LLTestCase(unittest.TestCase):
     def assertEndsWith(self, teststr, end):
         self.assertEqual(teststr[-len(end):], end)
 
-    def single_access_compare(self, got: Counter, expected: Counter, exclude: List[Access], error: str = ''):
+    def single_access_compare(self, got: Counter, expected: Counter, exclude: list[Access], error: str = ''):
         """ Helper function, validates that two access counters are the same """
         for access in got:
             if access not in exclude:

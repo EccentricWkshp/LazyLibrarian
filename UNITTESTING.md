@@ -4,25 +4,24 @@
 LazyLibrarian is introducing unit testing to make it more feasible to make changes to the project without causing major issues.  This is beginning in November 2022.
 
 ## Packages
-The following packages are needed:
-* unittest for Python
-`sudo apt-get install python-setuptools`
+Install the runtime requirements plus pytest, pytest-order and ruff:
+`pip install -r requirements-dev.txt`
 
-I recommend getting these as well:
- * pytest module (to make it easier to run the tests)
- `pip3 install pytest`
- * pytest-cov (to get code coverage information)
-`pip3 install pytest-cov`
+On Linux, python-magic also needs libmagic (`sudo apt-get install libmagic1` on Debian and Ubuntu).
+
+For code coverage information, also install pytest-cov:
+`pip install pytest-cov`
 
 ## Execution
 
 Run these from the Lazylibrarian root directory, where LazyLibrarian.py resides.
 
-Using the unittest module:
-`python -m unittest discover unittests/`
+Using pytest, which is what GitHub Actions runs on every push and pull request:
+`python -m pytest unittests`
 
-Or, using pytest:
-`pytest unittests`
+Lint with `ruff check LazyLibrarian.py lazylibrarian unittests`. `make ci-local` runs both, the same as CI.
+
+On Windows, run the tests from PowerShell or cmd. In Git Bash, python-magic can hang.
 
 To also get code coverage information in readable form:
 `pytest --cov=lazylibrarian unittests`

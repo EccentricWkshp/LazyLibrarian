@@ -1569,7 +1569,7 @@ def language_from_words(words, source='ms', desc=None):
         res = asyncio.run(asyncio.wait_for(lang_detect(words), timeout=5))
         logger.debug(f"Detected {res.lang}:{res.confidence} for {words}")
         return res.lang, res.confidence
-    except asyncio.TimeoutError:
+    except TimeoutError:
         msg = 'Asyncio timeout'
         logger.debug(msg)
         return msg, 0

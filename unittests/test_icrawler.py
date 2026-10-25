@@ -8,9 +8,9 @@ import shutil
 import tempfile
 import unittest
 
-from lib.icrawler.builtin import (BaiduImageCrawler, BingImageCrawler,
-                              GoogleImageCrawler, GreedyImageCrawler,
-                              UrlListCrawler)
+from lib.icrawler.builtin import (
+    GreedyImageCrawler,
+)
 
 
 class TestICrawler(unittest.TestCase):
@@ -64,5 +64,5 @@ class TestICrawler(unittest.TestCase):
         self.assertTrue(os.path.exists(self.test_dir), f'Expect {self.test_dir} to exist')
         self.assertTrue(os.path.exists(img_dir), f'Expect {img_dir} to exist')
         res = len(os.listdir(img_dir))
-        self.assertGreater(res, 0, f'Expected Greedy to have a cat result!')
+        self.assertGreater(res, 0, 'Expected Greedy to have a cat result!')
         shutil.rmtree(img_dir)

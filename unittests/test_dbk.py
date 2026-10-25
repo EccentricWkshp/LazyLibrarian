@@ -10,8 +10,8 @@ from unittest import mock
 import lazylibrarian
 from lazylibrarian import dbk, importer
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.dbupgrade import has_column
 from lazylibrarian.database import DBConnection
+from lazylibrarian.dbupgrade import has_column
 from unittests.unittesthelpers import LLTestCaseWithStartup
 
 # Shortened copies of real pages from https://www.databazeknih.cz

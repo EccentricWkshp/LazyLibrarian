@@ -21,16 +21,17 @@ import signal
 import sys
 import time
 
-import lazylibrarian
-from lazylibrarian import startup, webStart
-from lazylibrarian.formatter import thread_name
-from lazylibrarian.cleanup import UNBUNDLER
-
-MIN_PYTHON_VERSION = (3, 8)
+# Check before importing LazyLibrarian, which would fail on an older Python before this message
+MIN_PYTHON_VERSION = (3, 11)
 
 if sys.version_info < MIN_PYTHON_VERSION:
-    sys.stderr.write("This version of Lazylibrarian requires Python %d.%d or later.\n" % MIN_PYTHON_VERSION)
-    exit(0)
+    sys.stderr.write("This version of Lazylibrarian requires Python {}.{} or later.\n".format(*MIN_PYTHON_VERSION))
+    sys.exit(1)
+
+import lazylibrarian  # noqa: E402
+from lazylibrarian import startup, webStart  # noqa: E402
+from lazylibrarian.cleanup import UNBUNDLER  # noqa: E402
+from lazylibrarian.formatter import thread_name  # noqa: E402
 
 
 # args required for issue #2547, we get passed (signum, stack) but don't use them
@@ -69,11 +70,11 @@ def main():
     # Try to start the server.
     if options.port:
         lazylibrarian.config2.CONFIG.set_int('HTTP_PORT', options.port)
-        logger.info('Starting LazyLibrarian on forced port: %s, webroot "%s"' %
-                    (lazylibrarian.config2.CONFIG['HTTP_PORT'], lazylibrarian.config2.CONFIG['HTTP_ROOT']))
+        logger.info(f"Starting LazyLibrarian on forced port: {lazylibrarian.config2.CONFIG['HTTP_PORT']}, "
+                    f"webroot \"{lazylibrarian.config2.CONFIG['HTTP_ROOT']}\"")
     else:
-        logger.info('Starting LazyLibrarian on port: %s, webroot "%s"' %
-                    (lazylibrarian.config2.CONFIG['HTTP_PORT'], lazylibrarian.config2.CONFIG['HTTP_ROOT']))
+        logger.info(f"Starting LazyLibrarian on port: {lazylibrarian.config2.CONFIG['HTTP_PORT']}, "
+                    f"webroot \"{lazylibrarian.config2.CONFIG['HTTP_ROOT']}\"")
 
     webStart.initialize({
         'http_port': lazylibrarian.config2.CONFIG.get_int('HTTP_PORT'),

@@ -6,8 +6,8 @@
 import unittest
 from xml.etree import ElementTree
 
-from lazylibrarian.config2 import wishlist_type
 from lazylibrarian import providers
+from lazylibrarian.config2 import wishlist_type
 from unittests.unittesthelpers import LLTestCase
 
 

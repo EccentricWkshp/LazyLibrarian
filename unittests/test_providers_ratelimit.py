@@ -5,11 +5,11 @@
 
 from unittest import mock
 
-from unittests.unittesthelpers import LLTestCase
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import LLConfigHandler
 from lazylibrarian.configdefs import BASE_DEFAULTS
 from lazylibrarian.providers import newznab_plus
+from unittests.unittesthelpers import LLTestCase
 
 RESPONSE_429 = 'Response status 429: Too Many Requests'
 EMPTY_RESULTS = b'<?xml version="1.0"?><rss><channel></channel></rss>'

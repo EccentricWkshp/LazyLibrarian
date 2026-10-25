@@ -5,15 +5,12 @@
 
 import logging
 from collections import Counter
-from typing import List, Dict
-
-import mock
+from unittest import mock
 
 from lazylibrarian.config2 import LLConfigHandler, are_equivalent
-from lazylibrarian.configdefs import BASE_DEFAULTS
-from lazylibrarian.configdefs import get_default
+from lazylibrarian.configdefs import BASE_DEFAULTS, get_default
 from lazylibrarian.configenums import Access
-from lazylibrarian.filesystem import DIRS, syspath, remove_file, path_isfile, safe_copy
+from lazylibrarian.filesystem import DIRS, path_isfile, remove_file, safe_copy, syspath
 from lazylibrarian.formatter import ImportPrefs
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
@@ -94,7 +91,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             'WARNING:lazylibrarian.config2:Base configs differ'
         ])
 
-    def do_access_compare(self, got: Dict[str, Counter], expected: Dict[str, Counter], exclude: List[Access],
+    def do_access_compare(self, got: dict[str, Counter], expected: dict[str, Counter], exclude: list[Access],
                           error: str):
         """ Helper function, validates that two access lists are the same """
         if not exclude:
@@ -220,7 +217,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         cfg = LLConfigHandler(defaults=BASE_DEFAULTS, configfile=self.COMPLEX_INI_FILE)
         allconfigs = cfg.all_configs()
         defaults = nondefaults = 0
-        for name, item in allconfigs:
+        for _name, item in allconfigs:
             if item.is_default():
                 defaults += 1
             else:
@@ -314,8 +311,8 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             'GOODREADS_INTERVAL', 'HARDCOVER_INTERVAL', # Disabled by default
             'CLEAN_CACHE_INTERVAL', 'BACKUP_INTERVAL', 'AUTHORUPDATE_INTERVAL', 'SERIESUPDATE_INTERVAL'])
         self.assertEqual(schednames,
-                         ['update_openlibrary_dump', 'telemetry_send', 'update_all_totals', 'search_book', 'search_magazines', 
-                          'PostProcessor', 'search_rss_book', 'search_wishlist', 'search_comics', 'check_for_updates', 
+                         ['update_openlibrary_dump', 'telemetry_send', 'update_all_totals', 'search_book', 'search_magazines',
+                          'PostProcessor', 'search_rss_book', 'search_wishlist', 'search_comics', 'check_for_updates',
                           'sync_to_gr', 'hc_sync', 'clean_cache', 'backup', 'author_update', 'series_update'])
         self.assertEqual(persistcount, 11)
         self.assertEqual(canruncount, 9)

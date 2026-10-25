@@ -3,11 +3,11 @@
 # Purpose:
 #   Testing the database module
 
-import logging
-import mock
+import contextlib
 import sqlite3
 import threading
 import time
+from unittest import mock
 
 from lazylibrarian.database import DBConnection
 from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
@@ -22,10 +22,8 @@ class DatabaseTest(LLTestCaseWithConfigandDIRS):
         #dbcommslogger = logging.getLogger('special.dbcomms')
         #dbcommslogger.setLevel(logging.DEBUG)
         DIRS.DBFILENAME = "test-db.db"
-        try:  # Make sure the file doesn't exist
+        with contextlib.suppress(FileNotFoundError):  # Make sure the file doesn't exist
             remove_file(DIRS.get_dbfile())
-        except FileNotFoundError:
-            pass  # Ignore
         curr_ver = upgrade_needed()
         db_upgrade(curr_ver, restartjobs=False)
 
@@ -41,7 +39,7 @@ class DatabaseTest(LLTestCaseWithConfigandDIRS):
 
     def test_connect_100_times(self):
         # Validate that it's a quick operation
-        for i in range(100):
+        for _i in range(100):
             db = DBConnection()
             db.close()
         self.assertTrue(True)
@@ -175,7 +173,7 @@ class DatabaseTest(LLTestCaseWithConfigandDIRS):
         """ Write some stuff to the DB """
         db = DBConnection()
         try:
-            for i in range(iterations):
+            for _i in range(iterations):
                 genre = f'Genre #{index}'
                 db.action('INSERT into genres (GenreName) VALUES (?)', (genre,), suppress='UNIQUE')
                 db.upsert("jobs", {"Start": time.time()}, {"Name": f'Test{index}'})

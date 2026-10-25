@@ -7,9 +7,7 @@ import logging
 import os
 import sys
 import unittest
-from typing import List
-
-import mock
+from unittest import mock
 
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import credential_params
@@ -33,7 +31,7 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
     def test_read_log_config(self):
         """ Very basic test: Just load the config and validate it loaded """
 
-        def exercise_logger(logname: str, loglevels: List[int], num: int):
+        def exercise_logger(logname: str, loglevels: list[int], num: int):
             """ Look up a logger, emit some messages, see if they appear as expected """
             logger = logging.getLogger(logname)
             self.assertIsNotNone(logger)
@@ -51,17 +49,15 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
         exercise_logger('special.dbcomms.dbtiming', [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR], 3)
 
     def test_setting_log_level(self):
-        def test_enabled(logname: str, yes: List[int], no: List[int]) -> logging.Logger:
+        def test_enabled(logname: str, yes: list[int], no: list[int]) -> logging.Logger:
             """ Look up a logger, emit some messages, see if they appear as expected """
             testlogger = logging.getLogger(logname)
-            try:
-                self.assertIsNotNone(testlogger)
-                for level in yes:
-                    self.assertTrue(testlogger.isEnabledFor(level))
-                for level in no:
-                    self.assertFalse(testlogger.isEnabledFor(level))
-            finally:
-                return testlogger
+            self.assertIsNotNone(testlogger)
+            for level in yes:
+                self.assertTrue(testlogger.isEnabledFor(level))
+            for level in no:
+                self.assertFalse(testlogger.isEnabledFor(level))
+            return testlogger
 
         # Test that only DEBUG messages are filtered by default
         logger = test_enabled('root', [logging.INFO, logging.WARNING, logging.ERROR], [logging.DEBUG])
@@ -70,12 +66,13 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
         test_enabled('root', [logging.ERROR], [logging.DEBUG, logging.INFO, logging.WARNING])
         logger.setLevel(logging.INFO)
 
-        # Test that the special.configread logger logs everything but DEBUG by default
-        logger = test_enabled('special.configread', [logging.INFO, logging.WARNING, logging.ERROR], [logging.DEBUG])
-        # Test that the special.configread logger log level can be changed, and that it didn't affect the root logger
+        # Test that a special logger's level can be changed, and that it doesn't affect the root logger
+        logger = LOGCONFIG.enable_logger('special.configread', True)
+        logger.setLevel(logging.INFO)
+        test_enabled('special.configread', [logging.INFO, logging.WARNING, logging.ERROR], [logging.DEBUG])
         logger.setLevel(logging.ERROR)
         test_enabled('special.configread', [logging.ERROR], [logging.DEBUG, logging.INFO, logging.WARNING])
-        logger.setLevel(logging.INFO)  # Restore to default
+        logger.setLevel(logging.DEBUG)  # Restore the level from DefaultConfig
         test_enabled('root', [logging.INFO, logging.WARNING, logging.ERROR], [logging.DEBUG])
 
     def test_disabling_loggers(self):
@@ -201,7 +198,7 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
         LOGCONFIG.ensure_memoryhandler_for_ui(capacity_lines=100, redact=True)
         LOGCONFIG.redact_list_updated(['9', 'INFO'])
         for i in range(10):
-            logger.info("Log %d" % i)
+            logger.info(f"Log {i}")
         redactedrows, total = LOGCONFIG.get_ui_logrows('')
         self.assertEqual(10, total, 'Expected 10 rows total')
         self.assertEqual(len(redactedrows), total, 'Expected all rows to be returned')
@@ -240,7 +237,7 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
         mock_glob.return_value = ['logs/lazy.log', 'logs/some.log.1']
         res = LogConfig.delete_log_files('/logs')
         self.assertEqual(2, mock_remove.call_count)
-        self.assertEqual(f"2 log file(s) deleted from /logs", res)
+        self.assertEqual("2 log file(s) deleted from /logs", res)
 
     def test_enable_only_these_special_debuglogs(self):
         # Enable all of them!

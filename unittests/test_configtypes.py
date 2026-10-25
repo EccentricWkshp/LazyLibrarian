@@ -3,11 +3,11 @@
 # Purpose:
 #   Testing the configtypes module
 
-from collections import Counter
 import logging
+from collections import Counter
 
 from lazylibrarian import configtypes
-from lazylibrarian.configenums import Access, TimeUnit, OnChangeReason
+from lazylibrarian.configenums import Access, OnChangeReason, TimeUnit
 from unittests.unittesthelpers import LLTestCase
 
 

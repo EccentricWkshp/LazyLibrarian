@@ -9,8 +9,8 @@
 
 from unittest import mock
 
-from unittests.unittesthelpers import LLTestCase
 from lazylibrarian import searchbook
+from unittests.unittesthelpers import LLTestCase
 
 BOOK_WANTED_IN_BOTH = {'BookID': '1', 'AuthorName': 'Jane Austen', 'BookName': 'Emma', 'BookSub': '',
                        'Status': 'Wanted', 'AudioStatus': 'Wanted'}

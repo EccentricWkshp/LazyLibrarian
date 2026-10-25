@@ -10,10 +10,10 @@
 
 from unittest import mock
 
-from unittests.unittesthelpers import LLTestCase
 from lazylibrarian.config2 import LLConfigHandler
 from lazylibrarian.configdefs import BASE_DEFAULTS
 from lazylibrarian.providers import get_capabilities
+from unittests.unittesthelpers import LLTestCase
 
 CAPS_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <caps>

@@ -28,7 +28,7 @@ install-dev: ## Install development dependencies
 	@echo "$(BLUE)Installing development dependencies...$(NC)"
 	#pip install uv
 	uv venv
-	. .venv/bin/activate && uv pip install -r requirements.txt
+	. .venv/bin/activate && uv pip install -r requirements-dev.txt
 	pre-commit install
 
 format: ## Format code with Ruff
@@ -42,16 +42,20 @@ format-check: ## Check code formatting without modifying
 
 lint: ## Lint code with Ruff (auto-fix)
 	@echo "$(BLUE)Linting and fixing with Ruff...$(NC)"
-	ruff check lazylibrarian/ --fix
+	ruff check LazyLibrarian.py lazylibrarian/ unittests/ --fix
 	@echo "$(GREEN)✓ Linting complete$(NC)"
 
 lint-check: ## Lint code without fixing
 	@echo "$(BLUE)Checking code with Ruff...$(NC)"
-	ruff check lazylibrarian/
+	ruff check LazyLibrarian.py lazylibrarian/ unittests/
 
 lint-errors-only: ## Check for errors only (like pylint -E)
 	@echo "$(BLUE)Checking for errors only...$(NC)"
 	ruff check lazylibrarian/ --select E,F
+
+test: ## Run the unit tests
+	@echo "$(BLUE)Running unit tests...$(NC)"
+	python -m pytest unittests -q
 
 typecheck: ## Run type checking with mypy
 	@echo "$(BLUE)Running type checker...$(NC)"
@@ -69,9 +73,9 @@ deps-check: ## Check for outdated dependencies
 	@echo "$(BLUE)Checking for outdated dependencies...$(NC)"
 	uv pip list --outdated
 
-deps-compile: ## Compile requirements.txt from requirements.in
+deps-compile: ## Compile requirements.txt from pyproject.toml, for every supported Python version
 	@echo "$(BLUE)Compiling dependencies...$(NC)"
-	uv pip compile requirements.in -o requirements.txt
+	uv pip compile pyproject.toml --universal --python-version 3.11 -o requirements.txt
 
 deps-sync: ## Sync installed packages with requirements.txt
 	@echo "$(BLUE)Syncing dependencies...$(NC)"
@@ -89,13 +93,13 @@ clean-all: clean ## Clean everything including virtual environment
 	rm -rf .venv
 	@echo "$(GREEN)✓ Deep clean complete$(NC)"
 
-ci-local: ## Run all CI checks locally
+ci-local: ## Run the same checks as GitHub Actions
 	@echo "$(BLUE)Running full CI pipeline locally...$(NC)"
-	@$(MAKE) format-check
-	@$(MAKE) lint-errors-only
+	@$(MAKE) lint-check
+	@$(MAKE) test
 	@echo "$(GREEN)✓ All CI checks passed$(NC)"
 
-all: format lint typecheck ## Run format, lint, typecheck, and test
+all: format lint typecheck test ## Run format, lint, typecheck, and test
 
 fix: ## Auto-fix all issues (format + lint)
 	@echo "$(BLUE)Auto-fixing issues...$(NC)"

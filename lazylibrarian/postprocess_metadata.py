@@ -39,7 +39,7 @@ from lazylibrarian.magazinescan import create_id, format_issue_filename, get_dat
 from lazylibrarian.postprocess_utils import enforce_bytes, enforce_str
 
 
-class BookType(str, Enum):
+class BookType(str, Enum):  # noqa: UP042 - StrEnum would change what str() returns
     AUDIOBOOK = "audiobook"
     EBOOK = "ebook"
     MAGAZINE = "magazine"

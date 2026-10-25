@@ -1,0 +1,5 @@
+# Tools for running the tests and linting, on top of the runtime requirements
+-r requirements.txt
+pytest==9.1.1
+pytest-order==1.5.0
+ruff==0.17.2

@@ -16,7 +16,7 @@ import re
 import time
 import traceback
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote, quote_plus, urlencode
 
 import requests
@@ -141,7 +141,7 @@ class GoodReads:
                         pub_time = details.get('publicationTime')
                         if pub_time:
                             try:
-                                dt = datetime.fromtimestamp(pub_time / 1000.0, tz=timezone.utc)
+                                dt = datetime.fromtimestamp(pub_time / 1000.0, tz=UTC)
                                 result['date'] = dt.strftime('%Y-%m-%d')
                             except Exception:
                                 pass

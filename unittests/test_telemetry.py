@@ -4,13 +4,15 @@
 #   Testing the anaonymous telemetry collection
 
 import json
-import pytest
-# import pytest_order  # Needed to force unit test order
-import mock
 import logging
 
+# import pytest_order  # Needed to force unit test order
+from unittest import mock
+
+import pytest
+
+from lazylibrarian import configdefs, telemetry
 from lazylibrarian.config2 import LLConfigHandler
-from lazylibrarian import telemetry, configdefs
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
 
@@ -108,8 +110,6 @@ class TelemetryTest(LLTestCaseWithConfigandDIRS):
         t.record_usage_data()
         self.assertEqual(usg["test_telemetry/test_record_usage_data"], 1)
 
-        jsoncfg = json.dumps(obj=usg)
-
     @pytest.mark.order(after="test_ensure_server_id_generation")
     @pytest.mark.order(after="test_ensure_server_id_persistence")
     @pytest.mark.order(after="test_set_config_data")
@@ -122,7 +122,7 @@ class TelemetryTest(LLTestCaseWithConfigandDIRS):
         t.record_usage_data("web/test")
         t.record_usage_data("API/getHelp")
         t.record_usage_data("Download/NZB")
-        s_got = dict()
+        s_got = {}
         s_got['server'] = t.construct_data_string(send_config=False, send_usage=False)
         s_got['config'] = t.construct_data_string(send_config=True, send_usage=False, send_server=False)
         s_got['usage'] = t.construct_data_string(send_config=False, send_usage=True, send_server=False)

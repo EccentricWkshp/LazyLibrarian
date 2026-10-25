@@ -2,11 +2,17 @@
 #
 # Purpose:
 #   Testing the processcontrol.py module
+import logging
 import os
 import time
-import logging
 
-from lazylibrarian.processcontrol import get_info_on_caller, get_process_memory, track_resource_usage, get_cpu_use, PSUTIL
+from lazylibrarian.processcontrol import (
+    PSUTIL,
+    get_cpu_use,
+    get_info_on_caller,
+    get_process_memory,
+    track_resource_usage,
+)
 from unittests.unittesthelpers import LLTestCase
 
 
@@ -98,7 +104,7 @@ class TestProcessControl(LLTestCase):
     @track_resource_usage
     def use_some_resource(self):
         time.sleep(0.1)
-        x = dict()
+        x = {}
         for i in range(10000):
             x[i] = f'Hello, {i}'
         return x

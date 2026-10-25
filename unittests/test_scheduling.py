@@ -3,9 +3,9 @@
 # Purpose:
 #   Test functions in scheduling.py
 
-import time
 import datetime
 import logging
+import time
 
 from lazylibrarian import scheduling
 from lazylibrarian.scheduling import SchedulerCommand

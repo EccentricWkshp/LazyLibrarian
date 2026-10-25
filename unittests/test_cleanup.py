@@ -6,9 +6,7 @@
 import os
 import shutil
 import subprocess
-from unittest import TestCase
-
-import mock
+from unittest import TestCase, mock
 
 from lazylibrarian.cleanup import UNBUNDLER, ll_dependencies
 
