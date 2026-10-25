@@ -9,8 +9,8 @@ msgstr ""
 "Project-Id-Version: LazyLibrarian VERSION\n"
 "Report-Msgid-Bugs-To: phil.borman@gmail.com\n"
 "POT-Creation-Date: 2026-10-22 14:31+0200\n"
-"PO-Revision-Date: 2026-10-23 22:51+0000\n"
-"Last-Translator: misko903 <misko903@users.noreply.hosted.weblate.org>\n"
+"PO-Revision-Date: 2026-10-25 08:51+0000\n"
+"Last-Translator: Priit Jõerüüt <jrthwlate@users.noreply.hosted.weblate.org>\n"
 "Language-Team: Estonian <https://hosted.weblate.org/projects/lazylibrarian/"
 "webui/et/>\n"
 "Language: et\n"
@@ -809,7 +809,7 @@ msgstr "LazyLibrarian – uusimad e-raamatud"
 #: data/interfaces/bookstrap/author_detail.html:66
 #: data/interfaces/bookstrap/editauthor.html:64
 msgid "rss feed of recent audiobooks"
-msgstr "viimaste audioraamatute RSS-voog"
+msgstr "viimaste heliraamatute RSS-voog"
 
 #: data/interfaces/bookstrap/author.html:130
 #: data/interfaces/bookstrap/author_detail.html:12
@@ -1188,13 +1188,13 @@ msgstr "pole veel hangitud"
 #: data/interfaces/bookstrap/author_detail.html:233
 #, python-format
 msgid "Books by this author with a %(source)s id"
-msgstr "Selle autori raamatud, millel on %(source)s ID"
+msgstr "Selle autori raamatud, mille tunnus on %(source)s"
 
 #: data/interfaces/bookstrap/author_detail.html:234
 #: data/interfaces/bookstrap/author_detail.html:250
 #: data/interfaces/bookstrap/author_detail.html:276
 msgid "Of those, how many also have an id from at least one other source"
-msgstr "Kui paljudel neist on ID ka vähemalt ühest teisest allikast"
+msgstr "Kui paljudel neist on tunnus ka vähemalt ühest teisest allikast"
 
 #: data/interfaces/bookstrap/author_detail.html:246
 #: data/interfaces/bookstrap/author_detail.html:266
@@ -1203,7 +1203,7 @@ msgstr "autori ID puudub (otsing nime järgi)"
 
 #: data/interfaces/bookstrap/author_detail.html:249
 msgid "Books by this author with a GoogleBooks id"
-msgstr "Selle autori raamatud, millel on GoogleBooksi ID"
+msgstr "Selle autori raamatud, millel on GoogleBooksi tunnus"
 
 #: data/interfaces/bookstrap/author_detail.html:263
 msgid "Manually linked Author Central page"
@@ -1573,7 +1573,7 @@ msgstr "Otsi GoodReadsist"
 
 #: data/interfaces/bookstrap/book_detail.html:119
 msgid "no linked GoodReads id to look up from"
-msgstr "otsimiseks pole seotud GoodReadsi ID-d"
+msgstr "pole seotud GoodReadsi tunnust, mille alusel saaks otsida"
 
 #: data/interfaces/bookstrap/book_detail.html:124
 msgid "No other sources linked"
@@ -6217,6 +6217,9 @@ msgid ""
 "styleable // and some browsers don't show them, eg linux firefox, android "
 "chrome // They only show icons on closed select, not in dropdown"
 msgstr ""
+"// Oleks tore siin kasutada FontAwesome’i ikoone, kuid neid ei saa "
+"kujundtada // ja mõned brauserid neid ei kuva, nt Linuxi Firefox ja Androidi "
+"Chrome // Ikoonid kuvatakse ainult suletud valikukastis, mitte rippmenüüs"
 
 #: data/interfaces/bookstrap/editbook.html:22
 msgid "eBook Title/Author"
