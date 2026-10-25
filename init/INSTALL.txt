@@ -1,23 +1,71 @@
-#!/bin/bash
-#
-# Edit lazylibrarian.default if necessary, 
-# the other files should not need to be changed
-#
-# Default settings need LazyLibrarian in /opt/lazylibrarian
-# and use the users home directory for config, database, logs
-# Suitable for ubuntu and other debian based systems, and the
-# init.d and default files should work on sysv based systems. 
-# 
-# You need to be root to copy the files (or use sudo)
-# Copy all three files for systemd (ubuntu,debian etc)
-# Copy just the last two files for SysV
-cp lazylibrarian.service  /lib/systemd/system/lazylibrarian.service
-cp lazylibrarian.initd    /etc/init.d/lazylibrarian
-cp lazylibrarian.default  /etc/default/lazylibrarian
-#
-# To auto-start on a systemd based system
-# systemctl enable lazylibrarian
-# systemctl start lazylibrarian
-#
-# To autostart on SysV
-# update-rc.d lazylibrarian defaults
+Running LazyLibrarian as a service
+==================================
+
+Docker
+------
+
+The easiest way. The image is ghcr.io/eccentricwkshp/lazylibrarian, for amd64 and arm64,
+and docker-compose.yml in the main folder is an example to start from:
+
+  docker compose up -d
+
+Settings, the database, cache and logs go in /config. PUID and PGID set the user and group
+LazyLibrarian runs as, so the files it writes belong to you (run `id` to see yours). Give
+it the same paths to your downloads as your download client uses. Update by pulling the
+new image: docker compose pull && docker compose up -d
+
+
+systemd (Debian, Ubuntu, Fedora, Arch and most other current Linux systems)
+---------------------------------------------------------------------------
+
+As root, or with sudo. This puts LazyLibrarian in /opt/LazyLibrarian and its settings,
+database and logs in /var/lib/lazylibrarian, the paths lazylibrarian.service expects.
+LazyLibrarian needs Python 3.11 or newer, and libmagic (apt install libmagic1).
+
+  useradd --system --home-dir /var/lib/lazylibrarian --create-home --shell /usr/sbin/nologin lazylibrarian
+  git clone https://github.com/EccentricWkshp/LazyLibrarian.git /opt/LazyLibrarian
+  python3 -m venv /opt/LazyLibrarian/.venv
+  /opt/LazyLibrarian/.venv/bin/pip install -r /opt/LazyLibrarian/requirements.txt
+  # only needed for updates from the web interface
+  chown -R lazylibrarian:lazylibrarian /opt/LazyLibrarian
+
+  cp /opt/LazyLibrarian/init/lazylibrarian.service /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now lazylibrarian
+
+Then open http://<this machine>:5299 to set up a login.
+
+The lazylibrarian user needs write access to your library and download folders. Adding
+it to the group that owns them works, the service runs with umask 0002 so the files
+it writes stay writable for that group:
+
+  usermod -aG <group> lazylibrarian
+
+To use other paths or another user, override the defaults rather than editing the file:
+
+  systemctl edit lazylibrarian
+
+  [Service]
+  User=me
+  Group=me
+  ExecStart=
+  ExecStart=/home/me/LazyLibrarian/.venv/bin/python /home/me/LazyLibrarian/LazyLibrarian.py --datadir /home/me/.lazylibrarian --nolaunch
+
+(the empty ExecStart= line is needed to replace the command rather than add another)
+
+Logs: journalctl -u lazylibrarian, or Logs in the web interface.
+
+
+SysV init (older systems without systemd)
+-----------------------------------------
+
+Edit lazylibrarian.default if necessary, the init script should not need changing.
+The defaults expect LazyLibrarian in /opt/lazylibrarian, with config, database and
+logs in the home folder of the user it runs as.
+
+  cp lazylibrarian.initd    /etc/init.d/lazylibrarian
+  cp lazylibrarian.default  /etc/default/lazylibrarian
+  update-rc.d lazylibrarian defaults
+  /etc/init.d/lazylibrarian start
+
+On FreeBSD use freebsd.initd instead.

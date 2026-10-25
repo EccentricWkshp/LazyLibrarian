@@ -1,20 +1,37 @@
-# lazylibrarian.service to run as $USER with config in $HOME/.lazylibrarian
+# LazyLibrarian as a systemd service, see INSTALL.txt in this folder.
+# It expects LazyLibrarian in /opt/LazyLibrarian with a virtualenv in .venv, data in
+# /var/lib/lazylibrarian, and a "lazylibrarian" user. To change any of that, run
+#   sudo systemctl edit lazylibrarian
+# and override User, Group or ExecStart there, so updates of this file don't undo it.
 
 [Unit]
-SourcePath=/etc/init.d/lazylibrarian
-Description=LSB: starts instance of LazyLibrarian
-After=all.target
+Description=LazyLibrarian
+Documentation=https://github.com/EccentricWkshp/LazyLibrarian
+After=network-online.target
+Wants=network-online.target
 
 [Service]
-Type=forking
-Restart=no
-TimeoutSec=5min
-IgnoreSIGPIPE=no
-KillMode=process
-GuessMainPID=no
-RemainAfterExit=yes
-ExecStart=/etc/init.d/lazylibrarian start
-ExecStop=/etc/init.d/lazylibrarian stop
+Type=simple
+User=lazylibrarian
+Group=lazylibrarian
+UMask=0002
+ExecStart=/opt/LazyLibrarian/.venv/bin/python /opt/LazyLibrarian/LazyLibrarian.py --datadir /var/lib/lazylibrarian --nolaunch
+
+# A restart or update from the web interface exits with status 75 and systemd starts
+# LazyLibrarian again, as starting a new process itself doesn't work under systemd.
+# A crash is restarted too, a shutdown from the web interface stays stopped.
+Environment=LAZYLIBRARIAN_SUPERVISED=1
+SuccessExitStatus=75
+RestartForceExitStatus=75
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+
+# LazyLibrarian can't gain privileges or change the system. /opt stays writable, so a git
+# install can still update itself when the lazylibrarian user owns /opt/LazyLibrarian.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
 
 [Install]
 WantedBy=multi-user.target
