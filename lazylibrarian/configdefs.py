@@ -331,7 +331,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('BOK', 'BOK_EMAIL', ''),
     ConfigStr('BOK', 'BOK_REMIX_USERID', ''),
     ConfigStr('BOK', 'BOK_REMIX_USERKEY', ''),
-    ConfigCSV('BOK', 'BOK_SEARCH_LANG', ''),  # comma separated language names
+    ConfigCSV('BOK', 'BOK_SEARCH_LANG', ''),  # comma separated language names, ANY, or empty to use IMP_PREFLANG
     ConfigBool('BOK', 'BOK', 0),
     ConfigInt('BOK', 'BOK_DLPRIORITY', 0),
     ConfigInt('BOK', 'BOK_DLLIMIT', 5),
@@ -350,7 +350,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('ANNA', 'ANNA_DLPRIORITY', 0),
     ConfigInt('ANNA', 'ANNA_DLLIMIT', 0),
     ConfigInt('ANNA', 'ANNA_MAX_SERVERS', 1),
-    ConfigStr('ANNA', 'ANNA_SEARCH_LANG', 'ANY'),  # upper case 2 letter language code or ANY
+    ConfigStr('ANNA', 'ANNA_SEARCH_LANG', ''),  # comma separated upper case 2 letter language codes, ANY, or empty to use IMP_PREFLANG
     ConfigDownloadTypes('ANNA', 'ANNA_DLTYPES', 'E'),
     ConfigStr('WEBSHARE', 'WEBSHARE_USER', ''),
     ConfigStr('WEBSHARE', 'WEBSHARE_PASS', ''),

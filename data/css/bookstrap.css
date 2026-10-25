@@ -101,3 +101,21 @@ form label {
 textarea#telemetry_data {
     font-family: monospace;
 }
+.langpicker .langchip {
+    border-radius: 18px;
+    margin: 0 6px 8px 0;
+}
+.langpicker .langchip.btn-primary::before {
+    content: "\2713\00a0";
+}
+.langpicker-more {
+    margin-bottom: 10px;
+}
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    column-gap: 16px;
+}
+.checkbox-grid .checkbox {
+    margin: 0 0 4px 0;
+}

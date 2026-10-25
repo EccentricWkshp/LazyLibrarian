@@ -548,6 +548,24 @@ def date_format(datestr, formatstr="$Y-$m-$d", context='', datelang=''):
         return datestr
 
 
+# Choices for the display date format selects, issue dates can also leave out the day
+DISPLAY_DATE_FORMATS = ['$Y-$m-$d', '$d.$m.$Y', '$d. $m. $Y', '$d/$m/$Y', '$m/$d/$Y', '$d-$m-$Y',
+                        '$d $b $Y', '$d $B $Y', '$d. $B $Y', '$B $d, $Y']
+ISSUE_DATE_FORMATS = DISPLAY_DATE_FORMATS + ['$B $Y', '$b $Y', '$m/$Y', '$Y-$m']
+
+
+def date_format_picker(current: str, formats: list[str], datelang: str = '') -> dict:
+    """ Formats for a display date select, each with an example date in datelang.
+        A stored format that isn't one of these is returned as 'other' so the select can keep it
+        and saving doesn't change it.
+        Returns {'formats': [{'format', 'example'}], 'selected': str, 'other': dict | None} """
+    def entry(fmt):
+        return {'format': fmt, 'example': date_format('2026-12-31', fmt, datelang=datelang)}
+
+    other = None if current in formats else entry(current)
+    return {'formats': [entry(fmt) for fmt in formats], 'selected': current, 'other': other}
+
+
 def two_months(word):
     # compound months as a single word eg AprilMay
     # found in some magazine titles

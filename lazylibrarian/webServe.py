@@ -67,6 +67,13 @@ from lazylibrarian.auth import (
     require_auth,
 )
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.booklanguages import (
+    anna_search_languages,
+    country_picker,
+    language_picker,
+    magazine_language_picker,
+    zlib_search_languages,
+)
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.bookwork import (
     add_series_members,
@@ -123,11 +130,14 @@ from lazylibrarian.filesystem import (
     syspath,
 )
 from lazylibrarian.formatter import (
+    DISPLAY_DATE_FORMATS,
+    ISSUE_DATE_FORMATS,
     check_float,
     check_int,
     check_year,
     clean_name,
     date_format,
+    date_format_picker,
     format_author_name,
     get_list,
     make_unicode,
@@ -360,6 +370,16 @@ def set_request_language():
     i18n.set_language(lang)
     cherrypy.request.ui_lang_auto = uilang.strip().lower() in ('', i18n.AUTO)
     return lang
+
+
+def browser_languages() -> list:
+    """ Languages the browser asks for, from navigator.languages (browser cookie) and Accept-Language """
+    browserlang = ''
+    cookie = cherrypy.request.cookie
+    if cookie and i18n.BROWSER_COOKIE in list(cookie.keys()):
+        browserlang = unquote(cookie[i18n.BROWSER_COOKIE].value)
+    return (i18n.parse_accept_language(browserlang)
+            + i18n.parse_accept_language(cherrypy.request.headers.get('Accept-Language', '')))
 
 
 # set the language before every request handler runs, so i18n.gettext() works in python code too
@@ -2342,6 +2362,15 @@ class WebInterface:
             "namevars": testvars,
             "seasons": seasons,
             "months": months,
+            "book_languages": language_picker(CONFIG['IMP_PREFLANG'], browser_languages()),
+            "gb_countries": country_picker(CONFIG['GB_COUNTRY']),
+            "mag_languages": magazine_language_picker(CONFIG['PREF_MAGLANG']),
+            "author_date_formats": date_format_picker(CONFIG['AUTHOR_DATE_FORMAT'], DISPLAY_DATE_FORMATS,
+                                                      CONFIG['DATE_LANG']),
+            "date_formats": date_format_picker(CONFIG['DATE_FORMAT'], DISPLAY_DATE_FORMATS, CONFIG['DATE_LANG']),
+            "iss_formats": date_format_picker(CONFIG['ISS_FORMAT'], ISSUE_DATE_FORMATS, CONFIG['DATE_LANG']),
+            "anna_auto": anna_search_languages('', CONFIG['IMP_PREFLANG']),
+            "zlib_auto": zlib_search_languages('', CONFIG['IMP_PREFLANG']),
             "updated": time.ctime(CONFIG.get_int('GIT_UPDATED'))
         }
         for itm in CONFIG.config.values():

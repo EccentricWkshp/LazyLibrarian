@@ -1133,4 +1133,82 @@
             $("head #theme").attr("href", "https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/" + $(this).val() + "/bootstrap.min.css");
         });
     }
+
+    function initLanguagePicker()
+    {
+        "use strict";
+        // imp_preflang keeps the saved value until the user changes the picker,
+        // so saving other settings doesn't rewrite the language list
+        function updatePreflang() {
+            const codes = [];
+            $("#langpicker .langchip.btn-primary").each(function() {
+                codes.push(...$(this).data("codes").split(","));
+            });
+            codes.push(...$("#imp_preflang_other").val().split(","));
+            const seen = new Set();
+            const unique = codes.map(code => code.trim()).filter(code => {
+                const key = code.toLowerCase();
+                if (!code || seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+            $("#imp_preflang").val(unique.join(", "));
+
+            // Annas Archive and Z-Library search the import languages unless they have their own,
+            // show what that is, matching anna_search_languages() and zlib_search_languages()
+            const chips = $("#langpicker .langchip.btn-primary");
+            const all = unique.some(code => code.toLowerCase() === "all");
+            const anna = all ? [] : chips.map(function() { return $(this).data("anna"); }).get().filter(code => code);
+            const zlib = all ? [] : chips.map(function() { return $(this).data("zlib"); }).get();
+            $.each({"#anna_search_lang": anna, "#bok_search_lang": zlib}, function(id, langs) {
+                const field = $(id);
+                field.attr("placeholder", field.data("auto").replace("%s", langs.length ? langs.join(", ") : "ANY"));
+            });
+        }
+
+        $("#langpicker .langchip").on("click", function() {
+            const selected = !$(this).hasClass("btn-primary");
+            if (selected) {
+                // keep selected languages in the order they were picked
+                const last = $("#langpicker .langchip.btn-primary").last();
+                if (last.length) {
+                    $(this).insertAfter(last);
+                } else {
+                    $(this).prependTo("#langpicker");
+                }
+            }
+            $(this).toggleClass("btn-primary", selected).toggleClass("btn-default", !selected)
+                .attr("aria-pressed", selected ? "true" : "false");
+            updatePreflang();
+        });
+        $("#imp_preflang_other").on("input", updatePreflang);
+
+        // GoogleBooks countries are sent as codes, show their names in the UI language, sorted by name
+        try {
+            const regions = new Intl.DisplayNames([document.documentElement.lang, "en"], {type: "region"});
+            const select = $("#gb_country");
+            const options = select.find("option").filter(function() { return this.value; });
+            options.each(function() {
+                $(this).text(regions.of(this.value) + " (" + this.value + ")");
+            });
+            options.sort((a, b) => a.text.localeCompare(b.text, document.documentElement.lang)).appendTo(select);
+        } catch (e) {
+            // older browsers keep the codes
+        }
+
+        $("#langpicker_more").on("click", function(e) {
+            e.preventDefault();
+            const label = $(this).find("span");
+            const more = $("#langpicker .langchip-more");
+            const showing = $(this).find("i").hasClass("fa-chevron-down");
+            // languages selected while expanded stay visible
+            more.filter(showing ? "*" : ":not(.btn-primary)").toggleClass("hidden", !showing);
+            const text = label.text();
+            label.text($(this).data("less"));
+            $(this).data("less", text);
+            $(this).find("i").toggleClass("fa-chevron-down", !showing).toggleClass("fa-chevron-up", showing);
+        });
+    }
 </script>
