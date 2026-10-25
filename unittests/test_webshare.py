@@ -6,6 +6,7 @@
 import ntpath
 import os
 import tempfile
+import unittest
 import xml.etree.ElementTree as ElementTree
 from unittest import mock
 
@@ -164,6 +165,7 @@ class WebshareDownloadTest(LLTestCaseWithStartup):
         self.assertFalse(ok)
         self.assertEqual(self._all_files(), [existing])
 
+    @unittest.skipIf(os.name == 'nt', 'Windows files have no unix permission bits')
     def test_saved_file_gets_configured_permissions(self):
         # the temporary file is created 0600, setperm must widen it
         with mock.patch.object(webshare, 'setperm', side_effect=filesystem.setperm), \

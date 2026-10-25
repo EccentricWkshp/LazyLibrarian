@@ -3,12 +3,14 @@
 # Purpose:
 #   Hold helper functions only needed for testing
 
+import atexit
 import logging
 import os
 import sys
+import tempfile
 import unittest
 from collections import Counter
-from shutil import rmtree
+from shutil import copyfile, rmtree
 from typing import List
 
 import lazylibrarian
@@ -19,6 +21,12 @@ from lazylibrarian.startup import StartupLazyLibrarian
 from lazylibrarian.config2 import LLConfigHandler, CONFIG  # One day, won't need this any more
 from lazylibrarian.configdefs import BASE_DEFAULTS
 from lazylibrarian.logconfig import LOGCONFIG
+
+# Everything the tests write (config saves and their backups, databases, caches, json files)
+# goes here instead of the repository. One directory for the whole run, as the global CONFIG
+# and DIRS keep pointing at it from one test class to the next.
+TESTDIR = tempfile.mkdtemp(prefix='lltest-')
+atexit.register(rmtree, TESTDIR, ignore_errors=True)
 
 
 # noinspection PyBroadException
@@ -91,6 +99,14 @@ class LLTestCase(unittest.TestCase):
     def cfg(cls) -> LLConfigHandler:
         pass
 
+    @staticmethod
+    def temp_copy(filename: str) -> str:
+        """ A fresh copy of a test data file in TESTDIR. Saving the config rewrites the file and
+        makes backups, and other files are written next to it, none of which belong in testdata/ """
+        copy = os.path.join(TESTDIR, os.path.basename(filename))
+        copyfile(filename, copy)
+        return copy
+
 
 class LLTestCaseWithConfigandDIRS(LLTestCase):
     """ Test case that needs a config and DIRS object to function """
@@ -104,10 +120,10 @@ class LLTestCaseWithConfigandDIRS(LLTestCase):
         lazylibrarian.SYS_ENCODING = 'UTF-8'
         DIRS.set_fullpath_args(os.path.abspath(__file__), sys.argv[1:])
         LOGCONFIG.initialize_console_only_log(redact=False)
-        cls.config = LLConfigHandler(defaults=BASE_DEFAULTS, configfile=cls.CONFIGFILE)
+        cls.config = LLConfigHandler(defaults=BASE_DEFAULTS, configfile=cls.temp_copy(cls.CONFIGFILE))
         DIRS.set_config(cls.config)
         DIRS.initialize_logger()
-        DIRS.set_datadir(DIRS.PROG_DIR)
+        DIRS.set_datadir(TESTDIR)
         DIRS.ensure_log_dir()
 
     @classmethod
@@ -138,8 +154,9 @@ class LLTestCaseWithStartup(LLTestCase):
         super().setUpClass()
         cls.starter = StartupLazyLibrarian()
         cls.starter.init_loggers(console_only=True)
-        options, configfile = cls.starter.startup_parsecommandline(__file__, args=[''], testing=True)
-        cls.starter.load_config(cls.CONFIGFILE)
+        options, configfile = cls.starter.startup_parsecommandline(__file__, args=['--datadir', TESTDIR],
+                                                                   testing=True)
+        cls.starter.load_config(cls.temp_copy(cls.CONFIGFILE))
         # Only log errors during the rest of startup
         cls.starter.init_loggers(console_only=False)
         logging.getLogger('root').setLevel(logging.ERROR)

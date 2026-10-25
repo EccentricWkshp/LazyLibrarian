@@ -758,7 +758,8 @@ class StartupLazyLibrarian:
             self.logger.info(f'Removing pidfile {lazylibrarian.PIDFILE}')
             os.remove(syspath(lazylibrarian.PIDFILE))
 
-        if not doquit and not docker():
+        # only start a new instance when asked to, a plain shutdown (or a test) must not
+        if (restart or update) and not doquit and not docker():
             self.logger.info('LazyLibrarian is restarting ...')
             # Try to use the currently running python executable, as it is known to work
             # if not able to determine, sys.executable returns empty string or None

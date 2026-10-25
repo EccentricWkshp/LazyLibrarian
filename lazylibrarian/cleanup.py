@@ -75,6 +75,15 @@ class ModuleUnbundler:
             return removed
         return []
 
+    def _is_bundled(self, origin) -> bool:
+        """ Bundled copies sit directly in the LazyLibrarian directory or its lib/ folder.
+        A virtualenv inside the LazyLibrarian directory is not bundled. """
+        try:
+            parts = Path(origin).resolve().relative_to(self.basedir).parts
+        except (TypeError, ValueError):  # no origin (namespace package), or somewhere else
+            return False
+        return len(parts) <= 2 or parts[0] == 'lib'
+
     def _get_library_locations(self, dependencies: DependencyList) -> (dict[str, str], dict[str, str]):
         """ Go through dependencies, return two dicts:
         1) A dict of dependencies where we need to use the bundled version, and
@@ -90,7 +99,7 @@ class ModuleUnbundler:
                     if hasattr(finder, 'find_spec'):
                         spec = finder.find_spec(resolve_name(name, None), None)
                         if spec is not None:
-                            if self.basedir in spec.origin:
+                            if self._is_bundled(spec.origin):
                                 bundled[name] = spec.origin
                             else:
                                 distro[name] = spec.origin

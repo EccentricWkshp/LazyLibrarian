@@ -4,6 +4,8 @@
 #   Test functions in formatter.py
 
 
+import os
+
 import lazylibrarian
 from lazylibrarian import formatter
 from lazylibrarian.config2 import CONFIG
@@ -27,9 +29,13 @@ class FormatterTest(LLTestCaseWithStartup):
 
     def test_sanitize(self):
         import unicodedata
+        # a windows drive letter keeps its colon, elsewhere it's just an invalid character
+        drive_path = 'C:\\My eBooks\\book.epub' if os.path.__name__ == 'ntpath' else 'C\\My eBooks\\book.epub'
         strings = [
             ("", False, ""),
-            ("C:\\My eBooks\\book.epub", True, 'C\\My eBooks\\book.epub'),
+            ("C:\\My eBooks\\book.epub", True, drive_path),
+            ("C:\\My eBooks\\Dune: Messiah.epub", True, drive_path.replace('book', 'Dune Messiah')),
+            ("Dune: Messiah", False, 'Dune Messiah'),
             ("Stuff here " + chr(2) + ">< |&!?-\\$|+`~=*", True, 'Stuff here  &!-\\s+~='),
             ("Not C:\\\\// usable [as a] file name.jpg", True, 'Not C\\__ usable [as a] file name.jpg'),
             (u'\2160' + u'\0049', False, '\x8e09'),

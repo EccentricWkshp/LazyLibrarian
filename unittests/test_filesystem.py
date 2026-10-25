@@ -10,7 +10,7 @@ import mock
 import unittest
 import logging
 
-from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
+from unittests.unittesthelpers import TESTDIR, LLTestCaseWithConfigandDIRS
 from lazylibrarian import filesystem
 from lazylibrarian.filesystem import DIRS, get_directory, syspath, remove_dir
 
@@ -19,11 +19,14 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
 
     @classmethod
     def setUpClass(cls) -> None:
-        return super().setUpClass()
+        super().setUpClass()
+        # these tests look for test files under the unittests directory
+        DIRS.set_datadir(DIRS.PROG_DIR)
 
     @classmethod
     def tearDownClass(cls) -> None:
         filesystem.remove_dir(DIRS.TMPDIR, remove_contents=True)
+        DIRS.set_datadir(TESTDIR)
         return super().tearDownClass()
 
     def setUp(self):

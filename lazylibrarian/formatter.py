@@ -148,11 +148,13 @@ def sanitize(name, is_folder_or_file=False):
     filename = replace_all(filename, lazylibrarian.DICTS.get('apostrophe_dict', {}))
     # strip characters we don't want in a filename/foldername
     dic = lazylibrarian.DICTS.get('filename_dict', {}).copy()
+    drive = ''
     if is_folder_or_file:
         dic.pop('\\', None)
         dic['\\\\'] ,= '\\'
-    if os.path.__name__ == 'ntpath':
-        dic.pop(':', None)
+        # a windows drive letter keeps its colon, any other colon is invalid in a windows filename
+        if os.path.__name__ == 'ntpath' and re.match(r'[A-Za-z]:[\\/]', filename):
+            drive, filename = filename[:2], filename[2:]
     filename = replace_all(filename, dic)
     # Remove all characters below code point 32
     filename = "".join(c for c in filename if ord(c) > 31)
@@ -163,7 +165,7 @@ def sanitize(name, is_folder_or_file=False):
     # windows filenames can't end in space or dot
     while filename and filename[-1] in '. ':
         filename = filename[:-1]
-    return filename
+    return drive + filename
 
 
 def versiontuple(versionstring):
