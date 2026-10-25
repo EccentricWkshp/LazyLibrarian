@@ -21,3 +21,4 @@ LazyLibrarian.app
 init
 Dockerfile
 docker-compose.yml
+docker/README.md

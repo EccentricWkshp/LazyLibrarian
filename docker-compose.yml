@@ -3,8 +3,9 @@
 # the same /downloads path as your download client, so it finds completed downloads.
 services:
   lazylibrarian:
-    image: ghcr.io/eccentricwkshp/lazylibrarian:latest
-    # or build it from this folder:
+    image: eccentricwkshp/lazylibrarian:latest
+    # the same image is on GitHub as ghcr.io/eccentricwkshp/lazylibrarian:latest, which has no
+    # pull limits. Or build it from this folder:
     # build: .
     container_name: lazylibrarian
     environment:

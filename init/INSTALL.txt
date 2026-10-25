@@ -4,8 +4,8 @@ Running LazyLibrarian as a service
 Docker
 ------
 
-The easiest way. The image is ghcr.io/eccentricwkshp/lazylibrarian, for amd64 and arm64,
-and docker-compose.yml in the main folder is an example to start from:
+The easiest way. The image is eccentricwkshp/lazylibrarian on Docker Hub, for amd64 and
+arm64, and docker-compose.yml in the main folder is an example to start from:
 
   docker compose up -d
 
@@ -13,6 +13,9 @@ Settings, the database, cache and logs go in /config. PUID and PGID set the user
 LazyLibrarian runs as, so the files it writes belong to you (run `id` to see yours). Give
 it the same paths to your downloads as your download client uses. Update by pulling the
 new image: docker compose pull && docker compose up -d
+
+The same image is published as ghcr.io/eccentricwkshp/lazylibrarian. Use that one if you hit
+Docker Hub's limit on pulls without a login.
 
 
 systemd (Debian, Ubuntu, Fedora, Arch and most other current Linux systems)
