@@ -388,6 +388,13 @@ def normalize_library_param(library):
     return "Audio" if book_type == BookType.AUDIOBOOK else "eBook" if book_type == BookType.EBOOK else library
 
 
+def key_matches(given, key: str) -> bool:
+    """ Constant time check of an api key. An unset key matches nothing, not an empty one """
+    if not key or not isinstance(given, str):
+        return False  # a repeated apikey parameter arrives as a list
+    return hmac.compare_digest(given.encode('utf-8'), key.encode('utf-8'))
+
+
 class Api:
     def __init__(self):
 
@@ -418,16 +425,21 @@ class Api:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 503, 'Message': 'Invalid Read-Only API key'}}
             return
 
-        if 'apikey' not in kwargs:
-            self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
-                                                                 'Message': 'Missing parameter: apikey'}}
+        # Like Sonarr, the key can come in an X-Api-Key header, which keeps it out of urls,
+        # proxy logs and browser history, or in the apikey parameter
+        param_key = kwargs.pop('apikey', None)
+        apikey = cherrypy.request.headers.get('X-Api-Key') or param_key
+        if not apikey:
+            self.data = {'Success': False, 'Data': '',
+                         'Error': {'Code': 400, 'Message': 'Missing API key, send an X-Api-Key header '
+                                                           'or apikey parameter'}}
             return
 
-        if not hmac.compare_digest(kwargs['apikey'], CONFIG.get_str('API_KEY')) and \
-                not hmac.compare_digest(kwargs['apikey'], CONFIG.get_str('API_RO_KEY')):
+        if not key_matches(apikey, CONFIG.get_str('API_KEY')) and \
+                not key_matches(apikey, CONFIG.get_str('API_RO_KEY')):
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 401, 'Message': 'Incorrect API key'}}
             return
-        self.apikey = kwargs.pop('apikey')
+        self.apikey = apikey
 
         if 'cmd' not in kwargs:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 405,
@@ -440,7 +452,7 @@ class Api:
             return
 
         if get_case_insensitive_key_value(cmd_dict, kwargs['cmd'])[0] != 0 and \
-                not hmac.compare_digest(self.apikey, CONFIG.get_str('API_KEY')):
+                not key_matches(self.apikey, CONFIG.get_str('API_KEY')):
             self.data = {'Success': False, 'Data': '',
                          'Error': {'Code': 405,
                                    'Message': f"Command: {kwargs['cmd']} "
@@ -1196,7 +1208,8 @@ class Api:
     def _help(self):
         TELEMETRY.record_usage_data()
         res = '<html>' \
-              '<p>Sample use: http://localhost:5299/api?apikey=VALIDKEYHERE?cmd=COMMAND</p>' \
+              '<p>Sample use: http://localhost:5299/api?cmd=COMMAND with the header X-Api-Key: VALIDKEYHERE, ' \
+              'or http://localhost:5299/api?apikey=VALIDKEYHERE&amp;cmd=COMMAND</p>' \
               '<p>Valid commands:</p><table><tr><th style="text-align: left;">Command</th>' \
               '<th style="text-align: left;">Parameters</th></tr>'
         for key in sorted(cmd_dict):

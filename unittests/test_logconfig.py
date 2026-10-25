@@ -5,11 +5,15 @@
 
 import logging
 import os
+import sys
+import unittest
 from typing import List
 
 import mock
 
-from lazylibrarian.logconfig import LOGCONFIG, LogConfig
+from lazylibrarian.config2 import CONFIG
+from lazylibrarian.formatter import credential_params
+from lazylibrarian.logconfig import LOGCONFIG, CredentialCleanser, LogConfig
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
 
@@ -280,3 +284,102 @@ class TestLogConfig(LLTestCaseWithConfigandDIRS):
         LOGCONFIG.change_logfileredact('1')
         redactednames = LOGCONFIG.get_redacted_logfilenames()
         self.assertTrue(len(redactednames) > 0, 'Expected at least one redacted name when redact is on')
+
+
+class TestCredentialCleanser(unittest.TestCase):
+    """ Credentials go from every log line, whatever the redact settings """
+
+    def setUp(self):
+        self.cleanser = CredentialCleanser()
+
+    def test_url_parameters(self):
+        clean = self.cleanser.cleanse('GET /api?apikey=0123456789abcdef&cmd=getIndex HTTP/1.1')
+        self.assertEqual(clean, 'GET /api?apikey=[redacted]&cmd=getIndex HTTP/1.1')
+        clean = self.cleanser.cleanse('Fetching https://indexer.example/api?t=search&passkey=abc123 and back')
+        self.assertEqual(clean, 'Fetching https://indexer.example/api?t=search&passkey=[redacted] and back')
+        self.assertEqual(self.cleanser.cleanse('sort_key=title'), 'sort_key=title')
+
+    def test_extra_parameters(self):
+        self.assertEqual(self.cleanser.cleanse('/feed?uid=1&hash=99'), '/feed?uid=1&hash=99')
+        self.cleanser.update([], credential_params(['hash']))
+        self.assertEqual(self.cleanser.cleanse('/feed?uid=1&hash=99'), '/feed?uid=1&hash=[redacted]')
+        self.assertEqual(self.cleanser.cleanse('/api?apikey=1'), '/api?apikey=[redacted]', 'Defaults stay')
+
+    def test_header_dump(self):
+        # what CherryPy logs on an error response
+        dump = ('\nRequest Headers:\n  Host: books.lan\n  Authorization: Basic b3duZXI6c2VjcmV0\n'
+                '  Cookie: ll_session=abcdef; theme=dark\n  X-Api-Key: 0123456789abcdef\n  Accept: */*')
+        clean = self.cleanser.cleanse(dump)
+        self.assertEqual(clean, '\nRequest Headers:\n  Host: books.lan\n  Authorization: [redacted]\n'
+                                '  Cookie: [redacted]\n  X-Api-Key: [redacted]\n  Accept: */*')
+
+    def test_dict_items(self):
+        clean = self.cleanser.cleanse("Received API command from 1.2.3.4: addProvider "
+                                      "{'name': 'Prowlarr', 'prov_apikey': 'abc123'}")
+        self.assertEqual(clean, "Received API command from 1.2.3.4: addProvider "
+                                "{'name': 'Prowlarr', 'prov_apikey': '[redacted]'}")
+        self.assertEqual(self.cleanser.cleanse('{"Apikey": "abc", "Author": "Pratchett", "password": ""}'),
+                         '{"Apikey": "[redacted]", "Author": "Pratchett", "password": "[redacted]"}')
+
+    def test_configured_secrets(self):
+        self.cleanser.update(['hunter2hunter2', 'abc', 'hunter2'], credential_params([]))
+        self.assertEqual(self.cleanser.cleanse('Login with hunter2hunter2 failed, abc'),
+                         'Login with [redacted] failed, abc', 'Whole secret goes, short ones are left alone')
+
+    def test_record_with_args_and_exception(self):
+        self.cleanser.update(['s3cretpassword'], credential_params([]))
+        record = logging.LogRecord('test', logging.INFO, __file__, 1, 'Url %s with %s',
+                                   ('/x?token=abc', 's3cretpassword'), None)
+        self.cleanser.cleanse_record(record)
+        self.assertEqual(record.getMessage(), 'Url /x?token=[redacted] with [redacted]')
+        try:
+            raise ValueError('Max retries exceeded with url: /api?apikey=abc123')
+        except ValueError:
+            record = logging.LogRecord('test', logging.ERROR, __file__, 1, 'Failed 100%', (), sys.exc_info())
+        self.cleanser.cleanse_record(record)
+        self.assertEqual(record.getMessage(), 'Failed 100%')
+        formatted = logging.Formatter().format(record)
+        self.assertIn('apikey=[redacted]', formatted)
+        self.assertNotIn('abc123', formatted)
+
+
+class TestCredentialsInLogs(LLTestCaseWithConfigandDIRS):
+    """ The installed cleanser, fed by the config, on real loggers """
+
+    def setUp(self):
+        super().setUp()
+        LOGCONFIG.initialize_log_config(max_size=10000, max_number=2, redactui=False, redactfiles=False)
+        LOGCONFIG.clear_ui_log()
+        logging.getLogger('root').setLevel(logging.INFO)
+        old_key = CONFIG['API_KEY']
+        self.addCleanup(self.restore, old_key)
+
+    @staticmethod
+    def restore(old_key):
+        CONFIG.set_str('API_KEY', old_key)
+        CONFIG._update_redactlist()
+
+    @staticmethod
+    def last_message() -> str:
+        rows, _ = LOGCONFIG.get_ui_logrows()
+        return rows[-1][6]
+
+    def test_api_key_never_logged(self):
+        CONFIG.set_str('API_KEY', '0123456789abcdef0123456789abcdef')
+        CONFIG._update_redactlist()
+        logging.getLogger('root').info('Key is 0123456789abcdef0123456789abcdef')
+        self.assertEqual(self.last_message(), 'Key is [redacted]')
+
+    def test_cherrypy_logs(self):
+        # CherryPy logs through its own loggers, which the cleanser covers too
+        records = []
+        handler = logging.Handler()
+        handler.emit = records.append
+        access = logging.getLogger('cherrypy.access.test')
+        access.addHandler(handler)
+        self.addCleanup(access.removeHandler, handler)
+        access.propagate = False
+        access.setLevel(logging.INFO)
+        access.info('127.0.0.1 - - "GET /api?cmd=getIndex&apikey=0123456789abcdef HTTP/1.1" 200 12 "" "curl"')
+        self.assertEqual(records[-1].getMessage(),
+                         '127.0.0.1 - - "GET /api?cmd=getIndex&apikey=[redacted] HTTP/1.1" 200 12 "" "curl"')

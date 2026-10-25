@@ -31,7 +31,7 @@ from lazylibrarian.configtypes import (
     ErrorListIterator,
 )
 from lazylibrarian.filesystem import DIRS, path_exists, syspath
-from lazylibrarian.formatter import plural, thread_name
+from lazylibrarian.formatter import credential_params, get_list, plural, thread_name
 from lazylibrarian.logconfig import LOGCONFIG
 
 
@@ -579,7 +579,11 @@ class LLConfigHandler(ConfigDict):
         """ Update REDACTLIST after config changes """
 
         self.REDACTLIST = []
-        wordlist = ['PASS', 'TOKEN', 'SECRET', '_API', '_USER', '_DEV', '_KEY', 'ADMIN_', '_AUTH_']
+        # Credentials are always removed from the log, the rest only when redacting
+        credentials = []
+        credential_words = ['PASS', 'TOKEN', 'SECRET', '_API', '_KEY', '_AUTH_']
+        not_credentials = ['PROXY_AUTH_USER', 'HTTPS_KEY']  # a header name and a file name
+        wordlist = credential_words + ['_USER', '_DEV', 'ADMIN_']
         if self.get_bool('HOSTREDACT'):
             wordlist.append('_HOST')
         for key in self.config.keys():
@@ -587,6 +591,8 @@ class LLConfigHandler(ConfigDict):
                 for word in wordlist:
                     if word in key and self[key] and len(self[key]) > 3:
                         self.REDACTLIST.append(f"{self[key]}")
+                        if word in credential_words and key not in not_credentials:
+                            credentials.append(f"{self[key]}")
         for key in ['EMAIL_FROM', 'EMAIL_TO', 'SSL_CERTS']:
             if self[key]:
                 self.REDACTLIST.append(f"{self[key]}")
@@ -600,8 +606,10 @@ class LLConfigHandler(ConfigDict):
                         self.REDACTLIST.append(f"{config[key]}")
                     if 'API' in config and config['API']:
                         self.REDACTLIST.append(f"{config['API']}")
+                        credentials.append(f"{config['API']}")
 
         LOGCONFIG.redact_list_updated(self.REDACTLIST)
+        LOGCONFIG.credentials_updated(credentials, credential_params(get_list(self['REDACT_PARAMS'], ',')))
         self.logger.debug(f"Redact list has {len(self.REDACTLIST)} {plural(len(self.REDACTLIST), 'entry')}")
 
     def get_all_types_list(self) -> list[str]:

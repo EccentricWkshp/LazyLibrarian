@@ -227,11 +227,22 @@ USERINFO_RE = re.compile(r'(?<=//)[^/@\s]+@')
 _credential_re_lock = threading.Lock()
 _credential_re_cache = {'params': None, 'regex': None}
 
-_DEFAULT_CREDENTIAL_RE = re.compile(
-    r'(?:(?<![A-Za-z0-9_])|(?<=%3F)|(?<=%26))('
-    + '|'.join(_DEFAULT_CREDENTIAL_PARAMS)
-    + r')(=|%3D)[^&;#\s]*',
-    re.IGNORECASE)
+
+def credential_params(extra) -> tuple:
+    """ The default credential parameter names plus the extra ones from REDACT_PARAMS """
+    return tuple(sorted(set(_DEFAULT_CREDENTIAL_PARAMS) | {p.lower() for p in extra if p}))
+
+
+def credential_param_re(params) -> re.Pattern:
+    """ Match name=value for each of the parameter names, replace with r'\\1\\2[redacted]' """
+    return re.compile(
+        r'(?:(?<![A-Za-z0-9_])|(?<=%3F)|(?<=%26))('
+        + '|'.join(re.escape(p) for p in params)
+        + r')(=|%3D)[^&;#\s]*',
+        re.IGNORECASE)
+
+
+DEFAULT_CREDENTIAL_RE = credential_param_re(_DEFAULT_CREDENTIAL_PARAMS)
 
 
 def _credential_re():
@@ -240,19 +251,14 @@ def _credential_re():
         extra = get_list(CONFIG['REDACT_PARAMS'], ',')
     except Exception:
         extra = []
-    all_params = sorted(set(_DEFAULT_CREDENTIAL_PARAMS) | {p.lower() for p in extra if p})
-    key = tuple(all_params)
+    key = credential_params(extra)
     with _credential_re_lock:
         if _credential_re_cache['params'] == key:
             return _credential_re_cache['regex']
     try:
-        regex = re.compile(
-            r'(?:(?<![A-Za-z0-9_])|(?<=%3F)|(?<=%26))('
-            + '|'.join(re.escape(p) for p in all_params)
-            + r')(=|%3D)[^&;#\s]*',
-            re.IGNORECASE)
+        regex = credential_param_re(key)
     except re.error:
-        return _DEFAULT_CREDENTIAL_RE
+        return DEFAULT_CREDENTIAL_RE
     with _credential_re_lock:
         _credential_re_cache['regex'] = regex
         _credential_re_cache['params'] = key

@@ -9,10 +9,12 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import re
 
 from lazylibrarian import i18n
 from lazylibrarian.configenums import OnChangeReason
 from lazylibrarian.filesystem import DIRS, splitext, syspath
+from lazylibrarian.formatter import DEFAULT_CREDENTIAL_RE, credential_param_re
 
 
 class RecentMemoryHandler(logging.handlers.MemoryHandler):
@@ -70,6 +72,71 @@ class RedactFilter(logging.Filter):
             record.msg = record.message
             record.args = None
         return True
+
+
+# Header lines in CherryPy's dump of the request headers, logged on every error response
+CREDENTIAL_HEADER_RE = re.compile(
+    r'^(\s*(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key)\s*:\s*).+$',
+    re.IGNORECASE | re.MULTILINE)
+# Credential items in a logged dict or json, like {'prov_apikey': '...'} or "password": "..."
+CREDENTIAL_ITEM_RE = re.compile(
+    r"""(['"][\w-]*(?:apikey|api_key|api-key|passkey|password|passwd|secret|token|authorization|cookie)['"]"""
+    r"""\s*:\s*)(['"])(?:(?!\2).)*\2""",
+    re.IGNORECASE)
+# Shorter configured secrets would redact common words all through the log
+MIN_SECRET_LENGTH = 6
+
+
+class CredentialCleanser:
+    """ Removes credentials from every log record, whatever the redact settings, like Sonarr.
+    That covers our api key in CherryPy's access log, indexer api keys in urls that requests
+    and urllib3 log, credential headers, and the configured passwords, tokens and keys.
+    It must never log anything or read CONFIG, which logs reads, so config2 hands it the values. """
+
+    def __init__(self):
+        self.secrets: tuple[str, ...] = ()
+        self.param_re = DEFAULT_CREDENTIAL_RE
+
+    def update(self, secrets: list[str], params: tuple):
+        # Longest first, so a secret that contains another one goes completely
+        self.secrets = tuple(sorted({s for s in secrets if len(s) >= MIN_SECRET_LENGTH}, key=len, reverse=True))
+        self.param_re = credential_param_re(params)
+
+    def cleanse(self, text: str) -> str:
+        text = self.param_re.sub(r'\1\2[redacted]', text)
+        text = CREDENTIAL_HEADER_RE.sub(r'\1[redacted]', text)
+        text = CREDENTIAL_ITEM_RE.sub(r'\1\2[redacted]\2', text)
+        for secret in self.secrets:
+            if secret in text:
+                text = text.replace(secret, '[redacted]')
+        return text
+
+    def cleanse_record(self, record: logging.LogRecord):
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return  # Bad format arguments, logging reports those itself
+        clean = self.cleanse(msg)
+        if clean != msg:
+            record.msg = clean
+            record.args = ()
+        if record.exc_info and not record.exc_text:
+            # Exception messages carry urls too. Formatters use exc_text when it's already set
+            record.exc_text = self.cleanse(logging.Formatter().formatException(record.exc_info))
+
+    def install(self):
+        """ Cleanse every log record as it's made, from any logger, before any handler sees it """
+        base_factory = logging.getLogRecordFactory()
+        if getattr(base_factory, 'cleanser', None) is self:
+            return
+
+        def factory(*args, **kwargs):
+            record = base_factory(*args, **kwargs)
+            self.cleanse_record(record)
+            return record
+
+        factory.cleanser = self
+        logging.setLogRecordFactory(factory)
 
 
 class LogConfig:
@@ -164,6 +231,8 @@ class LogConfig:
     def __init__(self):
         self._memorybuffer = None
         self.redact_filter = RedactFilter()  # Need just one instance
+        self.cleanser = CredentialCleanser()
+        self.cleanser.install()
         logging.basicConfig()  # Make sure there is a valid root logger
         self.ensure_memoryhandler_for_ui(capacity_lines=400, redact=False)
 
@@ -425,6 +494,10 @@ class LogConfig:
 
     def redact_list_updated(self, redactlist: list[str]):
         self.redact_filter.update_redactlist(redactlist)
+
+    def credentials_updated(self, secrets: list[str], params: tuple):
+        """ The configured secrets and credential url parameters that are always removed from the log """
+        self.cleanser.update(secrets, params)
 
     @staticmethod
     def get_full_filename(filename: str, redact: bool | None) -> str:
