@@ -58,6 +58,11 @@ from lazylibrarian import (
     versioncheck,
 )
 from lazylibrarian.auth import (
+    AUTH_BASIC,
+    AUTH_EXTERNAL,
+    AUTH_FORM,
+    REQUIRED_DISABLED_LOCAL,
+    REQUIRED_ENABLED,
     AuthController,
     end_session,
     get_owner,
@@ -248,8 +253,7 @@ def owner_details() -> dict:
         owner = get_owner(db) or {}
     finally:
         db.close()
-    return {'username': owner.get('UserName') or '', 'userid': owner.get('UserID') or '',
-            'password_set': bool(owner.get('Password'))}
+    return {'username': owner.get('UserName') or '', 'userid': owner.get('UserID') or ''}
 
 
 def clear_our_cookies():
@@ -489,7 +493,7 @@ def serve_template(templatename, **kwargs):
         if len(theme) > 1:
             style = theme[1]
 
-        if templatename == "formlogin.html":
+        if templatename in ("formlogin.html", "authsetup.html"):
             cherrypy.response.cookie['ll_template'] = ''
             return template.render(perm=0, style=style, **kwargs)
 
@@ -923,7 +927,7 @@ class WebInterface:
                             'CalibreRead,CalibreToRead from users where UserID=?', (userid,))
             if user:
                 if kwargs['username'] and user['UserName'] != kwargs['username']:
-                    if self.validate_param("username", kwargs['username'], ['<', '>', '='], None):
+                    if self.validate_param("username", kwargs['username'], ['<', '>', '=', ':'], None):
                         changes += ' username'
                         set_owner_credentials(db, username=kwargs['username'])
                     else:
@@ -1712,20 +1716,30 @@ class WebInterface:
         owner = get_owner(db) or {}
         new_username = kwargs.pop('owner_username', '').strip()
         new_password = kwargs.pop('owner_password', '')
+        new_password2 = kwargs.pop('owner_password2', '')
         if new_username and new_username != owner.get('UserName'):
-            if self.validate_param('username', new_username, ['<', '>', '='], None):
+            if self.validate_param('username', new_username, ['<', '>', '=', ':'], None):
                 set_owner_credentials(db, username=new_username)
                 adminmsg += i18n.gettext('Username changed') + '<br>'
             else:
                 adminmsg += i18n.gettext('Invalid username') + '<br>'
-        if new_password:
-            if not pwd_check(new_password):
+        if new_password or new_password2:
+            if new_password != new_password2:
+                adminmsg += i18n.gettext('Passwords do not match, password not changed') + '<br>'
+            elif not pwd_check(new_password):
                 adminmsg += i18n.gettext("Password must be at least 8 characters long\nand not contain spaces") + '<br>'
-            elif not (new_username or owner.get('UserName')):
-                adminmsg += i18n.gettext('Set a username before setting a password') + '<br>'
             else:
                 set_owner_credentials(db, password=new_password, keep_token=session_token())
                 adminmsg += i18n.gettext('Password changed') + '<br>'
+        # unknown values would leave the generic loop below to store them, keep the current ones
+        if kwargs.get('auth_type') not in (None, AUTH_FORM, AUTH_BASIC, AUTH_EXTERNAL):
+            kwargs.pop('auth_type')
+        if kwargs.get('auth_required') not in (None, REQUIRED_ENABLED, REQUIRED_DISABLED_LOCAL):
+            kwargs.pop('auth_required')
+        if kwargs.get('auth_type') == AUTH_EXTERNAL and not kwargs.get('proxy_auth_user', '').strip():
+            kwargs.pop('auth_type')
+            adminmsg += i18n.gettext('External authentication needs the proxy user header, '
+                                     'authentication method not changed') + '<br>'
 
         # store any genre changes
         genre_changes = ''

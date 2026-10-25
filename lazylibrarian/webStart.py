@@ -31,7 +31,7 @@ from shutil import copyfile
 
 import lazylibrarian
 from lazylibrarian import database
-from lazylibrarian.auth import check_user_password, get_owner
+from lazylibrarian.auth import check_user_password, credentials_set, get_owner
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, syspath
 from lazylibrarian.logconfig import LOGCONFIG
@@ -203,6 +203,14 @@ def initialize(options=None):
                     t.write('\n')
 
     cherrypy.tree.mount(WebInterface(), str(options['http_root']), config=conf)
+
+    db = database.DBConnection()
+    try:
+        if not credentials_set(get_owner(db)):
+            logger.warning("Authentication is not set up yet. Open LazyLibrarian in a browser on your local "
+                           "network to choose a username and password")
+    finally:
+        db.close()
 
     if LOGCONFIG.is_logger_enabled_for('special.cherrypy', logging.DEBUG):
         cherrypy.config.update({

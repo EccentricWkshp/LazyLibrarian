@@ -1,8 +1,8 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test the single owner account: sessions, request authentication, the login form
-#   and the v101 upgrade from user accounts / config file logins
+#   Test the single owner account: sessions, request authentication, the login form,
+#   first-run setup and the v101 upgrade from user accounts / config file logins
 
 import base64
 import contextlib
@@ -15,6 +15,8 @@ import cherrypy
 
 import lazylibrarian
 from lazylibrarian import auth, dbupgrade, passwords, sessions
+from lazylibrarian.config2 import LLConfigHandler
+from lazylibrarian.configdefs import BASE_DEFAULTS
 from lazylibrarian.database import DBConnection
 from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
 from lazylibrarian.filesystem import DIRS, remove_file
@@ -43,8 +45,8 @@ class FakeConfig(dict):
 
 
 def make_config(**kwargs):
-    cfg = FakeConfig(HTTP_ROOT='', PROXY_LOCAL='', WHITELIST='', PROXY_AUTH=False, PROXY_AUTH_USER='X-User',
-                     AUTH_TYPE='FORM', USER_ACCOUNTS=False, SINGLE_USER=False, HTTP_USER='', HTTP_PASS='')
+    cfg = FakeConfig(HTTP_ROOT='', PROXY_LOCAL='', WHITELIST='', PROXY_AUTH_USER='X-User', AUTH_TYPE='FORM',
+                     AUTH_REQUIRED='ENABLED', USER_ACCOUNTS=False, SINGLE_USER=False, HTTP_USER='', HTTP_PASS='')
     cfg.update(kwargs)
     return cfg
 
@@ -218,9 +220,23 @@ class AuthenticateRequestTest(AuthDBTestCase):
     def basic(self, username, password):
         return 'Basic ' + base64.b64encode(f'{username}:{password}'.encode()).decode('ascii')
 
-    def test_open_until_credentials_set(self):
-        self.use_request()
-        self.assertEqual(auth.authenticate_request(), 'open')
+    def test_nothing_gets_in_before_setup(self):
+        self.cfg['WHITELIST'] = '10.0.0.0/8'
+        self.cfg['AUTH_REQUIRED'] = 'DISABLED_LOCAL'
+        for ip in ['203.0.113.5', '10.1.2.3', '127.0.0.1']:
+            self.use_request(ip=ip)
+            self.assertEqual(auth.authenticate_request(), '', ip)
+            self.assertTrue(cherrypy.request.ll_setup)
+
+    def test_check_auth_sends_page_loads_to_setup(self):
+        self.use_request(path='/books')
+        with self.assertRaises(cherrypy.HTTPRedirect) as cm:
+            auth.check_auth()
+        self.assertIn('/auth/setup?from_page=/books', cm.exception.urls[0])
+        self.use_request(headers={'X-Requested-With': 'XMLHttpRequest'})
+        with self.assertRaises(cherrypy.HTTPError) as cm:
+            auth.check_auth()
+        self.assertEqual(cm.exception.status, 401)
 
     def test_no_credentials_denied(self):
         self.set_owner()
@@ -275,14 +291,41 @@ class AuthenticateRequestTest(AuthDBTestCase):
         self.use_request(ip='203.0.113.5')
         self.assertEqual(auth.authenticate_request(), '')
 
-    def test_proxy_header(self):
+    def test_local_bypass(self):
         self.set_owner()
+        self.use_request(ip='192.168.1.20')
+        self.assertEqual(auth.authenticate_request(), '', 'Authentication required by default')
+        self.cfg['AUTH_REQUIRED'] = 'DISABLED_LOCAL'
+        self.assertEqual(auth.authenticate_request(), 'local')
+        self.use_request(ip='203.0.113.5')
+        self.assertEqual(auth.authenticate_request(), '')
+
+    def test_is_local_address(self):
+        for ip in ['127.0.0.1', '10.0.0.5', '172.16.4.4', '172.31.255.1', '192.168.0.1', '169.254.1.1', '::1',
+                   'fd00::1', 'fe80::1', '::ffff:192.168.1.5']:
+            self.assertTrue(auth.is_local_address(ip), ip)
+        for ip in ['8.8.8.8', '172.32.0.1', '203.0.113.5', '2001:db8::1', '::ffff:8.8.8.8', '', None, 'nonsense']:
+            self.assertFalse(auth.is_local_address(ip), ip)
+
+    def test_external_uses_only_the_proxy_header(self):
+        userid = self.set_owner()
         self.use_request(headers={'X-User': 'owner'})
-        self.assertEqual(auth.authenticate_request(), '', 'Proxy auth is off')
-        self.cfg['PROXY_AUTH'] = True
-        self.assertEqual(auth.authenticate_request(), 'proxy')
+        self.assertEqual(auth.authenticate_request(), '', 'The header is ignored unless the method is External')
+        self.cfg['AUTH_TYPE'] = 'EXTERNAL'
+        self.assertEqual(auth.authenticate_request(), 'external')
         self.use_request(headers={'X-User': 'someone'})
         self.assertEqual(auth.authenticate_request(), '')
+        db = DBConnection()
+        try:
+            token = sessions.create_session(db, userid, False)
+        finally:
+            db.close()
+        self.use_request(cookies={sessions.SESSION_COOKIE: token},
+                         headers={'Authorization': self.basic('owner', 'correct horse')})
+        self.assertEqual(auth.authenticate_request(), '', 'External ignores sessions and Basic auth')
+        with self.assertRaises(cherrypy.HTTPError) as cm:
+            auth.check_auth()
+        self.assertEqual(cm.exception.status, 401)
 
     def test_check_auth_forms_redirects_to_login(self):
         self.set_owner()
@@ -354,9 +397,16 @@ class LoginFormTest(AuthDBTestCase):
         self.assertIn('Incorrect', form.call_args.args[1])
         self.assertNotIn(sessions.SESSION_COOKIE, cherrypy.response.cookie)
 
-    def test_cannot_log_in_without_credentials(self):
+    def test_login_before_setup_goes_to_setup(self):
         redirect, _ = self.login('', '')
-        self.assertIsNone(redirect)
+        self.assertTrue(redirect.urls[0].endswith('/auth/setup'))
+
+    def test_login_page_not_used_for_basic(self):
+        self.set_owner()
+        self.cfg['AUTH_TYPE'] = 'BASIC'
+        redirect, _ = self.login('owner', 'correct horse')
+        self.assertTrue(redirect.urls[0].endswith('/books'))
+        self.assertNotIn(sessions.SESSION_COOKIE, cherrypy.response.cookie)
 
     def test_too_many_failures(self):
         self.set_owner()
@@ -457,3 +507,102 @@ class MigrationTest(AuthDBTestCase):
         self.add_user('extra00001', 'extra', 65535, '999')
         users = self.migrate()
         self.assertEqual(len(users), 2, 'Second run does nothing, the sessions table exists')
+
+
+class SetupTest(AuthDBTestCase):
+
+    def setup(self, ip='192.168.1.20', method='POST', **kwargs):
+        form = {'auth_method': 'FORM', 'auth_required': 'ENABLED', 'username': 'reader',
+                'password': 'correcthorse', 'password2': 'correcthorse', 'from_page': '/books'}
+        form.update(kwargs)
+        self.use_request(ip=ip, method=method)
+        self.cfg.save_config_and_backup_old.reset_mock()
+        with mock.patch.object(auth.AuthController, 'render', return_value='page') as render:
+            try:
+                auth.AuthController().setup(**form)
+            except cherrypy.HTTPRedirect as redirect:
+                return redirect, render
+        return None, render
+
+    @staticmethod
+    def owner():
+        db = DBConnection()
+        try:
+            return auth.get_owner(db)
+        finally:
+            db.close()
+
+    def test_forms_setup(self):
+        redirect, _ = self.setup(auth_required='DISABLED_LOCAL')
+        self.assertTrue(redirect.urls[0].endswith('/books'))
+        owner = self.owner()
+        self.assertEqual(owner['UserName'], 'reader')
+        self.assertTrue(passwords.verify_password('correcthorse', owner['Password']))
+        self.assertEqual((self.cfg['AUTH_TYPE'], self.cfg['AUTH_REQUIRED']), ('FORM', 'DISABLED_LOCAL'))
+        self.cfg.save_config_and_backup_old.assert_called_once()
+        token = cherrypy.response.cookie[sessions.SESSION_COOKIE].value
+        db = DBConnection()
+        try:
+            self.assertIsNotNone(sessions.lookup_session(db, token), 'Logged in straight after setup')
+        finally:
+            db.close()
+
+    def test_basic_setup_has_no_session(self):
+        redirect, _ = self.setup(auth_method='BASIC')
+        self.assertIsNotNone(redirect)
+        self.assertEqual(self.cfg['AUTH_TYPE'], 'BASIC')
+        self.assertNotIn(sessions.SESSION_COOKIE, cherrypy.response.cookie)
+
+    def test_get_shows_form(self):
+        redirect, render = self.setup(method='GET')
+        self.assertIsNone(redirect)
+        self.assertFalse(render.call_args.kwargs['remote'])
+        self.assertFalse(auth.credentials_set(self.owner()))
+
+    def test_bad_input(self):
+        for changes, expect in [({'password2': 'different1'}, 'do not match'),
+                                ({'password': 'short', 'password2': 'short'}, '8 characters'),
+                                ({'password': 'has space', 'password2': 'has space'}, '8 characters'),
+                                ({'username': ' '}, 'username'), ({'username': 'a:b'}, 'username'),
+                                ({'auth_method': 'EXTERNAL'}, 'method'), ({'auth_required': 'NEVER'}, 'method')]:
+            redirect, render = self.setup(**changes)
+            self.assertIsNone(redirect, changes)
+            self.assertIn(expect, render.call_args.kwargs['msg'], changes)
+            self.assertFalse(auth.credentials_set(self.owner()), changes)
+            self.cfg.save_config_and_backup_old.assert_not_called()
+
+    def test_remote_address_cannot_set_up(self):
+        redirect, render = self.setup(ip='8.8.8.8')
+        self.assertIsNone(redirect)
+        self.assertTrue(render.call_args.kwargs['remote'])
+        self.assertFalse(auth.credentials_set(self.owner()))
+
+    def test_whitelisted_remote_address_can_set_up(self):
+        self.cfg['WHITELIST'] = '8.8.8.8'
+        redirect, _ = self.setup(ip='8.8.8.8')
+        self.assertIsNotNone(redirect)
+        self.assertTrue(auth.credentials_set(self.owner()))
+
+    def test_setup_only_once(self):
+        self.setup()
+        redirect, _ = self.setup(username='intruder', password='takeover1', password2='takeover1')
+        self.assertTrue(redirect.urls[0].endswith('/auth/login'))
+        self.assertEqual(self.owner()['UserName'], 'reader')
+
+
+class ConfigFixupTest(LLTestCaseWithConfigandDIRS):
+
+    def test_proxy_auth_becomes_external(self):
+        cfg = LLConfigHandler(defaults=BASE_DEFAULTS)
+        self.assertEqual(cfg.fixup_auth_settings(), 0)
+        cfg.set_bool('PROXY_AUTH', True)
+        self.assertEqual(cfg.fixup_auth_settings(), 1)
+        self.assertEqual(cfg.get_str('AUTH_TYPE'), 'EXTERNAL')
+        self.assertFalse(cfg.get_bool('PROXY_AUTH'))
+
+    def test_unknown_values_reset(self):
+        cfg = LLConfigHandler(defaults=BASE_DEFAULTS)
+        cfg.set_str('AUTH_TYPE', 'NONE')
+        cfg.set_str('AUTH_REQUIRED', 'SOMETIMES')
+        self.assertEqual(cfg.fixup_auth_settings(), 2)
+        self.assertEqual((cfg.get_str('AUTH_TYPE'), cfg.get_str('AUTH_REQUIRED')), ('FORM', 'ENABLED'))

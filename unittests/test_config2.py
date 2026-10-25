@@ -288,7 +288,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         cfg = LLConfigHandler(defaults=BASE_DEFAULTS)
         self.assertEqual(len(cfg.config), len(BASE_DEFAULTS),
                          'Maybe there is a duplicate entry in BASE_DEFAULTS')
-        self.assertEqual(cfg.get_str('AUTH_TYPE'), 'BASIC')
+        self.assertEqual(cfg.get_str('AUTH_TYPE'), 'FORM')
 
     def test_schedule_list(self):
         self.set_loglevel(logging.INFO)

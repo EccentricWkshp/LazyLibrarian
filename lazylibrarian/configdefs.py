@@ -46,7 +46,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigCSV('General', 'WHITELIST', ''),
     ConfigStr('General', 'SYS_ENCODING', ''),
     ConfigStr('General', 'HOMEPAGE', ''),
-    ConfigStr('General', 'AUTH_TYPE', "BASIC"),
+    ConfigStr('General', 'AUTH_TYPE', "FORM"),  # FORM, BASIC or EXTERNAL, see auth.py
+    ConfigStr('General', 'AUTH_REQUIRED', "ENABLED"),  # ENABLED or DISABLED_LOCAL
     ConfigInt('General', 'WALL_COLUMNS', 6),
     ConfigPerm('General', 'FILE_PERM', '0o644'),
     ConfigPerm('General', 'DIR_PERM', '0o755'),
@@ -90,6 +91,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('Proxy', 'PROXY_TYPE', ''),
     ConfigStr('Proxy', 'PROXY_LOCAL', ''),
     ConfigStr('Proxy', 'FALLBACK_PROXY', ''),
+    # Only read by post_load_fixup, the proxy login header is now AUTH_TYPE EXTERNAL
     ConfigBool('Proxy', 'PROXY_AUTH', 0),
     ConfigStr('Proxy', 'PROXY_AUTH_USER', 'X-WEBAUTH-USER'),
 

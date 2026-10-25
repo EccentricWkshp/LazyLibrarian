@@ -38,7 +38,7 @@
             toggleElement("#https_enabled", "#https_options");
             toggleElement("#ssl_verify", "#ssl_options");
             toggleElement("#api_enabled", "#api_options");
-            toggleElement("#proxy_auth", "#proxy_auth_options");
+            toggleSelectElement("#auth_type", "#proxy_auth_options", "EXTERNAL");
             toggleElement("#opds_enabled", "#opdsoptions");
             toggleElement("#audio_tab", "#graudio_options"); // A sub-setting on the Importing page
             toggleSelectElement("#log_type", "#debug_options", "Debug");

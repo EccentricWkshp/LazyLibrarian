@@ -12,12 +12,17 @@
 #
 # Purpose:
 #   Authentication for the web interface. LazyLibrarian has a single owner account,
-#   like Sonarr and Radarr. A request is let in by (first match wins):
-#     - no credentials set up yet (open, until first-run setup exists)
+#   like Sonarr and Radarr, and the same settings:
+#     AUTH_TYPE      FORM (login page), BASIC (browser popup) or EXTERNAL (a reverse
+#                    proxy logs in and passes the owner username in PROXY_AUTH_USER)
+#     AUTH_REQUIRED  ENABLED, or DISABLED_LOCAL to let local addresses in without a login
+#   Until a username and password are set up, every page goes to the setup page. That only
+#   works from a local or whitelisted address, so nobody can claim an exposed new install.
+#   Otherwise a request is let in by (first match wins):
 #     - a whitelisted client ip
-#     - a login session cookie, from the login form
-#     - an HTTP Basic Authorization header
-#     - a trusted reverse proxy header naming the owner (PROXY_AUTH)
+#     - a local client ip, if AUTH_REQUIRED is DISABLED_LOCAL
+#     - EXTERNAL: the proxy header naming the owner
+#     - FORM/BASIC: a login session cookie, or an HTTP Basic Authorization header
 #   Endpoints opt in with @require_auth(), paths like /api and /opds are switched
 #   off in webStart.py as they have their own authentication.
 
@@ -36,7 +41,7 @@ import cherrypy
 
 import lazylibrarian
 from lazylibrarian import database, i18n
-from lazylibrarian.common import pwd_generator
+from lazylibrarian.common import pwd_check, pwd_generator
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import get_list
 from lazylibrarian.passwords import hash_password, need_rehash, verify_password
@@ -49,6 +54,17 @@ from lazylibrarian.sessions import (
     lookup_session,
 )
 
+AUTH_FORM = 'FORM'
+AUTH_BASIC = 'BASIC'
+AUTH_EXTERNAL = 'EXTERNAL'
+REQUIRED_ENABLED = 'ENABLED'
+REQUIRED_DISABLED_LOCAL = 'DISABLED_LOCAL'
+
+# the same ranges Sonarr treats as local: loopback, private, link local and unique local
+LOCAL_NETWORKS = [ipaddress.ip_network(net) for net in (
+    '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16',
+    '::1/128', 'fc00::/7', 'fe80::/10')]
+
 # failed logins allowed from one address within FAILED_LOGIN_WINDOW seconds
 MAX_FAILED_LOGINS = 5
 FAILED_LOGIN_WINDOW = 15 * 60
@@ -56,6 +72,7 @@ FAILED_LOGIN_WINDOW = 15 * 60
 BASIC_CACHE_SECONDS = 5 * 60
 
 _lock = threading.Lock()
+_setup_lock = threading.Lock()
 _owner_id = ''
 _failed_logins = []  # (remote ip, time)
 _basic_cache = {}  # sha256 of the Authorization header: expiry time
@@ -190,6 +207,33 @@ def is_whitelisted_ip(remote_ip):
     return False
 
 
+def is_local_address(remote_ip) -> bool:
+    """ True for loopback and private network addresses.
+    Behind a reverse proxy every request comes from the proxy, which is usually local,
+    so PROXY_LOCAL must be set for this to see the real client address """
+    try:
+        addr = ipaddress.ip_address(remote_ip)
+    except (ValueError, TypeError):
+        return False
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return any(addr in net for net in LOCAL_NETWORKS)
+
+
+def setup_allowed(remote_ip) -> bool:
+    """ First-run setup claims the install, so only allow it from the local network """
+    return is_local_address(remote_ip) or is_whitelisted_ip(remote_ip)
+
+
+def auth_type() -> str:
+    value = CONFIG.get_str('AUTH_TYPE')
+    return value if value in (AUTH_FORM, AUTH_BASIC, AUTH_EXTERNAL) else AUTH_FORM
+
+
+def local_bypass() -> bool:
+    return CONFIG.get_str('AUTH_REQUIRED') == REQUIRED_DISABLED_LOCAL
+
+
 # Failed login throttling #########################################################
 
 def login_blocked(remote_ip) -> bool:
@@ -273,33 +317,42 @@ def _check_basic_header(db, owner, header: str) -> bool:
     return True
 
 
+def _check_proxy_header(owner) -> bool:
+    header = CONFIG.get_str('PROXY_AUTH_USER')
+    proxy_user = cherrypy.request.headers.get(header, '') if header else ''
+    return bool(proxy_user) and hmac.compare_digest(proxy_user.encode('utf-8'), owner['UserName'].encode('utf-8'))
+
+
 def authenticate_request() -> str:
     """ Return how this request is authenticated, or '' if it isn't.
-    Sets cherrypy.request.login to the owner username when it is """
+    Sets cherrypy.request.login to the owner username when it is, and
+    cherrypy.request.ll_setup when first-run setup hasn't been done """
     request = cherrypy.request
+    remote_ip = get_remote_ip()
     db = database.DBConnection()
     try:
         owner = get_owner(db)
+        request.ll_setup = not credentials_set(owner)
         method = ''
-        if not credentials_set(owner):
-            method = 'open'
-        elif is_whitelisted_ip(get_remote_ip()):
+        if request.ll_setup:
+            pass
+        elif is_whitelisted_ip(remote_ip):
             method = 'whitelist'
+        elif local_bypass() and is_local_address(remote_ip):
+            method = 'local'
+        elif auth_type() == AUTH_EXTERNAL:
+            if _check_proxy_header(owner):
+                method = 'external'
         else:
             found = lookup_session(db, session_token())
             if found and found[0] == owner['UserID']:
                 method = 'session'
             elif _check_basic_header(db, owner, request.headers.get('Authorization', '')):
                 method = 'basic'
-            elif CONFIG.get_bool('PROXY_AUTH') and CONFIG.get_str('PROXY_AUTH_USER'):
-                proxy_user = request.headers.get(CONFIG.get_str('PROXY_AUTH_USER'), '')
-                if proxy_user and hmac.compare_digest(proxy_user.encode('utf-8'),
-                                                      owner['UserName'].encode('utf-8')):
-                    method = 'proxy'
     finally:
         db.close()
     request.ll_auth = method
-    request.login = owner['UserName'] if method and owner else None
+    request.login = owner['UserName'] if method else None
     return method
 
 
@@ -316,18 +369,26 @@ def safe_from_page(from_page: str) -> str:
 def check_auth(*args, **kwargs):
     """A tool that looks in config for 'auth.require'. If found, and it
     is not None, the request must be authenticated"""
-    if cherrypy.request.config.get('auth.require', None) is None:
+    request = cherrypy.request
+    if request.config.get('auth.require', None) is None:
         return
     if authenticate_request():
         return
-    if CONFIG.get_str('AUTH_TYPE') == 'BASIC':
+    page_load = request.method == 'GET' and request.headers.get('X-Requested-With') != 'XMLHttpRequest'
+    root = CONFIG['HTTP_ROOT'].rstrip('/')
+    get_params = quote(request.request_line.split()[1])
+    if request.ll_setup:
+        if not page_load:
+            raise cherrypy.HTTPError(401, 'Authentication has not been set up')
+        raise cherrypy.HTTPRedirect(f"{root}/auth/setup?from_page={get_params}")
+    if auth_type() == AUTH_BASIC:
         cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="LazyLibrarian", charset="UTF-8"'
         raise cherrypy.HTTPError(401)
-    if cherrypy.request.method != 'GET' or \
-            cherrypy.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if auth_type() == AUTH_EXTERNAL:
+        raise cherrypy.HTTPError(401, f"Login is handled by your reverse proxy, which did not send "
+                                      f"the {CONFIG.get_str('PROXY_AUTH_USER')} header")
+    if not page_load:
         raise cherrypy.HTTPError(401)
-    root = CONFIG['HTTP_ROOT'].rstrip('/')
-    get_params = quote(cherrypy.request.request_line.split()[1])
     raise cherrypy.HTTPRedirect(f"{root}/auth/login?from_page={get_params}")
 
 
@@ -351,19 +412,38 @@ def require_auth(*conditions):
 
 # Controller to provide login and logout actions
 
+def _setup_needed() -> bool:
+    db = database.DBConnection()
+    try:
+        return not credentials_set(get_owner(db))
+    finally:
+        db.close()
+
+
 class AuthController:
 
     @staticmethod
-    def get_loginform(username, msg='', from_page="/"):
+    def render(templatename, title, **kwargs):
+        """ The login and setup pages, they stand alone without the rest of the interface """
         from lazylibrarian.webServe import serve_template
-        img = f"{CONFIG['HTTP_ROOT'].rstrip('/')}/images/ll.png"
-        return serve_template(templatename="formlogin.html", username=escape(username, True), msg=msg,
-                              title='Login', img=img, from_page=from_page)
+        root = CONFIG['HTTP_ROOT'].rstrip('/')
+        return serve_template(templatename=templatename, title=title, img=f"{root}/images/ll.png",
+                              css=f"{root}/css/ll-auth.css", **kwargs)
+
+    def get_loginform(self, username, msg='', from_page="/"):
+        return self.render("formlogin.html", 'Login', username=escape(username, True), msg=msg,
+                           from_page=from_page)
 
     # noinspection PyUnusedLocal
     @cherrypy.expose
     def login(self, current_username=None, current_password=None, remember_me='', from_page="/", **kwargs):
         logger = logging.getLogger(__name__)
+        root = CONFIG['HTTP_ROOT'].rstrip('/')
+        if _setup_needed():
+            raise cherrypy.HTTPRedirect(f"{root}/auth/setup")
+        if auth_type() != AUTH_FORM:
+            # basic and external logins happen on the page itself
+            raise cherrypy.HTTPRedirect(safe_from_page(from_page))
         if cherrypy.request.method != 'POST' or current_username is None or current_password is None:
             return self.get_loginform("", from_page=from_page)
         remote_ip = get_remote_ip()
@@ -394,6 +474,59 @@ class AuthController:
         set_session_cookie(token, persistent)
         set_owner_cookies(res)
         logger.info(f"{current_username} logged in from [{remote_ip}]")
+        raise cherrypy.HTTPRedirect(safe_from_page(from_page))
+
+    # noinspection PyUnusedLocal
+    @cherrypy.expose
+    def setup(self, auth_method=AUTH_FORM, auth_required=REQUIRED_ENABLED, username='', password='',
+              password2='', from_page='/', **kwargs):
+        """ First run: choose how to log in and create the owner login, like Sonarr's setup dialog """
+        logger = logging.getLogger(__name__)
+        root = CONFIG['HTTP_ROOT'].rstrip('/')
+        remote_ip = get_remote_ip()
+        form = {'auth_method': auth_method, 'auth_required': auth_required, 'username': username,
+                'from_page': from_page}
+        with _setup_lock:
+            if not _setup_needed():
+                raise cherrypy.HTTPRedirect(f"{root}/auth/login")
+            if not setup_allowed(remote_ip):
+                logger.warning(f"Refused authentication setup from [{remote_ip}], not a local address")
+                return self.render("authsetup.html", 'Setup', msg='', remote=True, remote_ip=remote_ip, **form)
+            if cherrypy.request.method != 'POST':
+                return self.render("authsetup.html", 'Setup', msg='', remote=False, **form)
+
+            username = username.strip()
+            msg = ''
+            if auth_method not in (AUTH_FORM, AUTH_BASIC) or \
+                    auth_required not in (REQUIRED_ENABLED, REQUIRED_DISABLED_LOCAL):
+                msg = i18n.gettext('Choose an authentication method')
+            elif not username or any(c in username for c in '<>=:'):
+                msg = i18n.gettext('Enter a username, without any of < > = :')
+            elif not pwd_check(password):
+                msg = i18n.gettext('Password must be at least 8 characters long and not contain spaces')
+            elif password != password2:
+                msg = i18n.gettext('Passwords do not match')
+            if msg:
+                return self.render("authsetup.html", 'Setup', msg=msg, remote=False, **form)
+
+            db = database.DBConnection()
+            try:
+                set_owner_credentials(db, username=username, password=password)
+                owner = get_owner(db)
+                token = ''
+                if auth_method == AUTH_FORM:
+                    token = create_session(db, owner['UserID'], False, remote_ip,
+                                           cherrypy.request.headers.get('User-Agent', ''))
+            finally:
+                db.close()
+            CONFIG.set_str('AUTH_TYPE', auth_method)
+            CONFIG.set_str('AUTH_REQUIRED', auth_required)
+            CONFIG.save_config_and_backup_old()
+        logger.info(f"Authentication set up from [{remote_ip}]: {auth_method}, required {auth_required}, "
+                    f"user [{username}]")
+        if token:
+            set_session_cookie(token, False)
+            set_owner_cookies(owner)
         raise cherrypy.HTTPRedirect(safe_from_page(from_page))
 
     @cherrypy.expose

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="${ui_lang | h}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>${_('Authentication Required')} - LazyLibrarian</title>
+  <link rel="stylesheet" href="${css | h}">
+</head>
+<body>
+  <main class="panel wide">
+    <div class="panel-header">
+      <img src="${img | h}" alt="LazyLibrarian">
+    </div>
+    <div class="panel-body">
+      <p class="heading">${_('Authentication Required')}</p>
+      %if remote:
+        <p class="message warning" role="alert">
+          ${_('Authentication has not been set up yet. For security this can only be done from the same network as LazyLibrarian.')}
+          ${_('Open LazyLibrarian from a local address, or add %(ip)s to WHITELIST in config.ini.') % {'ip': remote_ip} | h}
+        </p>
+      %else:
+        <p class="intro">${_('LazyLibrarian needs a username and password before it can be used. Choose how you want to log in.')}</p>
+        %if msg:
+          <p class="message" role="alert">${msg | h}</p>
+        %endif
+        <form action="setup" method="post">
+          <input type="hidden" name="from_page" value="${from_page | h}">
+
+          <label class="field" for="auth_method">${_('Authentication Method')}</label>
+          <select name="auth_method" id="auth_method">
+            <option value="FORM" ${'selected' if auth_method != 'BASIC' else ''}>${_('Forms (Login Page)')}</option>
+            <option value="BASIC" ${'selected' if auth_method == 'BASIC' else ''}>${_('Basic (Browser Popup)')}</option>
+          </select>
+
+          <label class="field" for="auth_required">${_('Authentication Required')}</label>
+          <select name="auth_required" id="auth_required">
+            <option value="ENABLED" ${'selected' if auth_required != 'DISABLED_LOCAL' else ''}>${_('Enabled')}</option>
+            <option value="DISABLED_LOCAL" ${'selected' if auth_required == 'DISABLED_LOCAL' else ''}>${_('Disabled for Local Addresses')}</option>
+          </select>
+          <p class="help">${_('Local addresses are your own network. Behind a reverse proxy set PROXY_LOCAL, or every request looks local.')}</p>
+
+          <label class="field" for="username">${_('Username')}</label>
+          <input type="text" name="username" id="username" value="${username | h}" autocomplete="username" required autofocus>
+
+          <label class="field" for="password">${_('Password')}</label>
+          <input type="password" name="password" id="password" autocomplete="new-password" required minlength="8">
+
+          <label class="field" for="password2">${_('Password Confirmation')}</label>
+          <input type="password" name="password2" id="password2" autocomplete="new-password" required minlength="8">
+
+          <button type="submit" id="save">${_('Save')}</button>
+        </form>
+      %endif
+    </div>
+  </main>
+</body>
+</html>

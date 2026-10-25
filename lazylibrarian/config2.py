@@ -450,6 +450,7 @@ class LLConfigHandler(ConfigDict):
             warnings += 1
 
         self.ensure_valid_homepage()
+        warnings += self.fixup_auth_settings()
 
         if self.config['SSL_CERTS'].get_str() != '' and not path_exists(str(self.config['SSL_CERTS'])):
             self.logger.warning(f"SSL_CERTS [{str(self.config['SSL_CERTS'])}] not found")
@@ -457,6 +458,25 @@ class LLConfigHandler(ConfigDict):
             warnings += 1
 
         return warnings
+
+    def fixup_auth_settings(self) -> int:
+        """ Bring older authentication settings in line with the current ones.
+        Returns the number of settings that had to be changed """
+        changes = 0
+        # the proxy login header used to be an extra login option, it's now the External method
+        if self.get_bool('PROXY_AUTH'):
+            self.config['AUTH_TYPE'].set_str('EXTERNAL')
+            self.config['PROXY_AUTH'].set_bool(False)
+            changes += 1
+        if self.get_str('AUTH_TYPE') not in ('FORM', 'BASIC', 'EXTERNAL'):
+            self.logger.warning(f"Unknown AUTH_TYPE [{self.get_str('AUTH_TYPE')}], using FORM")
+            self.config['AUTH_TYPE'].set_str('FORM')
+            changes += 1
+        if self.get_str('AUTH_REQUIRED') not in ('ENABLED', 'DISABLED_LOCAL'):
+            self.logger.warning(f"Unknown AUTH_REQUIRED [{self.get_str('AUTH_REQUIRED')}], using ENABLED")
+            self.config['AUTH_REQUIRED'].set_str('ENABLED')
+            changes += 1
+        return changes
 
     def ensure_valid_homepage(self):
         """ Make sure the HOMEPAGE is one that is included """

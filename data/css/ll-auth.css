@@ -1,0 +1,118 @@
+/* Login and first-run setup pages, styled after Sonarr and Radarr */
+:root {
+  --page-bg: #202020;
+  --panel-bg: #2a2a2a;
+  --header-bg: #3a3f51;
+  --text: #ccc;
+  --muted: #909293;
+  --input-bg: #333;
+  --input-border: #4e4e4e;
+  --accent: #5d9cec;
+  --accent-hover: #4b8ad8;
+  --error: #f05050;
+  --warning: #ffa500;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 325px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel-bg);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+}
+
+.panel.wide { max-width: 450px; }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--header-bg);
+}
+
+.panel-header img { height: 72px; }
+
+.panel-body { padding: 20px; }
+
+.heading { margin: 0 0 16px; text-align: center; font-size: 16px; }
+
+.intro { margin: 0 0 16px; color: var(--muted); line-height: 1.5; }
+
+.message {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: rgba(240, 80, 80, 0.15);
+  color: var(--error);
+  text-align: center;
+}
+
+.message.warning {
+  background: rgba(255, 165, 0, 0.12);
+  color: var(--warning);
+  text-align: left;
+  line-height: 1.5;
+}
+
+label.field { display: block; margin-bottom: 4px; font-weight: 500; }
+
+.help { margin: -8px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+input[type=text], input[type=password], select {
+  display: block;
+  width: 100%;
+  height: 35px;
+  margin-bottom: 12px;
+  padding: 6px 16px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+input[type=text]:focus, input[type=password]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 16px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover, button:focus { background: var(--accent-hover); }
+
+code { color: var(--text); }
