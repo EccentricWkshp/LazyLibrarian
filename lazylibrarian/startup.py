@@ -66,6 +66,18 @@ def prioritized_infosources():
     return sorted(lazylibrarian.INFOSOURCES.items(), key=lambda kv: kv[0] != book_api)
 
 
+# Exit status asking the service manager to start LazyLibrarian again (EX_TEMPFAIL). The
+# systemd unit treats it as success and restarts, Docker restarts on it with any restart policy
+RESTART_EXIT_STATUS = 75
+
+
+def restart_by_exit() -> bool:
+    """ True when a service manager runs LazyLibrarian, so a restart exits for it to start us
+    again. Starting a new process ourselves doesn't work there: systemd stops the new process
+    along with the old one, and a container stops when its first process exits """
+    return docker() or os.environ.get('LAZYLIBRARIAN_SUPERVISED', '').lower() in ('1', 'true', 'yes', 'on')
+
+
 class StartupLazyLibrarian:
     logger: logging.Logger
 
@@ -720,7 +732,8 @@ class StartupLazyLibrarian:
         if not lazylibrarian.STOPTHREADS:
             restart_jobs(command=SchedulerCommand.START)
 
-    def shutdown(self, restart=False, update=False, doquit=False, testing=False):
+    def shutdown(self, restart=False, update=False, doquit=False, testing=False) -> int:
+        """ Stop, and restart or update when asked to. Returns the exit status, which tests use """
         shutdownscheduler()
         if not testing and not (update and doquit):  # commandline update, don't save config as no filename
             if self.logger.isEnabledFor(logging.DEBUG):  # TODO add a separate setting
@@ -758,8 +771,15 @@ class StartupLazyLibrarian:
             self.logger.info(f'Removing pidfile {lazylibrarian.PIDFILE}')
             os.remove(syspath(lazylibrarian.PIDFILE))
 
+        exit_status = 0
+        supervised = restart_by_exit()
+        if (restart or update) and not doquit and supervised:
+            self.logger.info('LazyLibrarian is exiting for its service manager to restart it')
+            exit_status = RESTART_EXIT_STATUS
+            doquit = True
+
         # only start a new instance when asked to, a plain shutdown (or a test) must not
-        if (restart or update) and not doquit and not docker():
+        if (restart or update) and not doquit and not supervised:
             self.logger.info('LazyLibrarian is restarting ...')
             # Try to use the currently running python executable, as it is known to work
             # if not able to determine, sys.executable returns empty string or None
@@ -903,4 +923,5 @@ class StartupLazyLibrarian:
             cherrypy.engine.stop()
             # Do this as the last step before exiting
             UNBUNDLER.remove_bundled_modules()
-            sys.exit(0)
+            sys.exit(exit_status)
+        return exit_status

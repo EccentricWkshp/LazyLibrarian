@@ -1,0 +1,8 @@
+# Files that run on Linux keep LF line endings in a Windows checkout too,
+# a carriage return breaks shell scripts, and the Dockerfile's line continuations
+*.sh text eol=lf
+*.initd text eol=lf
+Dockerfile text eol=lf
+docker/** text eol=lf
+init/lazylibrarian.service text eol=lf
+init/lazylibrarian.default text eol=lf

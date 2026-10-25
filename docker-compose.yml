@@ -1,0 +1,21 @@
+# Example: docker compose up -d, then open http://localhost:5299 to set up a login.
+# Change the paths on the left of each volume to folders on your machine. Give LazyLibrarian
+# the same /downloads path as your download client, so it finds completed downloads.
+services:
+  lazylibrarian:
+    image: ghcr.io/eccentricwkshp/lazylibrarian:latest
+    # or build it from this folder:
+    # build: .
+    container_name: lazylibrarian
+    environment:
+      - PUID=1000  # the user and group that own your files, see `id` on the host
+      - PGID=1000
+      - UMASK=022
+      - TZ=Etc/UTC
+    volumes:
+      - ./config:/config
+      - /path/to/books:/books
+      - /path/to/downloads:/downloads
+    ports:
+      - 5299:5299
+    restart: unless-stopped

@@ -8506,6 +8506,21 @@ class WebInterface:
     # API ###############################################################
 
     @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ping(self):
+        """ Health check for Docker and monitoring tools, like Sonarr's /ping. It needs no
+        login, so it only says whether LazyLibrarian is up and can read its database """
+        db = database.DBConnection()
+        try:
+            db.match('SELECT 1')
+        except Exception:
+            cherrypy.response.status = 503
+            return {'status': 'Error'}
+        finally:
+            db.close()
+        return {'status': 'OK'}
+
+    @cherrypy.expose
     def api(self, **kwargs):
         from lazylibrarian.api import Api
         a = Api()

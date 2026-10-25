@@ -467,6 +467,8 @@ def update_version_file(new_version_id):
             current_version = ver_file.read().strip(' \n\r')
         if current_version == new_version_id:
             return False
+    except FileNotFoundError:
+        pass  # first run, written below
     except Exception as err:
         logger.error(f"Unable to read current version from version.txt: {str(err)}")
 

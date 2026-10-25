@@ -1,0 +1,23 @@
+# Keep the image to what LazyLibrarian needs to run
+.git
+.github
+.gitignore
+.dockerignore
+.pre-commit-config.yaml
+.pytest_cache
+.ruff_cache
+.venv
+venv
+**/__pycache__
+**/*.py[co]
+Logs
+cache
+*.db
+*.db-*
+*.log
+config.ini
+unittests
+LazyLibrarian.app
+init
+Dockerfile
+docker-compose.yml

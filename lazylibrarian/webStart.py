@@ -166,10 +166,10 @@ def initialize(options=None):
             'tools.proxy.local': CONFIG['PROXY_LOCAL']
         })
     # Every page decorated with @require_auth() needs a logged-in owner, see auth.py.
-    # The api, login page and static elements are exempt. The feed and serve_* links
+    # The api, login page, health check and static elements are exempt. The feed and serve_* links
     # carry the owner UserID and are checked by the handlers, so feed readers can use them.
     conf['/'].update({'tools.auth.on': True})
-    for i in ('/api', '/auth', '/css', '/images', '/js', '/favicon.ico', '/rss_feed', '/nzbfile.nzb',
+    for i in ('/api', '/auth', '/ping', '/css', '/images', '/js', '/favicon.ico', '/rss_feed', '/nzbfile.nzb',
               '/serve_img', '/serve_issue', '/serve_book', '/serve_audio', '/serve_comic', '/opds'):
         if i in conf:
             conf[i].update({'tools.auth.on': False})

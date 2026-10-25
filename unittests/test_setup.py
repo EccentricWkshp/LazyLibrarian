@@ -30,22 +30,27 @@ class SetupTest(LLTestCase):
 
 class ShutdownTest(LLTestCase):
 
-    def shutdown(self, **kwargs):
+    def shutdown(self, docker=False, env=None, **kwargs):
         """ Run shutdown with everything that would touch the system mocked out,
-        return the mock standing in for starting a new LazyLibrarian process """
+        return the mock standing in for starting a new LazyLibrarian process.
+        The exit status shutdown chose is left in self.status """
         starter = startup.StartupLazyLibrarian()
         starter.logger = logging.getLogger(__name__)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         logdir = tmp.name
         with mock.patch.object(startup, 'shutdownscheduler'), \
-                mock.patch.object(startup, 'docker', return_value=False), \
+                mock.patch.object(startup, 'docker', return_value=docker), \
+                mock.patch.dict(os.environ, env or {}), \
+                mock.patch.object(startup.versioncheck, 'update', return_value=False), \
                 mock.patch.object(startup.subprocess, 'Popen') as popen, \
                 mock.patch.object(startup.cherrypy.server, 'httpserver', None), \
                 mock.patch.object(startup.DIRS, 'get_logfile', side_effect=lambda f: os.path.join(logdir, f)), \
                 mock.patch.object(startup.DIRS, 'FULL_PATH', 'LazyLibrarian.py', create=True), \
                 mock.patch.object(startup.DIRS, 'ARGS', [], create=True):
-            starter.shutdown(testing=True, **kwargs)
+            if env is None:
+                os.environ.pop('LAZYLIBRARIAN_SUPERVISED', None)  # patch.dict puts it back afterwards
+            self.status = starter.shutdown(testing=True, **kwargs)
         return popen
 
     def test_plain_shutdown_does_not_restart(self):
@@ -58,3 +63,24 @@ class ShutdownTest(LLTestCase):
         popen.assert_called_once()
         command = popen.call_args.args[0]
         self.assertEqual(command[1:], ['LazyLibrarian.py', '--nolaunch'])
+        self.assertEqual(self.status, 0)
+
+    def test_restart_under_service_manager_exits(self):
+        # systemd and Docker restart LazyLibrarian when it exits with RESTART_EXIT_STATUS.
+        # In Docker a restart used to stop the scheduler and file logging, then carry on running
+        for setup in [{'env': {'LAZYLIBRARIAN_SUPERVISED': '1'}}, {'docker': True}]:
+            for action in ['restart', 'update']:
+                self.shutdown(**setup, **{action: True}).assert_not_called()
+                self.assertEqual(self.status, startup.RESTART_EXIT_STATUS, (setup, action))
+
+    def test_shutdown_under_service_manager_stays_stopped(self):
+        self.shutdown(env={'LAZYLIBRARIAN_SUPERVISED': 'true'}, doquit=True).assert_not_called()
+        self.assertEqual(self.status, 0)
+        self.shutdown(docker=True, doquit=True).assert_not_called()
+        self.assertEqual(self.status, 0)
+
+    def test_supervised_setting_values(self):
+        with mock.patch.object(startup, 'docker', return_value=False):
+            for value, expected in [('1', True), ('yes', True), ('ON', True), ('0', False), ('', False)]:
+                with mock.patch.dict(os.environ, {'LAZYLIBRARIAN_SUPERVISED': value}):
+                    self.assertEqual(startup.restart_by_exit(), expected, value)

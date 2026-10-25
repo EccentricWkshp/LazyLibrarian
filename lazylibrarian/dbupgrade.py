@@ -1555,9 +1555,6 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Adding hc_token column to users table'
         upgradelog.write(f"{time.ctime()} v87: {lazylibrarian.UPDATE_MSG}\n")
         db.action('ALTER TABLE users ADD COLUMN hc_token TEXT')
-        if CONFIG.get_str('HC_KEY'):
-            db.action("UPDATE users SET hc_token=? WHERE perms=65535 and username='admin'",
-                      (CONFIG.get_str('HC_KEY'), ))
 
     if not has_column(db, "bookauthors", "Role"):
         changes += 1
