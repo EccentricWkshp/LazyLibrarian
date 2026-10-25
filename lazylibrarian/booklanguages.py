@@ -79,8 +79,8 @@ def language_picker(preflang: str, browser_languages: list | tuple = ()) -> dict
     """ Split an IMP_PREFLANG value into picker languages and the entries the picker doesn't know.
         A language is selected if any of its codes is in the value.
         Before "Show all" the picker shows the selected languages, in the order they appear in the
-        value, then the languages the web interface is translated into and the browser_languages
-        (codes like 'sk' or 'en_us'), sorted by their translated name. The rest follow, sorted the same.
+        value, then the browser_languages (codes like 'sk' or 'en_us') sorted by their translated name.
+        The rest follow, sorted the same.
         Each language also carries what it searches for when Anna's Archive and Z-Library are automatic:
         'anna' for Anna's Archive ('' if not supported), 'zlib' for Z-Library.
         Returns {'languages': [{'name', 'label', 'codes', 'anna', 'zlib', 'selected', 'shown'}],
@@ -91,7 +91,7 @@ def language_picker(preflang: str, browser_languages: list | tuple = ()) -> dict
     position = {}
     for idx, item in enumerate(wanted):
         position.setdefault(item.lower(), idx)
-    shown = {lang.split('_')[0].lower() for lang in list(i18n.available_languages()) + list(browser_languages)}
+    shown = {lang.split('_')[0].lower() for lang in browser_languages}
     known = set()
     languages = []
     for name, codes in BOOK_LANGUAGES:

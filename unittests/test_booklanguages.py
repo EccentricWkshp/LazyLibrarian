@@ -73,22 +73,23 @@ class BookLanguagesTest(unittest.TestCase):
         self.assertEqual(anna_languages('EN, ANY'), [])
         self.assertEqual(anna_languages(''), [])
 
-    @mock.patch('lazylibrarian.i18n.available_languages', return_value=['de', 'en', 'qps', 'sk'])
-    def test_order(self, _):
-        # selected first in their order, then the interface and browser languages, then the rest, by name
-        picker = language_picker('Yiddish, Welsh', ['cs', 'nb_no', 'sk'])
+    def test_order(self):
+        # selected first in their order, then the browser languages, then the rest, by name
+        picker = language_picker('Yiddish, Welsh', ['cs', 'nb_no', 'sk', 'welsh'])
         shown = [lang['name'] for lang in picker['languages'] if lang['shown']]
-        self.assertEqual(shown, ['Yiddish', 'Welsh', 'Czech', 'English', 'German', 'Norwegian', 'Slovak'])
+        self.assertEqual(shown, ['Yiddish', 'Welsh', 'Czech', 'Norwegian', 'Slovak'])
         names = [lang['name'] for lang in picker['languages']]
         self.assertEqual(names[:len(shown)], shown)
         rest = [lang['label'].lower() for lang in picker['languages'][len(shown):]]
         self.assertEqual(rest, sorted(rest))
         self.assertEqual(len(picker['languages']), len(BOOK_LANGUAGES))
 
-    @mock.patch('lazylibrarian.i18n.available_languages', return_value=['en'])
-    def test_shown_without_browser(self, _):
-        picker = language_picker('')
-        self.assertEqual([lang['name'] for lang in picker['languages'] if lang['shown']], ['English'])
+    @mock.patch('lazylibrarian.i18n.available_languages', return_value=['de', 'en', 'sk'])
+    def test_interface_languages_not_shown(self, _):
+        # the interface languages will grow, only selected and browser languages come before "Show all"
+        picker = language_picker('en, eng', ['fr'])
+        self.assertEqual([lang['name'] for lang in picker['languages'] if lang['shown']], ['English', 'French'])
+        self.assertEqual([lang['name'] for lang in language_picker('', [])['languages'] if lang['shown']], [])
 
     def test_countries(self):
         self.assertEqual(len(GB_COUNTRIES), 249)
