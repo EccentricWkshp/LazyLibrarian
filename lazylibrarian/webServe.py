@@ -15,12 +15,11 @@ import ast
 import base64
 import contextlib
 import datetime
-import hashlib
 import json
 import logging
 import os
-import random
 import re
+import secrets
 import subprocess
 import threading
 import time
@@ -62,6 +61,7 @@ from lazylibrarian import (
 from lazylibrarian.auth import (
     SESSION_KEY,
     AuthController,
+    check_user_password,
     get_remote_ip,
     is_whitelisted_ip,
     require_auth,
@@ -141,7 +141,6 @@ from lazylibrarian.formatter import (
     format_author_name,
     get_list,
     make_unicode,
-    md5_utf8,
     now,
     plural,
     replace_all,
@@ -189,6 +188,7 @@ from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.oldump import update_openlibrary_dump
 from lazylibrarian.opds import OPDS
 from lazylibrarian.opfedit import opf_read, opf_write
+from lazylibrarian.passwords import hash_password, verify_password
 from lazylibrarian.postprocess import process_dir
 from lazylibrarian.processcontrol import get_info_on_caller
 from lazylibrarian.providers import test_provider
@@ -503,7 +503,7 @@ def serve_template(templatename, **kwargs):
                     user = ''
                     if ':' in values:
                         user, pwd = values.split(':', 1)
-                        res = db.match('SELECT * from users where UserName=? and Password=?', (user, md5_utf8(pwd)))
+                        res = check_user_password(db, user, pwd)
                     if res:
                         cherrypy.response.cookie['ll_uid'] = res['UserID']
                         cherrypy.response.cookie['ll_prefs'] = res['Prefs']
@@ -541,7 +541,7 @@ def serve_template(templatename, **kwargs):
                                 if result:
                                     cmd = ('INSERT into users (UserID, UserName, Name, Password, Email, '
                                            'SendTo, Perms) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                                    db.action(cmd, (pwd_generator(), user, fullname, md5_utf8(new_pwd),
+                                    db.action(cmd, (pwd_generator(), user, fullname, hash_password(new_pwd),
                                                     email, '', lazylibrarian.perm_friend))
                                     msg = (f"New user added from proxy auth: {user}: Friend"
                                             f"<br>Email sent to {email}")
@@ -1240,11 +1240,10 @@ class WebInterface:
                     else:
                         logger.warning("Invalid hardcopy token")
 
-                if kwargs['password']:
-                    pwd = md5_utf8(kwargs['password'])
-                    if pwd != user['password']:
-                        changes += ' password'
-                        db.action('UPDATE users SET password=? WHERE UserID=?', (pwd, userid))
+                if kwargs['password'] and not verify_password(kwargs['password'], user['password']):
+                    changes += ' password'
+                    db.action('UPDATE users SET password=? WHERE UserID=?',
+                              (hash_password(kwargs['password']), userid))
 
                 # only allow admin to change these
                 # if kwargs['calread'] and user['CalibreRead'] != kwargs['calread']:
@@ -1282,19 +1281,19 @@ class WebInterface:
         username = ''
         password = ''
         res = {}
-        pwd = ''
+        password_ok = False
         if 'username' in kwargs:
             username = kwargs['username']
         if 'password' in kwargs:
             password = kwargs['password']
         if username and password:
-            pwd = md5_utf8(password)
             db = database.DBConnection()
             try:
                 res = db.match('SELECT * from users where username=?', (username,))  # type: dict
+                password_ok = bool(res) and check_user_password(db, username, password) is not None
             finally:
                 db.close()
-        if res and pwd == res['Password']:
+        if password_ok:
             cherrypy.response.cookie['ll_uid'] = res['UserID']
             cherrypy.response.cookie['ll_prefs'] = res['Prefs']
             if res['UI_Lang']:
@@ -1564,7 +1563,7 @@ class WebInterface:
                 cmd = ("INSERT into users (UserID, UserName, Name, Password, Email, SendTo, Perms, hc_token) "
                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                 db.action(cmd, (pwd_generator(), kwargs['username'], kwargs['fullname'],
-                                md5_utf8(kwargs['password']), kwargs['email'], kwargs['sendto'], perms,
+                                hash_password(kwargs['password']), kwargs['email'], kwargs['sendto'], perms,
                                 kwargs.get('hc_token', '')))
                 msg = i18n.gettext("New user added: %(user)s: %(perm)s") % {'user': kwargs['username'], 'perm': perm_msg}
                 msg += '<br>' + i18n.gettext("Email sent to %(email)s") % {'email': kwargs['email']}
@@ -1610,11 +1609,9 @@ class WebInterface:
                 changes += ' sendto'
                 db.action('UPDATE users SET sendto=? WHERE UserID=?', (kwargs['sendto'], userid))
 
-            if kwargs['password']:
-                pwd = md5_utf8(kwargs['password'])
-                if pwd != details['Password']:
-                    changes += ' password'
-                    db.action('UPDATE users SET password=? WHERE UserID=?', (pwd, userid))
+            if kwargs['password'] and not verify_password(kwargs['password'], details['Password']):
+                changes += ' password'
+                db.action('UPDATE users SET password=? WHERE UserID=?', (hash_password(kwargs['password']), userid))
 
             # empty means use the global UI_LANGUAGE setting
             if 'ui_lang' in kwargs and (details['UI_Lang'] or '') != kwargs['ui_lang']:
@@ -1712,8 +1709,7 @@ class WebInterface:
             msg = f"Your new password is {new_pwd}"
             result = notifiers.email_notifier.notify_message('LazyLibrarian New Password', msg, res['Email'])
             if result:
-                pwd = md5_utf8(new_pwd)
-                db.action("UPDATE users SET Password=? WHERE UserID=?", (pwd, res['UserID']))
+                db.action("UPDATE users SET Password=? WHERE UserID=?", (hash_password(new_pwd), res['UserID']))
                 return i18n.gettext("Password reset, check your email")
             msg = f"Failed to send email to [{res['Email']}]"
             logger.debug(msg)
@@ -2398,7 +2394,7 @@ class WebInterface:
                 adminmsg += i18n.gettext('Contact email looks invalid, please check') + '<br>'
 
             admin = db.match("SELECT password from users where name='admin'")
-            if admin and admin['password'] == md5_utf8('admin'):
+            if admin and verify_password('admin', admin['password']):
                 adminmsg += i18n.gettext('The default admin user is "admin" and password is "admin"') + '<br>'
                 adminmsg += i18n.gettext("This is insecure, please change it on Config -> User Admin") + '<br>'
 
@@ -9316,7 +9312,7 @@ class WebInterface:
     def generate_api(self, ro=False):
         self.check_permitted(lazylibrarian.perm_admin)
         logger = logging.getLogger(__name__)
-        api_key = hashlib.sha224(str(random.getrandbits(256)).encode('utf-8')).hexdigest()[0:32]
+        api_key = secrets.token_hex(16)
         if ro:
             CONFIG.set_str('API_RO_KEY', api_key)
         else:

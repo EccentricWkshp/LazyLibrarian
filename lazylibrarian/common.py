@@ -20,8 +20,8 @@ import importlib
 import logging
 import os
 import platform
-import random
 import re
+import secrets
 import sqlite3
 import ssl
 import string
@@ -178,7 +178,7 @@ def is_valid_email(emails):
 
 
 def pwd_generator(size=10, chars=string.ascii_letters + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return ''.join(secrets.choice(chars) for _ in range(size))
 
 
 def pwd_check(password):

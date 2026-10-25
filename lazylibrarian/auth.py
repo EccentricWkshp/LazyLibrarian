@@ -19,6 +19,7 @@
 # Session tool to be loaded.
 # from cherrypy/tools on gitHub
 
+import hmac
 import ipaddress
 import logging
 import time
@@ -31,9 +32,22 @@ import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.common import pwd_generator
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import get_list, md5_utf8
+from lazylibrarian.formatter import get_list
+from lazylibrarian.passwords import hash_password, need_rehash, verify_password
 
 SESSION_KEY = '_cp_username'
+
+
+def check_user_password(db, username, password):
+    """Return the users row for username if password matches, else None.
+    Old style hashes are replaced with a fresh one on success."""
+    res = db.match('SELECT * from users where UserName=?', (username,))
+    if not res or not verify_password(password, res['Password']):
+        return None
+    if need_rehash(res['Password']):
+        db.action('UPDATE users SET Password=? WHERE UserID=?', (hash_password(password), res['UserID']))
+        logging.getLogger(__name__).debug(f"Upgraded password hash for {username}")
+    return res
 
 
 def check_credentials(username, password):
@@ -43,13 +57,16 @@ def check_credentials(username, password):
     if not CONFIG['USER_ACCOUNTS']:
         forms_user = cherrypy.request.config['auth.forms_username']
         forms_pass = cherrypy.request.config['auth.forms_password']
-        if username == forms_user and password == forms_pass:
+        if hmac.compare_digest(username.encode('utf-8'), forms_user.encode('utf-8')) and \
+                hmac.compare_digest(password.encode('utf-8'), forms_pass.encode('utf-8')):
             return None
         return "Incorrect username or password."
     db = database.DBConnection()
-    res = db.match('SELECT Password from users where UserName=?', (username,))
-    db.close()
-    if res and res['Password'] == md5_utf8(password):
+    try:
+        res = check_user_password(db, username, password)
+    finally:
+        db.close()
+    if res:
         return None
     return "Incorrect username or password."
 
@@ -192,7 +209,7 @@ class AuthController:
                                 'Login_Count': 1,
                                 'UserID': pwd_generator(),
                                 'Name': username,
-                                'Password': md5_utf8(password),
+                                'Password': hash_password(password),
                                 'Perms': lazylibrarian.perm_admin
                                 }, {'UserName': username})
             logger.debug(f"{username} added as a new admin user")

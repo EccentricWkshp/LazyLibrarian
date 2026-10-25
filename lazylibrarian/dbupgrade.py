@@ -26,8 +26,9 @@ from lazylibrarian.bookwork import set_genres
 from lazylibrarian.common import path_exists, pwd_generator
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, setperm, splitext, syspath
-from lazylibrarian.formatter import check_int, get_list, md5_utf8, plural
+from lazylibrarian.formatter import check_int, get_list, plural
 from lazylibrarian.importer import update_totals
+from lazylibrarian.passwords import hash_password
 from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 
 # database version history:
@@ -290,7 +291,7 @@ def db_upgrade(current_version: int, restartjobs: bool = False):
                     db.action('ALTER TABLE pastissues ADD COLUMN Added INTEGER DEFAULT 0')
 
                     cmd = "INSERT into users (UserID, UserName, Name, Password, Perms) VALUES (?, ?, ?, ?, ?)"
-                    db.action(cmd, (pwd_generator(), 'admin', 'admin', md5_utf8('admin'), 65535))
+                    db.action(cmd, (pwd_generator(), 'admin', 'admin', hash_password('admin'), 65535))
                     logger.debug('Added admin user')
 
                     db.action('CREATE INDEX issues_Title_index ON issues (Title)')
