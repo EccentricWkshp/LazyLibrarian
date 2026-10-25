@@ -39,7 +39,7 @@ class AppriseNotifier:
             asset.image_url_mask = "https://lazylibrarian.gitlab.io/assets/{TYPE}-{XY}{EXTENSION}"
             asset.app_id = "LazyLibrarian"
             asset.app_desc = "LazyLibrarian Announcement"
-            asset.app_url = "https://gitlab.com/LazyLibrarian/LazyLibrarian"
+            asset.app_url = "https://github.com/EccentricWkshp/LazyLibrarian"
             apobj = Apprise(asset=asset)
         except Exception as err:
             logger.error(str(err))

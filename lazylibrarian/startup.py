@@ -194,7 +194,7 @@ class StartupLazyLibrarian:
             # Set up some dummy values for the update as we have not read the config file yet
             CONFIG.reset_to_default([
                 'GIT_PROGRAM', 'GIT_USER', 'GIT_REPO', 'HTTP_TIMEOUT', 'PROXY_HOST',
-                'SSL_CERTS', 'SSL_VERIFY', 'LOGLIMIT', 'BACKUP_DB', 'GIT_PROJECT',
+                'SSL_CERTS', 'SSL_VERIFY', 'LOGLIMIT', 'BACKUP_DB', 'GIT_HOST',
             ])
             DIRS.ensure_cache_dir()
             CONFIG['LOGDIR'] = DIRS.ensure_data_subdir('Logs')
@@ -681,12 +681,12 @@ class StartupLazyLibrarian:
                 CONFIG.set_int('GIT_UPDATED', int(time.time()))
                 self.logger.debug('Setting update timestamp to now')
 
-        # if gitlab doesn't recognise a hash it returns 0 commits
+        # if the repo host doesn't recognise a hash it may return 0 commits
         if not CONFIG['LATEST_VERSION'].startswith(CONFIG['CURRENT_VERSION']) \
                 and CONFIG.get_int('COMMITS_BEHIND') == 0:
             if CONFIG['INSTALL_TYPE'] == 'git':
                 res, _ = versioncheck.run_git('remote -v')
-                if 'gitlab.com' in str(res):
+                if CONFIG['GIT_HOST'] in str(res):
                     self.logger.warning('Unrecognised version, LazyLibrarian may have local changes')
             elif CONFIG['INSTALL_TYPE'] == 'source':
                 self.logger.warning(

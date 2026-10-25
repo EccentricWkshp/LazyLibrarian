@@ -48,7 +48,8 @@ dependencies = [
 
 [project.urls]
 "Documentation" = "https://lazylibrarian.gitlab.io/"
-"Issue Tracker" = "https://gitlab.com/LazyLibrarian/LazyLibrarian/-/issues"
+"Source" = "https://github.com/EccentricWkshp/LazyLibrarian"
+"Issue Tracker" = "https://github.com/EccentricWkshp/LazyLibrarian/issues"
 
 # Config file for pytest
 [tool.pytest.ini_options]
