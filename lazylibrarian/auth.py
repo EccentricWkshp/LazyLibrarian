@@ -25,6 +25,11 @@
 #     - FORM/BASIC: a login session cookie, or an HTTP Basic Authorization header
 #   Endpoints opt in with @require_auth(), paths like /api and /opds are switched
 #   off in webStart.py as they have their own authentication.
+#
+#   Cross-site request forgery: almost every action is a GET, so another website could make
+#   a logged-in browser run them. Requests another site starts are refused, except that a
+#   link from elsewhere may open one of the read-only SAFE_PAGES. This runs before the login
+#   check, so it also covers Basic auth, local addresses and the whitelist.
 
 import base64
 import binascii
@@ -35,7 +40,7 @@ import logging
 import threading
 import time
 from html import escape
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import cherrypy
 
@@ -64,6 +69,18 @@ REQUIRED_DISABLED_LOCAL = 'DISABLED_LOCAL'
 LOCAL_NETWORKS = [ipaddress.ip_network(net) for net in (
     '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16',
     '::1/128', 'fc00::/7', 'fe80::/10')]
+
+# Pages that only display things. A link from another site may open these, and they are the only
+# places the login page sends you back to. Everything else is an action and needs a request
+# that started on LazyLibrarian itself.
+SAFE_PAGES = frozenset((
+    '', 'index', 'home', 'login', 'help', 'profile', 'config', 'logs', 'history', 'manage',
+    'authors', 'author_page', 'author_detail', 'edit_author', 'author_wall',
+    'books', 'book_detail', 'edit_book', 'book_wall', 'audio', 'audio_wall',
+    'series', 'series_members', 'edit_series',
+    'magazines', 'issue_page', 'past_issues', 'edit_mag', 'edit_issue', 'mag_wall',
+    'comics', 'comicissue_page', 'edit_comic', 'comic_wall',
+))
 
 # failed logins allowed from one address within FAILED_LOGIN_WINDOW seconds
 MAX_FAILED_LOGINS = 5
@@ -356,14 +373,66 @@ def authenticate_request() -> str:
     return method
 
 
+def is_safe_page(path: str) -> bool:
+    """ True if path (below HTTP_ROOT, query string allowed) is one of the SAFE_PAGES """
+    page = path.split('?', 1)[0].lstrip('/').split('/', 1)[0]
+    return page in SAFE_PAGES
+
+
 def safe_from_page(from_page: str) -> str:
-    """ Only redirect back to a page on this server """
+    """ Where to go after logging in: back to the page asked for if it's on this server and only
+    displays things, otherwise home. A link to the login page can't be used to run an action """
     root = CONFIG['HTTP_ROOT'].rstrip('/')
+    home = f"{root}/home"
     if not from_page or not from_page.startswith('/') or from_page.startswith('//') or '\\' in from_page:
-        return f"{root}/home"
-    if root and not from_page.startswith(f"{root}/"):
-        from_page = f"{root}{from_page}"
-    return from_page
+        return home
+    path = from_page[len(root):] if root and from_page.startswith(f"{root}/") else from_page
+    if not is_safe_page(path):
+        return home
+    return f"{root}{path}"
+
+
+def _own_hosts() -> set:
+    """ The host names this request could have been addressed to, directly or through a proxy """
+    request = cherrypy.request
+    hosts = {urlsplit(request.base).netloc, request.headers.get('Host', ''),
+             request.headers.get('X-Forwarded-Host', '').split(',')[0].strip()}
+    return {host.lower() for host in hosts if host}
+
+
+def foreign_request() -> bool:
+    """ True if another website made the browser send this request """
+    headers = cherrypy.request.headers
+    site = headers.get('Sec-Fetch-Site')
+    if site:
+        # 'none' is the user typing the address or using a bookmark
+        return site not in ('same-origin', 'none')
+    # browsers too old for Sec-Fetch-Site: compare where the request came from with our address
+    source = headers.get('Origin') or headers.get('Referer')
+    if not source:
+        return False  # not a browser, or the browser hid it. Scripts, OPDS readers etc.
+    if source == 'null':
+        return True  # sandboxed frames and some cross-site redirects
+    return urlsplit(source).netloc.lower() not in _own_hosts()
+
+
+def check_request_origin():
+    """ Refuse requests started by another website (CSRF), see the top of this file """
+    request = cherrypy.request
+    if not foreign_request():
+        return
+    page_load = request.method in ('GET', 'HEAD') and (
+        request.headers.get('Sec-Fetch-Mode') == 'navigate' if request.headers.get('Sec-Fetch-Mode')
+        else 'text/html' in request.headers.get('Accept', ''))
+    if page_load and is_safe_page(request.path_info):
+        return
+    logger = logging.getLogger(__name__)
+    source = request.headers.get('Origin') or request.headers.get('Referer') or request.headers.get('Sec-Fetch-Site')
+    logger.warning(f"Refused cross-site {request.method} {request.path_info} from [{source}] at [{get_remote_ip()}]")
+    if page_load:
+        # someone followed a link to an action, show them LazyLibrarian without doing it
+        raise cherrypy.HTTPRedirect(f"{CONFIG['HTTP_ROOT'].rstrip('/')}/home")
+    raise cherrypy.HTTPError(403, 'Cross-site request refused')
 
 
 def check_auth(*args, **kwargs):
@@ -372,6 +441,7 @@ def check_auth(*args, **kwargs):
     request = cherrypy.request
     if request.config.get('auth.require', None) is None:
         return
+    check_request_origin()
     if authenticate_request():
         return
     page_load = request.method == 'GET' and request.headers.get('X-Requested-With') != 'XMLHttpRequest'
@@ -446,6 +516,7 @@ class AuthController:
             raise cherrypy.HTTPRedirect(safe_from_page(from_page))
         if cherrypy.request.method != 'POST' or current_username is None or current_password is None:
             return self.get_loginform("", from_page=from_page)
+        check_request_origin()
         remote_ip = get_remote_ip()
         if login_blocked(remote_ip):
             logger.warning(f"Login from [{remote_ip}] blocked after too many failed attempts")
@@ -494,6 +565,8 @@ class AuthController:
                 return self.render("authsetup.html", 'Setup', msg='', remote=True, remote_ip=remote_ip, **form)
             if cherrypy.request.method != 'POST':
                 return self.render("authsetup.html", 'Setup', msg='', remote=False, **form)
+            # a page on another site, open in a browser on the local network, must not claim the install
+            check_request_origin()
 
             username = username.strip()
             msg = ''

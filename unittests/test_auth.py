@@ -2,7 +2,7 @@
 #
 # Purpose:
 #   Test the single owner account: sessions, request authentication, the login form,
-#   first-run setup and the v101 upgrade from user accounts / config file logins
+#   first-run setup, cross-site request checks and the v101 upgrade from user accounts / config file logins
 
 import base64
 import contextlib
@@ -61,6 +61,7 @@ class FakeRequest:
         self.base = 'http://ll.example'
         self.method = method
         self.request_line = f'{method} {path} HTTP/1.1'
+        self.path_info = path.split('?', 1)[0]
         self.config = {'auth.require': []}
 
 
@@ -425,12 +426,24 @@ class LoginFormTest(AuthDBTestCase):
 
     def test_safe_from_page(self):
         self.assertEqual(auth.safe_from_page('/books'), '/books')
-        for bad in ['https://evil.example/', '//evil.example/', '/\\evil.example', '', 'books']:
+        self.assertEqual(auth.safe_from_page('/author_page?authorid=1'), '/author_page?authorid=1')
+        for bad in ['https://evil.example/', '//evil.example/', '/\\evil.example', '', 'books',
+                    '/mark_books_ajax?action=Delete', '/shutdown', '/logout', '/auth/setup']:
             self.assertEqual(auth.safe_from_page(bad), '/home', bad)
         self.cfg['HTTP_ROOT'] = '/ll'
         self.assertEqual(auth.safe_from_page('/ll/books'), '/ll/books')
         self.assertEqual(auth.safe_from_page('/books'), '/ll/books')
         self.assertEqual(auth.safe_from_page('//evil.example'), '/ll/home')
+        self.assertEqual(auth.safe_from_page('/ll/restart'), '/ll/home')
+
+    def test_cross_site_login_refused(self):
+        self.set_owner()
+        self.use_request(method='POST', headers={'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate'},
+                         path='/auth/login')
+        with self.assertRaises(cherrypy.HTTPError) as cm:
+            auth.AuthController().login(current_username='owner', current_password='correct horse')
+        self.assertEqual(cm.exception.status, 403)
+        self.assertNotIn(sessions.SESSION_COOKIE, cherrypy.response.cookie)
 
 
 class MigrationTest(AuthDBTestCase):
@@ -583,11 +596,88 @@ class SetupTest(AuthDBTestCase):
         self.assertIsNotNone(redirect)
         self.assertTrue(auth.credentials_set(self.owner()))
 
+    def test_cross_site_setup_refused(self):
+        self.use_request(ip='192.168.1.20', method='POST', path='/auth/setup',
+                         headers={'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate'})
+        with self.assertRaises(cherrypy.HTTPError) as cm:
+            auth.AuthController().setup(username='intruder', password='takeover1', password2='takeover1')
+        self.assertEqual(cm.exception.status, 403)
+        self.assertFalse(auth.credentials_set(self.owner()), 'A page on another site must not claim the install')
+
     def test_setup_only_once(self):
         self.setup()
         redirect, _ = self.setup(username='intruder', password='takeover1', password2='takeover1')
         self.assertTrue(redirect.urls[0].endswith('/auth/login'))
         self.assertEqual(self.owner()['UserName'], 'reader')
+
+
+class CrossSiteTest(AuthDBTestCase):
+
+    def check(self, path='/mark_books_ajax', method='GET', **headers):
+        """ Run the cross-site check, return None if allowed, else the redirect or error raised """
+        self.use_request(method=method, path=path, headers=headers)
+        try:
+            auth.check_request_origin()
+        except (cherrypy.HTTPRedirect, cherrypy.HTTPError) as err:
+            return err
+        return None
+
+    def test_same_origin_and_typed_addresses(self):
+        for site in ['same-origin', 'none']:
+            self.assertIsNone(self.check(**{'Sec-Fetch-Site': site, 'Sec-Fetch-Mode': 'cors'}), site)
+            self.assertIsNone(self.check(method='POST', **{'Sec-Fetch-Site': site}), site)
+
+    def test_no_browser_headers_allowed(self):
+        # curl, scripts, OPDS readers and very old browsers
+        self.assertIsNone(self.check())
+        self.assertIsNone(self.check(method='POST'))
+
+    def test_cross_site_background_requests_refused(self):
+        for site in ['cross-site', 'same-site']:
+            for mode in ['cors', 'no-cors']:
+                err = self.check(**{'Sec-Fetch-Site': site, 'Sec-Fetch-Mode': mode})
+                self.assertIsInstance(err, cherrypy.HTTPError, (site, mode))
+                self.assertEqual(err.status, 403)
+            err = self.check(path='/books', **{'Sec-Fetch-Site': site, 'Sec-Fetch-Mode': 'no-cors'})
+            self.assertIsInstance(err, cherrypy.HTTPError, 'Even a safe page, when it is not a page load')
+
+    def test_cross_site_form_post_refused(self):
+        err = self.check(path='/books', method='POST', **{'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate'})
+        self.assertIsInstance(err, cherrypy.HTTPError)
+        self.assertEqual(err.status, 403)
+
+    def test_links_from_other_sites(self):
+        nav = {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate'}
+        for path in ['/', '/home', '/books', '/author_page?authorid=1', '/config']:
+            self.assertIsNone(self.check(path=path, **nav), path)
+        for path in ['/mark_books_ajax?action=Delete', '/shutdown', '/logout', '/config_update']:
+            err = self.check(path=path, **nav)
+            self.assertIsInstance(err, cherrypy.HTTPRedirect, path)
+            self.assertTrue(err.urls[0].endswith('/home'), path)
+
+    def test_older_browsers_use_origin_or_referer(self):
+        self.assertIsNone(self.check(Origin='http://ll.example'))
+        self.assertIsNone(self.check(Referer='http://ll.example/books'))
+        self.assertIsNone(self.check(Referer='https://LL.Example/books'), 'Scheme and case do not matter')
+        self.assertIsNone(self.check(Host='books.lan:5299', Referer='http://books.lan:5299/home'))
+        self.assertIsNone(self.check(**{'X-Forwarded-Host': 'books.example.com', 'Origin': 'https://books.example.com'}))
+        for headers in [{'Origin': 'https://evil.example'}, {'Referer': 'https://evil.example/page'},
+                        {'Origin': 'null'}, {'Origin': 'http://ll.example.evil.example'}]:
+            err = self.check(**headers)
+            self.assertIsInstance(err, cherrypy.HTTPError, headers)
+        # a link click, the Accept header shows it's a page load
+        err = self.check(Referer='https://evil.example/', Accept='text/html,application/xhtml+xml')
+        self.assertIsInstance(err, cherrypy.HTTPRedirect)
+        self.assertIsNone(self.check(path='/books', Referer='https://evil.example/', Accept='text/html'))
+
+    def test_check_auth_refuses_before_any_login_bypass(self):
+        self.set_owner()
+        self.cfg['WHITELIST'] = '203.0.113.5'
+        self.cfg['AUTH_REQUIRED'] = 'DISABLED_LOCAL'
+        self.use_request(headers={'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'no-cors'})
+        with self.assertRaises(cherrypy.HTTPError) as cm:
+            auth.check_auth()
+        self.assertEqual(cm.exception.status, 403)
 
 
 class ConfigFixupTest(LLTestCaseWithConfigandDIRS):
