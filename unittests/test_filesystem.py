@@ -43,11 +43,13 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
             ['', '\\\\?\\'],
             ['simple', '\\\\?\\simple'],
             ['./relative/path', './relative/path'],
-            ['/absolute/path', '\\\\?\\/absolute/path'],
+            ['/absolute/path', '\\\\?\\\\absolute\\path'],
+            ['C:/Users/x/config.ini', '\\\\?\\C:\\Users\\x\\config.ini'],
             [b'not a string', '\\\\?\\not a string'],
             ['D:\\', 'D:\\'],
             ['\\\\SERVER\\SHARE\\dir', '\\\\?\\UNC\\SERVER\\SHARE\\dir'],
-            ['\\\\SERVER\\SHARE/dir', '\\\\?\\UNC\\SERVER\\SHARE/dir'],
+            ['\\\\SERVER\\SHARE/dir', '\\\\?\\UNC\\SERVER\\SHARE\\dir'],
+            ['//SERVER/SHARE/dir', '\\\\?\\UNC\\SERVER\\SHARE\\dir'],
         ]
         with mock.patch('os.path.__name__', 'posixpath'):
             for path1, _ in paths_input_windows:

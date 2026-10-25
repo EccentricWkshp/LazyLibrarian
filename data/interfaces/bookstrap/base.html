@@ -42,6 +42,22 @@
       background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23777'><path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/></svg>");
       cursor: pointer;
     }
+    .help-icon {
+      margin-left: .4em;
+      color: #777;
+      cursor: help;
+    }
+    .help-icon:hover, .help-icon:focus {
+      color: inherit;
+      text-decoration: none;
+    }
+    legend .help-icon {
+      font-size: 70%;
+      vertical-align: middle;
+    }
+    .popover {
+      max-width: 400px;
+    }
     </style>
     %if ui_lang_auto:
     <script type="text/javascript">
@@ -542,6 +558,55 @@
       // Initialise tooltips
       $(function () {
         $('[data-toggle="tooltip"]').tooltip()
+      })
+
+      // Turn help text into an info icon with a popover, next to the field's label or button,
+      // or failing that next to the section heading (legend) above it. Several help texts
+      // under one heading share its icon. Help marked help-keep stays visible.
+      function nearestLegend(el) {
+        while (el.length && !el.is('.tab-pane, body')) {
+          var legend = el.prevAll('legend').first();
+          if (legend.length) { return legend; }
+          el = el.parent();
+        }
+        return $();
+      }
+
+      $(function () {
+        $('.help-block').not('.help-keep').each(function () {
+          var help = $(this);
+          var anchor = help.prevAll('label, button').not('.input-group-addon').first();
+          var icon;
+          if (anchor.length) {
+            icon = $('<a tabindex="0" role="button" class="help-icon"><i class="fa fa-info-circle"></i></a>');
+            anchor.after(icon);
+          } else {
+            anchor = nearestLegend(help);
+            if (!anchor.length) { return; }
+            icon = anchor.children('.help-icon');
+            if (!icon.length) {
+              icon = $('<a tabindex="0" role="button" class="help-icon"><i class="fa fa-info-circle"></i></a>');
+              anchor.append(icon);
+            }
+          }
+          var helps = (icon.data('helps') || []).concat([help]);
+          icon.data('helps', helps);
+          icon.attr('aria-label', $.map(helps, function (h) { return h.text().trim(); }).join(' '));
+          help.addClass('hidden');
+          if (helps.length > 1) { return; }
+          icon.popover({
+            content: function () {
+              return $.map(icon.data('helps'), function (h) { return h.html(); }).join('<hr>');
+            },
+            html: true,
+            trigger: 'hover focus',
+            // A short hide delay stops the popover flickering when the pointer briefly
+            // leaves the icon, e.g. while the popover is being positioned.
+            delay: { show: 100, hide: 300 },
+            placement: 'auto right',
+            container: 'body'
+          });
+        });
       })
 
         function truncateOnWord(str, limit) {

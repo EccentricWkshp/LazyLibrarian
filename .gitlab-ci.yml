@@ -10,6 +10,12 @@
 # the private key in it. The commit message contains [skip ci], so the push doesn't start
 # another pipeline.
 
+# Only create a pipeline when update-pot can run. Without this, every other push and every
+# merge request got a pipeline with no jobs, which GitLab shows as failed.
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $POT_DEPLOY_KEY'
+
 stages:
   - translations
 
