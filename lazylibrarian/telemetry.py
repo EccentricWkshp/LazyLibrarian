@@ -146,6 +146,7 @@ class LazyTelemetry:
             cfg_telemetry["params"] += "PRIMARY_HC "
         elif _config['BOOK_API'] == 'OpenLibrary':
             cfg_telemetry["params"] += "PRIMARY_OL "
+        cfg_telemetry["params"] += f"UI_LANG_{_config['UI_LANGUAGE']} "
 
         # Record whether these are configured differently from the default
         for key in ['GR_API', 'GB_API', 'OL_API', 'DNB_API', 'BN_API', 'DBK_API', 'RAN_API', 'HC_API', 'GR_SYNC', 'HC_SYNC', 'LT_DEVKEY',

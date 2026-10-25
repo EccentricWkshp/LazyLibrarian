@@ -808,6 +808,7 @@ def iterate_over_direct_sites(book=None, search_type=None):
                     ignored = True
                 if not ignored:
                     logger.debug(f"Querying {prov['NAME']}")
+                    TELEMETRY.record_usage_data(f"Query/{prov['NAME']}")
                     results, error = direct_gen(book, prov['NAME'])
                     if error:
                         BLOCKHANDLER.block_provider(prov['NAME'], error)
@@ -839,6 +840,7 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {prov}')
+            TELEMETRY.record_usage_data(f'Query/{prov}')
             results, error = direct_bok(book, prov)
             if error:
                 # use a short delay for site unavailable etc
@@ -879,6 +881,7 @@ def iterate_over_direct_sites(book=None, search_type=None):
         if not ignored:
             logger.debug(f'Querying {search_type} {provider}')
             searchtype = 'audio' if 'audio' in search_type else 'ebook'
+            TELEMETRY.record_usage_data(f'Query/{provider}')
             results, error = slsk_search(book, searchtype=searchtype)
             if error:
                 # use a short delay for site unavailable etc
@@ -911,6 +914,7 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {provider}')
+            TELEMETRY.record_usage_data(f'Query/{provider}')
             searchtype = 'ebook'
             if 'audio' in search_type:
                 searchtype = 'audio'
@@ -952,6 +956,7 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {provider}')
+            TELEMETRY.record_usage_data(f'Query/{prov}')
             searchtype = 'ebook'
             if 'audio' in search_type:
                 searchtype = 'audio'
