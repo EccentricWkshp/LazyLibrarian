@@ -13,7 +13,8 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same branch or pull request replaces a run that's still going
+# A newer push to the same branch or pull request replaces a run that's still going.
+# Each job has a time limit, so a hang fails in minutes rather than GitHub's 6 hours.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -22,6 +23,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -34,6 +36,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +52,8 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements*.txt
-      # python-magic needs libmagic. Windows has none, and LazyLibrarian works without it
+      # python-magic needs libmagic. Windows has none, and LazyLibrarian works without it.
+      # The runner has Git's msys libmagic on the PATH, which lazylibrarian/filemagic.py skips
       - if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libmagic1
       - run: pip install -r requirements-dev.txt
@@ -59,6 +63,7 @@ jobs:
     name: Docker image
     needs: [lint, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write

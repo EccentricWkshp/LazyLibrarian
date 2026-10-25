@@ -31,6 +31,7 @@ from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import ImageType, cache_img, fetch_url
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.filemagic import magic
 from lazylibrarian.filesystem import (
     DIRS,
     jpg_file,
@@ -75,12 +76,6 @@ else:
 
 # noinspection PyProtectedMember
 from pypdf import PdfReader, PdfWriter
-
-# noinspection PyBroadException
-try:
-    import magic
-except Exception:  # magic might fail for multiple reasons
-    magic = None
 
 GS = ''
 GS_VER = ''

@@ -143,7 +143,7 @@ class PushBullet:
 
         if not file_type:
             try:
-                import magic
+                from lazylibrarian.filemagic import magic
                 file_type = magic.from_buffer(fobj.read(1024))
                 fobj.seek(0)
             except Exception:  # magic might fail for multiple reasons

@@ -446,16 +446,15 @@ def log_header(online=True) -> str:
     except Exception:
         vers = "not found"
     header += f"Rapidfuzz: {vers}\n"
+    from lazylibrarian.filemagic import magic
     try:
-        import magic
-        try:
-            if hasattr(magic, "magic_version"):
-                vers = magic.magic_version()
-            else:
-                # noinspection PyProtectedMember
-                vers = magic.libmagic._name
-        except AttributeError:
+        if magic is None:
             vers = 'not found'
+        elif hasattr(magic, "magic_version"):
+            vers = magic.magic_version()
+        else:
+            # noinspection PyProtectedMember
+            vers = magic.libmagic._name
     except Exception:  # magic might fail for multiple reasons
         vers = 'not found'
     header += f"magic: {vers}\n"

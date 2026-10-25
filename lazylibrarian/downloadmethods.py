@@ -12,6 +12,7 @@
 
 
 import json
+import logging
 import os
 import re
 import threading
@@ -21,14 +22,6 @@ import unicodedata
 from base64 import b16encode, b32decode, b64encode
 from hashlib import sha1, sha256
 from urllib.parse import urlsplit
-
-# noinspection PyBroadException
-try:
-    import magic
-except Exception:  # magic might fail for multiple reasons
-    magic = None
-
-import logging
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests
@@ -54,6 +47,7 @@ from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.directparser import bok_grabs, bok_login, session_get
 from lazylibrarian.download_client import check_contents, delete_task, seed_requirement
+from lazylibrarian.filemagic import magic
 from lazylibrarian.filesystem import (
     DIRS,
     get_directory,
