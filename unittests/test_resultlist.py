@@ -95,6 +95,14 @@ class LanguageRejectionTest(LLTestCaseWithStartup):
         match = find_best_result(results, book, "book", "tor")
         self.assertIsNone(match, "French 3-letter code should be rejected for English preference")
 
+    def test_narrator_named_like_a_language_code_not_rejected(self):
+        # dan and ron are the codes for Danish and Romanian, release names give codes in capitals
+        CONFIG["IMP_PREFLANG"] = "en, eng, English"
+        book = _make_book("Some Author", "Some Book", library="AudioBook")
+        for name in ("Some Author - Some Book read by Dan Stevens m4b", "Some Author - Some Book Ron McLarty mp3"):
+            self.assertIsNotNone(find_best_result([_make_tor_result(name)], book, "audio", "tor"), name)
+        self.assertIsNone(find_best_result([_make_tor_result("Some Author - Some Book DAN mp3")], book, "audio", "tor"))
+
     def test_author_name_matching_language_not_rejected(self):
         """An author named 'Danish' should not trigger language rejection."""
         CONFIG["IMP_PREFLANG"] = "en, eng, English"

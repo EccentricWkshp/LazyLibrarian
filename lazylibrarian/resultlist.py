@@ -280,8 +280,13 @@ def find_best_result(resultlist, book, searchtype, source):
             if not rejected and check_lang:
                 title_words = get_list(title.lower())
                 author_words = get_list(author.lower())
+                # a three letter code only counts in capitals, as release names give them (GER, ITA),
+                # so a narrator called Dan or Ron isn't taken for Danish or Romanian
+                capitals = {word.lower() for word in get_list(result_title) if word.isupper()}
                 for word in get_list(result_title.lower()):
                     if word in title_words or word in author_words:
+                        continue
+                    if len(word) == 3 and word not in capitals:
                         continue
                     mapped = _LANG_TO_PREFLANG.get(word)
                     if mapped and not mapped.intersection(preflang_lower):
