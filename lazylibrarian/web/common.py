@@ -229,7 +229,7 @@ class BasePages:
                 msg = f"Invalid {keyword}: contains {token}"
                 logger.warning(msg)
                 if errorpage:
-                    raise cherrypy.HTTPError({errorpage}, msg)
+                    raise cherrypy.HTTPError(errorpage, msg)
                 return False
         return True
 

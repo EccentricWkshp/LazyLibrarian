@@ -104,6 +104,14 @@ class BookServiceTest(LLTestCaseWithDB):
         lists = books.reading_lists(self.owner)
         self.assertEqual((lists['HaveRead'], lists['ToRead']), ({'B1'}, {'B2'}))
 
+    def test_mark_unread_takes_books_off_the_lists(self):
+        books.mark_books('Reading', ['B1', 'B2'], userid=self.owner)
+        self.sql("INSERT INTO readinglists (UserID,BookID,Status) VALUES (?,'B3',4)", (self.owner,))
+        books.mark_books('Unread', ['B1', 'B3'], userid=self.owner)
+        self.assertEqual(books.reading_lists(self.owner)['Reading'], {'B2'})
+        self.assertEqual(self.sql("SELECT BookID FROM readinglists WHERE Status=4"), [{'BookID': 'B3'}],
+                         'Owned is not a reading list')
+
     def test_mark_wanted(self):
         with mock.patch.object(CONFIG, 'use_any', return_value=False):
             result = books.mark_books('Wanted', ['B1', 'B3'], library='eBook')

@@ -27,7 +27,7 @@ import lazylibrarian
 from lazylibrarian import ROLE, database, notifiers
 from lazylibrarian.bookwork import delete_empty_series, language_from_words, set_series
 from lazylibrarian.cache import gr_xml_request
-from lazylibrarian.common import get_readinglist, is_valid_language, set_readinglist
+from lazylibrarian.common import get_readinglist, is_valid_language, reading_status, set_readinglist
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.downloadmethods import (
     direct_dl_method,
@@ -1028,6 +1028,12 @@ def mark_books(action: str, bookids, library: str = 'eBook', userid=None, author
         if lists and userid:
             for name, books in lists.items():
                 set_readinglist(name, userid, books)
+            # set_readinglist only adds, so take the books now on none of the lists (Unread) off them here
+            statuses = ', '.join(str(reading_status[name.lower()]) for name in READING_LISTS)
+            for bookid in bookids:
+                if not any(bookid in books for books in lists.values()):
+                    db.action(f'DELETE from readinglists WHERE UserID=? AND BookID=? AND Status IN ({statuses})',
+                              (userid, bookid))
     finally:
         db.close()
 
