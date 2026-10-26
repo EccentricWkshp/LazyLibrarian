@@ -26,6 +26,7 @@ from lazylibrarian.services import (
     InvalidRequestError,
     NotFoundError,
     blocklist,
+    events,
     manualimport,
     tasks,
     wanted,
@@ -41,9 +42,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec='seconds')
 
 
+def _update(command: dict, **changes):
+    """ Change a command, and tell the pages listening, as Sonarr's command updates do """
+    command.update(changes)
+    events.publish('command', dict(command))
+
+
 def _manual_import(command: dict, body: dict) -> str:
     def progress(message):
-        command['message'] = message
+        _update(command, message=message)
 
     results = manualimport.import_items(body.get('files') or [], progress=progress)
     command['result'] = results
@@ -59,7 +66,7 @@ def _manual_import(command: dict, body: dict) -> str:
 
 def _book_search(command: dict, body: dict) -> str:
     def progress(message):
-        command['message'] = message
+        _update(command, message=message)
 
     found, message = wanted.search_books(body.get('books') or [], progress=progress)
     command['result'] = {'found': found}
@@ -68,7 +75,7 @@ def _book_search(command: dict, body: dict) -> str:
 
 def _missing_book_search(command: dict, body: dict) -> str:
     def progress(message):
-        command['message'] = message
+        _update(command, message=message)
 
     found, message = wanted.search_books([], progress=progress)
     command['result'] = {'found': found}
@@ -95,16 +102,15 @@ TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'Missing
 
 def _run(command: dict, body: dict):
     logger = logging.getLogger(__name__)
-    command.update(status='started', started=_now())
+    _update(command, status='started', started=_now())
     try:
-        command['message'] = HANDLERS[command['name']](command, body)
-        command['status'] = 'completed'
+        message = HANDLERS[command['name']](command, body)
+        _update(command, status='completed', message=message, ended=_now())
     except (InvalidRequestError, NotFoundError) as why:
-        command.update(status='failed', message=str(why))
+        _update(command, status='failed', message=str(why), ended=_now())
     except Exception as why:
         logger.error(f"{command['name']} failed: {traceback.format_exc()}")
-        command.update(status='failed', message=f"{type(why).__name__}: {why}")
-    command['ended'] = _now()
+        _update(command, status='failed', message=f"{type(why).__name__}: {why}", ended=_now())
 
 
 def start(name: str, body: dict) -> dict:
@@ -119,6 +125,7 @@ def start(name: str, body: dict) -> dict:
         _commands[command['id']] = command
         for old in sorted(_commands)[:-KEEP]:
             del _commands[old]
+    events.publish('command', dict(command))
     threading.Thread(target=_run, args=(command, body), name=f"COMMAND-{name.upper()}", daemon=True).start()
     return dict(command)
 

@@ -14,6 +14,7 @@ import { urlBase } from 'Utilities/api';
 import Missing from 'Wanted/Missing/Missing';
 import BookSearch from 'Wanted/Search/BookSearch';
 import queryClient from './queryClient';
+import { useServerEvents } from './serverEvents';
 
 function NotFound() {
   return (
@@ -28,6 +29,8 @@ function NotFound() {
 }
 
 function App() {
+  useServerEvents();
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

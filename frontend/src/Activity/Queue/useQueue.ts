@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QueueItem } from 'typings/Queue';
 import { api } from 'Utilities/api';
 
-// Sonarr pushes queue changes to the page, this asks again every few seconds
+// The live updates say when a download is added, imported or fails. Its progress is the download
+// client's, so this asks for that every few seconds
 const REFRESH = 5000;
 
 export function useQueue() {

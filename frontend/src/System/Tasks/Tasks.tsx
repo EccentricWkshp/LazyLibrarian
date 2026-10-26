@@ -16,7 +16,8 @@ import { api } from 'Utilities/api';
 import { formatDateTime, formatDuration, formatInterval, parseDate, relativeDate } from 'Utilities/format';
 import styles from './Tasks.module.css';
 
-const REFRESH = 5000;
+// the live updates say when they change, this keeps the times in step
+const REFRESH = 30000;
 
 const TASK_COLUMNS: Column[] = [
   { name: 'name', label: 'Name' },

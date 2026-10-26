@@ -43,6 +43,7 @@ from lazylibrarian.auth import check_user_password, credentials_set, get_owner
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, syspath
 from lazylibrarian.logconfig import LOGCONFIG
+from lazylibrarian.services import events
 from lazylibrarian.webapp import create_app
 from lazylibrarian.webServe import WebInterface
 
@@ -290,6 +291,8 @@ def stop():
     """ Stop serving pages, letting requests in progress finish """
     global _server
     if _server is not None:
+        # the pages' live update streams never end by themselves, they'd hold the server open
+        events.close()
         _server.should_exit = True
         _server_thread.join(GRACEFUL_SHUTDOWN + 5)
         _server = None
