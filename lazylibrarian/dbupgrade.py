@@ -177,6 +177,12 @@ def has_column(db, table, column):
     return any(item[1] == column for item in columns)
 
 
+def series_has_integer_ids(db) -> bool:
+    """ True until v85 changed SeriesID to text with the source in front """
+    res = db.match("SELECT sql FROM sqlite_master WHERE type='table' AND name='series'")
+    return bool(res) and 'SeriesID INTEGER' in res[0]
+
+
 def db_upgrade(current_version: int, restartjobs: bool = False):
     logger = logging.getLogger(__name__)
     with open(syspath(DIRS.get_logfile('dbupgrade.log')), 'a') as upgradelog:
@@ -1252,7 +1258,8 @@ def update_schema(db, upgradelog):
         db.action('ALTER TABLE pastissues ADD COLUMN Added INTEGER DEFAULT 0')
         db.action('UPDATE pastissues SET Added=? WHERE Added=0', (int(time.time()),))
 
-    if not has_column(db, "users", "Abandoned"):
+    # v82 moves these into the reading lists, adding them after that put them back on every new database
+    if not has_column(db, "users", "Abandoned") and has_column(db, "users", "HaveRead"):
         changes += 1
         lazylibrarian.UPDATE_MSG = 'Adding Reading,Abandoned columns to users table'
         upgradelog.write(f"{time.ctime()} v65: {lazylibrarian.UPDATE_MSG}\n")
@@ -1342,7 +1349,8 @@ def update_schema(db, upgradelog):
             for author in authors:
                 update_totals(author['AuthorID'])
 
-    if not has_column(db, "series", "gr_id"):
+    # v85 rebuilds the series table without gr_id, so it's only wanted before that
+    if not has_column(db, "series", "gr_id") and series_has_integer_ids(db):
         changes += 1
         lazylibrarian.UPDATE_MSG = 'Adding gr_id to series table'
         upgradelog.write(f"{time.ctime()} v73: {lazylibrarian.UPDATE_MSG}\n")
@@ -1509,8 +1517,7 @@ def update_schema(db, upgradelog):
                           (item['UserID'], item['BookID'], tbl[1]), suppress='UNIQUE')
             db.action(f"DROP table {tbl[0]}")
 
-    res = db.match("SELECT sql FROM sqlite_master WHERE type='table' AND name='series'")
-    if 'SeriesID INTEGER' in res[0]:
+    if series_has_integer_ids(db):
         changes += 1
         lazylibrarian.UPDATE_MSG = 'Updating series,member,seriesauthors tables'
         upgradelog.write(f"{time.ctime()} v85: {lazylibrarian.UPDATE_MSG}\n")
@@ -1701,6 +1708,21 @@ def update_schema(db, upgradelog):
         lazylibrarian.UPDATE_MSG = 'Removing the telemetry job'
         upgradelog.write(f"{time.ctime()} v101: {lazylibrarian.UPDATE_MSG}\n")
         db.action("DELETE FROM jobs WHERE Name='TELEMETRYSEND'")
+
+    # v65 and v73 used to add these back on the start after a new database was made
+    stray = []
+    if not has_column(db, "users", "HaveRead"):
+        stray += [('users', col) for col in ('Reading', 'Abandoned') if has_column(db, 'users', col)]
+    if not series_has_integer_ids(db) and has_column(db, "series", "gr_id"):
+        stray.append(('series', 'gr_id'))
+    for table, col in stray:
+        try:
+            db.action(f'ALTER TABLE {table} DROP COLUMN {col}')
+        except Exception as e:  # DROP COLUMN needs sqlite 3.35, the column does no harm
+            logger.debug(f'Leaving unused {table}.{col}: {type(e).__name__} {e}')
+            continue
+        changes += 1
+        upgradelog.write(f"{time.ctime()} Removed unused column {table}.{col}\n")
 
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
