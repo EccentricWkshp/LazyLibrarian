@@ -49,16 +49,6 @@ def clear_mako_cache(userid=0):
         logger.error(f"Error clearing mako cache: {str(e)}")
 
 
-def owner_details() -> dict:
-    """ Owner account fields the config page shows, never the password hash """
-    db = database.DBConnection()
-    try:
-        owner = get_owner(db) or {}
-    finally:
-        db.close()
-    return {'username': owner.get('UserName') or '', 'userid': owner.get('UserID') or ''}
-
-
 def clear_our_cookies():
     cookie = cherrypy.response.cookie
     cookie['ll_uid'] = ''
