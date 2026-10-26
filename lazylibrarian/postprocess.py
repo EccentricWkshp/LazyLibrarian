@@ -764,11 +764,16 @@ def _get_ready_from_snatched(db, snatched_list: list[dict]):
 
         # Check if download is complete before processing download directories
         progress, finished = get_download_progress(source, download_id)
-        # progress can be: -1 (not found/removed - may be seeding complete), 0-99 (in progress), 100+ (complete)
+        # progress can be: -1 (not found/removed - may be seeding complete), -2 (the client
+        # couldn't be reached), 0-99 (in progress), 100+ (complete)
         # finished is True only when downloader confirms completion
         # Process if: progress >= 100 (complete/seeding), finished == True, or progress == -1
         # (torrent removed after seeding)
-        # Skip only if: 0 <= progress < 100 and not finished (actively downloading)
+        # Skip if: 0 <= progress < 100 and not finished (actively downloading), or the client
+        # couldn't be reached, which would block the import for want of the client's folder
+        if progress == -2:
+            logger.debug(f"{source} could not be reached about {title}, skipping")
+            continue
         if 0 <= progress < 100 and not finished:
             logger.debug(
                 f"Download not yet complete for {title} (progress: {progress}%), skipping"
@@ -2618,6 +2623,12 @@ def _handle_snatched_timeout(
     should_skip = False
     short_wait = 5
     longer_wait = 30
+
+    if book_state.progress == -2:
+        # the download client couldn't be asked, which says nothing about the download. Like
+        # Sonarr, wait for the client rather than fail what it has
+        logger.debug(f"{book_state.source} could not be reached about {book_state.download_title}, waiting")
+        return should_abort, should_skip
 
     # has it been aborted (wait a short while before checking)
     if mins > short_wait and isinstance(book_state.progress, int) and book_state.progress < 0:

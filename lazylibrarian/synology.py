@@ -408,6 +408,9 @@ def get_progress(download_id):
     # get the progress/status of a download from it's download_id
     # return "" if not found
     hosturl = _host_url()
+    if not hosturl:
+        # not a download Synology doesn't have, one it can't be asked about
+        return -2, 'no host set', False
     if hosturl:
         auth_cgi, task_cgi, sid = _login(hosturl)
         if not sid:

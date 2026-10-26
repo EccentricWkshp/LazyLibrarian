@@ -720,7 +720,7 @@ def get_download_progress(source, downloadid):
             if progress == -1:
                 logger.debug(f"{downloadid} not found at {source}")
                 # Keep progress as -1 to signal "not found" rather than "0% progress"
-            if status & 16:  # Error
+            if isinstance(status, int) and status & 16:  # Error. Not found has no status
                 cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status IN ('Snatched','Seeding')"
                 db.action(
                     cmd,
@@ -787,7 +787,8 @@ def get_download_progress(source, downloadid):
                     progress = -1
             except Exception as e:
                 logger.error(f"DelugeRPC failed {type(e).__name__} {str(e)}")
-                progress = 0
+                # Deluge couldn't be asked. 0 would look like a stalled download
+                progress = -2
 
         else:
             dlcommslogger.debug(
@@ -817,7 +818,8 @@ def get_download_progress(source, downloadid):
         logger.error(
             f"Unhandled exception in get_download_progress: {traceback.format_exc()}"
         )
-        progress = 0
+        # nothing is known about the download. 0 would look stalled, and be aborted in time
+        progress = -2
         finished = False
 
     db.close()

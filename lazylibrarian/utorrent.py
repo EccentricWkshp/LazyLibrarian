@@ -287,10 +287,16 @@ def pause_torrent(hashid):
 def progress_torrent(hashid):
     dlcommslogger = logging.getLogger('special.dlcomms')
     dlcommslogger.debug(f"get progress for {hashid}")
-    uclient = UtorrentClient()
-    torrentlist = uclient.list()
-    # noinspection PyUnresolvedReferences
-    for torrent in torrentlist[1].get('torrents'):
+    try:
+        uclient = UtorrentClient()
+        torrentlist = uclient.list()
+        # noinspection PyUnresolvedReferences
+        torrents = torrentlist[1].get('torrents')
+    except Exception as e:
+        # uTorrent couldn't be asked, which says nothing about the download
+        dlcommslogger.debug(f"uTorrent list failed: {type(e).__name__} {e}")
+        return -2, '', False
+    for torrent in torrents or []:
         if torrent[0].lower() == hashid.lower():
             return check_int(torrent[4], 0) // 10, torrent[1], \
                              (torrent[1] & 65 == 0)  # status not started or queued

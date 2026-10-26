@@ -159,7 +159,10 @@ def get_torrent_progress(torrentid):
     dlcommslogger.debug('Deluge: Get torrent progress')
     res = get_torrent_status(torrentid, ["progress", "message", "state", "is_auto_managed",
                                          "stop_at_ratio", "ratio", "stop_ratio"])  # type: dict
-    if res and res['result']:
+    if not res:
+        # the request failed, or couldn't log in: Deluge couldn't be asked
+        return -2, '', False
+    if res['result']:
         info = res['result']  # type: dict
         if 'progress' in info:
             finished = info['is_auto_managed'] and info['stop_at_ratio'] and \

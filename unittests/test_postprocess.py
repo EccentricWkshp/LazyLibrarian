@@ -24,6 +24,7 @@ from lazylibrarian.postprocess import (
     _check_and_schedule_next_run,
     _count_zipfiles_in_directory,
     _find_valid_file_in_directory,
+    _get_ready_from_snatched,
     _handle_aborted_download,
     _handle_seeding_status,
     _handle_snatched_timeout,
@@ -900,6 +901,27 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
 
         self.assertTrue(should_abort)
         self.assertFalse(should_skip)
+
+    def test_handle_snatched_timeout_client_unreachable(self):
+        """A client that can't be reached says nothing about its downloads: none is aborted, however
+        old. Any download over 30 minutes old used to be, and blocklisted"""
+        book_state = BookState(download_title="Test Book", source="NZBGET", download_id="1398", progress=-2,
+                               aux_type="AudioBook", book_id="book123")
+        with mock.patch.object(CONFIG, 'get_int', return_value=1):
+            self.assertEqual(_handle_snatched_timeout(book_state, 48, 48 * 60, 24, mock.Mock()), (False, False))
+
+    def test_not_ready_while_the_client_is_unreachable(self):
+        """Processing it would block its import for want of the client's folder"""
+        row = {"BookID": "book123", "AuxInfo": "AudioBook", "NZBtitle": "Test Book", "Source": "NZBGET",
+               "DownloadID": "1398", "NZBurl": "u1"}
+        with mock.patch('lazylibrarian.postprocess.get_download_name', return_value=None), \
+                mock.patch('lazylibrarian.postprocess.check_contents', return_value=''), \
+                mock.patch('lazylibrarian.postprocess.get_download_progress', return_value=(-2, False)):
+            self.assertEqual(_get_ready_from_snatched(mock.Mock(), [row]), [])
+        with mock.patch('lazylibrarian.postprocess.get_download_name', return_value=None), \
+                mock.patch('lazylibrarian.postprocess.check_contents', return_value=''), \
+                mock.patch('lazylibrarian.postprocess.get_download_progress', return_value=(100, True)):
+            self.assertEqual(_get_ready_from_snatched(mock.Mock(), [row]), [row])
 
     def test_handle_snatched_timeout_100_percent_no_abort(self):
         """Test that 100% complete timed-out downloads are not aborted"""

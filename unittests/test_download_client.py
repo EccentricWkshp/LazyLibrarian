@@ -242,6 +242,26 @@ class ProgressTest(LLTestCase):
         self.assertEqual(args, ('NZBGet deleted it as a copy of a download it already has (DELETED/COPY)', '7',
                                 'NZBGET'))
 
+    def test_other_clients_unreachable(self):
+        # each used to say the download wasn't there, or 0%, which aborted it in time
+        from lazylibrarian import deluge, utorrent
+        cases = (('DELUGEWEBUI', mock.patch.object(deluge, 'get_torrent_status', return_value='')),
+                 ('UTORRENT', mock.patch.object(utorrent, 'UtorrentClient', side_effect=OSError('refused'))),
+                 ('SYNOLOGY_TOR', mock.patch.object(synology, '_host_url', return_value=False)),
+                 ('QBITTORRENT', mock.patch.object(download_client.qbittorrent, 'get_client', return_value=None)))
+        for source, patch in cases:
+            with patch, mock.patch.object(download_client.database, 'DBConnection') as db:
+                self.assertEqual(download_client.get_download_progress(source, 'abc'), (-2, False), source)
+            db.return_value.action.assert_not_called()
+
+    def test_utorrent_not_found(self):
+        # it raised on the missing download's status, so a missing download was never aborted
+        from lazylibrarian import utorrent
+        client = mock.Mock(**{'list.return_value': (200, {'torrents': []})})
+        with mock.patch.object(utorrent, 'UtorrentClient', return_value=client), \
+                mock.patch.object(download_client.database, 'DBConnection'):
+            self.assertEqual(download_client.get_download_progress('UTORRENT', 'abc'), (-1, False))
+
     def test_nzbget_unreachable(self):
         # it used to abort every NZBGet download, as if NZBGet didn't have them
         with mock.patch.object(download_client.nzbget, 'send_nzb', return_value=('', 'Connection refused')), \
