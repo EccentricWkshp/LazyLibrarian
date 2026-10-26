@@ -203,7 +203,9 @@ class CheckLinkTest(LLTestCase):
         self.assertIn('Synology', msg)
 
     def test_successful_link_says_so(self):
-        with mock.patch.object(synology, '_host_url', return_value='http://nas'),                 mock.patch.object(synology, '_login', return_value=('auth', '', 'sid')),                 mock.patch.object(synology, '_logout'):
+        with mock.patch.object(synology, '_host_url', return_value='http://nas'), \
+                mock.patch.object(synology, '_login', return_value=('auth', '', 'sid')), \
+                mock.patch.object(synology, '_logout'):
             msg, ok = synology.check_link()
         self.assertTrue(ok)
         self.assertIn('Synology', msg)
@@ -217,28 +219,20 @@ class CheckLinkTest(LLTestCase):
 
 
 class RemotePathTest(LLTestCase):
-    """ A remote path mapping replaces the start of the path a client reports, like Sonarr's """
-
-    def config(self, **values):
-        return mock.patch.object(download_client, 'CONFIG', mock.MagicMock(
-            __getitem__=lambda _self, key: values.get(key, '')))
-
-    def test_mapping(self):
-        with self.config(QBITTORRENT_REMOTE='/downloads', QBITTORRENT_LOCAL='/mnt/nas/downloads'):
-            self.assertEqual(download_client.map_remote_path('QBITTORRENT', '/downloads/books/A Book'),
-                             '/mnt/nas/downloads/books/A Book')
-            self.assertEqual(download_client.map_remote_path('QBITTORRENT', '/data/downloads/x'), '/data/downloads/x',
-                             'Only at the start')
-            self.assertIsNone(download_client.map_remote_path('QBITTORRENT', None), 'Nothing reported')
-            self.assertEqual(download_client.map_remote_path('DIRECT', '/downloads/x'), '/downloads/x')
-        with self.config(SAB_REMOTE='/complete', SAB_LOCAL=r'D:\complete', DELUGE_REMOTE='/a', DELUGE_LOCAL='/b'):
-            self.assertEqual(download_client.map_remote_path('SABNZBD', '/complete/x'), r'D:\complete/x')
-            self.assertEqual(download_client.map_remote_path('DELUGERPC', '/a/x'), '/b/x', 'Both Deluge connections')
+    """ Folders the clients report go through the remote path mappings, see test_services_remotepaths """
 
     def test_folder_not_reported(self):
-        # with a mapping set, a client that says nothing used to raise in the mapping
-        with self.config(TRANSMISSION_REMOTE='/downloads', TRANSMISSION_LOCAL='/mnt'),                 mock.patch.object(download_client.transmission, 'get_torrent_folder', return_value=None):
+        # with a mapping set, a client that said nothing used to raise in the mapping
+        with mock.patch.object(download_client.transmission, 'get_torrent_folder', return_value=None), \
+                mock.patch.object(download_client.remotepaths, 'mappings',
+                                  return_value=[{'Id': 1, 'Host': '', 'RemotePath': '/', 'LocalPath': '/mnt'}]):
             self.assertIsNone(download_client.get_download_folder('TRANSMISSION', 'abc'))
+
+    def test_folder_reported(self):
+        with mock.patch.object(download_client.qbittorrent, 'get_folder', return_value='/downloads/books/A Book'), \
+                mock.patch.object(download_client, 'map_remote_path', return_value='/mnt/books/A Book') as mapped:
+            self.assertEqual(download_client.get_download_folder('QBITTORRENT', 'abc'), '/mnt/books/A Book')
+        mapped.assert_called_once_with('QBITTORRENT', '/downloads/books/A Book')
 
 
 if __name__ == '__main__':

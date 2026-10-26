@@ -53,7 +53,7 @@ class SettingsPages(BasePages):
         """ Update config based on settings in the UI """
         messages = settings.save_form(kwargs, keep_token=session_token())
         if messages:
-            return serve_template(templatename="response.html", prefix="", title=i18n.gettext("Access Control"),
+            return serve_template(templatename="response.html", prefix="", title=i18n.gettext("Settings"),
                                   message=''.join(i18n.gettext(msg) + '<br>' for msg in messages), timer=0)
         raise cherrypy.HTTPRedirect("config")
 

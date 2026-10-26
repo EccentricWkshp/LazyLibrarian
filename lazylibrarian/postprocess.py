@@ -2961,7 +2961,8 @@ def _search_in_known_location(
     if not path_exists(book_state.download_folder):
         logger.warning(f"FAIL: Download folder not found: {book_state.download_folder}")
         book_state.mark_failed("location", f"[{book_state.download_folder}] was not found. If {book_state.source} "
-                                           f"sees its files at another path, it needs a remote path mapping")
+                                           f"sees its files at another path, add a remote path mapping in "
+                                           f"Settings, Downloaders")
         return 0
 
     # Check if folder has content

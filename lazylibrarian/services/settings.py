@@ -59,7 +59,7 @@ from lazylibrarian.formatter import (
 )
 from lazylibrarian.logconfig import LOGCONFIG
 from lazylibrarian.scheduling import check_running_jobs
-from lazylibrarian.services import InvalidRequestError
+from lazylibrarian.services import InvalidRequestError, remotepaths
 from lazylibrarian.services.users import plain_text
 
 # the info sources switched on and off, by their setting, and the name BOOK_API uses for each
@@ -135,6 +135,8 @@ def page_data(browser_languages: list) -> dict:
         logger.error(f"{lazylibrarian.SEASONS}")
 
     return {
+        "remote_path_mappings": remotepaths.mappings(),
+        "client_hosts": remotepaths.client_hosts(),
         "http_look_list": [name for name in listdir(http_look_dir) if path_isdir(os.path.join(http_look_dir, name))],
         "apprise_list": lazylibrarian.notifiers.apprise_notify.AppriseNotifier.notify_types(),
         "status_list": ['Skipped', 'Wanted', 'Have', 'Ignored'],
@@ -367,6 +369,7 @@ def save_form(form: dict, keep_token=None) -> list[str]:
                                    form.pop('owner_password2', ''), keep_token=keep_token)
     # unknown values would leave update_settings to store them, keep the current ones
     messages += check_auth_settings(form)
+    messages += update_remote_path_mappings(form)
 
     replacements = {}
     for itm in form:
@@ -407,6 +410,32 @@ def save_form(form: dict, keep_token=None) -> list[str]:
                 if f'log_{LOGCONFIG.get_short_special_logger_name(logger.name)}' in form]
     update_logging(log_level_from_form(form), specials)
     save_config()
+    return messages
+
+
+def update_remote_path_mappings(form: dict) -> list[str]:
+    """ The settings page's remote path mappings: rpm_host_<id>, rpm_remote_<id> and rpm_local_<id> for
+        each, rpm_delete_<id> to remove one, and the same ending in new to add one. Returns any problems,
+        worded for the user """
+    messages = []
+    for mapping in remotepaths.mappings():
+        key = mapping['Id']
+        if form.get(f'rpm_delete_{key}'):
+            remotepaths.delete_mapping(key)
+            continue
+        values = (form.get(f'rpm_host_{key}', mapping['Host']), form.get(f'rpm_remote_{key}', mapping['RemotePath']),
+                  form.get(f'rpm_local_{key}', mapping['LocalPath']))
+        if values != (mapping['Host'], mapping['RemotePath'], mapping['LocalPath']):
+            try:
+                remotepaths.update_mapping(key, *values)
+            except InvalidRequestError as e:
+                messages.append(str(e))
+    new = (form.get('rpm_host_new', ''), form.get('rpm_remote_new', ''), form.get('rpm_local_new', ''))
+    if new[1].strip() or new[2].strip():
+        try:
+            remotepaths.add_mapping(*new)
+        except InvalidRequestError as e:
+            messages.append(str(e))
     return messages
 
 

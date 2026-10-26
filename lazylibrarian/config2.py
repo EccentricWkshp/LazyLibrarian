@@ -26,6 +26,7 @@ from lazylibrarian.configdefs import (
     CATEGORY_UNSET,
     DOWNLOAD_CATEGORIES,
     RETIRED_SECTIONS,
+    RETIRED_SETTINGS,
     configitem_from_default,
 )
 from lazylibrarian.configenums import Access, OnChangeReason
@@ -54,6 +55,8 @@ class LLConfigHandler(ConfigDict):
         super().__init__()
         self.initialize_logger()
         self.arrays = {}
+        # the values of RETIRED_SETTINGS found in config.ini, for moving them elsewhere
+        self.retired_values = {}
         self.defaults = defaults
         self._save_lock = threading.Lock()
         self._copydefaults(defaults)
@@ -107,7 +110,9 @@ class LLConfigHandler(ConfigDict):
     def _load_section(self, section: str, parser: ConfigParser, config: ConfigDict):
         """ Load a section of an ini file """
         for option in parser.options(section):
-            if option in config:
+            if option.lower() in RETIRED_SETTINGS:
+                self.retired_values[option.lower()] = parser.get(section, option)
+            elif option in config:
                 config_item = config.get_item(option)
                 if not config_item or not config_item.update_from_parser(parser, section, option):
                     self.logger.warning(f"Error loading {section}.{option} as {parser.get(section, option)}")

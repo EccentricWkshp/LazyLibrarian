@@ -63,6 +63,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import check_int, get_list, unaccented
 from lazylibrarian.processcontrol import get_info_on_caller
+from lazylibrarian.services import remotepaths
 
 # A release that ships its content inside an archive says nothing about the
 # format until it is unpacked, so we cannot judge it from the file list.
@@ -395,23 +396,15 @@ def get_download_files(source, downloadid):
 TRACKED_SOURCES = ("SABNZBD", "NZBGET", "QBITTORRENT", "TRANSMISSION", "DELUGEWEBUI", "DELUGERPC",
                    "RTORRENT", "UTORRENT", "SYNOLOGY_TOR", "SYNOLOGY_NZB")
 
-# the start of the clients' remote and local path settings, by source
-PATH_MAPPING_SETTINGS = {"SABNZBD": "SAB", "NZBGET": "NZBGET", "RTORRENT": "RTORRENT", "UTORRENT": "UTORRENT",
-                         "QBITTORRENT": "QBITTORRENT", "TRANSMISSION": "TRANSMISSION", "DELUGEWEBUI": "DELUGE",
-                         "DELUGERPC": "DELUGE", "SYNOLOGY_TOR": "SYNOLOGY", "SYNOLOGY_NZB": "SYNOLOGY"}
 
 
 def map_remote_path(source, path):
-    """ A path the download client reported, as LazyLibrarian sees it. Like Sonarr's remote path
-    mappings, a plain replacement of the client's remote path at the start with the local one """
-    prefix = PATH_MAPPING_SETTINGS.get(source)
-    if not path or not prefix:
-        return path
-    remote, local = CONFIG[f"{prefix}_REMOTE"], CONFIG[f"{prefix}_LOCAL"]
-    if remote and local and path.startswith(remote):
-        logging.getLogger(__name__).debug(f"Replacing {remote} with {local}")
-        return local + path[len(remote):]
-    return path
+    """ A path the download client reported, as LazyLibrarian sees it, through the remote path
+    mappings for the client's host """
+    local = remotepaths.source_to_local(source, path)
+    if local != path:
+        logging.getLogger(__name__).debug(f"Remote path mapping: {path} is {local}")
+    return local
 
 
 def get_download_folder(source, downloadid):

@@ -133,8 +133,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 99 add ui_lang to users table
 # 100 add dbk_id to books and authors tables, dbk_link to authors table
 # 101 single owner account instead of user accounts, add sessions table
+# 102 add remotepathmappings table, from the download clients' remote and local path settings
 
-db_current_version = 101
+db_current_version = 102
 
 
 def upgrade_needed():
@@ -1219,6 +1220,32 @@ def migrate_to_owner_account(db, upgradelog):
         CONFIG.save_config_and_backup_old()
 
 
+def migrate_remote_path_settings(db, upgradelog):
+    """ v102: each download client had one remote and local path setting. They become remote path
+    mappings for the client's host, like Sonarr's, and the settings go """
+    from lazylibrarian.services.remotepaths import host_name
+    logger = logging.getLogger(__name__)
+    clients = (('sab', 'SAB_HOST'), ('nzbget', 'NZBGET_HOST'), ('rtorrent', 'RTORRENT_HOST'),
+               ('utorrent', 'UTORRENT_HOST'), ('qbittorrent', 'QBITTORRENT_HOST'),
+               ('transmission', 'TRANSMISSION_HOST'), ('deluge', 'DELUGE_HOST'), ('synology', 'SYNOLOGY_HOST'))
+    for client, host_setting in clients:
+        remote = CONFIG.retired_values.get(f"{client}_remote", '').strip()
+        local = CONFIG.retired_values.get(f"{client}_local", '').strip()
+        if not remote or not local:
+            continue
+        host = host_name(CONFIG[host_setting])
+        if not host:
+            msg = f"Not keeping the {client} remote path [{remote}]: the client has no host set"
+        elif db.match('SELECT Host FROM remotepathmappings WHERE Host=? AND RemotePath=?', (host, remote)):
+            continue
+        else:
+            db.action('INSERT INTO remotepathmappings (Host, RemotePath, LocalPath) VALUES (?, ?, ?)',
+                      (host, remote, local))
+            msg = f"Remote path mapping for {host}: {remote} is {local} here"
+        logger.info(msg)
+        upgradelog.write(f"{time.ctime()} v102: {msg}\n")
+
+
 def update_schema(db, upgradelog):
     logger = logging.getLogger(__name__)
     db_version = get_db_version(db)
@@ -1701,6 +1728,14 @@ def update_schema(db, upgradelog):
                   'ON DELETE CASCADE, Created INTEGER, Expires INTEGER, LastSeen INTEGER, '
                   'Persistent INTEGER DEFAULT 0, RemoteIP TEXT, UserAgent TEXT)')
         migrate_to_owner_account(db, upgradelog)
+
+    if not has_column(db, "remotepathmappings", "Host"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating remotepathmappings table'
+        upgradelog.write(f"{time.ctime()} v102: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('CREATE TABLE remotepathmappings (Host TEXT NOT NULL, RemotePath TEXT NOT NULL, '
+                  'LocalPath TEXT NOT NULL)')
+        migrate_remote_path_settings(db, upgradelog)
 
     # Telemetry has been removed. Its job row would show as running forever if it was interrupted
     if db.match("SELECT Name FROM jobs WHERE Name='TELEMETRYSEND'"):

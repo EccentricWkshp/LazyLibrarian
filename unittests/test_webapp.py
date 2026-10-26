@@ -3,6 +3,7 @@
 # Purpose:
 #   Test the FastAPI app that hosts the CherryPy pages and /api/v1, and starting and stopping it
 
+import os
 import socket
 from unittest import mock
 
@@ -15,7 +16,7 @@ from lazylibrarian.common import url_root
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.database import DBConnection
 from lazylibrarian.sessions import SESSION_COOKIE
-from unittests.unittesthelpers import LLTestCaseWithDB
+from unittests.unittesthelpers import TESTDIR, LLTestCaseWithDB
 
 
 def legacy_app(environ, start_response):
@@ -200,6 +201,31 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertIn('/ll/api/v1/system/status', schema['paths'])
         self.client.cookies.clear()
         self.assertEqual(self.get('/ll/api/v1/openapi.json').status_code, 401)
+
+    def test_remote_path_mappings(self):
+        self.set_owner()
+        key = {'X-Api-Key': self.FULL_KEY}
+        local = os.path.join(TESTDIR, 'apimapping')
+        os.makedirs(local, exist_ok=True)
+        url = '/ll/api/v1/remotepathmapping'
+        response = self.client.post(url, headers=key, json={'host': 'NAS', 'remotePath': '/downloads/books',
+                                                            'localPath': local})
+        self.assertEqual(response.status_code, 201, response.text)
+        mapping = response.json()
+        self.assertEqual({k: v for k, v in mapping.items() if k != 'id'},
+                         {'host': 'nas', 'remotePath': '/downloads/books', 'localPath': local}, 'Like Sonarr')
+        self.assertEqual(self.get(url, headers=key).json(), [mapping])
+        response = self.client.post(url, headers=key, json={'host': 'nas', 'remotePath': '/downloads/books',
+                                                            'localPath': local})
+        self.assertEqual((response.status_code, response.json()['detail']),
+                         (400, 'There is already a mapping for that host and remote path'))
+        response = self.client.put(f"{url}/{mapping['id']}", headers=key,
+                                   json={'host': 'nas', 'remotePath': '/downloads/ebooks', 'localPath': local})
+        self.assertEqual(response.json()['remotePath'], '/downloads/ebooks')
+        self.assertEqual(self.client.delete(f"{url}/{mapping['id']}", headers={'X-Api-Key': self.READ_KEY}).status_code,
+                         403, 'The read-only key')
+        self.assertEqual(self.client.delete(f"{url}/{mapping['id']}", headers=key).status_code, 204)
+        self.assertEqual(self.get(f"{url}/{mapping['id']}", headers=key).status_code, 404)
 
     def test_unknown_endpoint_is_not_the_old_api(self):
         self.set_owner()

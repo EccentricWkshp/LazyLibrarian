@@ -206,8 +206,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('SABnzbd', 'SAB_CAT_COMIC', 'None'),
     ConfigBool('SABnzbd', 'SAB_DELETE', 1),
     ConfigStr('SABnzbd', 'SAB_EXTERNAL_HOST', ''),
-    ConfigStr('SABnzbd', 'SAB_REMOTE', ''),
-    ConfigStr('SABnzbd', 'SAB_LOCAL', ''),
     ConfigStr('NZBGet', 'NZBGET_HOST', ''),
     ConfigRangedInt('NZBGet', 'NZBGET_PORT', 0, 0, 65535),
     ConfigStr('NZBGet', 'NZBGET_USER', ''),
@@ -217,8 +215,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('NZBGet', 'NZBGET_CATEGORY_MAG', 'None'),
     ConfigStr('NZBGet', 'NZBGET_CATEGORY_COMIC', 'None'),
     ConfigInt('NZBGet', 'NZBGET_PRIORITY', 0),
-    ConfigStr('NZBGet', 'NZBGET_REMOTE', ''),
-    ConfigStr('NZBGet', 'NZBGET_LOCAL', ''),
     ConfigBool('General', 'DESTINATION_COPY', 0),
     ConfigStr('General', 'EBOOK_DIR', ''),
     ConfigStr('General', 'AUDIO_DIR', ''),
@@ -258,8 +254,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('RTORRENT', 'RTORRENT_LABEL_MAG', 'None'),
     ConfigStr('RTORRENT', 'RTORRENT_LABEL_COMIC', 'None'),
     ConfigStr('RTORRENT', 'RTORRENT_DIR', ''),
-    ConfigStr('RTORRENT', 'RTORRENT_REMOTE', ''),
-    ConfigStr('RTORRENT', 'RTORRENT_LOCAL', ''),
     ConfigStr('UTORRENT', 'UTORRENT_HOST', ''),
     ConfigRangedInt('UTORRENT', 'UTORRENT_PORT', 0, 0, 65535),
     ConfigStr('UTORRENT', 'UTORRENT_BASE', ''),
@@ -269,8 +263,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('UTORRENT', 'UTORRENT_LABEL_AUDIO', 'None'),
     ConfigStr('UTORRENT', 'UTORRENT_LABEL_MAG', 'None'),
     ConfigStr('UTORRENT', 'UTORRENT_LABEL_COMIC', 'None'),
-    ConfigStr('UTORRENT', 'UTORRENT_REMOTE', ''),
-    ConfigStr('UTORRENT', 'UTORRENT_LOCAL', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_HOST', ''),
     ConfigRangedInt('QBITTORRENT', 'QBITTORRENT_PORT', 0, 0, 65535),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_BASE', ''),
@@ -281,8 +273,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL_MAG', 'None'),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL_COMIC', 'None'),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_DIR', ''),
-    ConfigStr('QBITTORRENT', 'QBITTORRENT_REMOTE', ''),
-    ConfigStr('QBITTORRENT', 'QBITTORRENT_LOCAL', ''),
     ConfigBool('QBITTORRENT', 'QBITTORRENT_IGNORE_SSL', 0),
     ConfigBool('QBITTORRENT', 'QBITTORRENT_NOAUTH', 0),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_HOST', ''),
@@ -295,8 +285,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_AUDIO', 'None'),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_MAG', 'None'),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_COMIC', 'None'),
-    ConfigStr('TRANSMISSION', 'TRANSMISSION_REMOTE', ''),
-    ConfigStr('TRANSMISSION', 'TRANSMISSION_LOCAL', ''),
     ConfigStr('DELUGE', 'DELUGE_CERT', ''),
     ConfigStr('DELUGE', 'DELUGE_HOST', ''),
     ConfigStr('DELUGE', 'DELUGE_BASE', ''),
@@ -309,16 +297,12 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('DELUGE', 'DELUGE_LABEL_COMIC', 'None'),
     ConfigStr('DELUGE', 'DELUGE_DIR', ''),
     ConfigInt('DELUGE', 'DELUGE_TIMEOUT', 3600),
-    ConfigStr('DELUGE', 'DELUGE_REMOTE', ''),
-    ConfigStr('DELUGE', 'DELUGE_LOCAL', ''),
     ConfigStr('SYNOLOGY', 'SYNOLOGY_HOST', ''),
     ConfigRangedInt('SYNOLOGY', 'SYNOLOGY_PORT', 0, 0, 65535),
     ConfigStr('SYNOLOGY', 'SYNOLOGY_USER', ''),
     ConfigStr('SYNOLOGY', 'SYNOLOGY_PASS', ''),
     ConfigStr('SYNOLOGY', 'SYNOLOGY_DIR', 'Multimedia/Download'),
     ConfigBool('SYNOLOGY', 'USE_SYNOLOGY', 0),
-    ConfigStr('SYNOLOGY', 'SYNOLOGY_REMOTE', ''),
-    ConfigStr('SYNOLOGY', 'SYNOLOGY_LOCAL', ''),
     ConfigStr('ABB', 'ABB_HOST', 'audiobookbay.lu'),
     ConfigBool('ABB', 'ABB', 0),
     ConfigInt('ABB', 'ABB_DLPRIORITY', 0),
@@ -349,8 +333,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('SLSK', 'SLSK_URLBASE', '/'),
     ConfigBool('SLSK', 'SLSK', 0),
     ConfigInt('SLSK', 'SLSK_DLPRIORITY', 0),
-    ConfigStr('SLSK', 'SLSK_REMOTE', ''),
-    ConfigStr('SLSK', 'SLSK_LOCAL', ''),
     ConfigDownloadTypes('SLSK', 'SLSK_DLTYPES', 'E'),
     ConfigStr('ANNA', 'ANNA_HOST', 'https://annas-archive.org'),
     ConfigStr('ANNA', 'ANNA_KEY', ''),
@@ -599,6 +581,13 @@ BASE_DEFAULTS: list[ConfigItem] = [
 # Sections for features that have been removed. An older config.ini still has them, they're
 # skipped without a warning for every setting, and gone the next time the config is saved
 RETIRED_SECTIONS = {'telemetry', 'twitter', 'boxcar', 'androidpn', 'growl', 'nma', 'kat'}
+
+# Settings that have moved elsewhere. They're read from an older config.ini for the move, without a
+# warning, and gone the next time the config is saved. The download clients' remote and local
+# paths are remote path mappings in the database now. Nothing ever read the slsk ones
+RETIRED_SETTINGS = {f"{client}_{end}" for client in ('sab', 'nzbget', 'rtorrent', 'utorrent', 'qbittorrent',
+                                                      'transmission', 'deluge', 'synology', 'slsk')
+                    for end in ('remote', 'local')}
 
 # The setting holding each download client's category (or label) for eBooks. The other media types
 # have their own settings, named with a suffix. These settings used to be shared by every type, as

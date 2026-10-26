@@ -17,10 +17,11 @@
 
 from fastapi import APIRouter, HTTPException
 
-from lazylibrarian.apiv1 import system
+from lazylibrarian.apiv1 import remotepathmapping, system
 
 router = APIRouter(prefix='/api/v1')
 router.include_router(system.router)
+router.include_router(remotepathmapping.router)
 
 
 @router.api_route('/{path:path}', methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], include_in_schema=False)

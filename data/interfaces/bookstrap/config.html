@@ -24,6 +24,43 @@
     </div>
 </div>
 </%def>
+<%def name="remote_path_mappings(mappings, hosts)">
+                <fieldset>
+                  <legend>${_('Remote Path Mappings')}</legend>
+                  <span class="help-block">${_('A download client on another machine or in another container can report paths that are somewhere else here. A mapping replaces the start of such a path, as the client reports it, with where it is here. Each media type can have its own.')}</span>
+                  <table class="table table-condensed">
+                    <thead>
+                      <tr><th>${_('Host')}</th><th>${_('Remote Path')}</th><th>${_('Local Path')}</th><th>${_('Remove')}</th></tr>
+                    </thead>
+                    <tbody>
+  %for mapping in mappings + [{'Id': 'new', 'Host': '', 'RemotePath': '', 'LocalPath': ''}]:
+                      <tr>
+                        <td>
+                          <select name="rpm_host_${mapping['Id']}" class="form-control" aria-label="${_('Host') | h}">
+    %if mapping['Id'] == 'new':
+                            <option value="">${_('Add a mapping for')}</option>
+    %endif
+    %for client in hosts:
+                            <option value="${client['host'] | h}" ${'selected' if client['host'] == mapping['Host'] else ''}>${client['host'] | h} (${client['names'] | h})</option>
+    %endfor
+    %if mapping['Host'] and mapping['Host'] not in [client['host'] for client in hosts]:
+                            <option value="${mapping['Host'] | h}" selected>${mapping['Host'] | h}</option>
+    %endif
+                          </select>
+                        </td>
+                        <td><input type="text" name="rpm_remote_${mapping['Id']}" value="${mapping['RemotePath'] | h}" class="form-control" placeholder="/downloads/books" aria-label="${_('Remote Path') | h}"></td>
+                        <td><input type="text" name="rpm_local_${mapping['Id']}" value="${mapping['LocalPath'] | h}" class="form-control" placeholder="/mnt/downloads/books" aria-label="${_('Local Path') | h}"></td>
+                        <td>
+    %if mapping['Id'] != 'new':
+                          <input type="checkbox" name="rpm_delete_${mapping['Id']}" value="1" aria-label="${_('Remove') | h}">
+    %endif
+                        </td>
+                      </tr>
+  %endfor
+                    </tbody>
+                  </table>
+                </fieldset>
+</%def>
 <%def name="category_inputs(field, setting, title)">
 <%
     kinds = [(suffix, name) for suffix, tab, name in (('', 'EBOOK_TAB', _('eBooks')), ('_audio', 'AUDIO_TAB', _('AudioBooks')),
@@ -1028,17 +1065,6 @@
                         </div>
                       </div>
                       <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="sab_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="sab_remote" name="sab_remote" value="${CONFIG['SAB_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="sab_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="sab_local" name="sab_local" value="${CONFIG['SAB_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                      </div>
-                      <div class="row">
                         <div class="col-md-6">
                         <div class="input-group">
                           <span class="input-group-addon">${_('Ext Host/Port')}</span>
@@ -1094,17 +1120,6 @@
                         </div>
                       </div>
                       <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="nzbget_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="nzget_remote" name="nzbget_remote" value="${CONFIG['NZBGET_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="nzbget_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="nzbget_local" name="nzbget_local" value="${CONFIG['NZBGET_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                      </div>
-                      <div class="row">
                       <div class="col-md-6">
                         <button class="button btn btn-sm btn-primary" type="button" value="Test NZBget" id="test_nzbget"><i class="fa fa-list-ul"></i> ${_('Test NZBget')}</button>
                         <br>
@@ -1155,17 +1170,6 @@
                           <input type="checkbox" id="tor_downloader_synology" name="tor_downloader_synology" value="1" ${checked} />
                           ${_('Use DownloadStation for torrents')}</label>
                       </div>
-                      </div>
-                      <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="sab_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="synology_remote" name="synology_remote" value="${CONFIG['SYNOLOGY_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="synology_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="synology_local" name="synology_local" value="${CONFIG['SYNOLOGY_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
                       </div>
                       <div class="row">
                       <div class="col-md-6">
@@ -1249,17 +1253,6 @@
                         <input type="text" id="deluge_dir" name="deluge_dir" value="${CONFIG['DELUGE_DIR']}" class="form-control" placeholder="${_('use deluge default') | h}">
                       </div>
                     </div>
-                      <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="deluge_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="deluge_remote" name="deluge_remote" value="${CONFIG['DELUGE_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="deluge_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="deluge_local" name="deluge_local" value="${CONFIG['DELUGE_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                      </div>
                       <div class="col-md-6">
                         <button class="button btn btn-sm btn-primary" type="button" value="Test Deluge" id="test_deluge"><i class="fa fa-list-ul"></i> ${_('Test Deluge')}</button>
                         <br>
@@ -1301,17 +1294,6 @@
                       </div>
                       ${category_inputs('transmission_label', 'TRANSMISSION_LABEL', _('Transmission Labels:'))}
                     </div>
-                      <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="transmission_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="transmission_remote" name="transmission_remote" value="${CONFIG['TRANSMISSION_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="transmission_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="transmission_local" name="transmission_local" value="${CONFIG['TRANSMISSION_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                      </div>
                     <div class="row">
                       <div class="col-md-6">
                         <button class="button btn btn-sm btn-primary" type="button" value="Test Transmission" id="test_transmission"><i class="fa fa-list-ul"></i> ${_('Test Transmission')}</button>
@@ -1345,17 +1327,6 @@
                       <div class="form-group col-md-6">
                         <label for="rtorrent_dir" class="control-label">${_('rTorrent Directory:')}</label>
                         <input type="text" id="rtorrent_dir" name="rtorrent_dir" value="${CONFIG['RTORRENT_DIR']}" class="form-control" placeholder="${_('use rtorrent default') | h}">
-                      </div>
-                    </div>
-                    <div class="row">
-                      <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                      <div class="form-group col-md-6">
-                        <label for="rtorrent_remote">${_('Remote Dir:')}</label>
-                        <input type="text" id="rtorrent_remote" name="rtorrent_remote" value="${CONFIG['RTORRENT_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                      </div>
-                      <div class="form-group col-md-6">
-                        <label for="rtorrent_local" class="control-label">${_('Local Dir:')}</label>
-                        <input type="text" id="rtorrent_local" name="rtorrent_local" value="${CONFIG['RTORRENT_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
                       </div>
                     </div>
                     <div>
@@ -1397,17 +1368,6 @@
                         <input type="text" id="utorrent_base" name="utorrent_base" value="${CONFIG['UTORRENT_BASE']}" class="form-control" placeholder="${_('URL base') | h}">
                       </div>
                     </div>
-                      <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="utorrent_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="utorrent_remote" name="utorrent_remote" value="${CONFIG['UTORRENT_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="utorrent_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="utorrent_local" name="utorrent_local" value="${CONFIG['UTORRENT_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                      </div>
                     <div class="row">
                       <div class="col-md-6">
                         <button class="button btn btn-sm btn-primary" type="button" value="Test uTorrent" id="test_utorrent"><i class="fa fa-list-ul"></i> ${_('Test uTorrent')}</button>
@@ -1449,17 +1409,6 @@
                         <div class="form-group col-md-6">
                           <label for="qbittorrent_dir" class="control-label">${_('Download directory :')}</label>
                           <input type="text" id="qbittorrent_dir" name="qbittorrent_dir" value="${CONFIG['QBITTORRENT_DIR']}" class="form-control" placeholder="${_('use qbittorrent default') | h}">
-                        </div>
-                      </div>
-                      <div class="row">
-                        <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
-                        <div class="form-group col-md-6">
-                          <label for="qbittorrent_remote">${_('Remote Dir:')}</label>
-                          <input type="text" id="qbittorrent_remote" name="qbittorrent_remote" value="${CONFIG['QBITTORRENT_REMOTE']}" class="form-control"      placeholder="${_('Normally leave blank') | h}">
-                        </div>
-                        <div class="form-group col-md-6">
-                          <label for="qbittorrent_local" class="control-label">${_('Local Dir:')}</label>
-                          <input type="text" id="qbittorrent_local" name="qbittorrent_local" value="${CONFIG['QBITTORRENT_LOCAL']}" class="form-control"     placeholder="${_('Normally leave blank') | h}">
                         </div>
                       </div>
                       <div class="row">
@@ -1555,6 +1504,11 @@
                   </div>
                   </fieldset>
                 </fieldset>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-12">
+                ${remote_path_mappings(config['remote_path_mappings'], config['client_hosts'])}
               </div>
             </div>
           </div>
