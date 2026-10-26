@@ -44,7 +44,7 @@ New languages are added in Weblate, which creates the `.po` file from the templa
 
 ## For developers
 
-Templates get these helpers from `serve_template()` in `webServe.py`:
+Templates get these helpers from `serve_template()` in `web/common.py`:
 
 | Helper | Use |
 |---|---|

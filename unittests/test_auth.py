@@ -699,7 +699,7 @@ class PingTest(AuthDBTestCase):
     def test_ping_without_database(self):
         broken = mock.MagicMock()
         broken.return_value.match.side_effect = Exception('database is locked')
-        with mock.patch.object(self.webServe.database, 'DBConnection', broken):
+        with mock.patch('lazylibrarian.database.DBConnection', broken):
             self.assertEqual(self.webServe.WebInterface().ping(), {'status': 'Error'})
         self.assertEqual(cherrypy.serving.response.status, 503)
         broken.return_value.close.assert_called_once()

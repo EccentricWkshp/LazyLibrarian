@@ -326,7 +326,7 @@ def download_dump_file(url, local_path):
 
 
 def update_openlibrary_dump():
-    """Scheduled (or manually-triggered, see webServe.force_openlibrary_dump) task to
+    """Scheduled (or manually-triggered, see web/system.py force_openlibrary_dump) task to
     download and stream OpenLibrary author & work dumps into local SQLite database.
     Safe to interrupt and re-run: already-complete downloads are skipped, an
     interrupted download resumes via HTTP Range rather than restarting, and indexing

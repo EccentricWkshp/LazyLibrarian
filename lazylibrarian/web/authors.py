@@ -15,6 +15,7 @@
 import datetime
 import logging
 import os
+import re
 import threading
 import time
 import traceback
@@ -68,6 +69,16 @@ from lazylibrarian.web.common import BasePages, fold, mark_summary, serve_templa
 
 class AuthorPages(BasePages):
     """ The author list, author pages, author edits and source links, and the search box """
+
+    # GoodReads prefixes its 'about' field with an editorial note like:
+    # "<i>Librarian Note: There is more than one author in the Goodreads
+    # database with this name.</i><br /><br />actual bio..." when applicable
+    # (duplicate-author disambiguation, merged records, etc.) - GR's own
+    # convention, not a separate structured API field. get_all_author_details()
+    # stores 'about' verbatim, so this is detectable straight from what's
+    # already in the authors table, no extra fetch or schema change needed.
+    LIBRARIAN_NOTE_RE = re.compile(
+        r'^\s*<i>\s*Librarian Note:\s*(?P<note>.*?)\s*</i>\s*(?:<br\s*/?>\s*)*', re.IGNORECASE | re.DOTALL)
 
     @cherrypy.expose
     @require_auth()
