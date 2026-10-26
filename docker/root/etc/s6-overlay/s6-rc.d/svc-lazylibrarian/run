@@ -1,0 +1,9 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+# s6 starts LazyLibrarian again whenever it exits, which is how a restart from the web interface works.
+# It's ready once /ping answers, at the port and web root in config.ini.
+
+exec \
+    s6-notifyoncheck -d -n 300 -w 1000 -c "python3 /app/lazylibrarian/docker/healthcheck.py --quiet" \
+        s6-setuidgid abc python3 /app/lazylibrarian/LazyLibrarian.py \
+        --datadir /config --config /config/config.ini --nolaunch

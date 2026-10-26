@@ -1,4 +1,5 @@
-""" Docker health check: ask LazyLibrarian's /ping, at the port and web root set in config.ini """
+""" Docker health check: ask LazyLibrarian's /ping, at the port and web root set in config.ini.
+s6 also runs it with --quiet while LazyLibrarian starts, to know when it's ready """
 
 import configparser
 import ssl
@@ -18,5 +19,6 @@ try:
     with urllib.request.urlopen(url, timeout=8, context=context) as response:
         sys.exit(0 if response.status == 200 else 1)
 except Exception as e:
-    print(f'{url}: {e}')
+    if '--quiet' not in sys.argv:
+        print(f'{url}: {e}')
     sys.exit(1)

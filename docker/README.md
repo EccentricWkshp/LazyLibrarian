@@ -20,6 +20,8 @@ services:
       - PGID=1000
       - UMASK=022
       - TZ=Etc/UTC
+      # optional, see Calibre and ffmpeg below
+      # - DOCKER_MODS=linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg
     volumes:
       - ./config:/config
       - /path/to/books:/books
@@ -51,11 +53,32 @@ docker run -d --name lazylibrarian \
 | `-e PUID=1000`, `-e PGID=1000` | The user and group LazyLibrarian runs as, so the files it writes belong to you. Run `id` on the host to see yours |
 | `-e UMASK=022` | Permissions of new files. `002` keeps them writable for the group |
 | `-e TZ=Etc/UTC` | Your [time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), for schedules and log times |
+| `-e DOCKER_MODS=...` | Optional [linuxserver.io mods](https://mods.linuxserver.io/) to add at startup, separated by `\|`. See Calibre and ffmpeg below |
 | `-v /config` | Settings, database, cache and logs |
 | `-v /books`, `-v /downloads` | Your library and your download client's completed downloads. Use the same path for downloads as your download client does, so LazyLibrarian finds them |
 
-Use a restart policy such as `unless-stopped`. **Restart** in the web interface exits the
-container and relies on Docker to start it again. **Shutdown** stops it until you start it.
+**Restart** and **Shutdown** in the web interface both start LazyLibrarian again inside the
+container. To stop it, stop the container, for example with `docker compose stop`.
+
+## Calibre and ffmpeg
+
+The image is built on the linuxserver.io Ubuntu base image, so their mods work just as they do
+with their LazyLibrarian image. Add the ones you need to `DOCKER_MODS`, separated by `|`:
+
+| Mod | Adds | Then in LazyLibrarian |
+| --- | --- | --- |
+| `linuxserver/mods:universal-calibre` | Calibre, to convert ebooks and add them to a Calibre library (amd64 and arm64) | Settings > Processing: calibredb `/usr/bin/calibredb`, ebook-convert `/usr/bin/ebook-convert` |
+| `linuxserver/mods:lazylibrarian-ffmpeg` | ffmpeg, to merge and tag audiobooks | Settings > Processing: ffmpeg `ffmpeg` |
+
+Mods install each time the container is created, which adds a minute or two to that start.
+
+## Moving from the linuxserver.io image
+
+`/config` is laid out the same way, so you can point this image at your existing `/config`
+folder and keep your other settings, mods included. Take a copy of that folder first: the
+database is upgraded on the first start and can't be used with the old image afterwards.
+Only one account is kept, as owner: the admin who logged in most recently, or the web server
+login from your settings.
 
 ## Updating
 
@@ -83,5 +106,5 @@ several containers updating automatically.
 
 ## Notes
 
-- The container's health check asks `http://localhost:5299/ping`, which answers without a login.
-- Ghostscript is included, for magazine covers. Calibre's `ebook-convert` and ffmpeg aren't.
+- The container's health check asks `/ping` at the port in your settings, which answers without a login.
+- Ghostscript, for magazine covers, and unrar, for comics in rar archives, are included.

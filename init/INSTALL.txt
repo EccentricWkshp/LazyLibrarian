@@ -14,6 +14,11 @@ LazyLibrarian runs as, so the files it writes belong to you (run `id` to see you
 it the same paths to your downloads as your download client uses. Update by pulling the
 new image: docker compose pull && docker compose up -d
 
+The image is built on the linuxserver.io base image, so their DOCKER_MODS work, for example
+universal-calibre for ebook conversion and lazylibrarian-ffmpeg for audiobooks, and it uses
+the same /config layout as their LazyLibrarian image. Copy that /config folder before pointing
+this image at it: the database is upgraded on the first start.
+
 The same image is published as ghcr.io/eccentricwkshp/lazylibrarian. Use that one if you hit
 Docker Hub's limit on pulls without a login.
 

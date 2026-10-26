@@ -1,21 +1,25 @@
 # syntax=docker/dockerfile:1
 #
-# LazyLibrarian, laid out like the linuxserver.io and hotio images of Sonarr and Radarr:
-# settings, database, cache and logs in /config, owned by the PUID and PGID you choose.
-# See docker-compose.yml for an example.
+# LazyLibrarian on the linuxserver.io Ubuntu base image, laid out like their image: settings,
+# database, cache and logs in /config, PUID, PGID and UMASK choose who owns the files, and
+# DOCKER_MODS works, for example linuxserver/mods:universal-calibre for ebook conversion and
+# linuxserver/mods:lazylibrarian-ffmpeg for audiobooks. See docker-compose.yml for an example.
 
-FROM python:3.13-slim
+FROM ghcr.io/linuxserver/unrar:latest AS unrar
 
-# ghostscript makes magazine covers from pdfs, libmagic1 identifies downloaded files,
-# tini passes signals on and reaps stray child processes
+FROM ghcr.io/linuxserver/baseimage-ubuntu:noble
+
+# ghostscript makes magazine covers from pdfs, libmagic1 identifies downloaded files
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ghostscript libmagic1 tini \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends ghostscript libmagic1 python3-venv \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-WORKDIR /app
+WORKDIR /app/lazylibrarian
 
+# the base image puts /lsiopy/bin first on the PATH, so python3 is this virtualenv
 COPY requirements.txt .
-RUN pip install --no-cache-dir --root-user-action=ignore --disable-pip-version-check -r requirements.txt
+RUN python3 -m venv /lsiopy \
+    && pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
 COPY . .
 
@@ -23,22 +27,19 @@ COPY . .
 # the version in the web interface.
 ARG LL_COMMIT=unknown
 RUN printf 'LAZYLIBRARIAN_VERSION = "Package"\nLAZYLIBRARIAN_HASH = "%s"\n' "$LL_COMMIT" > lazylibrarian/version.py \
-    && python -m compileall -q LazyLibrarian.py lazylibrarian lib \
-    && useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin lazylibrarian \
-    && mkdir /config
+    && python3 -m compileall -q LazyLibrarian.py lazylibrarian lib \
+    && cp -r docker/root/. / \
+    && chmod +x /etc/s6-overlay/s6-rc.d/*/run
 
-# LAZYLIBRARIAN_SUPERVISED: a restart from the web interface exits, and Docker starts it again
-ENV PUID=1000 \
-    PGID=1000 \
-    UMASK=022 \
-    LAZYLIBRARIAN_SUPERVISED=1 \
+# comic archives in rar format
+COPY --from=unrar /usr/bin/unrar-ubuntu /usr/bin/unrar
+
+# a restart from the web interface exits, and s6 starts LazyLibrarian again
+ENV LAZYLIBRARIAN_SUPERVISED=1 \
     PYTHONUNBUFFERED=1
 
 VOLUME /config
 EXPOSE 5299
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=2m \
-    CMD ["python", "/app/docker/healthcheck.py"]
-
-ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/app/docker/entrypoint.sh"]
-CMD ["python", "/app/LazyLibrarian.py", "--datadir", "/config", "--config", "/config/config.ini", "--nolaunch"]
+    CMD ["python3", "/app/lazylibrarian/docker/healthcheck.py"]

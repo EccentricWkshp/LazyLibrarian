@@ -13,6 +13,8 @@ services:
       - PGID=1000
       - UMASK=022
       - TZ=Etc/UTC
+      # optional linuxserver.io mods: Calibre for ebook conversion, ffmpeg for audiobooks
+      # - DOCKER_MODS=linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg
     volumes:
       - ./config:/config
       - /path/to/books:/books
