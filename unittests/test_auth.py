@@ -680,30 +680,6 @@ class CrossSiteTest(AuthDBTestCase):
         self.assertEqual(cm.exception.status, 403)
 
 
-class PingTest(AuthDBTestCase):
-    """ The health check Docker and monitoring tools use, it needs no login """
-
-    def setUp(self):
-        super().setUp()
-        from lazylibrarian import webServe
-        self.webServe = webServe
-        response = FakeResponse()
-        patch = mock.patch.object(cherrypy.serving, 'response', response)
-        patch.start()
-        self.addCleanup(patch.stop)
-
-    def test_ping(self):
-        self.assertEqual(self.webServe.WebInterface().ping(), {'status': 'OK'})
-        self.assertIsNone(getattr(cherrypy.serving.response, 'status', None), 'Left at the default 200')
-
-    def test_ping_without_database(self):
-        broken = mock.MagicMock()
-        broken.return_value.match.side_effect = Exception('database is locked')
-        with mock.patch('lazylibrarian.database.DBConnection', broken):
-            self.assertEqual(self.webServe.WebInterface().ping(), {'status': 'Error'})
-        self.assertEqual(cherrypy.serving.response.status, 503)
-        broken.return_value.close.assert_called_once()
-
 class ConfigFixupTest(LLTestCaseWithConfigandDIRS):
 
     def test_proxy_auth_becomes_external(self):

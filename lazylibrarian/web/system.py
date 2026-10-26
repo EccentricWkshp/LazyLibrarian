@@ -387,16 +387,6 @@ class SystemPages(BasePages):
         return msg
 
     @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def ping(self):
-        """ Health check for Docker and monitoring tools, like Sonarr's /ping. It needs no
-        login, so it only says whether LazyLibrarian is up and can read its database """
-        if system.database_ok():
-            return {'status': 'OK'}
-        cherrypy.response.status = 503
-        return {'status': 'Error'}
-
-    @cherrypy.expose
     def api(self, **kwargs):
         from lazylibrarian.api import Api
         a = Api()

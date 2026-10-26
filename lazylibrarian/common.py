@@ -35,12 +35,14 @@ from pathlib import Path
 import apscheduler
 import bs4
 import cherrypy
+import fastapi
 import html5lib
 import httplib2
 import mako
 import pypdf
 import requests
 import urllib3
+import uvicorn
 import webencodings
 
 import lazylibrarian
@@ -351,6 +353,8 @@ def log_header(online=True) -> str:
         header += f"tls: {tls_version}\n"
 
     header += f"cherrypy: {getattr(cherrypy, '__version__', None)}\n"
+    header += f"fastapi: {getattr(fastapi, '__version__', None)}\n"
+    header += f"uvicorn: {getattr(uvicorn, '__version__', None)}\n"
     header += f"sqlite3: {getattr(sqlite3, 'sqlite_version', None)}\n"
     header += f"mako: {getattr(mako, '__version__', None)}\n"
     header += f"webencodings: {getattr(webencodings, 'VERSION', None)}\n"

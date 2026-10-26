@@ -28,7 +28,6 @@ import traceback
 from shutil import move, rmtree
 from typing import Any
 
-import cherrypy
 import requests
 import urllib3
 
@@ -732,6 +731,8 @@ class StartupLazyLibrarian:
 
     def shutdown(self, restart=False, update=False, doquit=False, testing=False) -> int:
         """ Stop, and restart or update when asked to. Returns the exit status, which tests use """
+        from lazylibrarian import webStart  # it imports the web pages, which import this module
+
         shutdownscheduler()
         if not testing and not (update and doquit):  # commandline update, don't save config as no filename
             if self.logger.isEnabledFor(logging.DEBUG):  # TODO add a separate setting
@@ -818,11 +819,10 @@ class StartupLazyLibrarian:
                     upgradelog.write(f"{time.ctime()} {'Restarting LazyLibrarian with ' + str(popen_list)}\n")
                 subprocess.Popen(popen_list, cwd=os.getcwd())
                 doquit = True
-                if cherrypy.server.httpserver is not None:
+                if webStart.running():
                     # updating a running instance, not an --update
                     # wait for the new instance to open the httpserver
-                    cherrypy.engine.stop()
-                    cherrypy.server.httpserver = None
+                    webStart.stop()
                     host = CONFIG['HTTP_HOST']
                     if '0.0.0.0' in host:
                         host = 'localhost'  # windows doesn't like 0.0.0.0
@@ -888,7 +888,7 @@ class StartupLazyLibrarian:
                             msg = 'Webserver failed to start, reverting update'
                             upgradelog.write(f"{time.ctime()} {msg}\n")
                             self.logger.info(msg)
-                            cherrypy.engine.start()
+                            webStart.start()
                             if tarfile.is_tarfile(archivename):
                                 try:
                                     with tarfile.open(archivename) as tar:
@@ -918,7 +918,7 @@ class StartupLazyLibrarian:
 
         if doquit and not testing:
             self.logger.info(f'Lazylibrarian (pid {os.getpid()}) is exiting')
-            cherrypy.engine.stop()
+            webStart.stop()
             # Do this as the last step before exiting
             UNBUNDLER.remove_bundled_modules()
             sys.exit(exit_status)

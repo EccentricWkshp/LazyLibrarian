@@ -9,10 +9,17 @@
 #  GNU General Public License for more details.
 #  You should have received a copy of the GNU General Public License
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Purpose:
+#   Start and stop the web server. uvicorn serves the FastAPI app from webapp.py on the
+#   configured host, port and certificate, and the CherryPy pages set up here run inside it.
 
+import contextlib
 import hmac
 import os
 import sys
+import threading
+import time
 
 try:
     import psutil
@@ -20,6 +27,7 @@ except ImportError:
     psutil = None
 
 import cherrypy
+import uvicorn
 
 try:
     import cherrypy_cors
@@ -35,15 +43,19 @@ from lazylibrarian.auth import check_user_password, credentials_set, get_owner
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, syspath
 from lazylibrarian.logconfig import LOGCONFIG
+from lazylibrarian.webapp import create_app
 from lazylibrarian.webServe import WebInterface
 
-try:
-    import portend
-except ImportError:
-    portend = None
+# seconds to let requests finish when stopping
+GRACEFUL_SHUTDOWN = 5
+
+_server_config = None
+_server = None
+_server_thread = None
 
 
 def initialize(options=None):
+    global _server_config
     logger = logging.getLogger(__name__)
     if options is None:
         options = {}
@@ -59,9 +71,6 @@ def initialize(options=None):
 
     options_dict = {
         'log.screen': False,
-        'server.thread_pool': 10,
-        'server.socket_port': options['http_port'],
-        'server.socket_host': options['http_host'],
         'engine.autoreload.on': False,
         'tools.encode.on': True,
         'tools.encode.encoding': 'utf-8',
@@ -71,13 +80,7 @@ def initialize(options=None):
         'error_page.404': error_page_404,
     }
 
-    if https_enabled:
-        options_dict['server.ssl_certificate'] = https_cert
-        options_dict['server.ssl_private_key'] = https_key
-        protocol = "https"
-    else:
-        protocol = "http"
-
+    protocol = "https" if https_enabled else "http"
     logger.info(f"Starting LazyLibrarian web server on {protocol}://{options['http_host']}:"
                 f"{options['http_port']}{options['http_root']}")
     cherrypy_cors.install()
@@ -166,10 +169,10 @@ def initialize(options=None):
             'tools.proxy.local': CONFIG['PROXY_LOCAL']
         })
     # Every page decorated with @require_auth() needs a logged-in owner, see auth.py.
-    # The api, login page, health check and static elements are exempt. The feed and serve_* links
+    # The api, login page and static elements are exempt. The feed and serve_* links
     # carry the owner UserID and are checked by the handlers, so feed readers can use them.
     conf['/'].update({'tools.auth.on': True})
-    for i in ('/api', '/auth', '/ping', '/css', '/images', '/js', '/favicon.ico', '/rss_feed', '/nzbfile.nzb',
+    for i in ('/api', '/auth', '/css', '/images', '/js', '/favicon.ico', '/rss_feed', '/nzbfile.nzb',
               '/serve_img', '/serve_issue', '/serve_book', '/serve_audio', '/serve_comic', '/opds'):
         if i in conf:
             conf[i].update({'tools.auth.on': False})
@@ -218,16 +221,24 @@ def initialize(options=None):
             'log.error_file': DIRS.get_logfile('cherrypy.error.log'),
         })
     lazylibrarian.STOPTHREADS = False
-    cherrypy.engine.autoreload.subscribe()
 
+    # LazyLibrarian logs its own start and stop, keep uvicorn to warnings and errors
+    logging.getLogger('uvicorn').setLevel(logging.WARNING)
+    # proxy_headers is off as auth.client_ip decides when to believe X-Forwarded-For
+    _server_config = uvicorn.Config(
+        create_app(options['http_root'], cherrypy.tree), host=options['http_host'], port=options['http_port'],
+        ssl_certfile=https_cert if https_enabled else None, ssl_keyfile=https_key if https_enabled else None,
+        log_config=None, access_log=False, proxy_headers=False, server_header=False,
+        timeout_graceful_shutdown=GRACEFUL_SHUTDOWN)
+    error = ''
     try:
-        if portend:
-            portend.Checker().assert_free(str(options['http_host']), options['http_port'])
-        cherrypy.server.start()
-        copyfile(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'lazylibrarian.png'),
-                 os.path.join(DIRS.CACHEDIR, 'alive.png'))
+        _server_config.load()
+        if not start():
+            error = 'see the log above'
     except Exception as e:
-        msg = f"CherryPy failed to start on port {options['http_port']}"
+        error = f"{type(e).__name__}: {e}"
+    if error:
+        msg = f"The web server failed to start on port {options['http_port']}"
         if psutil:
             for item in psutil.net_connections():
                 txt = str(item)
@@ -240,12 +251,47 @@ def initialize(options=None):
         else:
             msg += ' Please install psutil to get more info'
         logger.warning(msg)
-        logger.warning(str(e))
+        logger.warning(error)
         print(msg)
-        print(str(e))
+        print(error)
         sys.exit(1)
+    copyfile(os.path.join(DIRS.PROG_DIR, 'data', 'images', 'lazylibrarian.png'),
+             os.path.join(DIRS.CACHEDIR, 'alive.png'))
 
-    cherrypy.server.wait()
+
+def start() -> bool:
+    """ Serve pages with the settings from initialize(), return whether that worked.
+    uvicorn runs in its own thread, so it leaves signals to LazyLibrarian """
+    global _server, _server_thread
+    # The CherryPy pages are a plain WSGI app in there, its engine and server aren't started
+    _server = uvicorn.Server(_server_config)
+    _server_thread = threading.Thread(target=_serve, args=(_server,), name='WEBSERVER', daemon=True)
+    _server_thread.start()
+    while not _server.started and _server_thread.is_alive():
+        time.sleep(0.05)
+    if not _server.started:
+        _server = None
+        return False
+    return True
+
+
+def _serve(server):
+    # uvicorn exits when it can't listen, after logging why. start() reports it
+    with contextlib.suppress(SystemExit):
+        server.run()
+
+
+def running() -> bool:
+    return _server is not None
+
+
+def stop():
+    """ Stop serving pages, letting requests in progress finish """
+    global _server
+    if _server is not None:
+        _server.should_exit = True
+        _server_thread.join(GRACEFUL_SHUTDOWN + 5)
+        _server = None
 
 
 def check_opds_password(realm, username, password):

@@ -44,7 +44,7 @@ class ShutdownTest(LLTestCase):
                 mock.patch.dict(os.environ, env or {}), \
                 mock.patch.object(startup.versioncheck, 'update', return_value=False), \
                 mock.patch.object(startup.subprocess, 'Popen') as popen, \
-                mock.patch.object(startup.cherrypy.server, 'httpserver', None), \
+                mock.patch('lazylibrarian.webStart.running', return_value=False), \
                 mock.patch.object(startup.DIRS, 'get_logfile', side_effect=lambda f: os.path.join(logdir, f)), \
                 mock.patch.object(startup.DIRS, 'FULL_PATH', 'LazyLibrarian.py', create=True), \
                 mock.patch.object(startup.DIRS, 'ARGS', [], create=True):
