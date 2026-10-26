@@ -127,11 +127,12 @@ def explain_missing(source: str, path: str) -> str:
     host = host_name(CONFIG[setting]) if setting else ''
     if not host:
         return ''
+    client = next(name for name, client_setting in CLIENT_HOSTS.items() if client_setting == setting)
     for mapping in mappings():
         if mapping['Host'] == host and _rest_below(mapping['LocalPath'], path) is not None:
             return (f"That is where the remote path mapping of {mapping['RemotePath']} on {host} to "
                     f"{mapping['LocalPath']} puts it, check that mapping in Settings, Downloaders")
-    return (f"No remote path mapping for {host} covers it. If {source} sees its files at another path, "
+    return (f"No remote path mapping for {host} covers it. If {client} sees its files at another path, "
             f"add one in Settings, Downloaders")
 
 

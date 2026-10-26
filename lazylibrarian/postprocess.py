@@ -2362,10 +2362,10 @@ def _process_book_after_matching(
             db,
             logger,
         )
-    if book_state.source in TRACKED_SOURCES:
+    if book_state.source in TRACKED_SOURCES or book_state.source == "MANUAL":
         # Like Sonarr and Radarr, a download client's download that won't import is blocked, not
         # failed: its files stay as they are in the client, to see what went wrong, try again or
-        # import by hand. Only our own working copy goes
+        # import by hand, and so do the files of a manual import. Only our own working copy goes
         logger.error(f"Postprocessing for {metadata.global_name!r} has failed: {dest_file!r}")
         book_state.mark_failed("destination", enforce_str(make_unicode(dest_file)))
         if book_path and book_path.endswith(".unpack"):
