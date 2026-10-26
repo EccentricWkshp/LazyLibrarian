@@ -1,0 +1,75 @@
+/* From Sonarr's QueueRow and QueueStatusCell styles */
+
+.select {
+  width: 36px;
+}
+
+.status {
+  width: 30px;
+}
+
+.title {
+  min-width: 200px;
+}
+
+.titleLink {
+  color: var(--ink);
+  font-weight: 500;
+
+  &:hover {
+    color: var(--linkHoverColor);
+    text-decoration: underline;
+  }
+}
+
+.author {
+  margin-top: 2px;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize);
+
+  & a {
+    color: inherit;
+  }
+}
+
+.release {
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.releaseTitle {
+  display: inline-block;
+  color: var(--inkSoft);
+  word-break: normal;
+  font-size: 12px;
+  font-family: var(--monoSpaceFontFamily);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.size,
+.added {
+  white-space: nowrap;
+}
+
+.progress {
+  width: 150px;
+}
+
+.actions {
+  width: 70px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.intro {
+  margin-bottom: 20px;
+  color: var(--inkSoft);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin-top: 20px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}

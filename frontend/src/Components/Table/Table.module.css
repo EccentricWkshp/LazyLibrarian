@@ -1,0 +1,59 @@
+/* From Sonarr's Table, TableHeaderCell, TableRow and TableRowCell styles */
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.table {
+  max-width: 100%;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.headerCell {
+  padding: 12px 10px;
+  color: var(--inkMuted);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.select {
+  width: 36px;
+}
+
+.row {
+  transition: background-color 200ms cubic-bezier(0.25, 1, 0.5, 1);
+
+  &:hover {
+    background-color: var(--tableRowHoverBackgroundColor);
+  }
+}
+
+.cell {
+  padding: 12px 10px;
+  border-top: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.visuallyHidden {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
+@media (--breakpointMedium) {
+  .cell {
+    white-space: nowrap;
+  }
+}

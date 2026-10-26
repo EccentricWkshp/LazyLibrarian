@@ -1,0 +1,136 @@
+/* From Sonarr's InteractiveImportModalContent and InteractiveImportRow styles */
+
+.footer {
+  justify-content: space-between;
+}
+
+.leftButtons,
+.rightButtons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rightButtons {
+  justify-content: flex-end;
+  flex: 1 1 50%;
+}
+
+.alertAction {
+  margin-top: 10px;
+}
+
+.select {
+  width: 36px;
+}
+
+.relativePath {
+  max-width: 480px;
+  word-break: normal;
+  font-size: 12px;
+  font-family: var(--monoSpaceFontFamily);
+  overflow-wrap: anywhere;
+}
+
+.fileCount {
+  color: var(--inkMuted);
+  font-family: var(--defaultFontFamily);
+}
+
+.mediaType {
+  width: 140px;
+}
+
+.typeSelect {
+  min-height: 30px;
+  padding: 2px 8px;
+  font-size: 13px;
+}
+
+.book {
+  min-width: 220px;
+}
+
+.chooseBook {
+  display: block;
+  padding: 4px 8px;
+  width: 100%;
+  border: 1px dashed var(--inputBorderColor);
+  border-radius: 6px;
+
+  &:hover {
+    border-color: var(--inputFocusBorderColor);
+  }
+}
+
+.placeholder {
+  color: var(--inkFaint);
+}
+
+.size {
+  white-space: nowrap;
+}
+
+.rejections {
+  width: 50px;
+  text-align: center;
+}
+
+.browser {
+  overflow-y: auto;
+  margin-top: 12px;
+  max-height: 50vh;
+  border: 1px solid var(--borderColor);
+  border-radius: 8px;
+}
+
+.folders {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.folder {
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  width: 100%;
+  gap: 8px;
+
+  &:hover {
+    background-color: var(--tableRowHoverBackgroundColor);
+  }
+}
+
+.empty {
+  padding: 7px 14px;
+  color: var(--inkMuted);
+}
+
+.books {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.bookResult {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-top: 1px solid var(--borderColor);
+
+  &:hover {
+    background-color: var(--tableRowHoverBackgroundColor);
+  }
+}
+
+.bookTitle {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.bookAuthor {
+  color: var(--inkMuted);
+  font-size: var(--smallFontSize);
+}

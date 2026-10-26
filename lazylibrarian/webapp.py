@@ -17,16 +17,20 @@
 #   FastAPI routes get the same login, whitelist and cross-site checks as the pages, from
 #   auth.py, and /api/v1 also takes the API keys.
 
+import json
+import os
 from http import HTTPStatus
 
 from a2wsgi import WSGIMiddleware
 from fastapi import APIRouter, Depends, FastAPI, Request, Security
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import APIKeyHeader, APIKeyQuery
+from fastapi.staticfiles import StaticFiles
 
 from lazylibrarian import apiv1, auth
 from lazylibrarian.common import url_root
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.services import NotFoundError, ServiceError, system
 
 # CherryPy's own server had a pool of 10 threads, the WSGI bridge gets as many
@@ -40,6 +44,26 @@ NO_TELEMETRY = {'tracing': False, 'metrics': False, 'logs': False, 'operation_sp
 API_KEY_HEADER = APIKeyHeader(name='X-Api-Key', auto_error=False, description='The API key from Settings')
 API_KEY_QUERY = APIKeyQuery(name='apikey', auto_error=False, description='The API key, if a header is no use')
 
+# The single page front end, built from frontend/ into data/ui. Its pages are below these paths
+UI_PAGES = ('activity',)
+# Bootswatch themes the old pages can have that are dark, the new pages follow them
+DARK_THEMES = frozenset(('slate', 'darkly', 'cyborg', 'superhero', 'solar', 'vapor', 'quartz'))
+
+
+def ui_page(ui_dir: str, root: str) -> str:
+    """ The front end's index.html, told where it is: the base its files are found from, and the
+    settings it starts with """
+    with open(os.path.join(ui_dir, 'index.html'), encoding='utf-8') as f:
+        page = f.read()
+    settings = {'urlBase': root, 'theme': 'dark' if CONFIG['BOOKSTRAP_THEME'] in DARK_THEMES else 'light',
+                'tabs': {tab.lower(): CONFIG.get_bool(f'{tab}_TAB') for tab in ('EBOOK', 'AUDIO', 'SERIES', 'MAG',
+                                                                                 'COMIC')}}
+    # </ can't end the script early, json.dumps leaves / alone
+    script = json.dumps(settings).replace('</', '<\\/')
+    return page.replace('<head>', f'<head>\n    <base href="{root}/ui/">\n'
+                                  f'    <link rel="icon" href="{root}/favicon.ico">\n'
+                                  f'    <script>window.LazyLibrarian = {script};</script>', 1)
+
 
 def web_request(request: Request, root: str) -> auth.WebRequest:
     """ A FastAPI request as the checks in auth.py see it """
@@ -52,8 +76,9 @@ def web_request(request: Request, root: str) -> auth.WebRequest:
                            base=f"{request.url.scheme}://{request.url.netloc}")
 
 
-def create_app(http_root: str, legacy_app) -> FastAPI:
-    """ The FastAPI app, with the WSGI app legacy_app taking whatever it has no route for """
+def create_app(http_root: str, legacy_app, ui_dir: str = '') -> FastAPI:
+    """ The FastAPI app, with the WSGI app legacy_app taking whatever it has no route for, and the
+    front end built into ui_dir """
     root = url_root(http_root)
     app = FastAPI(title='LazyLibrarian', version='1', docs_url=None, redoc_url=None, openapi_url=None,
                   telemetry=NO_TELEMETRY)
@@ -109,6 +134,18 @@ def create_app(http_root: str, legacy_app) -> FastAPI:
         return get_swagger_ui_html(openapi_url=f"{root}/api/v1/openapi.json", title='LazyLibrarian API')
 
     router.include_router(apiv1.router, dependencies=[Depends(api_access)])
+
+    if ui_dir and os.path.isfile(os.path.join(ui_dir, 'index.html')):
+        def ui(_page: str = '', _access=Depends(page_access)):
+            return HTMLResponse(ui_page(ui_dir, root), headers={'Cache-Control': 'no-cache'})
+
+        for page in UI_PAGES:
+            router.add_api_route(f'/{page}', ui, include_in_schema=False)
+            router.add_api_route(f'/{page}/{{_page:path}}', ui, include_in_schema=False)
     app.include_router(router)
+    if ui_dir and os.path.isdir(os.path.join(ui_dir, 'assets')):
+        # the scripts and styles, with a hash in each name. Like the old pages' files they need
+        # no login, the login page itself will use them
+        app.mount(f'{root}/ui/assets', StaticFiles(directory=os.path.join(ui_dir, 'assets')), name='ui')
     app.mount('/', WSGIMiddleware(legacy_app, workers=LEGACY_WORKERS))
     return app

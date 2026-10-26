@@ -1,0 +1,89 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  min-height: 34px;
+  border: 1px solid var(--defaultBorderColor);
+  border-radius: 8px;
+  background-color: var(--defaultBackgroundColor);
+  color: var(--defaultButtonTextColor);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition:
+    background-color var(--transitionSmooth),
+    border-color var(--transitionSmooth);
+
+  &:hover {
+    border-color: var(--defaultHoverBorderColor);
+    background-color: var(--defaultHoverBackgroundColor);
+    color: var(--defaultButtonTextColor);
+  }
+}
+
+.primary {
+  border-color: var(--primaryBorderColor);
+  background-color: var(--primaryBackgroundColor);
+  color: var(--primaryButtonColor);
+
+  &:hover {
+    border-color: var(--primaryHoverBorderColor);
+    background-color: var(--primaryHoverBackgroundColor);
+    color: var(--primaryButtonColor);
+  }
+}
+
+.success {
+  border-color: var(--successBorderColor);
+  background-color: var(--successBackgroundColor);
+  color: var(--white);
+
+  &:hover {
+    border-color: var(--successHoverBorderColor);
+    background-color: var(--successHoverBackgroundColor);
+    color: var(--white);
+  }
+}
+
+.warning {
+  border-color: var(--warningBorderColor);
+  background-color: var(--warningBackgroundColor);
+  color: var(--black);
+
+  &:hover {
+    border-color: var(--warningHoverBorderColor);
+    background-color: var(--warningHoverBackgroundColor);
+    color: var(--black);
+  }
+}
+
+.danger {
+  border-color: var(--dangerBorderColor);
+  background-color: var(--dangerBackgroundColor);
+  color: oklch(100% 0 0);
+
+  &:hover {
+    border-color: var(--dangerHoverBorderColor);
+    background-color: var(--dangerHoverBackgroundColor);
+    color: oklch(100% 0 0);
+  }
+}
+
+.isDisabled {
+  opacity: 0.65;
+}
+
+.hidden {
+  visibility: hidden;
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

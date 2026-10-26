@@ -1,4 +1,5 @@
-# Lint and test every push to master and every pull request, then build the Docker image.
+# Lint and test every push to master and every pull request, check the front end builds into
+# what is committed in data/ui, then build the Docker image.
 # Pushes to master publish eccentricwkshp/lazylibrarian:latest on Docker Hub and the same on
 # ghcr.io, version tags publish that version, pull requests only check that the image builds.
 # Docker Hub needs the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets, without them only
@@ -61,9 +62,35 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest unittests -q
 
+  frontend:
+    name: Front end
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # type checks, then builds into data/ui
+      - run: npm run build
+      # data/ui is committed so a git install needs no Node.js, so it has to be what this source builds
+      - name: Check data/ui is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- ../data/ui)" ]; then
+            git status --short -- ../data/ui
+            echo "::error::data/ui doesn't match the front end source, run npm run build in frontend and commit data/ui"
+            exit 1
+          fi
+
   docker:
     name: Docker image
-    needs: [lint, test]
+    needs: [lint, test, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

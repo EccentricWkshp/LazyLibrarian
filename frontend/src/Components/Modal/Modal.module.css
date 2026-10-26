@@ -1,0 +1,105 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--modalZIndex);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background-color: var(--modalBackdropBackgroundColor);
+}
+
+.modal {
+  display: flex;
+  overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 12px;
+  background-color: var(--modalBackgroundColor);
+  box-shadow: var(--shadowDropdown);
+}
+
+.small {
+  width: 480px;
+}
+
+.medium {
+  width: 720px;
+}
+
+.large {
+  width: 1080px;
+}
+
+.extraLarge {
+  width: 1280px;
+}
+
+.extraExtraLarge {
+  width: 1600px;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: calc(100vh - 40px);
+}
+
+.closeButton {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.header {
+  flex: 0 0 auto;
+  padding: 18px 56px 18px var(--modalBodyPadding);
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: var(--largeFontSize);
+  overflow-wrap: anywhere;
+}
+
+.body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 24px var(--modalBodyPadding);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  padding: 15px var(--modalBodyPadding);
+  border-top: 1px solid var(--borderColor);
+  gap: 10px;
+}
+
+@media (--breakpointSmall) {
+  .backdrop {
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .content {
+    max-height: 100vh;
+  }
+
+  .header,
+  .body,
+  .footer {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}

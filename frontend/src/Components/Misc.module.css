@@ -1,0 +1,152 @@
+.progressBar {
+  overflow: hidden;
+  width: 100%;
+  height: var(--progressBarSmallHeight);
+  border-radius: 999px;
+  background-color: var(--progressBarBackgroundColor);
+}
+
+.progress {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.progress-default,
+.progress-primary,
+.progress-info {
+  background-color: var(--progressBarPrimaryColor);
+}
+
+.progress-success {
+  background-color: var(--progressBarSuccessColor);
+}
+
+.progress-warning {
+  background-color: var(--progressBarWarningColor);
+  background-image: var(--progressBarWarningPattern);
+}
+
+.progress-danger {
+  background-color: var(--progressBarDangerColor);
+  background-image: var(--progressBarDangerPattern);
+}
+
+.progress-purple {
+  background-color: var(--purple);
+}
+
+.label {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 1px 7px;
+  border: 1px solid var(--inverseLabelColor);
+  border-radius: 999px;
+  background-color: var(--inverseLabelColor);
+  color: var(--inverseLabelTextColor);
+  font-weight: 500;
+  font-size: var(--extraSmallFontSize);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.label-primary,
+.label-info {
+  border-color: var(--accentDeep);
+  background-color: transparent;
+  color: var(--accent);
+}
+
+.label-success {
+  border-color: var(--successColor);
+  background-color: transparent;
+  color: var(--successColor);
+}
+
+.label-warning {
+  border-color: var(--warningColor);
+  background-color: transparent;
+  color: var(--warningColor);
+}
+
+.label-danger {
+  border-color: var(--dangerColor);
+  background-color: transparent;
+  color: var(--dangerColor);
+}
+
+.label-purple {
+  border-color: var(--purple);
+  background-color: transparent;
+  color: var(--purple);
+}
+
+.alert {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--alertInfoBorderColor);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background-color: var(--alertInfoBackgroundColor);
+  color: var(--alertInfoColor);
+  overflow-wrap: anywhere;
+}
+
+.alert-success {
+  border-color: var(--alertSuccessBorderColor);
+  background-color: var(--alertSuccessBackgroundColor);
+  color: var(--alertSuccessColor);
+}
+
+.alert-warning {
+  border-color: var(--alertWarningBorderColor);
+  background-color: var(--alertWarningBackgroundColor);
+  color: var(--alertWarningColor);
+}
+
+.alert-danger {
+  border-color: var(--alertDangerBorderColor);
+  background-color: var(--alertDangerBackgroundColor);
+  color: var(--alertDangerColor);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+  color: var(--inkMuted);
+}
+
+.anchor {
+  display: inline-flex;
+  cursor: default;
+}
+
+.popover {
+  z-index: var(--popperZIndex);
+  overflow: hidden;
+  max-width: 420px;
+  border: 1px solid var(--popoverTitleBorderColor);
+  border-radius: 8px;
+  background-color: var(--popoverBodyBackgroundColor);
+  box-shadow: 0 5px 10px var(--popoverShadowColor);
+  font-size: 13px;
+}
+
+.popoverTitle {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--popoverTitleBorderColor);
+  background-color: var(--popoverTitleBackgroundColor);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.popoverBody {
+  padding: 10px 12px;
+  color: var(--inkSoft);
+  overflow-wrap: anywhere;
+
+  & ul {
+    margin: 4px 0 0;
+  }
+}

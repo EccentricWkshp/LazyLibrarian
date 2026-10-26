@@ -22,3 +22,6 @@ init
 Dockerfile
 docker-compose.yml
 docker/README.md
+
+# The front end is built into data/ui, its source and packages are not needed to run
+frontend

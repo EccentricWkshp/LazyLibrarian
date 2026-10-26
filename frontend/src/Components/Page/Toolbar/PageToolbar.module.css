@@ -1,0 +1,87 @@
+/* From Sonarr's PageToolbar, PageToolbarButton and PageToolbarSeparator styles */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  padding: 0 20px;
+  min-width: 0;
+  height: var(--toolbarHeight);
+  border-bottom: 1px solid var(--borderColor);
+  background-color: var(--toolbarBackgroundColor);
+  color: var(--toolbarColor);
+}
+
+.section {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 4px;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.separator {
+  margin: 0 var(--toolbarSeparatorMargin);
+  width: 1px;
+  height: 24px;
+  background-color: var(--borderColor);
+}
+
+.toolbarButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  height: var(--chipSize);
+  border-radius: 999px;
+  color: var(--toolbarColor);
+  white-space: nowrap;
+  transition:
+    color var(--transitionSmooth),
+    background-color var(--transitionSmooth),
+    box-shadow var(--transitionSmooth);
+  gap: 7px;
+
+  &:hover {
+    background-color: var(--paperCard);
+    box-shadow: var(--shadowChip);
+    color: var(--ink);
+    text-decoration: none;
+  }
+}
+
+.isDisabled {
+  color: var(--disabledColor);
+  pointer-events: none;
+}
+
+.label {
+  letter-spacing: -0.01em;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1;
+}
+
+@media (--breakpointSmall) {
+  .toolbar {
+    padding: 8px 12px;
+    height: auto;
+  }
+
+  .toolbarButton {
+    flex-direction: column;
+    justify-content: center;
+    padding: 6px 10px;
+    min-height: 48px;
+    height: auto;
+    border-radius: 12px;
+    gap: 4px;
+  }
+
+  .label {
+    font-size: 12px;
+  }
+}

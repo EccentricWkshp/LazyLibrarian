@@ -6,3 +6,10 @@ Dockerfile text eol=lf
 docker/** text eol=lf
 init/lazylibrarian.service text eol=lf
 init/lazylibrarian.default text eol=lf
+
+# The front end and its build: CI rebuilds data/ui and checks it matches what was committed,
+# so the files have to be the same on Windows and Linux
+frontend/** text eol=lf
+data/ui/** text eol=lf
+data/ui/assets/*.woff binary
+data/ui/assets/*.woff2 binary

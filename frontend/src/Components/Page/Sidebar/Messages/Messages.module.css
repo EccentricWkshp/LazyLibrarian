@@ -1,0 +1,42 @@
+.messages {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 12px;
+  gap: 6px;
+}
+
+.message {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 6px 8px 10px;
+  border-left: 3px solid var(--alertInfoBorderColor);
+  border-radius: 6px;
+  background-color: var(--sidebarActiveBackgroundColor);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  gap: 8px;
+}
+
+.icon {
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.success {
+  border-left-color: var(--successColor);
+}
+
+.warning {
+  border-left-color: var(--warningColor);
+}
+
+.danger {
+  border-left-color: var(--dangerColor);
+}

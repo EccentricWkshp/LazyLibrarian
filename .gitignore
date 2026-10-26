@@ -82,3 +82,7 @@ Thumbs.db
 # Runtime and test leftovers
 unbundled.libs
 unittests/tmp/
+
+#  Front end  #
+###############
+frontend/node_modules

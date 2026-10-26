@@ -1,0 +1,96 @@
+/* From Sonarr's PageHeader.module.css */
+
+.header {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0 20px 0 0;
+  height: var(--headerHeight);
+  border-bottom: 1px solid var(--pageHeaderBorderColor);
+  background-color: var(--pageHeaderBackgroundColor);
+  background-image: var(--pageHeaderBackgroundImage);
+  color: var(--pageHeaderColor);
+}
+
+.logoContainer {
+  display: flex;
+  align-items: center;
+  flex: 0 0 var(--sidebarWidth);
+  padding-left: 20px;
+}
+
+.logoLink {
+  display: inline-flex;
+  align-items: center;
+  color: var(--pageHeaderBrandColor);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 0;
+  gap: 10px;
+
+  &:hover {
+    color: var(--pageHeaderBrandColor);
+    text-decoration: none;
+  }
+}
+
+.logo {
+  width: 24px;
+  height: 24px;
+}
+
+.brandName {
+  color: var(--pageHeaderBrandColor);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sidebarToggleContainer {
+  display: none;
+  justify-content: center;
+  flex: 0 0 45px;
+  margin-right: 8px;
+}
+
+.headerButton {
+  width: var(--chipSize);
+  height: var(--chipSize);
+  color: var(--pageHeaderColor);
+
+  &:hover {
+    background-color: var(--pageHeaderHoverBackgroundColor);
+    color: var(--pageHeaderColor);
+  }
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-grow: 1;
+  gap: 4px;
+}
+
+@media (--breakpointSmall) {
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: var(--pageHeaderZIndex);
+  }
+
+  .logoContainer {
+    flex: 0 0 auto;
+    padding-left: 16px;
+  }
+
+  .brandName {
+    display: none;
+  }
+
+  .sidebarToggleContainer {
+    display: flex;
+  }
+}

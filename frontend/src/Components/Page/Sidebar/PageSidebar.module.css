@@ -1,0 +1,51 @@
+/* From Sonarr's PageSidebar.module.css */
+
+.sidebarContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--sidebarWidth);
+  overflow-y: auto;
+  width: var(--sidebarWidth);
+  background-color: var(--sidebarBackgroundColor);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  padding: 8px 0 16px;
+  background-color: var(--sidebarBackgroundColor);
+  color: var(--sidebarColor);
+}
+
+.groupLabel {
+  display: block;
+  padding: 16px 20px 6px;
+  color: var(--toolbarLabelColor);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.divider {
+  margin: 12px 16px;
+  height: 1px;
+  background-color: var(--borderColor);
+}
+
+@media (--breakpointSmall) {
+  .sidebarContainer {
+    position: fixed;
+    top: var(--headerHeight);
+    bottom: 0;
+    left: 0;
+    z-index: var(--sidebarZIndex);
+    box-shadow: var(--shadowSidebar);
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .isHiddenOnSmallScreens {
+    transform: translateX(-100%);
+  }
+}

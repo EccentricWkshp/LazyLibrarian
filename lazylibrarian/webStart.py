@@ -226,7 +226,8 @@ def initialize(options=None):
     logging.getLogger('uvicorn').setLevel(logging.WARNING)
     # proxy_headers is off as auth.client_ip decides when to believe X-Forwarded-For
     _server_config = uvicorn.Config(
-        create_app(options['http_root'], cherrypy.tree), host=options['http_host'], port=options['http_port'],
+        create_app(options['http_root'], cherrypy.tree, os.path.join(DIRS.PROG_DIR, 'data', 'ui')),
+        host=options['http_host'], port=options['http_port'],
         ssl_certfile=https_cert if https_enabled else None, ssl_keyfile=https_key if https_enabled else None,
         log_config=None, access_log=False, proxy_headers=False, server_header=False,
         timeout_graceful_shutdown=GRACEFUL_SHUTDOWN)

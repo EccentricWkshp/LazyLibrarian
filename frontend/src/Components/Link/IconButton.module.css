@@ -1,0 +1,22 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--inkMuted);
+  transition:
+    color var(--transitionSmooth),
+    background-color var(--transitionSmooth);
+
+  &:hover {
+    background-color: var(--menuItemHoverBackgroundColor);
+    color: var(--iconButtonHoverLightColor);
+  }
+}
+
+.isDisabled {
+  color: var(--iconButtonDisabledColor);
+}
