@@ -47,7 +47,7 @@ class DatabaseTest(LLTestCaseWithConfigandDIRS):
     def test_version_and_integrity(self):
         db = DBConnection()
         result = db.match('PRAGMA user_version')
-        self.assertEqual(result[0], 102, 'Unit tests developed for v102; please upgrade')
+        self.assertEqual(result[0], 103, 'Unit tests developed for v103; please upgrade')
         check = db.match('PRAGMA integrity_check')
         self.assertEqual('ok', check[0], 'Database integrity check failed')
         db.close()
@@ -72,7 +72,7 @@ class DatabaseTest(LLTestCaseWithConfigandDIRS):
                   'genres', 'sqlite_sequence', 'comics', 'jobs', 'books', 'issues',
                   'sync', 'failedsearch', 'genrebooks', 'comicissues', 'sent_file', 'pastissues',
                   'subscribers', 'unauthorised', 'users', 'readinglists', 'series', 'member',
-                  'seriesauthors', 'bookauthors', 'sessions', 'remotepathmappings']
+                  'seriesauthors', 'bookauthors', 'sessions', 'remotepathmappings', 'blocklist']
         db = DBConnection()
         tables = self.get_table_list(db)
         self.assertListEqual(expect, tables, 'Unexpected table mismatch')

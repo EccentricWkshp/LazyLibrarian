@@ -1,5 +1,6 @@
 import classNames from 'classnames';
 import {
+  Ban,
   BookOpen,
   Download,
   Headphones,
@@ -62,7 +63,8 @@ function groups(): SidebarGroup[] {
       label: 'Activity',
       items: [
         { iconName: Download, title: 'Queue', to: '/activity/queue', statusComponent: QueueStatus },
-        { iconName: History, title: 'History', to: '/history' },
+        { iconName: History, title: 'History', to: '/activity/history' },
+        { iconName: Ban, title: 'Blocklist', to: '/activity/blocklist' },
       ],
     },
     {

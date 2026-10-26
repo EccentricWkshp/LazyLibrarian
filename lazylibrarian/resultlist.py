@@ -32,6 +32,8 @@ from lazylibrarian.formatter import check_int, get_list, now, plural, replace_al
 from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.providers import get_searchterm
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
+from lazylibrarian.services import blocklist
+from lazylibrarian.services.history import indexer_name
 from lazylibrarian.webshare import valid_ident
 
 
@@ -192,31 +194,26 @@ def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
                 rejections.append('No download link')
 
             if url and CONFIG.get_bool('BLACKLIST_FAILED'):
-                cmd = "SELECT * from wanted WHERE NZBurl=? and Status='Failed'"
-                args = (url,)
-                if res.get('tor_type', '') == 'irc':
-                    cmd += " and NZBTitle=?"
-                    args += (res['tor_title'],)
-                blacklisted = db.match(cmd, args)
-                if not blacklisted:
-                    blacklisted = db.match("SELECT * from wanted WHERE NZBprov=? and NZBtitle=? "
-                                           "and Status='Failed'",
-                                           (res[f"{prefix}prov"], res[f"{prefix}title"]))
-                if blacklisted:
-                    rejections.append(f"Blocklisted, it failed before at {blacklisted['NZBprov']}")
+                blocked = blocklist.find(db, url, res[f"{prefix}title"], res[f"{prefix}prov"],
+                                         irc=res.get('tor_type', '') == 'irc')
+                if blocked:
+                    rejections.append(f"Blocklisted, it failed before at {indexer_name(blocked['NZBprov'])}")
 
             if url and CONFIG.get_bool('BLACKLIST_PROCESSED'):
-                cmd = "SELECT * from wanted WHERE NZBurl=?"
+                # a download that failed is the blocklist's, taken off it it can be tried again
+                cmd = "SELECT * from wanted WHERE NZBurl=? and Status NOT IN ('Failed','Aborted')"
                 args = (url,)
                 if res.get('tor_type', '') == 'irc':
                     cmd += " and NZBTitle=?"
                     args += (res['tor_title'],)
-                blacklisted = db.match(cmd, args)
-                if not blacklisted:
-                    blacklisted = db.match('SELECT * from wanted WHERE NZBprov=? and NZBtitle=?',
-                                           (res[f"{prefix}prov"], res[f"{prefix}title"]))
-                if blacklisted and not (blacklisted['Status'] == 'Failed' and CONFIG.get_bool('BLACKLIST_FAILED')):
-                    rejections.append(f"Already downloaded ({blacklisted['Status']}) from {blacklisted['NZBprov']}")
+                downloaded = db.match(cmd, args)
+                if not downloaded:
+                    downloaded = db.match("SELECT * from wanted WHERE NZBprov=? and NZBtitle=? "
+                                          "and Status NOT IN ('Failed','Aborted')",
+                                          (res[f"{prefix}prov"], res[f"{prefix}title"]))
+                if downloaded:
+                    rejections.append(f"Already downloaded ({downloaded['Status']}) from "
+                                      f"{indexer_name(downloaded['NZBprov'])}")
 
             if source == 'rss':
                 if searchtype in ['book', 'shortbook'] and 'E' not in res['types']:

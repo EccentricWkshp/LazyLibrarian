@@ -16,9 +16,10 @@ import logging
 
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import get_download_progress
 from lazylibrarian.formatter import make_unicode
-from lazylibrarian.services import NotFoundError
+from lazylibrarian.services import InvalidRequestError, NotFoundError
 from lazylibrarian.services.paging import Page, page_of
 
 # the history fields, in the order the search has always matched them
@@ -27,12 +28,105 @@ BOOK_TYPES = ('eBook', 'AudioBook')
 # asking the download clients for progress is slow, so only the first few snatched items on a page get it
 PROGRESS_LIMIT = 5
 
+CLIENT_NAMES = {'SABNZBD': 'SABnzbd', 'NZBGET': 'NZBGet', 'QBITTORRENT': 'qBittorrent',
+                'TRANSMISSION': 'Transmission', 'DELUGEWEBUI': 'Deluge', 'DELUGERPC': 'Deluge',
+                'RTORRENT': 'rTorrent', 'UTORRENT': 'uTorrent', 'SYNOLOGY_TOR': 'Synology',
+                'SYNOLOGY_NZB': 'Synology', 'BLACKHOLE': 'Blackhole', 'DIRECT': 'Direct', 'MANUAL': 'Manual Import'}
+PROTOCOLS = {'nzb': 'usenet', 'torrent': 'torrent', 'magnet': 'torrent', 'torznab': 'torrent'}
+# Sonarr's history event for a download, by where it has got to
+EVENT_TYPES = {'Snatched': 'grabbed', 'Seeding': 'downloadFolderImported', 'Processed': 'downloadFolderImported',
+               'Failed': 'downloadFailed', 'Aborted': 'downloadFailed'}
+EVENT_SORTS = ('date', 'title', 'source_title', 'event_type', 'indexer')
+
 
 def item_type(auxinfo) -> str:
     """ eBook or AudioBook, Magazine for an issue (its AuxInfo is the issue date), eBook when it's not known """
     if auxinfo in BOOK_TYPES:
         return auxinfo
     return 'Magazine' if auxinfo else 'eBook'
+
+
+def client_name(source) -> str:
+    source = source or ''
+    if source.startswith('IRC'):
+        return 'IRC'
+    return CLIENT_NAMES.get(source, source.title())
+
+
+def media_type(auxinfo) -> str:
+    """ ebook, audiobook, magazine or comic, from a download's AuxInfo """
+    if auxinfo == 'comic':
+        return 'comic'
+    return {'eBook': 'ebook', 'AudioBook': 'audiobook', 'Magazine': 'magazine'}[item_type(auxinfo)]
+
+
+def indexer_name(provider) -> str:
+    """ A provider's name, as Settings shows it, rather than its address """
+    return CONFIG.disp_name(provider.strip('/')) if provider else ''
+
+
+def size_bytes(size) -> int:
+    """ A download's size, recorded in MB """
+    try:
+        return round(float(size) * 1048576)
+    except (TypeError, ValueError):
+        return 0
+
+
+def download_target(db, row, book=None) -> dict:
+    """ What a download is for: its book, magazine issue or comic issue. book is the download's book
+    and author when they were looked up already """
+    kind = media_type(row['AuxInfo'])
+    what = {'media_type': kind, 'book_id': row['BookID'], 'title': row['BookID'], 'author': '', 'author_id': None,
+            'issue': ''}
+    if kind in ('ebook', 'audiobook'):
+        if book is None:
+            book = db.match('SELECT BookName,AuthorName,books.AuthorID FROM books,authors '
+                            'WHERE books.AuthorID=authors.AuthorID AND BookID=?', (row['BookID'],))
+        if book and book['BookName']:
+            what.update(title=book['BookName'], author=book['AuthorName'] or '', author_id=book['AuthorID'])
+    elif kind == 'magazine':
+        what['issue'] = row['AuxInfo']
+    elif '_' in (row['BookID'] or ''):
+        comicid, issue = row['BookID'].split('_', 1)
+        comic = db.match('SELECT Title FROM comics WHERE ComicID=?', (comicid,))
+        what.update(title=comic['Title'] if comic else comicid, issue=issue)
+    return what
+
+
+def list_events(event_type: str = '', search: str = '', sort: str = 'date', descending: bool = True,
+                offset: int = 0, limit: int | None = None) -> Page:
+    """ The download history as Sonarr's History shows it: each download as an event, grabbed,
+    imported or failed, with what it was for, newest first """
+    if event_type and event_type not in EVENT_TYPES.values():
+        raise InvalidRequestError(f"The event type is one of {', '.join(sorted(set(EVENT_TYPES.values())))}")
+    if sort not in EVENT_SORTS:
+        raise InvalidRequestError(f"Sort by one of {', '.join(EVENT_SORTS)}")
+    db = database.DBConnection()
+    try:
+        # one query for the books and authors, the history can be long
+        rows = db.select("SELECT wanted.rowid AS Id,wanted.*,BookName,AuthorName,books.AuthorID AS AuthorID "
+                         "FROM wanted LEFT JOIN books ON wanted.BookID=books.BookID "
+                         "LEFT JOIN authors ON books.AuthorID=authors.AuthorID "
+                         "WHERE wanted.BookID IS NOT NULL AND AuxInfo IS NOT NULL")
+        records = []
+        for row in rows:
+            event = EVENT_TYPES.get(row['Status'], (row['Status'] or '').lower())
+            if event_type and event != event_type:
+                continue
+            record = download_target(db, row, book=row)
+            record.update(id=row['Id'], event_type=event, status=row['Status'] or '',
+                          source_title=row['NZBtitle'] or '', indexer=indexer_name(row['NZBprov']),
+                          download_client=client_name(row['Source']),
+                          download_id=make_unicode(row['DownloadID']) or '',
+                          protocol=PROTOCOLS.get(row['NZBmode'], row['NZBmode'] or ''),
+                          size=size_bytes(row['NZBsize']), date=row['NZBdate'] or '',
+                          message=make_unicode(row['DLResult']) or '')
+            records.append(record)
+    finally:
+        db.close()
+    return page_of(records, search=search, search_fields=('title', 'author', 'source_title', 'indexer', 'issue'),
+                   sort=sort, descending=descending, natural=sort == 'title', offset=offset, limit=limit)
 
 
 def list_history(search: str = '', sort: str = 'rowid', descending: bool = True, offset: int = 0,
@@ -114,7 +208,8 @@ def mark_failed(rowid):
         if not match:
             raise NotFoundError(f'No history item {rowid}')
         logger.debug(f'Marking {match["Status"]} history item {match["NZBtitle"]} as Failed')
-        db.action("UPDATE wanted SET Status='Failed' WHERE rowid=?", (rowid,))
+        # the blocklist says why, as Sonarr's does
+        db.action("UPDATE wanted SET Status='Failed',DLResult='Manually marked as failed' WHERE rowid=?", (rowid,))
         if item_type(match['AuxInfo']) == 'AudioBook':
             db.action("UPDATE books SET audiostatus='Wanted' WHERE BookID=?", (match["BookID"],))
         else:

@@ -56,7 +56,8 @@ class Command(ApiModel):
 def start(command: CommandIn):
     """ Start a command. ManualImport imports files, each with the book it is for (bookId and
     mediaType) and, when it came from the queue, its queueId. BookSearch searches for books
-    (bookId and mediaType), MissingBookSearch for every wanted book """
+    (bookId and mediaType), MissingBookSearch for every wanted book, ClearBlocklist empties the
+    blocklist """
     return commands.start(command.name, command.model_dump())
 
 

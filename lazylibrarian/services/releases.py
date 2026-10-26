@@ -31,10 +31,10 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.resultlist import download_result, evaluate_results
-from lazylibrarian.services import InvalidRequestError, NotFoundError, queue
+from lazylibrarian.services import InvalidRequestError, NotFoundError, history
 
 LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
-PROTOCOLS = {**queue.PROTOCOLS, 'direct': 'direct', 'irc': 'irc'}
+PROTOCOLS = {**history.PROTOCOLS, 'direct': 'direct', 'irc': 'irc'}
 # how long the releases of a search can be downloaded from, in seconds, as in Sonarr
 KEEP = 30 * 60
 _releases: dict[str, tuple[float, list, dict]] = {}

@@ -1,0 +1,80 @@
+/* From Sonarr's HistoryRow, HistoryDetails and DescriptionList styles */
+
+.event {
+  width: 30px;
+}
+
+.release {
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.releaseTitle {
+  display: inline-block;
+  color: var(--inkSoft);
+  word-break: normal;
+  font-size: 12px;
+  font-family: var(--monoSpaceFontFamily);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.failure {
+  margin-top: 3px;
+  color: var(--dangerColor);
+  font-size: var(--extraSmallFontSize);
+  overflow-wrap: anywhere;
+}
+
+.date {
+  white-space: nowrap;
+}
+
+.actions {
+  width: 40px;
+  text-align: right;
+}
+
+.filter {
+  width: auto;
+  min-width: 140px;
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+
+.details {
+  margin: 0 0 15px;
+}
+
+.detail {
+  display: flex;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--borderColor);
+
+  & dt {
+    flex: 0 0 140px;
+    color: var(--inkMuted);
+    font-weight: 500;
+  }
+
+  & dd {
+    flex: 1 1 auto;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (--breakpointSmall) {
+  .filter {
+    min-width: 100px;
+  }
+
+  .detail {
+    flex-direction: column;
+
+    & dt {
+      flex-basis: auto;
+    }
+  }
+}

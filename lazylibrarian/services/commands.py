@@ -21,7 +21,14 @@ import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from lazylibrarian.services import InvalidRequestError, NotFoundError, manualimport, wanted
+from lazylibrarian.formatter import plural
+from lazylibrarian.services import (
+    InvalidRequestError,
+    NotFoundError,
+    blocklist,
+    manualimport,
+    wanted,
+)
 
 KEEP = 100
 _commands: dict[int, dict] = {}
@@ -67,8 +74,15 @@ def _missing_book_search(command: dict, body: dict) -> str:
     return message
 
 
+def _clear_blocklist(command: dict, body: dict) -> str:
+    cleared = blocklist.clear()
+    command['result'] = {'cleared': cleared}
+    return f"Cleared {cleared} {plural(cleared, 'release')} from the blocklist"
+
+
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
-                                                    'MissingBookSearch': _missing_book_search}
+                                                    'MissingBookSearch': _missing_book_search,
+                                                    'ClearBlocklist': _clear_blocklist}
 
 
 def _run(command: dict, body: dict):

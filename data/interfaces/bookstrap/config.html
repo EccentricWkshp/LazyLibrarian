@@ -999,13 +999,13 @@
                     <% checked = 'checked="checked"' if CONFIG['BLACKLIST_FAILED'] else '' %>
                     <label for="blacklist_failed">
                       <input type="checkbox" id="blacklist_failed" name="blacklist_failed" value="1" ${checked} />
-                      ${_('Blacklist failed downloads in history table')}</label>
+                      ${_('Blocklist failed downloads, see Activity, Blocklist')}</label>
                   </div>
                   <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['BLACKLIST_PROCESSED'] else '' %>
                     <label for="blacklist_processed">
                       <input type="checkbox" id="blacklist_processed" name="blacklist_processed" value="1" ${checked} />
-                      ${_('Blacklist processed downloads in history table')}</label>
+                      ${_('Skip releases that were downloaded before')}</label>
                   </div>
                   <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['DELAYSEARCH'] else '' %>

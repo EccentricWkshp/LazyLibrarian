@@ -1,5 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import Blocklist from 'Activity/Blocklist/Blocklist';
+import History from 'Activity/History/History';
 import Queue from 'Activity/Queue/Queue';
 import ErrorBoundary from 'Components/ErrorBoundary';
 import Link from 'Components/Link/Link';
@@ -32,6 +34,8 @@ function App() {
             <Routes>
               <Route path="/activity" element={<Navigate to="/activity/queue" replace={true} />} />
               <Route path="/activity/queue" element={<Queue />} />
+              <Route path="/activity/history" element={<History />} />
+              <Route path="/activity/blocklist" element={<Blocklist />} />
               <Route path="/wanted" element={<Navigate to="/wanted/missing" replace={true} />} />
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="*" element={<NotFound />} />

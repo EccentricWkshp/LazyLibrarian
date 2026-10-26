@@ -35,7 +35,7 @@ from lazylibrarian.download_client import is_archive_file
 from lazylibrarian.filesystem import DIRS, get_directory, path_isdir, path_isfile, safe_copy
 from lazylibrarian.formatter import get_list, make_unicode, now, thread_name
 from lazylibrarian.services import InvalidRequestError, NotFoundError, queue, remotepaths
-from lazylibrarian.services.history import reset_snatched_books
+from lazylibrarian.services.history import client_name, download_target, reset_snatched_books
 
 BOOK_TYPES = ('ebook', 'audiobook')
 LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
@@ -192,7 +192,7 @@ def _book(book: dict | None) -> dict | None:
 
 def _queue_target(db, row) -> dict:
     """ What a queued download was for, as an item's book, magazine or comic """
-    what = queue._what(db, row)
+    what = download_target(db, row)
     return {'id': row['BookID'], 'title': what['title'], 'author': what['author'], 'issue': what['issue'],
             'media_type': what['media_type']}
 
@@ -229,7 +229,7 @@ def candidates(folder: str = '', queue_id=None) -> dict:
     if row and not folder:
         folder = _client_folder(row)
         if not folder:
-            return {'folder': '', 'items': [], 'error': f"{queue.client_name(row['Source'])} did not say where "
+            return {'folder': '', 'items': [], 'error': f"{client_name(row['Source'])} did not say where "
                                                         f"{row['NZBtitle']} is. Choose the folder it is in"}
         if not path_isdir(folder):
             hint = remotepaths.explain_missing(row['Source'], folder)

@@ -337,6 +337,33 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertEqual((response.status_code, response.json()['detail']),
                          (404, 'That release is no longer known, search again'))
 
+    def test_history_and_blocklist(self):
+        self.set_owner()
+        key = {'X-Api-Key': self.FULL_KEY}
+        with DBConnection() as db:
+            db.action("DELETE FROM wanted")
+            db.action("DELETE FROM blocklist")
+            db.action("INSERT INTO wanted (BookID,NZBurl,NZBtitle,NZBdate,NZBprov,Status,NZBsize,AuxInfo,NZBmode,"
+                      "Source,DownloadID) VALUES ('2024-05','u1','Mag.May','2026-10-26 10:00:00','prov',"
+                      "'Processed','1.5','2024-05','torrent','QBITTORRENT','abc')")
+            rowid = db.match("SELECT rowid FROM wanted WHERE NZBurl='u1'")['rowid']
+        page = self.get('/ll/api/v1/history', headers=key).json()
+        self.assertEqual((page['totalRecords'], page['records'][0]['eventType'], page['records'][0]['issue']),
+                         (1, 'downloadFolderImported', '2024-05'))
+        self.assertEqual(self.get('/ll/api/v1/history', headers=key, params={'eventType': 'x'}).status_code, 400)
+
+        response = self.client.post(f'/ll/api/v1/history/failed/{rowid}', headers=key)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.post('/ll/api/v1/history/failed/999999', headers=key).status_code, 404)
+        page = self.get('/ll/api/v1/blocklist', headers=key).json()
+        self.assertEqual([item['sourceTitle'] for item in page['records']], ['Mag.May'], 'Marked failed, blocklisted')
+        response = self.client.request('DELETE', '/ll/api/v1/blocklist/bulk', headers=key,
+                                       json={'ids': [page['records'][0]['id']]})
+        self.assertEqual((response.status_code, response.json()), (200, {'message': 'Removed 1 from the blocklist'}))
+        self.assertEqual(self.get('/ll/api/v1/blocklist', headers=key).json()['totalRecords'], 0)
+        self.assertEqual(self.get('/ll/api/v1/history', headers=key).json()['records'][0]['eventType'],
+                         'downloadFailed', 'Its history stays')
+
     def test_unknown_endpoint_is_not_the_old_api(self):
         self.set_owner()
         response = self.get('/ll/api/v1/nosuch', headers={'X-Api-Key': self.FULL_KEY})

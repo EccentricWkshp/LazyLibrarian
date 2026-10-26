@@ -21,54 +21,25 @@ from lazylibrarian import database
 from lazylibrarian.download_client import delete_task, get_download_progress
 from lazylibrarian.formatter import check_int, make_unicode
 from lazylibrarian.services import NotFoundError, books
-from lazylibrarian.services.history import item_type, reset_snatched_books
+from lazylibrarian.services.history import (
+    PROTOCOLS,
+    client_name,
+    download_target,
+    indexer_name,
+    item_type,
+    media_type,
+    reset_snatched_books,
+    size_bytes,
+)
 
 # postprocess.py writes this before the reason a finished download wasn't imported
 BLOCKED = 'Import blocked: '
 
-CLIENT_NAMES = {'SABNZBD': 'SABnzbd', 'NZBGET': 'NZBGet', 'QBITTORRENT': 'qBittorrent',
-                'TRANSMISSION': 'Transmission', 'DELUGEWEBUI': 'Deluge', 'DELUGERPC': 'Deluge',
-                'RTORRENT': 'rTorrent', 'UTORRENT': 'uTorrent', 'SYNOLOGY_TOR': 'Synology',
-                'SYNOLOGY_NZB': 'Synology', 'BLACKHOLE': 'Blackhole', 'DIRECT': 'Direct'}
-PROTOCOLS = {'nzb': 'usenet', 'torrent': 'torrent', 'magnet': 'torrent', 'torznab': 'torrent'}
 # the download clients are asked for progress at the same time, a slow one doesn't hold up the rest
 PROGRESS_WORKERS = 8
 # seconds an answer about a download's progress is kept, and the answers by (source, download id)
 PROGRESS_KEEP = 15
 _asked: dict[tuple, tuple[float, int]] = {}
-
-
-def client_name(source) -> str:
-    source = source or ''
-    if source.startswith('IRC'):
-        return 'IRC'
-    return CLIENT_NAMES.get(source, source.title())
-
-
-def media_type(auxinfo) -> str:
-    """ ebook, audiobook, magazine or comic, from a download's AuxInfo """
-    if auxinfo == 'comic':
-        return 'comic'
-    return {'eBook': 'ebook', 'AudioBook': 'audiobook', 'Magazine': 'magazine'}[item_type(auxinfo)]
-
-
-def _what(db, row) -> dict:
-    """ What a download is for: its book, magazine issue or comic issue """
-    kind = media_type(row['AuxInfo'])
-    what = {'media_type': kind, 'book_id': row['BookID'], 'title': row['BookID'], 'author': '', 'author_id': None,
-            'issue': ''}
-    if kind in ('ebook', 'audiobook'):
-        book = db.match('SELECT BookName,AuthorName,books.AuthorID FROM books,authors '
-                        'WHERE books.AuthorID=authors.AuthorID AND BookID=?', (row['BookID'],))
-        if book:
-            what.update(title=book['BookName'], author=book['AuthorName'], author_id=book['AuthorID'])
-    elif kind == 'magazine':
-        what['issue'] = row['AuxInfo']
-    elif '_' in (row['BookID'] or ''):
-        comicid, issue = row['BookID'].split('_', 1)
-        comic = db.match('SELECT Title FROM comics WHERE ComicID=?', (comicid,))
-        what.update(title=comic['Title'] if comic else comicid, issue=issue)
-    return what
 
 
 def _status(row, progress) -> dict:
@@ -117,13 +88,12 @@ def list_queue() -> list[dict]:
                                                "AND IFNULL(Source,'')!='MANUAL' ORDER BY rowid")]
         items = []
         for row in rows:
-            item = _what(db, row)
-            item.update(id=row['rowid'], source_title=row['NZBtitle'] or '', indexer=row['NZBprov'] or '',
+            item = download_target(db, row)
+            item.update(id=row['rowid'], source_title=row['NZBtitle'] or '', indexer=indexer_name(row['NZBprov']),
                         protocol=PROTOCOLS.get(row['NZBmode'], row['NZBmode'] or ''),
                         download_client=client_name(row['Source']),
                         download_id=make_unicode(row['DownloadID']) or '',
-                        size=round(float(row['NZBsize'] or 0) * 1048576) if _number(row['NZBsize']) else 0,
-                        added=row['NZBdate'] or '')
+                        size=size_bytes(row['NZBsize']), added=row['NZBdate'] or '')
             items.append(item)
     finally:
         db.close()
@@ -133,14 +103,6 @@ def list_queue() -> list[dict]:
         item.update(_status(row, done))
         item['progress'] = 100 if item['status'] == 'completed' else max(0, min(done, 100))
     return items
-
-
-def _number(value) -> bool:
-    try:
-        float(value)
-    except (TypeError, ValueError):
-        return False
-    return True
 
 
 def _row(db, item_id) -> dict:

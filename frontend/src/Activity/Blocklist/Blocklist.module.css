@@ -1,0 +1,57 @@
+/* From Sonarr's BlocklistRow styles */
+
+.select {
+  width: 36px;
+}
+
+.release {
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.releaseTitle {
+  display: inline-block;
+  color: var(--inkSoft);
+  word-break: normal;
+  font-size: 12px;
+  font-family: var(--monoSpaceFontFamily);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.message {
+  min-width: 160px;
+  max-width: 320px;
+  color: var(--inkSoft);
+  font-size: var(--smallFontSize);
+  overflow-wrap: anywhere;
+}
+
+.date {
+  white-space: nowrap;
+}
+
+.actions {
+  width: 40px;
+  text-align: right;
+}
+
+.filter {
+  width: auto;
+  min-width: 140px;
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+
+.note {
+  margin-top: 20px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+@media (--breakpointSmall) {
+  .filter {
+    min-width: 100px;
+  }
+}

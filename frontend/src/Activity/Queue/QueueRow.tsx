@@ -1,8 +1,8 @@
 import { User, X } from 'lucide-react';
 import { useState } from 'react';
+import ItemTitleCell from 'Activity/ItemTitleCell';
 import { CheckInput } from 'Components/Form/Form';
 import IconButton from 'Components/Link/IconButton';
-import Link from 'Components/Link/Link';
 import { Label, ProgressBar } from 'Components/Misc';
 import { TableRow, TableRowCell } from 'Components/Table/Table';
 import InteractiveImportModal from 'InteractiveImport/InteractiveImportModal';
@@ -12,19 +12,6 @@ import QueueStatusCell from './QueueStatusCell';
 import RemoveQueueItemModal from './RemoveQueueItemModal';
 import { useRemoveQueueItem } from './useQueue';
 import styles from './Queue.module.css';
-
-// where each kind of item is in the old pages
-function itemLink(item: QueueItem) {
-  if (item.mediaType === 'magazine') {
-    return `/issue_page?title=${encodeURIComponent(item.bookId)}`;
-  }
-
-  if (item.mediaType === 'comic') {
-    return `/comicissue_page?comicid=${encodeURIComponent(item.bookId.split('_')[0])}`;
-  }
-
-  return `/book_detail?bookid=${encodeURIComponent(item.bookId)}`;
-}
 
 export function ProtocolLabel({ protocol }: { protocol: string }) {
   const name = protocol === 'usenet' ? 'nzb' : protocol;
@@ -43,7 +30,6 @@ function QueueRow({ item, isSelected, onSelectedChange }: QueueRowProps) {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const removeQueueItem = useRemoveQueueItem();
   const showInteractiveImport = item.status === 'completed' || item.status === 'warning';
-  const title = item.issue ? `${item.title} - ${item.issue}` : item.title;
 
   return (
     <TableRow>
@@ -57,20 +43,7 @@ function QueueRow({ item, isSelected, onSelectedChange }: QueueRowProps) {
 
       <QueueStatusCell item={item} />
 
-      <TableRowCell className={styles.title}>
-        <Link className={styles.titleLink} to={itemLink(item)}>
-          {title}
-        </Link>
-        {item.author ? (
-          <div className={styles.author}>
-            {item.authorId ? (
-              <Link to={`/author_page?authorid=${encodeURIComponent(item.authorId)}`}>{item.author}</Link>
-            ) : (
-              item.author
-            )}
-          </div>
-        ) : null}
-      </TableRowCell>
+      <ItemTitleCell item={item} />
 
       <TableRowCell>{MEDIA_TYPE_NAMES[item.mediaType]}</TableRowCell>
 

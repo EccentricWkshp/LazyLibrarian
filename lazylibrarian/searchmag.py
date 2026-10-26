@@ -43,6 +43,7 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
+from lazylibrarian.services import blocklist
 
 
 def cron_search_magazines():
@@ -310,13 +311,14 @@ def search_magazines(mags=None, reset=False, backissues=False):
                                 rejected = True
 
                         if not rejected and CONFIG.get_bool('BLACKLIST_FAILED'):
-                            blocked = db.match("SELECT * from wanted WHERE NZBurl=? and Status='Failed'", (nzburl,))
+                            blocked = blocklist.find(db, nzburl, nzbtitle, nzbprov)
                             if blocked:
                                 logger.debug(f"Rejecting {nzbtitle_formatted}, blacklisted at {blocked['NZBprov']}")
                                 rejected = True
 
                         if not rejected and CONFIG.get_bool('BLACKLIST_PROCESSED'):
-                            blocked = db.match('SELECT * from wanted WHERE NZBurl=?', (nzburl,))
+                            blocked = db.match("SELECT * from wanted WHERE NZBurl=? "
+                                               "and Status NOT IN ('Failed','Aborted')", (nzburl,))
                             if blocked:
                                 logger.debug(f"Rejecting {nzbtitle_formatted}, blacklisted at {blocked['NZBprov']}")
                                 rejected = True

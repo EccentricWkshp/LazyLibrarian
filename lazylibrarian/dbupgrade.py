@@ -134,8 +134,22 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 100 add dbk_id to books and authors tables, dbk_link to authors table
 # 101 single owner account instead of user accounts, add sessions table
 # 102 add remotepathmappings table, from the download clients' remote and local path settings
+# 103 add blocklist table, filled by triggers when a download fails, from the failed downloads
 
-db_current_version = 102
+db_current_version = 103
+
+# A failed download goes on the blocklist, as in Sonarr, however it was marked failed. Removing it
+# from the blocklist leaves its history, and clearing history leaves the blocklist
+BLOCKLIST_COLUMNS = 'BookID,AuxInfo,NZBtitle,NZBurl,NZBprov,NZBsize,NZBmode,Source,Date,Message'
+BLOCKLIST_FROM_NEW = ("NEW.BookID,NEW.AuxInfo,NEW.NZBtitle,NEW.NZBurl,NEW.NZBprov,NEW.NZBsize,NEW.NZBmode,"
+                      "NEW.Source,datetime('now','localtime'),NEW.DLResult")
+BLOCKLIST_TRIGGERS = (
+    f"CREATE TRIGGER IF NOT EXISTS blocklist_failed_insert AFTER INSERT ON wanted WHEN NEW.Status='Failed' "
+    f"BEGIN INSERT OR IGNORE INTO blocklist ({BLOCKLIST_COLUMNS}) VALUES ({BLOCKLIST_FROM_NEW}); END",
+    f"CREATE TRIGGER IF NOT EXISTS blocklist_failed_update AFTER UPDATE OF Status ON wanted "
+    f"WHEN NEW.Status='Failed' AND IFNULL(OLD.Status,'')!='Failed' "
+    f"BEGIN INSERT OR IGNORE INTO blocklist ({BLOCKLIST_COLUMNS}) VALUES ({BLOCKLIST_FROM_NEW}); END",
+)
 
 
 def upgrade_needed():
@@ -1736,6 +1750,21 @@ def update_schema(db, upgradelog):
         db.action('CREATE TABLE remotepathmappings (Host TEXT NOT NULL, RemotePath TEXT NOT NULL, '
                   'LocalPath TEXT NOT NULL)')
         migrate_remote_path_settings(db, upgradelog)
+
+    if not has_column(db, "blocklist", "NZBurl"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating blocklist table, from the failed downloads'
+        upgradelog.write(f"{time.ctime()} v103: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('CREATE TABLE blocklist (BookID TEXT, AuxInfo TEXT, NZBtitle TEXT, NZBurl TEXT, NZBprov TEXT, '
+                  'NZBsize TEXT, NZBmode TEXT, Source TEXT, Date TEXT, Message TEXT, UNIQUE (NZBurl, NZBtitle))')
+        db.action(f"INSERT OR IGNORE INTO blocklist ({BLOCKLIST_COLUMNS}) SELECT BookID,AuxInfo,NZBtitle,NZBurl,"
+                  f"NZBprov,NZBsize,NZBmode,Source,NZBdate,DLResult FROM wanted WHERE Status='Failed'")
+    if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'blocklist_%'")) \
+            < len(BLOCKLIST_TRIGGERS):
+        changes += 1
+        upgradelog.write(f"{time.ctime()} v103: Adding the blocklist triggers\n")
+        for trigger in BLOCKLIST_TRIGGERS:
+            db.action(trigger)
 
     # Telemetry has been removed. Its job row would show as running forever if it was interrupted
     if db.match("SELECT Name FROM jobs WHERE Name='TELEMETRYSEND'"):
