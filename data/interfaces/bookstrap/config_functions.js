@@ -311,15 +311,28 @@
             });
         });
 
+        // a download client's category fields, one per media type shown: param, param_audio...
+        // Types whose tab is off have no field, and aren't sent, so their categories stay as they are
+        function categoryFields(id, param) {
+            let values = {};
+            ['', '_audio', '_mag', '_comic'].forEach(function(suffix) {
+                let input = $('#' + id + suffix);
+                if (input.length) {
+                    values[param + suffix] = $.trim(input.val());
+                }
+            });
+            return values;
+        }
+
         $('#test_sabnzbd').on('click', function() {
             let host = $.trim($("#sab_host").val());
             let port = $.trim($("#sab_port").val());
             let user = $.trim($("#sab_user").val());
             let pwd = $.trim($("#sab_pass").val());
             let api = $.trim($("#sab_api").val());
-            let cat = $.trim($("#sab_cat").val());
             let subdir = $.trim($("#sab_subdir").val());
-            $.get("test_sabnzbd", {'host': host, 'port': port, 'user': user, 'pwd': pwd, 'api': api, 'cat': cat, 'subdir': subdir},
+            $.get("test_sabnzbd", Object.assign({'host': host, 'port': port, 'user': user, 'pwd': pwd, 'api': api, 'subdir': subdir},
+                                                categoryFields('sab_cat', 'cat')),
             function(data) {
                 bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'SABnzbd'),
@@ -339,9 +352,9 @@
             let port = $.trim($("#nzbget_port").val());
             let user = $.trim($("#nzbget_user").val());
             let pwd = $.trim($("#nzbget_pass").val());
-            let cat = $.trim($("#nzbget_category").val());
             let pri = $.trim($("#nzbget_priority").val());
-            $.get('test_nzbget', {'host': host, 'port': port, 'user': user, 'pwd': pwd, 'cat': cat, 'pri': pri},
+            $.get('test_nzbget', Object.assign({'host': host, 'port': port, 'user': user, 'pwd': pwd, 'pri': pri},
+                                               categoryFields('nzbget_category', 'cat')),
                 function(data) {
                 bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'NZBget'),
@@ -421,8 +434,8 @@
             let port = $.trim($("#deluge_port").val());
             let user = $.trim($("#deluge_user").val());
             let pwd = $.trim($("#deluge_pass").val());
-            let label = $.trim($("#deluge_label").val());
-            $.get("test_deluge", {'host': host, 'port': port, 'base': base, 'cert': cert, 'user': user, 'pwd': pwd, 'label': label},
+            $.get("test_deluge", Object.assign({'host': host, 'port': port, 'base': base, 'cert': cert, 'user': user, 'pwd': pwd},
+                                               categoryFields('deluge_label', 'label')),
                 function(data) {
                     bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'Deluge'),
@@ -464,9 +477,9 @@
             let base = $.trim($("#qbittorrent_base").val());
             let user = $.trim($("#qbittorrent_user").val());
             let pwd = $.trim($("#qbittorrent_pass").val());
-            let label = $.trim($("#qbittorrent_label").val());
             let ignore_ssl = $("#qbittorrent_ignore_ssl").is(':checked') ? '1' : '0';
-            $.get('test_qbittorrent', {'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd, 'label': label, 'ignore_ssl': ignore_ssl},
+            $.get('test_qbittorrent', Object.assign({'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd, 'ignore_ssl': ignore_ssl},
+                                                    categoryFields('qbittorrent_label', 'label')),
                 function(data) {
                 bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'qBittorrent'),
@@ -487,8 +500,8 @@
             let base = $.trim($("#utorrent_base").val());
             let user = $.trim($("#utorrent_user").val());
             let pwd = $.trim($("#utorrent_pass").val());
-            let label = $.trim($("#utorrent_label").val());
-            $.get('test_utorrent', {'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd, 'label': label},
+            $.get('test_utorrent', Object.assign({'host': host, 'port': port, 'base': base, 'user': user, 'pwd': pwd},
+                                                 categoryFields('utorrent_label', 'label')),
                 function(data) {
                 bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'uTorrent'),
@@ -508,8 +521,8 @@
             let dir = $.trim($("#rtorrent_dir").val());
             let user = $.trim($("#rtorrent_user").val());
             let pwd = $.trim($("#rtorrent_pass").val());
-            let label = $.trim($("#rtorrent_label").val());
-            $.get('test_rtorrent', {'host': host, 'dir': dir, 'user': user, 'pwd': pwd, 'label': label},
+            $.get('test_rtorrent', Object.assign({'host': host, 'dir': dir, 'user': user, 'pwd': pwd},
+                                                 categoryFields('rtorrent_label', 'label')),
                 function(data) {
                 bootbox.dialog({
                     title: ${_js('%(name)s Connection')}.replace('%(name)s', 'rTorrent'),

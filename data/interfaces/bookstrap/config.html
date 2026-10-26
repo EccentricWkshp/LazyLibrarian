@@ -24,6 +24,26 @@
     </div>
 </div>
 </%def>
+<%def name="category_inputs(field, setting, title)">
+<%
+    kinds = [(suffix, name) for suffix, tab, name in (('', 'EBOOK_TAB', _('eBooks')), ('_audio', 'AUDIO_TAB', _('AudioBooks')),
+             ('_mag', 'MAG_TAB', _('Magazines')), ('_comic', 'COMIC_TAB', _('Comics'))) if CONFIG[tab]] or [('', _('eBooks'))]
+%>
+                      <div class="col-md-12">
+                        <label class="control-label">${title}</label>
+                        <div class="row">
+  %for suffix, name in kinds:
+                          <div class="form-group col-md-${12 // len(kinds)}">
+                            <div class="input-group">
+                              <label for="${field}${suffix}" class="input-group-addon">${name}</label>
+                              <input type="text" id="${field}${suffix}" name="${field}${suffix}" value="${CONFIG[setting + suffix.upper()] | h}" class="form-control">
+                            </div>
+                          </div>
+  %endfor
+                        </div>
+                        <span class="help-block">${_('One for each kind of download, so the download client can save them in different places. Empty for none.')}</span>
+                      </div>
+</%def>
 <%def name="body()">
   <!-- ensure the browser sends form-submission data in the UTF-8 encoding,
        even if the user fiddles with the page encoding -->
@@ -1001,10 +1021,7 @@
                         <input type="text" id="sab_api" name="sab_api" value="${CONFIG['SAB_API']}" class="form-control"      placeholder="${_('SABnzbd API Key') | h}">
                       </div>
                       <div class="row">
-                        <div class="form-group col-md-6">
-                          <label for="sab_cat">${_('SABnzbd Category:')}</label>
-                          <input type="text" id="sab_cat" name="sab_cat" value="${CONFIG['SAB_CAT']}" class="form-control"      placeholder="${_('SABnzbd Category') | h}">
-                        </div>
+                        ${category_inputs('sab_cat', 'SAB_CAT', _('SABnzbd Categories:'))}
                         <div class="form-group col-md-6">
                           <label for="sab_subdir" class="control-label">${_('SABnzbd URL Base:')}</label>
                           <input type="text" id="sab_subdir" name="sab_subdir" value="${CONFIG['SAB_SUBDIR']}" class="form-control"     placeholder="${_('URL Base') | h}">
@@ -1070,10 +1087,7 @@
                         </div>
                       </div>
                       <div class="row">
-                        <div class="form-group col-md-6">
-                          <label for="nzbget_category" class="control-label">${_('Category:')}</label>
-                          <input type="text" id="nzbget_category" name="nzbget_category" value="${CONFIG['NZBGET_CATEGORY']}" class="form-control" placeholder="${_('NZBGet Category') | h}">
-                        </div>
+                        ${category_inputs('nzbget_category', 'NZBGET_CATEGORY', _('Categories:'))}
                         <div class="form-group col-md-6">
                           <label for="nzbget_priority">${_('Priority:')}</label>
                           <input type="text" id="nzbget_priority" name="nzbget_priority" value="${CONFIG['NZBGET_PRIORITY']}" class="form-control" placeholder="${_('NZBGet Priority') | h}">
@@ -1229,10 +1243,7 @@
                         <label for="deluge_pass" class="control-label">${_('Password:')}</label>
                         <input type="password" id="deluge_pass" name="deluge_pass" value="${CONFIG['DELUGE_PASS']}" class="form-control" placeholder="${_('Deluge Password') | h}">
                       </div>
-                      <div class="form-group col-md-6">
-                        <label for="deluge_label" class="control-label">${_('Deluge Label:')}</label>
-                        <input type="text" id="deluge_label" name="deluge_label" value="${CONFIG['DELUGE_LABEL']}" class="form-control" placeholder="${_('Deluge Label') | h}">
-                      </div>
+                      ${category_inputs('deluge_label', 'DELUGE_LABEL', _('Deluge Labels:'))}
                       <div class="form-group col-md-6">
                         <label for="deluge_dir" class="control-label">${_('Download directory :')}</label>
                         <input type="text" id="deluge_dir" name="deluge_dir" value="${CONFIG['DELUGE_DIR']}" class="form-control" placeholder="${_('use deluge default') | h}">
@@ -1288,10 +1299,7 @@
                         <label for="transmission_base" class="control-label">${_('Transmission URL Base:')}</label>
                         <input type="text" id="transmission_base" name="transmission_base" value="${CONFIG['TRANSMISSION_BASE']}" class="form-control" placeholder="/transmission">
                       </div>
-                      <div class="form-group col-md-6">
-                        <label for="transmission_label" class="control-label">${_('Transmission label:')}</label>
-                        <input type="text" id="transmission_label" name="transmission_label" value="${CONFIG['TRANSMISSION_LABEL']}" class="form-control" placeholder="">
-                      </div>
+                      ${category_inputs('transmission_label', 'TRANSMISSION_LABEL', _('Transmission Labels:'))}
                     </div>
                       <div class="row">
                         <span class="help-block">${_('Remote/Local mapping for containers on different hosts')}</span>
@@ -1333,10 +1341,7 @@
                         <label for="rtorrent_pass" class="control-label">${_('rTorrent Password:')}</label>
                         <input type="password" id="rtorrent_pass" name="rtorrent_pass" value="${CONFIG['RTORRENT_PASS']}" class="form-control" placeholder="${_('rTorrent Password') | h}">
                       </div>
-                      <div class="form-group col-md-6">
-                        <label for="rtorrent_label" class="control-label">${_('rTorrent Label:')}</label>
-                        <input type="text" id="rtorrent_label" name="rtorrent_label" value="${CONFIG['RTORRENT_LABEL']}" class="form-control" placeholder="${_('rTorrent Label') | h}">
-                      </div>
+                      ${category_inputs('rtorrent_label', 'RTORRENT_LABEL', _('rTorrent Labels:'))}
                       <div class="form-group col-md-6">
                         <label for="rtorrent_dir" class="control-label">${_('rTorrent Directory:')}</label>
                         <input type="text" id="rtorrent_dir" name="rtorrent_dir" value="${CONFIG['RTORRENT_DIR']}" class="form-control" placeholder="${_('use rtorrent default') | h}">
@@ -1386,10 +1391,7 @@
                         <label for="utorrent_pass" class="control-label">${_('Password:')}</label>
                         <input type="password" id="utorrent_pass" name="utorrent_pass" value="${CONFIG['UTORRENT_PASS']}" class="form-control" placeholder="${_('uTorrent Password') | h}">
                       </div>
-                      <div class="form-group col-md-6">
-                        <label for="utorrent_label" class="control-label">${_('uTorrent Label:')}</label>
-                        <input type="text" id="utorrent_label" name="utorrent_label" value="${CONFIG['UTORRENT_LABEL']}" class="form-control" placeholder="${_('uTorrent Label') | h}">
-                      </div>
+                      ${category_inputs('utorrent_label', 'UTORRENT_LABEL', _('uTorrent Labels:'))}
                       <div class="form-group col-md-6">
                         <label for="utorrent_base" class="control-label">${_('uTorrent URL Base:')}</label>
                         <input type="text" id="utorrent_base" name="utorrent_base" value="${CONFIG['UTORRENT_BASE']}" class="form-control" placeholder="${_('URL base') | h}">
@@ -1439,10 +1441,7 @@
                           <label for="qbittorrent_pass" class="control-label">${_('Password:')}</label>
                           <input type="password" id="qbittorrent_pass" name="qbittorrent_pass" value="${CONFIG['QBITTORRENT_PASS']}" class="form-control" placeholder="${_('qBitTorrent Password') | h}">
                         </div>
-                        <div class="form-group col-md-6">
-                          <label for="qbittorrent_label" class="control-label">${_('qBitTorrent Label/Category:')}</label>
-                          <input type="text" id="qbittorrent_label" name="qbittorrent_label" value="${CONFIG['QBITTORRENT_LABEL']}" class="form-control" placeholder="${_('qBitTorrent Label/Category') | h}">
-                        </div>
+                        ${category_inputs('qbittorrent_label', 'QBITTORRENT_LABEL', _('qBittorrent Categories:'))}
                         <div class="form-group col-md-6">
                           <label for="qbittorrent_base" class="control-label">${_('qBitTorrent URL Base:')}</label>
                           <input type="text" id="qbittorrent_base" name="qbittorrent_base" value="${CONFIG['QBITTORRENT_BASE']}" class="form-control" placeholder="${_('URL base') | h}">
