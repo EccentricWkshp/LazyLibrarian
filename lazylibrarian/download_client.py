@@ -396,6 +396,16 @@ def get_download_files(source, downloadid):
 TRACKED_SOURCES = ("SABNZBD", "NZBGET", "QBITTORRENT", "TRANSMISSION", "DELUGEWEBUI", "DELUGERPC",
                    "RTORRENT", "UTORRENT", "SYNOLOGY_TOR", "SYNOLOGY_NZB")
 
+# Why NZBGet deleted a download, for the history. Like Sonarr, a deleted download has failed
+NZBGET_DELETED = {
+    "DELETED/MANUAL": "Deleted in NZBGet",
+    "DELETED/COPY": "NZBGet deleted it as a copy of a download it already has",
+    "DELETED/DUPE": "NZBGet deleted it as a duplicate of another download",
+    "DELETED/GOOD": "NZBGet deleted it as another copy of it was good",
+    "DELETED/HEALTH": "NZBGet deleted it as too many of its articles are missing",
+    "DELETED/SCAN": "NZBGet deleted it as its nzb could not be read",
+}
+
 
 
 def map_remote_path(source, path):
@@ -660,19 +670,25 @@ def get_download_progress(source, downloadid):
                             logger.debug(
                                 f"NZBID {item['NZBID']} status {item['Status']}"
                             )
-                            # 100% if completed, -1 if not found or failed
+                            # 100% if completed, -1 if not found or failed. A deleted one used to
+                            # stay at 0%, downloading for ever, when NZBGet's duplicate check
+                            # had thrown it away
                             if "SUCCESS" in item["Status"]:
                                 progress = 100
                                 finished = True
                             elif (
                                 "WARNING" in item["Status"]
                                 or "FAILURE" in item["Status"]
+                                or "DELETED" in item["Status"]
                             ):
+                                reason = item["Status"]
+                                if reason in NZBGET_DELETED:
+                                    reason = f"{NZBGET_DELETED[reason]} ({reason})"
                                 cmd = (
-                                    "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Status<>'Failed'"
+                                    "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Status<>'Failed' "
                                     "and Source=?"
                                 )
-                                db.action(cmd, (item["Status"], downloadid, source))
+                                db.action(cmd, (reason, downloadid, source))
                                 progress = -1
                             break
             if not found:

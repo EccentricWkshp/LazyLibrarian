@@ -231,6 +231,17 @@ class ProgressTest(LLTestCase):
             group.update(FileSizeHi=1, RemainingSizeHi=0, RemainingSizeLo=0)
             self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (100, True))
 
+    def test_nzbget_deleted(self):
+        # the reported one: NZBGet's duplicate check deleted it, and it stayed at 0% for ever
+        history = {'NZBID': 7, 'Status': 'DELETED/COPY'}
+        with mock.patch.object(download_client.nzbget, 'send_nzb', side_effect=[([], ''), ([history], '')]), \
+                mock.patch.object(download_client.database, 'DBConnection') as db:
+            self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (-1, False))
+        sql, args = db.return_value.action.call_args.args
+        self.assertIn("Status='Aborted'", sql)
+        self.assertEqual(args, ('NZBGet deleted it as a copy of a download it already has (DELETED/COPY)', '7',
+                                'NZBGET'))
+
 
 class RemotePathTest(LLTestCase):
     """ Folders the clients report go through the remote path mappings, see test_services_remotepaths """
