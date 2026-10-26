@@ -1704,13 +1704,17 @@ class ClientDownloadLocationTest(ProcessDirTestCase):
         self.assert_status_updated("client_001", "Processed")
 
     def test_not_looked_for_by_name(self):
-        self.client_folder(os.path.join(self.test_root, "elsewhere", "John_Doe-Test_Book_One"))
+        elsewhere = os.path.join(self.test_root, "elsewhere", "John_Doe-Test_Book_One")
+        self.client_folder(elsewhere)
+        saved = CONFIG['SAB_HOST']
+        self.addCleanup(CONFIG.set_str, 'SAB_HOST', saved)
+        CONFIG.set_str('SAB_HOST', 'nas')
         with self.assertLogs('lazylibrarian.postprocess', 'WARNING') as logs:
             process_dir(ignoreclient=True)
         row = self.row()
         self.assertEqual(row['Status'], 'Snatched', 'Blocked, not failed')
-        self.assertTrue(row['DLResult'].startswith('Import blocked: ['), row['DLResult'])
-        self.assertIn('remote path mapping', row['DLResult'])
+        self.assertTrue(row['DLResult'].startswith(f'Import blocked: [{elsewhere}] was not found'), row['DLResult'])
+        self.assertIn('No remote path mapping for nas', row['DLResult'])
         self.assertTrue(any('Import blocked' in line for line in logs.output))
         self.assertEqual(self.db.match("SELECT Status FROM books WHERE BookID='client_001'")['Status'], 'Snatched',
                          'Not searched for again')

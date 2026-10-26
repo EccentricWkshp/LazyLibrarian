@@ -109,6 +109,7 @@ from lazylibrarian.preprocessor import (
     preprocess_magazine,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
+from lazylibrarian.services import remotepaths
 
 
 @dataclass
@@ -407,10 +408,11 @@ class BookState:
             # For usenet clients (SABnzbd, NZBGet), the storage field already contains
             # the complete download path including the folder name
             if self.source in ("SABNZBD", "NZBGET") and general_folder:
-                if os.path.isdir(general_folder):
-                    self.download_folder = general_folder
-                else:
+                if path_isfile(general_folder):
                     self.download_folder = os.path.dirname(general_folder)
+                else:
+                    # a folder, or not found here, which is reported as the client gave it
+                    self.download_folder = general_folder
             elif res and res['NZBprov'] == 'soulseek':
                 try:
                     soulseek = json.loads(res['NZBurl'].split('^')[1].replace('\\','/'))
@@ -2960,9 +2962,8 @@ def _search_in_known_location(
     # Validate folder exists
     if not path_exists(book_state.download_folder):
         logger.warning(f"FAIL: Download folder not found: {book_state.download_folder}")
-        book_state.mark_failed("location", f"[{book_state.download_folder}] was not found. If {book_state.source} "
-                                           f"sees its files at another path, add a remote path mapping in "
-                                           f"Settings, Downloaders")
+        hint = remotepaths.explain_missing(book_state.source, book_state.download_folder)
+        book_state.mark_failed("location", f"[{book_state.download_folder}] was not found. {hint}".strip())
         return 0
 
     # Check if folder has content

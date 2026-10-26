@@ -54,6 +54,23 @@ class MatchingTest(RemotePathsTestCase):
         self.assertEqual(remotepaths.remote_to_local('other', '/downloads/x'), '/downloads/x', 'Another host')
         self.assertIsNone(remotepaths.remote_to_local('nas', None))
 
+    def test_typed_in_another_case(self):
+        # the reported one: a mapping for /downloads/Complete/Audiobooks when NZBGet says /downloads/complete/...
+        remotepaths.add_mapping('nas', '/downloads/Complete/Audiobooks', self.here('audio'))
+        self.assertEqual(remotepaths.remote_to_local('nas', '/downloads/complete/Audiobooks/A Book'),
+                         self.here('audio', 'A Book'))
+        remotepaths.add_mapping('nas', '/downloads/complete', self.here('downloads'))
+        self.assertEqual(remotepaths.remote_to_local('nas', '/downloads/complete/Audiobooks/A Book'),
+                         self.here('downloads', 'Audiobooks', 'A Book'), 'One in the same case comes first')
+
+    def test_explain_missing(self):
+        CONFIG.set_str('NZBGET_HOST', 'nas')
+        remotepaths.add_mapping('nas', '/downloads', self.here('downloads'))
+        self.assertIn('the remote path mapping of /downloads on nas',
+                      remotepaths.explain_missing('NZBGET', self.here('downloads', 'gone')))
+        self.assertIn('No remote path mapping for nas covers it', remotepaths.explain_missing('NZBGET', '/data/x'))
+        self.assertEqual(remotepaths.explain_missing('DIRECT', '/data/x'), '')
+
     def test_a_windows_client(self):
         remotepaths.add_mapping('winbox', 'D:\\Downloads\\Books', self.here('books'))
         self.assertEqual(remotepaths.remote_to_local('winbox', 'd:\\downloads\\books\\Author\\A Book.epub'),

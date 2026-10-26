@@ -67,17 +67,17 @@ def _is_windows(path: str) -> bool:
     return bool(re.match(r'^[A-Za-z]:', path)) or path.startswith('\\\\')
 
 
-def _names(path: str) -> list[str]:
+def _names(path: str, ignore_case=False) -> list[str]:
     """ The folder names in a path, either separator. Windows paths ignore case """
     names = [name for name in re.split(r'[\\/]+', path) if name]
-    return [name.lower() for name in names] if _is_windows(path) else names
+    return [name.lower() for name in names] if ignore_case or _is_windows(path) else names
 
 
-def _rest_below(parent: str, path: str) -> list[str] | None:
+def _rest_below(parent: str, path: str, ignore_case=False) -> list[str] | None:
     """ The names in path below parent, or None if path isn't parent or below it """
     if parent.startswith('/') != path.startswith('/') or _is_windows(parent) != _is_windows(path):
         return None
-    above, names = _names(parent), _names(path)
+    above, names = _names(parent, ignore_case), _names(path, ignore_case)
     if names[:len(above)] != above:
         return None
     # keep the case the client gave the rest of the path in
@@ -92,21 +92,47 @@ def mappings() -> list[dict]:
         db.close()
 
 
+def _best_mapping(host: str, path: str):
+    """ The mapping for path and the names below its remote path, or (None, None). The longest remote
+    path wins. A mapping typed in another case than the client reports is used when no other fits,
+    two folders whose names differ only in case being far less likely than a typing slip """
+    host = host_name(host)
+    for ignore_case in (False, True):
+        best = None
+        for mapping in mappings():
+            if mapping['Host'] != host:
+                continue
+            rest = _rest_below(mapping['RemotePath'], path, ignore_case)
+            if rest is not None and (best is None or len(_names(mapping['RemotePath'])) > best[0]):
+                best = (len(_names(mapping['RemotePath'])), mapping, rest)
+        if best:
+            return best[1], best[2]
+    return None, None
+
+
 def remote_to_local(host: str, path):
     """ Where a path the client on host reported is here, the path unchanged without a mapping """
     if not path:
         return path
-    host = host_name(host)
-    best = None
-    for mapping in mappings():
-        if mapping['Host'] != host:
-            continue
-        rest = _rest_below(mapping['RemotePath'], path)
-        if rest is not None and (best is None or len(_names(mapping['RemotePath'])) > best[0]):
-            best = (len(_names(mapping['RemotePath'])), mapping, rest)
-    if best is None:
+    mapping, rest = _best_mapping(host, path)
+    if mapping is None:
         return path
-    return os.path.join(best[1]['LocalPath'], *best[2])
+    return os.path.join(mapping['LocalPath'], *rest)
+
+
+def explain_missing(source: str, path: str) -> str:
+    """ For a download path that doesn't exist here, after mapping: which mapping made it, or that
+    none did, to say what to check, as Sonarr's health check does """
+    setting = SOURCE_HOSTS.get(source)
+    host = host_name(CONFIG[setting]) if setting else ''
+    if not host:
+        return ''
+    for mapping in mappings():
+        if mapping['Host'] == host and _rest_below(mapping['LocalPath'], path) is not None:
+            return (f"That is where the remote path mapping of {mapping['RemotePath']} on {host} to "
+                    f"{mapping['LocalPath']} puts it, check that mapping in Settings, Downloaders")
+    return (f"No remote path mapping for {host} covers it. If {source} sees its files at another path, "
+            f"add one in Settings, Downloaders")
 
 
 def source_to_local(source: str, path):
