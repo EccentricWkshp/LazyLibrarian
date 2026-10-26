@@ -1174,8 +1174,8 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
         self.assertEqual(call_args[0][0], SchedulerCommand.RESTART)
 
 
-class ProcessDirEndToEndTest(LLTestCaseWithStartup):
-    """End-to-end tests for process_dir with real file operations"""
+class ProcessDirTestCase(LLTestCaseWithStartup):
+    """Download and library folders, and helpers, for running process_dir with real file operations"""
 
     def setUp(self):
         super().setUp()
@@ -1240,8 +1240,9 @@ class ProcessDirEndToEndTest(LLTestCaseWithStartup):
         return author_id, book_id
 
     def create_snatched_download(self, book_id, download_title, book_type="eBook",
-                                source="SABnzbd", download_id=None):
-        """Create a snatched download entry"""
+                                source="BLACKHOLE", download_id=None):
+        """Create a snatched download entry. A blackhole's downloads are found by name in the download
+        directories, a download client's only where the client says they are"""
         if download_id is None:
             download_id = str(uuid.uuid4())
 
@@ -1310,6 +1311,11 @@ class ProcessDirEndToEndTest(LLTestCaseWithStartup):
         self.assertIsNotNone(result, f"Book {book_id} not found in wanted table")
         self.assertEqual(result['Status'], expected_status,
                         f"Expected status {expected_status}, got {result['Status']}")
+
+
+
+class ProcessDirEndToEndTest(ProcessDirTestCase):
+    """End-to-end tests for process_dir with real file operations"""
 
     @mock.patch('lazylibrarian.postprocess.check_contents')
     @mock.patch('lazylibrarian.postprocess.get_download_progress')
@@ -1663,3 +1669,84 @@ class ProcessDirEndToEndTest(LLTestCaseWithStartup):
             os.path.exists(other_epub),
             "Unrelated files in download root must not be copied or moved"
         )
+
+
+class ClientDownloadLocationTest(ProcessDirTestCase):
+    """ Like Sonarr and Radarr, a download client's download is only looked for where the client says it
+    is, and one that can't be imported from there is blocked rather than failed and searched for again """
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (('check_contents', None), ('get_download_progress', (100, True)),
+                            ('get_download_name', None)):
+            patch = mock.patch(f'lazylibrarian.postprocess.{name}', return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.db.action("DELETE FROM wanted")  # the database is shared by the class's tests
+        self.create_test_author_and_book("client_001", "John Doe", "Test Book One")
+        self.db.action("UPDATE books SET Status='Snatched' WHERE BookID='client_001'")
+        self.create_snatched_download("client_001", "John_Doe-Test_Book_One", source="SABNZBD", download_id="nzo_1")
+        # where a name search would find it
+        self.create_ebook_file(os.path.join(self.download_dir, "John_Doe-Test_Book_One", "Test Book One.epub"))
+
+    def client_folder(self, folder):
+        patch = mock.patch('lazylibrarian.postprocess.get_download_folder', return_value=folder)
+        self.addCleanup(patch.stop)
+        return patch.start()
+
+    def row(self):
+        return self.db.match("SELECT Status,DLResult FROM wanted WHERE BookID='client_001'")
+
+    def test_where_the_client_says(self):
+        self.client_folder(os.path.join(self.download_dir, "John_Doe-Test_Book_One"))
+        process_dir(ignoreclient=True)
+        self.assert_status_updated("client_001", "Processed")
+
+    def test_not_looked_for_by_name(self):
+        self.client_folder(os.path.join(self.test_root, "elsewhere", "John_Doe-Test_Book_One"))
+        with self.assertLogs('lazylibrarian.postprocess', 'WARNING') as logs:
+            process_dir(ignoreclient=True)
+        row = self.row()
+        self.assertEqual(row['Status'], 'Snatched', 'Blocked, not failed')
+        self.assertTrue(row['DLResult'].startswith('Import blocked: ['), row['DLResult'])
+        self.assertIn('remote path mapping', row['DLResult'])
+        self.assertTrue(any('Import blocked' in line for line in logs.output))
+        self.assertEqual(self.db.match("SELECT Status FROM books WHERE BookID='client_001'")['Status'], 'Snatched',
+                         'Not searched for again')
+        self.assertTrue(os.path.exists(os.path.join(self.download_dir, "John_Doe-Test_Book_One")),
+                        'The download directory was not searched')
+
+        # tried again on the next run, the warning isn't repeated
+        with self.assertLogs('lazylibrarian.postprocess', 'DEBUG') as logs:
+            process_dir(ignoreclient=True)
+        self.assertFalse(any('Import blocked' in line and 'WARNING' in line for line in logs.output))
+        self.assertEqual(self.row()['Status'], 'Snatched')
+
+    def test_imported_once_fixed(self):
+        folder = self.client_folder('')
+        process_dir(ignoreclient=True)
+        self.assertEqual(self.row()['DLResult'], 'Import blocked: SABNZBD did not say where the download is')
+        folder.return_value = os.path.join(self.download_dir, "John_Doe-Test_Book_One")
+        process_dir(ignoreclient=True)
+        self.assert_status_updated("client_001", "Processed")
+
+    def test_a_folder_asked_for_is_searched_by_name(self):
+        # like Sonarr's scan of a path: the user points it at a folder
+        self.client_folder('')
+        process_dir(startdir=self.download_dir, ignoreclient=True)
+        self.assert_status_updated("client_001", "Processed")
+
+
+class LLBookIdFolderTest(ProcessDirTestCase):
+    """ A folder named LL.(bookid) is a manual import, only done in a folder asked for """
+
+    def test_only_in_a_folder_asked_for(self):
+        self.create_test_author_and_book("bookid_001", "Jane Roe", "Second Book")
+        folder = os.path.join(self.download_dir, "Second Book LL.(bookid_001)")
+        self.create_ebook_file(os.path.join(folder, "Second Book.epub"))
+        with mock.patch('lazylibrarian.postprocess.process_book', return_value=True) as process:
+            process_dir(ignoreclient=True)
+            process.assert_not_called()
+            process_dir(startdir=self.download_dir, ignoreclient=True)
+        process.assert_called_once()
+        self.assertEqual(process.call_args.args[:2], (folder, "bookid_001"))

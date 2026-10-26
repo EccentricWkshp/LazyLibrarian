@@ -41,6 +41,7 @@ from lazylibrarian.common import multibook, run_script
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import (
     ADOPTABLE_SOURCES,
+    TRACKED_SOURCES,
     check_contents,
     delete_task,
     get_download_content_path,
@@ -2950,6 +2951,8 @@ def _search_in_known_location(
     # Validate folder exists
     if not path_exists(book_state.download_folder):
         logger.warning(f"FAIL: Download folder not found: {book_state.download_folder}")
+        book_state.mark_failed("location", f"[{book_state.download_folder}] was not found. If {book_state.source} "
+                                           f"sees its files at another path, it needs a remote path mapping")
         return 0
 
     # Check if folder has content
@@ -2957,10 +2960,13 @@ def _search_in_known_location(
         contents = listdir(book_state.download_folder)
         if not contents:
             logger.warning("FAIL: Download folder is empty")
+            book_state.mark_failed("location", f"No files found are eligible for import in "
+                                               f"{book_state.download_folder}")
             return 0
         logger.info(f"Folder has {len(contents)} items")
     except Exception as e:
         logger.error(f"ERROR: Cannot access folder: {e}")
+        book_state.mark_failed("location", f"Cannot read {book_state.download_folder}: {e}")
         return 0
 
     # Set candidate_ptr to the known folder
@@ -2993,6 +2999,32 @@ def _search_in_known_location(
     )
 
     return result
+
+
+def _block_reason(book_state: BookState) -> str:
+    """ Why a download client's download could not be imported """
+    if book_state.failure_reason:
+        return book_state.failure_reason
+    if not book_state.download_folder:
+        return f"{book_state.source} did not say where the download is"
+    return f"Nothing could be imported from {book_state.download_folder}"
+
+
+def _block_import(db, book_state: BookState, logger: logging.Logger) -> None:
+    """ Like Sonarr's and Radarr's import blocked: the download stays snatched with the reason in
+    DLResult and is tried again on each run, so fixing the cause (a remote path mapping, say) lets
+    it import. It is not failed and searched for again, another copy would likely stop at the same
+    place. The reason goes in the main log as a warning when it changes, not on every run """
+    reason = f"Import blocked: {_block_reason(book_state)}"
+    row = db.match("SELECT DLResult from wanted WHERE NZBurl=? AND Status='Snatched'", (book_state.download_url,))
+    if not row:
+        return
+    if row["DLResult"] == reason:
+        logger.debug(f"{book_state.download_title}: {reason}")
+        return
+    logging.getLogger(__name__).warning(f"{book_state.download_title}: {reason}")
+    db.action("UPDATE wanted SET DLResult=? WHERE NZBurl=? AND Status='Snatched'",
+              (reason, book_state.download_url))
 
 
 def _compile_all_downloads(dirlist, logger):
@@ -3240,6 +3272,14 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
                         f"specified for {book_state.download_title}, trying Pass 2"
                     )
 
+                if book_state.source in TRACKED_SOURCES and not startdir:
+                    # Like Sonarr and Radarr: a download client's download is only looked for where the
+                    # client says it is. Anything else could be another download with a similar name.
+                    # A failed copy to the library has already marked it Failed
+                    if book_state.processing_stage != "destination":
+                        _block_import(db, book_state, postprocesslogger)
+                    continue
+
                 # =======================================================
                 #  Matching Stage | Second Pass: Fuzzy Search
                 #  * Only here if not processed in First Pass
@@ -3282,9 +3322,11 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
 
         # ==========================================================================
         #  Supplemental Search: Look for and process books in LL.(bookid) Folders
+        #  Only in a folder asked for, like Sonarr's scan of a path. A folder named
+        #  that way is a manual import, the download directories hold other things
         # ==========================================================================
-        postprocesslogger.info("Supplemental Search: Processing LL.(bookid) folders")
-        if all_downloads:
+        if all_downloads and startdir:
+            postprocesslogger.info("Supplemental Search: Processing LL.(bookid) folders")
             ppcount += _process_ll_bookid_folders_from_list(
                 all_downloads, db, postprocesslogger
             )

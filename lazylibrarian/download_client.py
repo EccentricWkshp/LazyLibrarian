@@ -389,6 +389,31 @@ def get_download_files(source, downloadid):
         return None
 
 
+# The download clients asked where each download is, as Sonarr and Radarr do, and only there.
+# LazyLibrarian saves direct, IRC and soulseek downloads itself, and a blackhole hands the file
+# to another program, so those are found by name in the download directories instead
+TRACKED_SOURCES = ("SABNZBD", "NZBGET", "QBITTORRENT", "TRANSMISSION", "DELUGEWEBUI", "DELUGERPC",
+                   "RTORRENT", "UTORRENT", "SYNOLOGY_TOR", "SYNOLOGY_NZB")
+
+# the start of the clients' remote and local path settings, by source
+PATH_MAPPING_SETTINGS = {"SABNZBD": "SAB", "NZBGET": "NZBGET", "RTORRENT": "RTORRENT", "UTORRENT": "UTORRENT",
+                         "QBITTORRENT": "QBITTORRENT", "TRANSMISSION": "TRANSMISSION", "DELUGEWEBUI": "DELUGE",
+                         "DELUGERPC": "DELUGE", "SYNOLOGY_TOR": "SYNOLOGY", "SYNOLOGY_NZB": "SYNOLOGY"}
+
+
+def map_remote_path(source, path):
+    """ A path the download client reported, as LazyLibrarian sees it. Like Sonarr's remote path
+    mappings, a plain replacement of the client's remote path at the start with the local one """
+    prefix = PATH_MAPPING_SETTINGS.get(source)
+    if not path or not prefix:
+        return path
+    remote, local = CONFIG[f"{prefix}_REMOTE"], CONFIG[f"{prefix}_LOCAL"]
+    if remote and local and path.startswith(remote):
+        logging.getLogger(__name__).debug(f"Replacing {remote} with {local}")
+        return local + path[len(remote):]
+    return path
+
+
 def get_download_folder(source, downloadid):
     logger = logging.getLogger(__name__)
     dlcommslogger = logging.getLogger("special.dlcomms")
@@ -402,7 +427,7 @@ def get_download_folder(source, downloadid):
             dlfolder = utorrent.dir_torrent(downloadid)
         elif source == "RTORRENT":
             dlfolder = rtorrent.get_folder(downloadid)
-        elif source == "SYNOLOGY_TOR":
+        elif source in ("SYNOLOGY_TOR", "SYNOLOGY_NZB"):
             dlfolder = synology.get_folder(downloadid)
         elif source == "QBITTORRENT":
             dlfolder = qbittorrent.get_folder(downloadid)
@@ -489,21 +514,8 @@ def get_download_folder(source, downloadid):
                             dlfolder = item.get("DestDir")
                             break
 
-        # Remote to local mapping for docker containers
-        # Convert source to match config keys
-        if source.startswith('DELUGE'):
-            source = 'DELUGE'
-        elif source.startswith('SYNOLOGY'):
-            source = 'SYNOLOGY'
-        elif source == 'SABNZBD':
-            source = 'SAB'
-
-        if (source in ['SAB', 'NZBGET', 'RTORRENT', 'UTORRENT', 'QBITTORRENT', 'TRANSMISSION', 'DELUGE', 'SYNOLOGY', 'SLSK'] and
-            CONFIG[f"{source}_REMOTE"] and CONFIG[f"{source}_LOCAL"] and dlfolder.startswith(CONFIG[f"{source}_REMOTE"])):
-                logger.debug(f"Replacing {CONFIG[f'{source}_REMOTE']} with {CONFIG[f'{source}_LOCAL']}")
-                dlfolder = dlfolder.replace(CONFIG[f"{source}_REMOTE"], CONFIG[f"{source}_LOCAL"])
-
-        return dlfolder
+        # the client's path, as seen from here: docker containers or another machine
+        return map_remote_path(source, dlfolder)
 
     except Exception:
         logger.warning(f"Failed to get folder from {source} for {downloadid}")
@@ -520,7 +532,7 @@ def get_download_content_path(source, downloadid):
     # noinspection PyBroadException
     try:
         if source == "QBITTORRENT":
-            return qbittorrent.get_content_path(downloadid)
+            return map_remote_path(source, qbittorrent.get_content_path(downloadid))
     except Exception:
         return ''
     return ''
