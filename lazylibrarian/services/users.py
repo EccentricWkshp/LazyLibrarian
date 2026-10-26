@@ -40,6 +40,18 @@ def send_to(userid) -> str:
     return res['SendTo'] if res and res['SendTo'] else ''
 
 
+def preferred_type(userid) -> str:
+    """ The ebook format the user would rather have, empty if they haven't said """
+    if not userid:
+        return ''
+    db = database.DBConnection()
+    try:
+        res = db.match('SELECT BookType from users where UserID=?', (userid,))
+    finally:
+        db.close()
+    return res['BookType'] or '' if res else ''
+
+
 def valid_ui_lang(value: str) -> bool:
     """ Empty (use the global setting), auto, or a language we have a translation for """
     return value in ('', i18n.AUTO) or value in i18n.available_languages()
