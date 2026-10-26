@@ -314,6 +314,7 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertEqual(response.json()['path'], TESTDIR, 'The nearest folder that is there')
         self.assertEqual(self.get('/ll/api/v1/manualimport/folders', headers=key).status_code, 200)
         self.assertEqual(self.get('/ll/api/v1/book', headers=key, params={'term': 'zzzznothing'}).json(), [])
+        self.assertEqual(self.get('/ll/api/v1/book/nosuch', headers=key).status_code, 404)
 
         response = self.client.post('/ll/api/v1/command', headers=key, json={
             'name': 'ManualImport', 'files': [{'path': '/nowhere', 'mediaType': 'ebook', 'bookId': 'x'}]})

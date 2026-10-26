@@ -467,7 +467,7 @@
                             %endif
                         }
                         else if ( btn.indexOf('Wanted') >= 0 ) {
-                            btn = '<p><a class="a btn btn-xs btn-danger"><i class="fa fa-book"></i> ' + llStatus(btn) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'}
+                            btn = '<p><a class="a btn btn-xs btn-danger"><i class="fa fa-book"></i> ' + llStatus(btn) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'+ '<p><a class="b btn btn-xs btn-info" href="wanted/search?bookId=' + encodeURIComponent(row[9]) + '&mediaType=ebook" target="_self" title="' + ${_js('Every release, and why the automatic search would turn each down')} + '"><i class="fa fa-user"></i> ' + ${_js('Interactive')} + '</a></p>'}
                         else if ( btn.indexOf('Snatched') >= 0 ) {
                             btn = '<a class="button btn btn-xs btn-info"><i class="fa fa-book"></i> ' + llStatus(btn) + '</a>'}
                         else if ( btn.indexOf('Ignored') >= 0 ) {
@@ -492,7 +492,7 @@
                                     '&library=AudioBook" target="_self"><i class="fa fa-headphones"></i> ' + llStatus(btn2) + '</a>'
                         }
                         else if ( btn2.indexOf('Wanted') >= 0 ) {
-                            btn2 = '<p><a class="a btn btn-xs btn-danger"><i class="fa fa-headphones"></i> ' + llStatus(btn2) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=AudioBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'}
+                            btn2 = '<p><a class="a btn btn-xs btn-danger"><i class="fa fa-headphones"></i> ' + llStatus(btn2) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=AudioBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'+ '<p><a class="b btn btn-xs btn-info" href="wanted/search?bookId=' + encodeURIComponent(row[9]) + '&mediaType=audiobook" target="_self" title="' + ${_js('Every release, and why the automatic search would turn each down')} + '"><i class="fa fa-user"></i> ' + ${_js('Interactive')} + '</a></p>'}
                         else if ( btn2.indexOf('Snatched') >= 0 ) {
                             btn2 = '<a class="button btn btn-xs btn-info"><i class="fa fa-headphones"></i> ' + llStatus(btn2) + '</a>'}
                         else if ( btn2.indexOf('Ignored') >= 0 ) {

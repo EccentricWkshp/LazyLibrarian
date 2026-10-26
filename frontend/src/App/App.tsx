@@ -12,6 +12,7 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import Tasks from 'System/Tasks/Tasks';
 import { urlBase } from 'Utilities/api';
 import Missing from 'Wanted/Missing/Missing';
+import BookSearch from 'Wanted/Search/BookSearch';
 import queryClient from './queryClient';
 
 function NotFound() {
@@ -39,6 +40,7 @@ function App() {
               <Route path="/activity/blocklist" element={<Blocklist />} />
               <Route path="/wanted" element={<Navigate to="/wanted/missing" replace={true} />} />
               <Route path="/wanted/missing" element={<Missing />} />
+              <Route path="/wanted/search" element={<BookSearch />} />
               <Route path="/system" element={<Navigate to="/system/tasks" replace={true} />} />
               <Route path="/system/tasks" element={<Tasks />} />
               <Route path="*" element={<NotFound />} />

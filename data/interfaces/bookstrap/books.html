@@ -207,7 +207,7 @@
                     }
                     else if ( btn.indexOf('Wanted') >= 0 ) {
                         %if perm&lazylibrarian.perm_force:
-                            btn = '<p><a class="a btn btn-xs btn-danger">' + llStatus(btn) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'
+                            btn = '<p><a class="a btn btn-xs btn-danger">' + llStatus(btn) + '</a></p><p><a class="b btn btn-xs btn-success" href="search_for_book?bookid=' + row[9] + '&library=eBook" target="_self"><i class="fa fa-search"></i> ' + ${_js('Search')} + '</a></p>'+ '<p><a class="b btn btn-xs btn-info" href="wanted/search?bookId=' + encodeURIComponent(row[9]) + '&mediaType=ebook" target="_self" title="' + ${_js('Every release, and why the automatic search would turn each down')} + '"><i class="fa fa-user"></i> ' + ${_js('Interactive')} + '</a></p>'
                         %else:
                             btn = '<p><a class="button btn btn-xs btn-default grey" href="request_book?bookid=' + row[9] + '&library=eBook" target="_self">' + ${_js('Request')} + '</a></p>'
                         %endif

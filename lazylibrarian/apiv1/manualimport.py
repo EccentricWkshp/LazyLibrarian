@@ -54,6 +54,7 @@ class Book(ApiModel):
     id: str
     title: str
     author: str
+    author_id: str | None = None
     status: str | None
     audio_status: str | None
 
@@ -91,6 +92,11 @@ def suggested_folders():
 def books(term: str):
     """ Library books with every word of term in their title or author """
     return manualimport.search_books(term)
+
+
+@router.get('/book/{book_id}', response_model=Book, tags=['Book'])
+def book(book_id: str):
+    return manualimport.get_book(book_id)
 
 
 def _roots() -> list[dict]:

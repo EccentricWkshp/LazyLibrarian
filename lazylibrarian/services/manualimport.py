@@ -289,6 +289,20 @@ def search_books(term: str, limit: int = 25) -> list[dict]:
     return [{**_book(dict(row)), 'status': row['Status'], 'audio_status': row['AudioStatus']} for row in rows]
 
 
+def get_book(book_id: str) -> dict:
+    """ A library book, with its author's id to link to """
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT BookID,BookName,AuthorName,books.AuthorID,books.Status,AudioStatus FROM books,authors '
+                       'WHERE books.AuthorID=authors.AuthorID AND BookID=?', (book_id,))
+    finally:
+        db.close()
+    if not row:
+        raise NotFoundError(f'No book {book_id}')
+    return {**_book(dict(row)), 'author_id': row['AuthorID'], 'status': row['Status'],
+            'audio_status': row['AudioStatus']}
+
+
 def _wait_for_postprocessor():
     """ Imports and the post processor change the same downloads, so they take turns: an import
     waits for a run that is going, and calls its thread POSTPROCESS so no run starts meanwhile """

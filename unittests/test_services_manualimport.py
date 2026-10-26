@@ -191,6 +191,13 @@ class CandidatesTest(ManualImportTestCase):
         self.assertEqual([book['id'] for book in manualimport.search_books('roe story')], ['mi_002'])
         self.assertEqual(manualimport.search_books(' '), [])
 
+    def test_get_book(self):
+        book = manualimport.get_book('mi_002')
+        self.assertEqual((book['title'], book['author'], book['status']), ('Another Story', 'Jane Roe', 'Wanted'))
+        self.assertTrue(book['author_id'], 'To link to the author')
+        with self.assertRaises(NotFoundError):
+            manualimport.get_book('nosuch')
+
     def test_already_in_the_library(self):
         have = self.write("library copy", "Test Book One.epub")
         self.db.action("UPDATE books SET BookFile=? WHERE BookID='mi_001'", (have,))

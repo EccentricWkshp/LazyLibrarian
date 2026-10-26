@@ -29,6 +29,7 @@ export interface LibraryBook {
   id: string;
   title: string;
   author: string;
+  authorId?: string | null;
   status: string | null;
   audioStatus: string | null;
 }

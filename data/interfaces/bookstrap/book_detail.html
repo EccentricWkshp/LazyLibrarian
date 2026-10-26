@@ -15,8 +15,10 @@
             %endif
             %if perm&lazylibrarian.perm_status:
             <a href="search_for_book?bookid=${book['BookID']}&library=eBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> ${_('Search eBook')}</a>
+            <a href="wanted/search?bookId=${book['BookID'] | u}&mediaType=ebook" class="btn btn-sm btn-info"><i class="fa fa-user"></i> ${_('Interactive Search eBook')}</a>
             %if CONFIG.get_int('AUDIO_TAB') > 0:
             <a href="search_for_book?bookid=${book['BookID']}&library=AudioBook" class="btn btn-sm btn-primary"><i class="fa fa-search"></i> ${_('Search AudioBook')}</a>
+            <a href="wanted/search?bookId=${book['BookID'] | u}&mediaType=audiobook" class="btn btn-sm btn-info"><i class="fa fa-user"></i> ${_('Interactive Search AudioBook')}</a>
             %endif
             %endif
         </div>
