@@ -38,7 +38,6 @@ from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.providers import iterate_over_rss_sites, iterate_over_wishlists
 from lazylibrarian.resultlist import process_result_list
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def cron_search_rss_book():
@@ -126,7 +125,6 @@ def calc_status(bookmatch, search_start, ebook_status, audio_status):
 
 # noinspection PyBroadException
 def search_wishlist():
-    TELEMETRY.record_usage_data('Search/Wishlist')
     logger = logging.getLogger(__name__)
     thread_name("SEARCHWISHLIST")
     new_books = []
@@ -457,7 +455,6 @@ def search_rss_book(books=None, library=None):
     books is a list of new books to add, or None for backlog search
     library is "eBook" or "AudioBook" or None to search all book types
     """
-    TELEMETRY.record_usage_data('Search/Book/RSS')
     logger = logging.getLogger(__name__)
     if not (CONFIG.use_rss()):
         logger.warning('rss search is disabled')

@@ -91,9 +91,6 @@
             toggleElement("#use_custom", "#customoptions");
             toggleElement("#use_email", "#emailoptions");
             toggleElement("#use_email_custom_format", "#email_custom_format_options");
-
-            // Telemetry
-            toggleElement("#telemetry_enable", "#telemetry_options");
         });
     })();
 
@@ -106,7 +103,11 @@
         //$("div[role='tabpanel']").attr("aria-hidden", "true");
         $("div[role='tab-table']").removeClass('active');
         // which one do we want to show
-        const tabnum = $("#config_tab_num").val();
+        let tabnum = $("#config_tab_num").val();
+        // a tab that's gone, or hidden like Genres, falls back to the first one
+        if ($("#" + tabnum).length === 0) {
+            tabnum = '1';
+        }
         const tabid = $("#" + tabnum);
         const tabpanel = tabid.attr('aria-controls');
         const tabpanelid = $("#" + tabpanel);
@@ -982,71 +983,6 @@
                             label: ${_js('Close')},
                             className: 'btn-primary',
                             callback: function(){ location.reload(); }
-                        },
-                    }
-                });
-            });
-        });
-
-        // Refresh telemetry data when the page has loaded
-        $('window').ready(function() {
-            let send_config = $("#telemetry_send_config").prop("checked") ? 'True' : ''
-            let send_usage = $("#telemetry_send_usage").prop("checked") ? 'True' : ''
-            $.get('get_telemetry_data', {'send_config': send_config, 'send_usage': send_usage},
-            function(data) {
-                $("#telemetry_data").val(data)
-            });
-        });
-
-        $('#telemetry_refresh').on('click', function() {
-            let send_config = $("#telemetry_send_config").prop("checked") ? 'True' : ''
-            let send_usage = $("#telemetry_send_usage").prop("checked") ? 'True' : ''
-            $.get('get_telemetry_data', {'send_config': send_config, 'send_usage': send_usage},
-            function(data) {
-                $("#telemetry_data").val(data)
-            });
-        });
-
-        $('#telemetry_reset').on('click', function() {
-            let send_config = $("#telemetry_send_config").prop("checked") ? 'True' : ''
-            let send_usage = $("#telemetry_send_usage").prop("checked") ? 'True' : ''
-            $.get('reset_telemetry_usage_data', function() {});
-            $.get('get_telemetry_data', {'send_config': send_config, 'send_usage': send_usage},
-            function(data) {
-                $("#telemetry_data").val(data)
-            });
-        });
-
-        $('#test_telemetry_server').on('click', function() {
-            let server = $.trim($("#telemetry_server").val());
-            $.get('test_telemetry_server', {'server': server},
-                function(data) {
-                bootbox.dialog({
-                    title: ${_js('Telemetry server connection')},
-                    message: '<pre>'+data+'</pre>',
-                    buttons: {
-                        primary: {
-                            label: ${_js('Close')},
-                            className: 'btn-primary'
-                        }
-                    }
-                });
-            });
-        });
-
-        $('#telemetry_submit').on('click', function() {
-            let server = $.trim($("#telemetry_server").val());
-            let send_config = $("#telemetry_send_config").prop("checked") ? 'True' : ''
-            let send_usage = $("#telemetry_send_usage").prop("checked") ? 'True' : ''
-            $.get('submit_telemetry_data', {'server': server, 'send_config': send_config, 'send_usage': send_usage},
-                function(data) {
-                bootbox.dialog({
-                    title: ${_js('Submitted telemetry data')},
-                    message: '<pre>'+data+'</pre>',
-                    buttons: {
-                        primary: {
-                            label: ${_js('Close')},
-                            className: 'btn-primary',
                         },
                     }
                 });

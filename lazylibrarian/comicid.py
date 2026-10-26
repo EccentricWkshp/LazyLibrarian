@@ -34,7 +34,6 @@ from lazylibrarian.formatter import (
     plural,
     strip_quotes,
 )
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def get_issue_num(words, skipped):
@@ -116,7 +115,6 @@ def title_words(words):
 def cv_identify(fname, best=True):
     logger = logging.getLogger(__name__)
     matchinglogger = logging.getLogger('special.matching')
-    TELEMETRY.record_usage_data('CV/Identify')
     apikey = CONFIG['CV_APIKEY']
     if not apikey:
         # don't nag. Show warning message no more than every 20 mins
@@ -414,7 +412,6 @@ def get_series_detail_from_search(page_content):
 def cx_identify(fname, best=True):
     logger = logging.getLogger(__name__)
     matchinglogger = logging.getLogger('special.matching')
-    TELEMETRY.record_usage_data('CX/Identify')
     res = []
     fname = make_unicode(fname)
     words = name_words(fname)

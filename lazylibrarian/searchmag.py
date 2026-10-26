@@ -43,7 +43,6 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def cron_search_magazines():
@@ -53,7 +52,6 @@ def cron_search_magazines():
 
 def search_magazines(mags=None, reset=False, backissues=False):
     # produce a list of magazines to search for, then search all enabled providers
-    TELEMETRY.record_usage_data('Search/Magazine')
     logger = logging.getLogger(__name__)
     searchinglogger = logging.getLogger('special.searching')
 

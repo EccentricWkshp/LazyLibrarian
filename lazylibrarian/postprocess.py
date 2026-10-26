@@ -108,7 +108,6 @@ from lazylibrarian.preprocessor import (
     preprocess_magazine,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.telemetry import TELEMETRY
 
 
 @dataclass
@@ -517,7 +516,6 @@ def process_img(
         logger.debug(f"No cover to cache for {bookid}")
         return
 
-    TELEMETRY.record_usage_data("Process/Image")
     if bookimg.startswith("cache/"):
         img = bookimg.replace("cache/", "")
         if os.path.__name__ == "ntpath":
@@ -3107,7 +3105,6 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
         # ======================================================================
         books_to_process = []
         if len(snatched_books):
-            TELEMETRY.record_usage_data("Process/Snatched")
             books_to_process = _get_ready_from_snatched(db, snatched_books)
 
         postprocesslogger.info(
@@ -3365,7 +3362,6 @@ def _process_ll_bookid_folders_from_list(all_downloads, db, logger):
     """
     ppcount = 0
     skipped_extensions = get_list(CONFIG["SKIPPED_EXT"])
-    TELEMETRY.record_usage_data("Process/Residual")
 
     logger.debug(f"Scanning {len(all_downloads)} items for LL.(bookid) pattern")
 
@@ -3424,7 +3420,6 @@ def _process_ll_bookid_folders_from_list(all_downloads, db, logger):
 
 
 def process_book(book_path: str, book_id: str, logger=None, library=""):
-    TELEMETRY.record_usage_data("Process/Book")
     if not logger:
         logger = logging.getLogger(__name__)
 
@@ -3677,7 +3672,6 @@ def _process_extras(
         logger.error("No dest_file supplied")
         return
 
-    TELEMETRY.record_usage_data("Process/Extras")
     db = database.DBConnection()
     try:
         booktype_enum = BookType.from_string(book_type)
@@ -4057,7 +4051,6 @@ def _process_destination(
         - full_path_to_book: Path to the processed book file
         - book_path: Processing path (may have changed to .unpack)
     """
-    TELEMETRY.record_usage_data("Process/Destination")
 
     # Extract commonly used fields from metadata
     book_type = book_metadata.book_type
@@ -4307,7 +4300,6 @@ def _process_auto_add(src_path: str, book_type_enum: BookType = BookType.EBOOK):
             f"AutoAdd directory for {book_type_str} [{autoadddir}] is missing or not set - cannot perform autoadd"
         )
         return False
-    TELEMETRY.record_usage_data("Process/Autoadd")
     # Now try and copy all the book files into a single dir.
     try:
         names = listdir(src_path)

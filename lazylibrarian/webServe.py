@@ -212,7 +212,6 @@ from lazylibrarian.searchbook import search_book
 from lazylibrarian.searchmag import download_maglist, search_magazines
 from lazylibrarian.searchrss import search_wishlist
 from lazylibrarian.startup import prioritized_infosources
-from lazylibrarian.telemetry import TELEMETRY
 
 lastauthor = ''
 lastmagazine = ''
@@ -3252,7 +3251,6 @@ class WebInterface:
     @require_auth()
     def add_book(self, bookid=None, authorid=None, library=None, source=None):
         logger = logging.getLogger(__name__)
-        TELEMETRY.record_usage_data()
         if library == 'eBook':
             ebook_status = "Wanted"
             audio_status = "Skipped"
@@ -3337,7 +3335,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search_for_book(self, bookid=None, library=None):
-        TELEMETRY.record_usage_data()
         author_id = ''
         db = database.DBConnection()
         try:
@@ -4236,7 +4233,6 @@ class WebInterface:
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)
         self.label_thread('EDIT_BOOK')
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         authors = db.select(
             "SELECT AuthorName from authors WHERE Status !='Ignored' ORDER by AuthorName COLLATE NOCASE")
@@ -5155,7 +5151,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search_for_comic(self, comicid=None):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
             bookdata = db.match('SELECT * from comics WHERE ComicID=?', (comicid,))
@@ -5313,7 +5308,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def comic_scan(self, **kwargs):
-        TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         comicid = kwargs.get('comicid')
 
@@ -5510,7 +5504,6 @@ class WebInterface:
         # noinspection PyGlobalUndefined
         global comicresults
         logger = logging.getLogger(__name__)
-        TELEMETRY.record_usage_data()
         comicresults = []
         if not title or title == 'None':
             raise cherrypy.HTTPRedirect("comics")
@@ -5554,7 +5547,6 @@ class WebInterface:
         # add a comic from a list in comicresults.html
         global comicresults
         logger = logging.getLogger(__name__)
-        TELEMETRY.record_usage_data()
         apikey = CONFIG['CV_APIKEY']
         if not comicid or comicid == 'None':
             raise cherrypy.HTTPRedirect("comics")
@@ -5889,7 +5881,6 @@ class WebInterface:
     def edit_mag(self, mag=None):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         self.label_thread('EDIT_MAG')
-        TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         try:
@@ -6096,7 +6087,6 @@ class WebInterface:
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         logger = logging.getLogger(__name__)
         self.label_thread('EDIT_ISSUE')
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
             issuedata = db.match("SELECT Title,IssueDate,IssueID,IssueFile from issues WHERE IssueID=?", (issueid,))
@@ -6972,7 +6962,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def search_for_mag(self, bookid=None):
-        TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         db = database.DBConnection()
         bookdata = db.match('SELECT * from magazines WHERE Title=? COLLATE NOCASE', (bookid,))
@@ -7001,7 +6990,6 @@ class WebInterface:
     @cherrypy.expose
     @require_auth()
     def add_magazine(self, title=None, **kwargs):
-        TELEMETRY.record_usage_data()
         logger = logging.getLogger(__name__)
         if not title or title == 'None':
             raise cherrypy.HTTPRedirect("magazines")
@@ -9172,46 +9160,8 @@ class WebInterface:
         logger.error(f"No file [{myfile}]")
         return None
 
-    # TELEMETRY ##########################################################
-
-    @cherrypy.expose
-    @require_auth()
-    def get_telemetry_data(self, **kwargs):
-        send_config = kwargs['send_config']
-        send_usage = kwargs['send_usage']
-        return TELEMETRY.get_data_for_ui_preview(send_config, send_usage)
-
-    @cherrypy.expose
-    @require_auth()
-    def reset_telemetry_usage_data(self):
-        return TELEMETRY.clear_usage_data()
-
-    @cherrypy.expose
-    @require_auth()
-    def submit_telemetry_data(self, **kwargs):
-        server = kwargs['server']
-        send_config = kwargs['send_config']
-        send_usage = kwargs['send_usage']
-        result, _ = TELEMETRY.submit_data(server, send_config, send_usage)
-        return result
-
-    @cherrypy.expose
-    @require_auth()
-    def test_telemetry_server(self, **kwargs):
-        return TELEMETRY.test_server(kwargs['server'])
-
     @cherrypy.expose
     @require_auth()
     def set_current_tabs(self, **kwargs):
         if 'config_tab' in kwargs:
             CONFIG.set_from_ui('CONFIG_TAB_NUM', check_int(kwargs['config_tab'], 1))
-
-    # noinspection PyUnusedLocal
-    @cherrypy.expose
-    @require_auth()
-    def enable_telemetry(self, **kwargs):
-        CONFIG.set_bool('TELEMETRY_ENABLE', True)
-        CONFIG.set_int('TELEMETRY_INTERVAL', 6)
-        CONFIG.set_url('TELEMETRY_SERVER', 'https://lazylibrarian.telem.ch')
-        CONFIG.save_config_and_backup_old(section='Telemetry')
-        return i18n.gettext("Thank you for enabling Telemetry")

@@ -71,7 +71,6 @@ from lazylibrarian.formatter import (
 )
 from lazylibrarian.ircbot import irc_query
 from lazylibrarian.soulseek import SLSKD
-from lazylibrarian.telemetry import record_usage_data
 from lazylibrarian.webshare import valid_ident, webshare_download
 from lib.bencode import BencodeDecodeError, bdecode, bencode
 
@@ -164,7 +163,6 @@ def irc_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', prov
                 db.action("UPDATE books SET audiostatus='Snatched' WHERE BookID=?", (bookid,))
             db.action("UPDATE wanted SET status='Snatched', Source=?, DownloadID=? WHERE NZBurl=? and NZBtitle=?",
                       (source, download_id, dl_url, dl_title))
-            record_usage_data(f'Download/IRC/{source}/Success')
             db.close()
             return True, ''
         cmd = 'UPDATE wanted SET status="Failed", Source=?, DownloadID=?, DLResult=? '
@@ -280,11 +278,9 @@ def nzb_dl_method(bookid=None, nzbtitle=None, nzburl=None, library='eBook', labe
         db.action("UPDATE wanted SET status='Snatched', Source=?, DownloadID=? WHERE NZBurl=?",
                   (source, download_id, nzburl))
         db.close()
-        record_usage_data(f'Download/NZB/{source}/Success')
         return True, ''
     res = f'Failed to send nzb to @ <a href="{nzburl}">{source}</a>'
     logger.error(res)
-    record_usage_data(f'Download/NZB/{source}/Failed')
     return False, res
 
 
@@ -335,7 +331,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                        "WHERE BookID=? and NZBProv=?")
                 db.action(cmd, (source, hashid, int(time.time()), bookid, provider))
             db.close()
-            record_usage_data(f'Download/Direct/{provider}/Success')
             return True, ''
 
         if auxinfo:  # magazine issue
@@ -347,7 +342,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                    "WHERE BookID=? and NZBProv=?")
             db.action(cmd, ('SLSK download failed', source, hashid, int(time.time()), bookid, provider))
         db.close()
-        record_usage_data(f'Download/Direct/{provider}/Failed')
         return False, ''
 
     if provider == 'annas':
@@ -385,7 +379,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                        "WHERE BookID=? and NZBProv=?")
                 db.action(cmd, (source, dl_url, int(time.time()), bookid, provider))
 
-            record_usage_data(f'Download/Direct/{provider}/Success')
             db.close()
             return True, ''
 
@@ -397,7 +390,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
             cmd = ("UPDATE wanted SET status='Failed', dlresult=?, Source=?, DownloadID=?, completed=? "
                    "WHERE BookID=? and NZBProv=?")
             db.action(cmd, (fname, source, dl_url, int(time.time()), bookid, provider))
-        record_usage_data(f'Download/Direct/{provider}/Failed')
         db.close()
         return False, fname
 
@@ -433,7 +425,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                    "WHERE BookID=? and NZBProv=?")
             db.action(cmd, (status, dlresult, source, dl_url, int(time.time()), bookid, provider))
         db.close()
-        record_usage_data(f'Download/Direct/{provider}/{"Success" if success else "Failed"}')
         return success, dlresult
 
     if provider == 'zlibrary':
@@ -475,7 +466,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                        "WHERE BookID=? and NZBProv=?")
                 db.action(cmd, (filecontent, source, hashid, int(time.time()), bookid, provider))
             db.close()
-            record_usage_data(f'Download/Direct/{provider}/Failed')
             return False, filecontent
 
         logger.debug(f"File download got {len(filecontent)} bytes for {filename}")
@@ -505,7 +495,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                        "WHERE BookID=? and NZBProv=?")
                 db.action(cmd, (res, source, hashid, int(time.time()), bookid, provider))
             db.close()
-            record_usage_data(f'Download/Direct/{provider}/Failed')
             logger.error(res)
             return False, res
 
@@ -524,7 +513,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                    "WHERE BookID=? and NZBProv=?")
             db.action(cmd, (source, hashid, int(time.time()), bookid, provider))
         db.close()
-        record_usage_data(f'Download/Direct/{provider}/Success')
         return True, ''
 
     # libgen...
@@ -638,7 +626,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                            "WHERE BookID=? and NZBProv=?")
                     db.action(cmd, (source, hashid, int(time.time()), bookid, provider))
                 db.close()
-                record_usage_data(f'Download/Direct/{provider}/Success')
                 return True, ''
             except Exception as e:
                 res = f"{type(e).__name__} writing book to {destfile}, {e}"
@@ -652,7 +639,6 @@ def direct_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', p
                            "WHERE BookID=? and NZBProv=?")
                     db.action(cmd, (res, source, hashid, int(time.time()), bookid, provider))
                 db.close()
-                record_usage_data(f'Download/Direct/{provider}/Failed')
                 return False, res
         else:
             res = f"Got unexpected response type ({r.headers['Content-Type']}) for {dl_title}"
@@ -1140,7 +1126,6 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
             db.action("UPDATE wanted SET status='Snatched', Source=?, DownloadID=?, Origin=?, "
                       "Category=? WHERE NZBurl=?",
                       (source, download_id, origin, snatch_category, full_url))
-            record_usage_data(f'Download/TOR/{source}/Success')
             db.close()
             return True, ''
         except Exception:
@@ -1149,7 +1134,6 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
 
     res = f"Failed to send torrent to {source}"
     logger.error(res)
-    record_usage_data(f'Download/TOR/{source}/Failed')
     return False, res
 
 

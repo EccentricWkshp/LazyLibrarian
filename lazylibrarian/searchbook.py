@@ -29,7 +29,6 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.resultlist import download_result, find_best_result
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def cron_search_book():
@@ -103,7 +102,6 @@ def search_book(books=None, library=None):
     books is a list of new books to add, or None for backlog search
     library is "eBook" or "AudioBook" or None to search all book types
     """
-    TELEMETRY.record_usage_data('Search/Book')
     # Only search the requested format. Previously `library` was only used in log messages, so every
     # per-format caller (web UI, API type=, GoodReads/HardCover sync, wishlist) searched both formats
     # whenever a book was Wanted in both, doubling the queries sent to every provider.
@@ -606,7 +604,6 @@ def search_book(books=None, library=None):
                         break  # snatched (by us, or already by someone else) - nothing more to try
                     matches.remove(highest)
                     if matches:
-                        TELEMETRY.record_usage_data("SearchBook/RetryNextCandidate")
                         logger.info(
                             f"{highest[1]['NZBprov']} release for {book['searchterm']} failed to download, "
                             f"trying next best candidate ({len(matches)} remaining)")

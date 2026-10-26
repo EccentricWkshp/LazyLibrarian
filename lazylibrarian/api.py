@@ -159,7 +159,6 @@ from lazylibrarian.scheduling import (
 from lazylibrarian.searchbook import search_book
 from lazylibrarian.searchmag import search_magazines
 from lazylibrarian.searchrss import search_rss_book, search_wishlist
-from lazylibrarian.telemetry import TELEMETRY, telemetry_send
 
 # dict of known commands. 0 = any valid api key, 1 = not available with the read-only key
 cmd_dict = {'help': (0, 'list available commands. Time consuming commands take an optional &wait parameter '
@@ -336,8 +335,6 @@ cmd_dict = {'help': (0, 'list available commands. Time consuming commands take a
             'delProvider': (1, '&name= Delete a provider'),
             'renameBook': (1, '&id= Rename a book to match configured pattern'),
             'newAuthorid': (1, '&id= &newid= update an authorid'),
-            'telemetryShow': (0, 'show the current telemetry data'),
-            'telemetrySend': (1, 'send the latest telemetry data, if configured'),
             'backup': (1, 'Backup database and config files'),
             'sendEbooktoCalibre': (1, "&id= Send a book that's in LazyLibrarian database to calibre"),
             'sendMagtoCalibre': (1, "&title= Send all issues of a magazine in LazyLibrarian database to calibre"),
@@ -410,7 +407,6 @@ class Api:
         self.dlcommslogger = logging.getLogger('special.dlcomms')
 
     def check_params(self, **kwargs):
-        TELEMETRY.record_usage_data()
 
         if not CONFIG.get_bool('API_ENABLED'):
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 501, 'Message': 'API not enabled'}}
@@ -466,7 +462,6 @@ class Api:
     # noinspection PyUnreachableCode
     @property
     def fetch_data(self):
-        TELEMETRY.record_usage_data()
         thread_name("API")
         if self.data == 'OK':
             remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2
@@ -523,13 +518,11 @@ class Api:
         return rows_as_dic
 
     def _backup(self):
-        TELEMETRY.record_usage_data()
         backup_file, err = dbbackup('api')
         success = backup_file != ''
         self.data = {'Success': success != '', 'Data': backup_file, 'Error': {'Code': 200, 'Message': err}}
 
     def _renamebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: id'}}
@@ -539,7 +532,6 @@ class Api:
         return
 
     def _renameissue(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: id'}}
@@ -549,7 +541,6 @@ class Api:
         return
 
     def _renameissues(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'title' not in kwargs:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: title'}}
@@ -580,7 +571,6 @@ class Api:
         return
 
     def _getdownloadprogress(self, **kwargs):
-        TELEMETRY.record_usage_data()
         source = kwargs.get('source')
         downloadid = kwargs.get('downloadid')
         limit = check_int(kwargs.get('limit'), 0)
@@ -623,7 +613,6 @@ class Api:
         return
 
     def _newauthorid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: id'}}
@@ -681,7 +670,6 @@ class Api:
         return providers
 
     def _listproviders(self):
-        TELEMETRY.record_usage_data()
         self._listdirectproviders()
         direct = self.data
         self._listtorrentproviders()
@@ -699,7 +687,6 @@ class Api:
         self.logger.debug(f"Returning {tot} {plural(tot, 'entry')}")
 
     def _listnabproviders(self):
-        TELEMETRY.record_usage_data()
         # custom output format for prowlarr
         oldnewzlist = self._provider_array('NEWZNAB')
         newzlist = []
@@ -737,21 +724,18 @@ class Api:
                      }
 
     def _listrssproviders(self):
-        TELEMETRY.record_usage_data()
         providers = self._provider_array('RSS')
         tot = len(providers)
         self.logger.debug(f"Returning {tot} {plural(tot, 'entry')}")
         self.data = providers
 
     def _listircproviders(self):
-        TELEMETRY.record_usage_data()
         providers = self._provider_array('IRC')
         tot = len(providers)
         self.logger.debug(f"Returning {tot} {plural(tot, 'entry')}")
         self.data = providers
 
     def _listtorrentproviders(self):
-        TELEMETRY.record_usage_data()
         providers = []
         for provider in ['KAT', 'TPB', 'LIME', 'TDL']:
             mydict = {'NAME': provider, 'ENABLED': CONFIG.get_bool(provider)}
@@ -766,7 +750,6 @@ class Api:
         self.data = providers
 
     def _listdirectproviders(self):
-        TELEMETRY.record_usage_data()
         providers = self._provider_array('GEN')
         mydict = {'NAME': 'BOK', 'ENABLED': CONFIG.get_bool('BOK')}
         for item in ['HOST', 'LOGIN', 'USER', 'PASS', 'DLTYPES']:
@@ -781,7 +764,6 @@ class Api:
         self.data = providers
 
     def _delprovider(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if not kwargs.get('name', '') and not kwargs.get('NAME', ''):
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: name'}}
@@ -828,7 +810,6 @@ class Api:
         return
 
     def _changeprovider(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if not kwargs.get('name', '') and not kwargs.get('NAME', ''):
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 400,
                                                                  'Message': 'Missing parameter: name'}}
@@ -938,7 +919,6 @@ class Api:
         return
 
     def _addprovider(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'type' not in kwargs and 'providertype' not in kwargs:
             self.data = {'Success': False, 'Data': '',
                          'Error': {'Code': 400, 'Message': 'Missing parameter: type'}}
@@ -1042,7 +1022,6 @@ class Api:
         return
 
     def _memuse(self):
-        TELEMETRY.record_usage_data()
         """ Current Memory usage in kB """
         if os.name == 'nt':
             ok, self.data = get_process_memory()
@@ -1055,21 +1034,18 @@ class Api:
             self.data = memusage.strip()
 
     def _cpuuse(self):
-        TELEMETRY.record_usage_data()
         ok, self.data = get_cpu_use()
         if not ok:
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 501,
                                                                  'Message': 'Needs psutil module installed'}}
 
     def _nice(self):
-        TELEMETRY.record_usage_data()
         if os.name == 'nt':
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 501, 'Message': 'Unsupported in Windows'}}
         else:
             self.data = os.nice(0)
 
     def _nicer(self):
-        TELEMETRY.record_usage_data()
         if os.name == 'nt':
             self.data = {'Success': False, 'Data': '', 'Error': {'Code': 501, 'Message': 'Unsupported in Windows'}}
         else:
@@ -1077,7 +1053,6 @@ class Api:
 
     @staticmethod
     def _gc_init():
-        TELEMETRY.record_usage_data()
         from collections import defaultdict
         from gc import get_objects
         lazylibrarian.GC_BEFORE = defaultdict(int)
@@ -1085,12 +1060,10 @@ class Api:
             lazylibrarian.GC_BEFORE[type(i)] += 1
 
     def _gc_collect(self):
-        TELEMETRY.record_usage_data()
         from gc import collect
         self.data = collect()
 
     def _gc_stats(self):
-        TELEMETRY.record_usage_data()
         if not lazylibrarian.GC_BEFORE:
             self.data = 'Not initialised'
             return
@@ -1113,7 +1086,6 @@ class Api:
         self.data = res
 
     def _getrssfeed(self, **kwargs):
-        TELEMETRY.record_usage_data()
         ftype = kwargs.get('feed', 'eBook')
         limit = kwargs.get('limit', 10)
         authorid = kwargs.get('authorid', '')
@@ -1135,13 +1107,11 @@ class Api:
         self.data = gen_feed(ftype, limit=limit, user=userid, baseurl=baseurl, authorid=authorid)
 
     def _synccalibrelist(self, **kwargs):
-        TELEMETRY.record_usage_data()
         col1 = kwargs.get('read')
         col2 = kwargs.get('toread')
         self.data = sync_calibre_list(col1, col2)
 
     def _subscribe(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['user', 'feed']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1164,7 +1134,6 @@ class Api:
         return
 
     def _unsubscribe(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['user', 'feed']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1177,13 +1146,11 @@ class Api:
         return
 
     def _calibrelist(self, **kwargs):
-        TELEMETRY.record_usage_data()
         col1 = kwargs.get('read')
         col2 = kwargs.get('toread')
         self.data = calibre_list(col1, col2)
 
     def _showcaps(self, **kwargs):
-        TELEMETRY.record_usage_data()
         prov = kwargs.get('provider')
         if not prov:
             self.data = 'Missing parameter: provider'
@@ -1206,7 +1173,6 @@ class Api:
         self.data = get_capabilities(prov, True)
 
     def _help(self):
-        TELEMETRY.record_usage_data()
         res = '<html>' \
               '<p>Sample use: http://localhost:5299/api?cmd=COMMAND with the header X-Api-Key: VALIDKEYHERE, ' \
               'or http://localhost:5299/api?apikey=VALIDKEYHERE&amp;cmd=COMMAND</p>' \
@@ -1220,12 +1186,10 @@ class Api:
         self.data = res
 
     def _ignoredstats(self):
-        TELEMETRY.record_usage_data()
         cmd = "select scanresult,count(*) counter from books where status='Ignored' group by scanresult"
         self.data = self._dic_from_query(cmd)
 
     def _listalienauthors(self):
-        TELEMETRY.record_usage_data()
         cmd = "SELECT AuthorID,AuthorName from authors WHERE AuthorID "
         if CONFIG.get_str('BOOK_API') != 'OpenLibrary':
             cmd += "NOT "
@@ -1233,7 +1197,6 @@ class Api:
         self.data = self._dic_from_query(cmd)
 
     def _listalienbooks(self):
-        TELEMETRY.record_usage_data()
         cmd = "SELECT BookID,BookName from books WHERE BookID "
         if CONFIG.get_str('BOOK_API') != 'OpenLibrary':
             cmd += "NOT "
@@ -1241,12 +1204,10 @@ class Api:
         self.data = self._dic_from_query(cmd)
 
     def _gethistory(self):
-        TELEMETRY.record_usage_data()
         self.data = self._dic_from_query(
             "SELECT * from wanted WHERE Status != 'Skipped' and Status != 'Ignored'")
 
     def _listnewauthors(self, **kwargs):
-        TELEMETRY.record_usage_data()
         limit = kwargs.get('limit', '')
         if limit:
             self.data = self._dic_from_query(
@@ -1256,7 +1217,6 @@ class Api:
                 "SELECT authorid,authorname,dateadded,reason,status from authors order by dateadded desc")
 
     def _listnewbooks(self, **kwargs):
-        TELEMETRY.record_usage_data()
         limit = kwargs.get('limit', '')
         if limit:
             limit = f"limit {limit}"
@@ -1267,29 +1227,24 @@ class Api:
                 "SELECT bookid,bookname,bookadded,scanresult,status from books order by bookadded desc")
 
     def _showthreads(self):
-        TELEMETRY.record_usage_data()
         self.data = get_threads()
 
     def _showmonths(self):
-        TELEMETRY.record_usage_data()
         self.data = f"{lazylibrarian.MONTHNAMES[0]}, {lazylibrarian.SEASONS}"
 
     def _renameaudio(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
             self.data = audio_rename(kwargs['id'], rename=True)
 
     def _getbookpubdate(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
             self.data = get_book_pubdate(kwargs['id'])
 
     def _getfiledirect(self, **kwargs):
-        TELEMETRY.record_usage_data()
         bookid = kwargs.get('id') or kwargs.get('bookid')
         file_type = (kwargs.get('type') or '').strip().lower()
         if file_type and file_type not in ['ebook', 'book', 'audiobook', 'audio', 'comic', 'issue', 'magazine']:
@@ -1416,14 +1371,12 @@ class Api:
         self.file_response = (myfile, name)
 
     def _createplaylist(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
             self.data = audio_rename(kwargs['id'], playlist=True)
 
     def _preprocessaudio(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['dir', 'title', 'author']:
             if item not in kwargs:
                 self.data = f'Missing parameter: {item}'
@@ -1435,7 +1388,6 @@ class Api:
         self.data = 'OK'
 
     def _preprocessbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'dir' not in kwargs:
             self.data = 'Missing parameter: dir'
             return
@@ -1443,7 +1395,6 @@ class Api:
         self.data = 'OK'
 
     def _preprocessallbooks(self):
-        TELEMETRY.record_usage_data()
         q = "SELECT BookFile from books where BookFile != '' and BookFile is not null"
         res = self._dic_from_query(q)
         for cnt, item in enumerate(res, start=1):
@@ -1454,7 +1405,6 @@ class Api:
         self.data = 'OK'
 
     def _preprocessmagazine(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['dir', 'cover']:
             if item not in kwargs:
                 self.data = f'Missing parameter: {item}'
@@ -1471,7 +1421,6 @@ class Api:
         self.data = 'OK'
 
     def _importbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['id', 'dir']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1480,7 +1429,6 @@ class Api:
         self.data = process_book_from_dir(kwargs['dir'], library, kwargs['id'])
 
     def _importmag(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['title', 'num', 'file']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1488,14 +1436,12 @@ class Api:
         self.data = process_mag_from_file(kwargs['file'], kwargs['title'], kwargs['num'])
 
     def _namevars(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
             self.data = name_vars(kwargs['id'])
 
     def _savetable(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'table' not in kwargs:
             self.data = 'Missing parameter: table'
             return
@@ -1506,7 +1452,6 @@ class Api:
         self.data = f"Saved {dump_table(kwargs['table'], DIRS.DATADIR)}"
 
     def _writeallopf(self, **kwargs):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
             books = db.select('select BookID from books where BookFile is not null')
@@ -1528,7 +1473,6 @@ class Api:
         self.data = f"Updated opf for {counter} {plural(counter, 'book')}"
 
     def _writeopf(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1555,7 +1499,6 @@ class Api:
 
     @staticmethod
     def _dumpmonths():
-        TELEMETRY.record_usage_data()
         json_file = os.path.join(DIRS.DATADIR, 'monthnames.json')
         with open(syspath(json_file), 'w') as f:
             json.dump(lazylibrarian.MONTHNAMES[0], f)
@@ -1564,12 +1507,10 @@ class Api:
             json.dump(lazylibrarian.SEASONS, f)
 
     def _getwanted(self):
-        TELEMETRY.record_usage_data()
         self.data = self._dic_from_query(
             "SELECT * from books WHERE Status='Wanted'")
 
     def _getread(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1577,7 +1518,6 @@ class Api:
             self.data = get_readinglist("HaveRead", self.id)
 
     def _gettoread(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1585,7 +1525,6 @@ class Api:
             self.data = get_readinglist("ToRead", self.id)
 
     def _getreading(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1593,7 +1532,6 @@ class Api:
             self.data = get_readinglist("Reading", self.id)
 
     def _getabandoned(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1601,13 +1539,11 @@ class Api:
             self.data = get_readinglist("Abandoned", self.id)
 
     def _vacuum(self):
-        TELEMETRY.record_usage_data()
         msg1 = self._dic_from_query("vacuum")
         msg2 = self._dic_from_query("pragma integrity_check")
         self.data = str(msg1) + str(msg2)
 
     def _getsnatched(self):
-        TELEMETRY.record_usage_data()
         # The OR needs bracketing: AND binds tighter, so without it the second
         # branch carries no join condition and every book whose AudioStatus is
         # Snatched is crossed with the whole wanted table.
@@ -1616,7 +1552,6 @@ class Api:
         self.data = self._dic_from_query(cmd)
 
     def _logmessage(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['level', 'text']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1635,18 +1570,15 @@ class Api:
         return
 
     def _getdebug(self):
-        TELEMETRY.record_usage_data()
         self.data = log_header().replace('\n', '<br>')
 
     def _getmodules(self):
-        TELEMETRY.record_usage_data()
         lst = ''
         for item in sys.modules:
             lst += f"{item}: {str(sys.modules[item]).replace('<', '').replace('>', '')}<br>"
         self.data = lst
 
     def _checkmodules(self):
-        TELEMETRY.record_usage_data()
         lst = []
         for item in sys.modules:
             data = str(sys.modules[item]).replace('<', '').replace('>', '')
@@ -1656,22 +1588,18 @@ class Api:
         self.data = lst
 
     def _clearlogs(self):
-        TELEMETRY.record_usage_data()
         LOGCONFIG.clear_ui_log()
         self.data = LOGCONFIG.delete_log_files(CONFIG['LOGDIR'])
 
     def _createsupportzip(self):
-        TELEMETRY.record_usage_data()
         msg, filename = create_support_zip()
         self.data = f'{msg}\nFile created is {filename}'
 
     def _getindex(self):
-        TELEMETRY.record_usage_data()
         self.data = self._dic_from_query(
             'SELECT * from authors order by AuthorName COLLATE NOCASE')
 
     def _listmissingbookfile(self):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         q = "SELECT BookID,BookFile,BookName,AuthorName from books,authors where "
         q += "(BookFile is not NULL and bookfile != '') and books.AuthorID = authors.AuthorID"
@@ -1683,41 +1611,33 @@ class Api:
         self.data = rows_as_dic
 
     def _listorphanbooks(self):
-        TELEMETRY.record_usage_data()
         self.data = list_orphan_books()
 
     def _listorphanaudio(self):
-        TELEMETRY.record_usage_data()
         self.data = list_orphan_audio()
 
     def _listorphancomics(self):
-        TELEMETRY.record_usage_data()
         self.data = list_orphan_comics()
 
     def _listorphanmagazines(self):
-        TELEMETRY.record_usage_data()
         self.data = list_orphan_magazines()
 
     def _listnolang(self):
-        TELEMETRY.record_usage_data()
         q = 'SELECT BookID,BookISBN,BookName,AuthorName from books,authors where '
         q += '(BookLang="Unknown" or BookLang="" or BookLang is NULL) and books.AuthorID = authors.AuthorID'
         self.data = self._dic_from_query(q)
 
     def _listnogenre(self):
-        TELEMETRY.record_usage_data()
         q = 'SELECT BookID,BookName,AuthorName from books,authors where books.Status != "Ignored" and '
         q += '(BookGenre="Unknown" or BookGenre="" or BookGenre is NULL) and books.AuthorID = authors.AuthorID'
         self.data = self._dic_from_query(q)
 
     def _listnodesc(self):
-        TELEMETRY.record_usage_data()
         q = 'SELECT BookID,BookName,AuthorName from books,authors where books.Status != "Ignored" and '
         q += '(BookDesc="" or BookDesc is NULL) and books.AuthorID = authors.AuthorID'
         self.data = self._dic_from_query(q)
 
     def _setnodesc(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'refresh' in kwargs:
             expire = True
             extra = ' or BookDesc="No Description"'
@@ -1756,7 +1676,6 @@ class Api:
         self.logger.info(self.data)
 
     def _setnogenre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'refresh' in kwargs:
             expire = True
             extra = ' or BookGenre="Unknown"'
@@ -1798,20 +1717,17 @@ class Api:
         self.logger.info(self.data)
 
     def _listnoisbn(self):
-        TELEMETRY.record_usage_data()
         q = 'SELECT BookID,BookName,AuthorName from books,authors where books.AuthorID = authors.AuthorID'
         q += ' and (BookISBN="" or BookISBN is NULL)'
         self.data = self._dic_from_query(q)
 
     def _listnobooks(self):
-        TELEMETRY.record_usage_data()
         q = 'select authorid,authorname,reason from authors where haveebooks+haveaudiobooks=0 and '
         q += "instr(reason, 'Series') = 0 except select authors.authorid,authorname,reason from books,authors where "
         q += 'books.authorid=authors.authorid and books.status=="Wanted";'
         self.data = self._dic_from_query(q)
 
     def _removenobooks(self):
-        TELEMETRY.record_usage_data()
         self._listnobooks()
         if self.data:
             db = database.DBConnection()
@@ -1823,12 +1739,10 @@ class Api:
                 db.close()
 
     def _listignoredseries(self):
-        TELEMETRY.record_usage_data()
         q = "SELECT SeriesID,SeriesName from series where Status='Ignored'"
         self.data = self._dic_from_query(q)
 
     def _listdupebooks(self):
-        TELEMETRY.record_usage_data()
         self.data = []
         q = "select authorid,authorname from authors"
         res = self._dic_from_query(q)
@@ -1841,7 +1755,6 @@ class Api:
             self.data += r
 
     def _listdupebookstatus(self):
-        TELEMETRY.record_usage_data()
         self._listdupebooks()
         res = self.data
         self.data = []
@@ -1854,17 +1767,14 @@ class Api:
             self.data += r
 
     def _listignoredbooks(self):
-        TELEMETRY.record_usage_data()
         q = "SELECT BookID,BookName from books where Status='Ignored'"
         self.data = self._dic_from_query(q)
 
     def _listignoredauthors(self):
-        TELEMETRY.record_usage_data()
         q = "SELECT AuthorID,AuthorName from authors where Status='Ignored'"
         self.data = self._dic_from_query(q)
 
     def _getauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1876,11 +1786,9 @@ class Api:
         self.data = {'author': author, 'books': books}
 
     def _getmagazines(self):
-        TELEMETRY.record_usage_data()
         self.data = self._dic_from_query('SELECT * from magazines order by Title COLLATE NOCASE')
 
     def _getallbooks(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.limit = kwargs.get('limit')
         self.sort = kwargs.get('sort')
         self.status = kwargs.get('status')
@@ -1907,7 +1815,6 @@ class Api:
             self.data = self._dic_from_query(q)
 
     def _getissues(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('name')
         self.limit = kwargs.get('limit')
         self.sort = kwargs.get('sort')
@@ -1936,7 +1843,6 @@ class Api:
             self.data = self._dic_from_query(q, args)
 
     def _shrinkmag(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['name', 'dpi']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -1944,7 +1850,6 @@ class Api:
         self.data = shrink_mag(kwargs['name'], check_int(kwargs['dpi'], 0))
 
     def _getissuename(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -1966,7 +1871,6 @@ class Api:
         self.data = f"Regex {dateparts['style']} [{issuedate}] {dateparts}"
 
     def _createmagcovers(self, **kwargs):
-        TELEMETRY.record_usage_data()
         refresh = 'refresh' in kwargs
         if 'wait' in kwargs:
             self.data = create_mag_covers(refresh=refresh)
@@ -1974,7 +1878,6 @@ class Api:
             threading.Thread(target=create_mag_covers, name='API-MAGCOVERS', args=[refresh]).start()
 
     def _createmagcover(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'file' not in kwargs:
             self.data = 'Missing parameter: file'
             return
@@ -1985,7 +1888,6 @@ class Api:
             self.data = create_mag_cover(issuefile=kwargs['file'], refresh=refresh)
 
     def _getbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -1994,7 +1896,6 @@ class Api:
         self.data = {'book': book}
 
     def _queuebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
@@ -2013,7 +1914,6 @@ class Api:
                 db.close()
 
     def _unqueuebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
@@ -2032,7 +1932,6 @@ class Api:
                 db.close()
 
     def _addmagazine(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('name')
         if not self.id:
             self.data = 'Missing parameter: name'
@@ -2052,7 +1951,6 @@ class Api:
             db.close()
 
     def _removemagazine(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('name')
         if not self.id:
             self.data = 'Missing parameter: name'
@@ -2065,7 +1963,6 @@ class Api:
             db.close()
 
     def _pauseauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
@@ -2081,7 +1978,6 @@ class Api:
                 db.close()
 
     def _ignoreauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
@@ -2097,7 +1993,6 @@ class Api:
                 db.close()
 
     def _resumeauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
         else:
@@ -2113,21 +2008,18 @@ class Api:
                 db.close()
 
     def _authorupdate(self):
-        TELEMETRY.record_usage_data()
         try:
             self.data = author_update(restart=False, only_overdue=False)
         except Exception as e:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _seriesupdate(self):
-        TELEMETRY.record_usage_data()
         try:
             self.data = series_update(restart=False, only_overdue=False)
         except Exception as e:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _refreshauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         refresh = 'refresh' in kwargs
         self.id = kwargs.get('name')
         if not self.id:
@@ -2139,7 +2031,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _forceactiveauthorsupdate(self, **kwargs):
-        TELEMETRY.record_usage_data()
         refresh = 'refresh' in kwargs
         if 'wait' in kwargs:
             self.data = all_author_update(refresh=refresh)
@@ -2147,7 +2038,6 @@ class Api:
             threading.Thread(target=all_author_update, name='API-AAUPDATE', args=[refresh]).start()
 
     def _forcemagsearch(self, **kwargs):
-        TELEMETRY.record_usage_data()
         mags = None
         if 'title' in kwargs:
             title = unquote_plus(kwargs['title'])
@@ -2168,7 +2058,6 @@ class Api:
             self.data = 'No search methods set, check config'
 
     def _forcersssearch(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if CONFIG.use_rss():
             if 'wait' in kwargs:
                 search_rss_book()
@@ -2178,7 +2067,6 @@ class Api:
             self.data = 'No rss feeds set, check config'
 
     def _forcecomicsearch(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if CONFIG.use_any():
             if 'wait' in kwargs:
                 search_comics()
@@ -2188,7 +2076,6 @@ class Api:
             self.data = 'No search methods set, check config'
 
     def _forcewishlistsearch(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if CONFIG.use_wishlist():
             if 'wait' in kwargs:
                 search_wishlist()
@@ -2198,7 +2085,6 @@ class Api:
             self.data = 'No wishlists set, check config'
 
     def _forcebooksearch(self, **kwargs):
-        TELEMETRY.record_usage_data()
         library = kwargs.get('type')
         if CONFIG.use_any():
             if 'wait' in kwargs:
@@ -2210,14 +2096,12 @@ class Api:
 
     @staticmethod
     def _forceprocess(**kwargs):
-        TELEMETRY.record_usage_data()
         startdir = kwargs.get('dir')
         ignoreclient = 'ignoreclient' in kwargs
         process_dir(startdir=startdir, ignoreclient=ignoreclient)
 
     @staticmethod
     def _forcelibraryscan(**kwargs):
-        TELEMETRY.record_usage_data()
         startdir = kwargs.get('dir')
         authid = kwargs.get('id')
         remove = 'remove' in kwargs
@@ -2229,7 +2113,6 @@ class Api:
 
     @staticmethod
     def _forcecomicscan(**kwargs):
-        TELEMETRY.record_usage_data()
         comicid = kwargs.get('id')
         if 'wait' in kwargs:
             comic_scan(comicid=comicid)
@@ -2239,7 +2122,6 @@ class Api:
 
     @staticmethod
     def _forceaudiobookscan(**kwargs):
-        TELEMETRY.record_usage_data()
         startdir = kwargs.get('dir')
         authid = kwargs.get('id')
         remove = 'remove' in kwargs
@@ -2251,7 +2133,6 @@ class Api:
 
     @staticmethod
     def _forcemagazinescan(**kwargs):
-        TELEMETRY.record_usage_data()
         title = kwargs.get('title')
         if 'wait' in kwargs:
             magazine_scan(title)
@@ -2259,18 +2140,15 @@ class Api:
             threading.Thread(target=magazine_scan, name='API-MAGSCAN', args=[title]).start()
 
     def _deleteemptyseries(self):
-        TELEMETRY.record_usage_data()
         self.data = delete_empty_series()
 
     def _cleancache(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = clean_cache()
         else:
             threading.Thread(target=clean_cache, name='API-CLEANCACHE', args=[]).start()
 
     def _setworkid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         ids = kwargs.get('bookids')
         if 'wait' in kwargs:
             self.data = set_work_id(ids)
@@ -2278,35 +2156,30 @@ class Api:
             threading.Thread(target=set_work_id, name='API-SETWORKID', args=[ids]).start()
 
     def _setallbookseries(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = set_all_book_series()
         else:
             threading.Thread(target=set_all_book_series, name='API-SETALLBOOKSERIES', args=[]).start()
 
     def _setallbookauthors(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = set_all_book_authors()
         else:
             threading.Thread(target=set_all_book_authors, name='API-SETALLBOOKAUTHORS', args=[]).start()
 
     def _getbookcovers(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = get_book_covers()
         else:
             threading.Thread(target=get_book_covers, name='API-GETBOOKCOVERS', args=[]).start()
 
     def _getauthorimages(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = get_author_images()
         else:
             threading.Thread(target=get_author_images, name='API-GETAUTHORIMAGES', args=[]).start()
 
     def _getversion(self):
-        TELEMETRY.record_usage_data()
         self.data = {
             'Success': True,
             'install_type': CONFIG.get_str('INSTALL_TYPE'),
@@ -2316,7 +2189,6 @@ class Api:
         }
 
     def _getcurrentversion(self):
-        TELEMETRY.record_usage_data()
         self.data = {
             'Success': True,
             'Data': CONFIG.get_str('CURRENT_VERSION'),
@@ -2325,21 +2197,17 @@ class Api:
 
     @staticmethod
     def _shutdown():
-        TELEMETRY.record_usage_data()
         lazylibrarian.SIGNAL = 'shutdown'
 
     @staticmethod
     def _restart():
-        TELEMETRY.record_usage_data()
         lazylibrarian.SIGNAL = 'restart'
 
     @staticmethod
     def _update():
-        TELEMETRY.record_usage_data()
         lazylibrarian.SIGNAL = 'update'
 
     def _findauthorid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -2362,7 +2230,6 @@ class Api:
             self.data = f"Invalid source [{source}]"
 
     def _findmissingauthorid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'source' in kwargs:
             source = kwargs['source']
         else:
@@ -2397,7 +2264,6 @@ class Api:
         self.data = f"Updated {source} authorid for {cnt} authors"
 
     def _findauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -2427,7 +2293,6 @@ class Api:
         self.data = myqueue.get()
 
     def _findbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -2456,7 +2321,6 @@ class Api:
         self.data = myqueue.get()
 
     def _addbookbyisbn(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'isbn' not in kwargs:
             self.data = 'Missing parameter: isbn'
             return
@@ -2469,7 +2333,6 @@ class Api:
         self.data = summary
 
     def _addonebookbyisbn(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'isbn' not in kwargs:
             self.data = 'Missing parameter: isbn'
             return
@@ -2487,7 +2350,6 @@ class Api:
                 self.data = f"Added {kwargs['isbn']}:{sortedlist[0].get('authorname')}:{sortedlist[0].get('bookname')}"
 
     def _addbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2497,7 +2359,6 @@ class Api:
             self._addonebook(id=item, **pass_kwargs)
 
     def _addonebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2524,7 +2385,6 @@ class Api:
                              args=[kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWBOOK_AUDIO'], "Added by API"]).start()
 
     def _movebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['id', 'toid']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2552,7 +2412,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _movebooks(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['fromname', 'toname']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2582,7 +2441,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _comicmeta(self, **kwargs):
-        TELEMETRY.record_usage_data()
         name = kwargs.get('name')
         if not name:
             self.data = 'Missing parameter: name'
@@ -2591,7 +2449,6 @@ class Api:
         self.data = comic_metadata(name, xml=xml)
 
     def _comicid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         name = kwargs.get('name')
         if not name:
             self.data = 'Missing parameter: name'
@@ -2607,7 +2464,6 @@ class Api:
             self.data = cx_identify(name, best=best)
 
     def _addauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         name = kwargs.get('name')
         if not name:
             self.data = 'Missing parameter: name'
@@ -2620,7 +2476,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _addauthorid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2634,7 +2489,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _grfollowall(self):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
             cmd = ("SELECT AuthorName,AuthorID,GRfollow FROM authors where Status='Active' "
@@ -2665,7 +2519,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _hcsync(self, **kwargs):
-        TELEMETRY.record_usage_data()
         library = kwargs.get('library', '')
 
         # If no user specified and HC_SYNC is enabled, sync all users with tokens
@@ -2685,7 +2538,6 @@ class Api:
             self.data = "HC_SYNC is disabled and no specific user requested"
 
     def _grsync(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['shelf', 'status']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2699,7 +2551,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _grfollow(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2709,7 +2560,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _grunfollow(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2719,7 +2569,6 @@ class Api:
             self.data = f"{type(e).__name__} {str(e)}"
 
     def _searchitem(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'item' not in kwargs:
             self.data = 'Missing parameter: item'
             return
@@ -2727,7 +2576,6 @@ class Api:
         self.data = search_item(kwargs['item'], cat=cat)
 
     def _searchbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2742,7 +2590,6 @@ class Api:
             self.data = "No search methods set, check config"
 
     def _removeauthor(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2762,7 +2609,6 @@ class Api:
             db.close()
 
     def _writecfg(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['name', 'value', 'group']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2789,7 +2635,6 @@ class Api:
             self.data = f"Unable to update CFG entry for {kwargs['group']}: {kwargs['name']}, {str(e)}"
 
     def _readcfg(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['name', 'group']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2801,11 +2646,9 @@ class Api:
 
     @staticmethod
     def _loadcfg():
-        TELEMETRY.record_usage_data()
-        # No need to reload the config
+        pass  # No need to reload the config
 
     def _getseriesauthors(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2814,7 +2657,6 @@ class Api:
             self.data = f"Added {count}"
 
     def _addseriesmembers(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         self.refresh = 'refresh' in kwargs
         if not self.id:
@@ -2823,7 +2665,6 @@ class Api:
             self.data = add_series_members(self.id, self.refresh)
 
     def _getseriesmembers(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id', '')
         self.name = kwargs.get('name', '')
         self.refresh = 'refresh' in kwargs
@@ -2833,7 +2674,6 @@ class Api:
             self.data = get_series_members(self.id, self.name, self.refresh)
 
     def _getbookauthors(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2841,7 +2681,6 @@ class Api:
             self.data = get_book_authors(self.id)
 
     def _getworkseries(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2851,7 +2690,6 @@ class Api:
             self.data = get_work_series(self.id, kwargs.get('source'), reason="API get_work_series")
 
     def _getbookcover(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2862,7 +2700,6 @@ class Api:
                 self.data = get_book_cover(self.id)
 
     def _getauthorimage(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2872,7 +2709,6 @@ class Api:
         self.data = get_author_image(self.id, refresh=refresh, max_num=max_num)
 
     def _lock(self, table, itemid, state):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         try:
             dbentry = db.match(f'SELECT {table}ID from {table}s WHERE {table}ID=?', (itemid,))
@@ -2884,7 +2720,6 @@ class Api:
             db.close()
 
     def _setauthorlock(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2892,7 +2727,6 @@ class Api:
             self._lock("author", kwargs['id'], "1")
 
     def _setauthorunlock(self, **kwargs):
-        TELEMETRY.record_usage_data()
         self.id = kwargs.get('id')
         if not self.id:
             self.data = 'Missing parameter: id'
@@ -2900,7 +2734,6 @@ class Api:
             self._lock("author", kwargs['id'], "0")
 
     def _setauthorimage(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['id', 'img']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2908,7 +2741,6 @@ class Api:
         self._setimage("author", kwargs['id'], kwargs['img'])
 
     def _setbookimage(self, **kwargs):
-        TELEMETRY.record_usage_data()
         for item in ['id', 'img']:
             if item not in kwargs:
                 self.data = f"Missing parameter: {item}"
@@ -2916,7 +2748,6 @@ class Api:
         self._setimage("book", kwargs['id'], kwargs['img'])
 
     def _setimage(self, table, itemid, img):
-        TELEMETRY.record_usage_data()
         msg = f"{table} Image [{img}] rejected"
         if os.sep in str(itemid) or '/' in str(itemid) or '..' in str(itemid):
             self.data = msg + " invalid ID"
@@ -2967,14 +2798,12 @@ class Api:
             db.close()
 
     def _setbooklock(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
         self._lock("book", kwargs['id'], "1")
 
     def _deduplicate(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2986,7 +2815,6 @@ class Api:
                              args=[kwargs['id']]).start()
 
     def _setbookunlock(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -2994,30 +2822,25 @@ class Api:
 
     @staticmethod
     def _restartjobs():
-        TELEMETRY.record_usage_data()
         restart_jobs(command=SchedulerCommand.RESTART)
 
     @staticmethod
     def _checkrunningjobs():
-        TELEMETRY.record_usage_data()
         check_running_jobs()
 
     def _showjobs(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'json' in kwargs:
             self.data = show_jobs(json=True)
         else:
             self.data = show_jobs()
 
     def _showstats(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'json' in kwargs:
             self.data = show_stats(json=True)
         else:
             self.data = show_stats()
 
     def _importalternate(self, **kwargs):
-        TELEMETRY.record_usage_data()
         usedir = kwargs.get('dir', CONFIG.get_str('ALTERNATE_DIR'))
         library = normalize_library_param(kwargs.get('library', 'eBook'))
         if 'wait' in kwargs:
@@ -3026,7 +2849,6 @@ class Api:
             threading.Thread(target=process_alternate, name='API-IMPORTALT', args=[usedir, library]).start()
 
     def _includealternate(self, **kwargs):
-        TELEMETRY.record_usage_data()
         startdir = kwargs.get('dir', CONFIG.get_str('ALTERNATE_DIR'))
         library = kwargs.get('library', 'eBook')
         if 'wait' in kwargs:
@@ -3036,7 +2858,6 @@ class Api:
                              args=[startdir, library, None, False]).start()
 
     def _importcsvwishlist(self, **kwargs):
-        TELEMETRY.record_usage_data()
         usedir = kwargs.get('dir', CONFIG.get_str('ALTERNATE_DIR'))
         status = kwargs.get('status', 'Wanted')
         library = kwargs.get('library', 'eBook')
@@ -3046,7 +2867,6 @@ class Api:
             threading.Thread(target=import_csv, name='API-IMPORTCSV', args=[usedir, status, library]).start()
 
     def _exportcsvwishlist(self, **kwargs):
-        TELEMETRY.record_usage_data()
         usedir = kwargs.get('dir', CONFIG.get_str('ALTERNATE_DIR'))
         status = kwargs.get('status', 'Wanted')
         library = kwargs.get('library', 'eBook')
@@ -3055,16 +2875,7 @@ class Api:
         else:
             threading.Thread(target=export_csv, name='API-EXPORTCSV', args=[usedir, status, library]).start()
 
-    def _telemetryshow(self):
-        TELEMETRY.record_usage_data()
-        self.data = TELEMETRY.get_data_for_ui_preview(send_usage=True, send_config=True)
-
-    def _telemetrysend(self):
-        TELEMETRY.record_usage_data()
-        self.data = telemetry_send()
-
     def deletefromcalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return False
@@ -3073,7 +2884,6 @@ class Api:
         return True
 
     def _sendmagtocalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'title' not in kwargs:
             self.data = 'Missing parameter: title'
             return
@@ -3093,7 +2903,6 @@ class Api:
         self.data = f"Sent {cnt} issues of {title} to calibre"
 
     def _sendmagissuetocalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return False
@@ -3115,7 +2924,6 @@ class Api:
         return res is not False
 
     def _sendcomictocalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'title' not in kwargs:
             self.data = 'Missing parameter: title'
             return
@@ -3134,7 +2942,6 @@ class Api:
         self.data = f"Sent {len(dbentry)} issues of {title} to calibre"
 
     def _sendcomicissuetocalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return False
@@ -3161,7 +2968,6 @@ class Api:
         return res is not False
 
     def _sendebooktocalibre(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return False
@@ -3183,7 +2989,6 @@ class Api:
         return res is not False
 
     def _updatebook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -3207,35 +3012,30 @@ class Api:
         self.data = f"Updated: {','.join(updated)} Missed: {','.join(missed)}"
 
     def _splitauthornames(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'names' not in kwargs:
             self.data = 'Missing parameter: names'
             return
         self.data = split_author_names(kwargs['names'], get_list(CONFIG['MULTI_AUTHOR_SPLIT']))
 
     def _getauthorsfrombookfiles(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = get_authors_from_book_files()
         else:
             threading.Thread(target=get_authors_from_book_files, name='API-AUTH_FROM_BOOK').start()
 
     def _getauthorsfromhc(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = get_authors_from_hc()
         else:
             threading.Thread(target=get_authors_from_hc, name='API-AUTH_FROM_HC').start()
 
     def _getauthorsfromol(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'wait' in kwargs:
             self.data = get_authors_from_ol()
         else:
             threading.Thread(target=get_authors_from_ol, name='API-AUTH_FROM_OL').start()
 
     def _getpdftags(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -3253,7 +3053,6 @@ class Api:
         self.data = read_pdf_tags(issuefile)
 
     def _setpdftags(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -3283,7 +3082,6 @@ class Api:
         self.data = write_pdf_tags(issuefile, title, issuedate, tags)
 
     def _listsecondaries(self):
-        TELEMETRY.record_usage_data()
         db = database.DBConnection()
         res = db.select('select distinct authorid from bookauthors except select authorid from books')
         self.data = {}
@@ -3293,24 +3091,20 @@ class Api:
                 self.data[item['authorid']] = auth['authorname']
 
     def _deletesecondaries(self):
-        TELEMETRY.record_usage_data()
         cnt = delete_secondaries(quiet=False)
         self.data = f"Removed {cnt} secondary authors"
 
     def _cleanmaglibrary(self):
-        TELEMETRY.record_usage_data()
         mags, issues = clean_maglibrary()
         self.data = f"Removed {issues} {plural(issues, 'issue')}, {mags} {plural(mags, 'title')}"
 
     def _isbnwords(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'words' not in kwargs:
             self.data = 'Missing parameter: words'
             return
         self.data = isbn_from_words(kwargs['words'])
 
     def _langwords(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'words' not in kwargs:
             self.data = 'Missing parameter: words'
             return
@@ -3323,7 +3117,6 @@ class Api:
             self.data = language_from_words(kwargs['words'])
 
     def _getauthorinfo(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -3331,7 +3124,6 @@ class Api:
         self.data = str(res)
 
     def _ollocaldumpauthorid(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -3339,7 +3131,6 @@ class Api:
         self.data = str(res)
 
     def _ollocaldumpauthorinfo(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return
@@ -3347,7 +3138,6 @@ class Api:
         self.data = str(res)
 
     def _ollocaldumpauthorofbook(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'name' not in kwargs:
             self.data = 'Missing parameter: name'
             return
@@ -3358,7 +3148,6 @@ class Api:
         self.data = str(res)
 
     def _ollocaldumpauthorbooks(self, **kwargs):
-        TELEMETRY.record_usage_data()
         if 'id' not in kwargs:
             self.data = 'Missing parameter: id'
             return

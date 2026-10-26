@@ -184,14 +184,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('General', 'WISHLIST_GENRES', 1),
     ConfigBool('General', 'NOTIFY_WITH_TITLE', 0),
     ConfigBool('General', 'NOTIFY_WITH_URL', 0),
-    ConfigStr('Telemetry', 'SERVER_ID', ''),
-    ConfigURL('Telemetry', 'TELEMETRY_SERVER', ''),
-    ConfigScheduler('Telemetry', 'TELEMETRY_INTERVAL', 'telemetry_send', 6, TimeUnit.HOUR,
-                    'TELEMETRYSEND', 'lazylibrarian.telemetry.telemetry_send', 'Send telemetry', needs_provider=False,
-                    persist=True),
-    ConfigBool('Telemetry', 'TELEMETRY_ENABLE', False),
-    ConfigBool('Telemetry', 'TELEMETRY_SEND_CONFIG', True),
-    ConfigBool('Telemetry', 'TELEMETRY_SEND_USAGE', True),
     ConfigStr('Git', 'GIT_HOST', 'github.com'),
     ConfigStr('Git', 'GIT_USER', 'EccentricWkshp'),
     ConfigStr('Git', 'GIT_REPO', 'LazyLibrarian'),
@@ -607,6 +599,10 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('Testing', 'TEST_TAGS', 0),
     ConfigInt('Testing', 'Unpersisted_test', 2, persist=False)
 ]
+
+# Sections for features that have been removed. An older config.ini still has them, they're
+# skipped without a warning for every setting, and gone the next time the config is saved
+RETIRED_SECTIONS = {'telemetry'}
 
 # (Sectionname, SectionNameTemplate, [Items])
 DefaultArrayDef = tuple[str, str, list[ConfigItem]]

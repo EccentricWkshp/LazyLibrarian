@@ -223,7 +223,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             else:
                 nondefaults += 1
         self.assertEqual(len(allconfigs), defaults + nondefaults, 'Inconsistent results from iterating in two ways')
-        self.assertEqual(nondefaults, 48, 'Unexpected number of non-default entries in config file')
+        self.assertEqual(nondefaults, 47, 'Unexpected number of non-default entries in config file')
 
     def test_access_counters(self):
         """ Test that read/create counters work correctly when there are no errors """
@@ -304,17 +304,17 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
                 canruncount += 1
 
         self.assertListEqual(keynames, [
-            'OL_DUMP_INTERVAL', 'TELEMETRY_INTERVAL', 'TOTALS_INTERVAL', 'SEARCH_BOOKINTERVAL', 'SEARCH_MAGINTERVAL',  # Disabled by default
+            'OL_DUMP_INTERVAL', 'TOTALS_INTERVAL', 'SEARCH_BOOKINTERVAL', 'SEARCH_MAGINTERVAL',  # Disabled by default
             'SCAN_INTERVAL', 'SEARCHRSS_INTERVAL', 'WISHLIST_INTERVAL',
             'SEARCH_COMICINTERVAL',  # Disabled by default
             'VERSIONCHECK_INTERVAL',
             'GOODREADS_INTERVAL', 'HARDCOVER_INTERVAL', # Disabled by default
             'CLEAN_CACHE_INTERVAL', 'BACKUP_INTERVAL', 'AUTHORUPDATE_INTERVAL', 'SERIESUPDATE_INTERVAL'])
         self.assertEqual(schednames,
-                         ['update_openlibrary_dump', 'telemetry_send', 'update_all_totals', 'search_book', 'search_magazines',
+                         ['update_openlibrary_dump', 'update_all_totals', 'search_book', 'search_magazines',
                           'PostProcessor', 'search_rss_book', 'search_wishlist', 'search_comics', 'check_for_updates',
                           'sync_to_gr', 'hc_sync', 'clean_cache', 'backup', 'author_update', 'series_update'])
-        self.assertEqual(persistcount, 11)
+        self.assertEqual(persistcount, 10)
         self.assertEqual(canruncount, 9)
 
     def test_force_lower(self):
@@ -337,6 +337,17 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             cfg = LLConfigHandler(defaults=None, configfile=SMALL_INI_FILE)
         acs = cfg.get_all_accesses()
         self.do_access_compare(acs, {}, [], 'Loading ini without defaults should not load anything')
+
+    def test_retired_sections_load_quietly(self):
+        """ An older config.ini has settings for removed features, like telemetry """
+        testfile = DIRS.get_tmpfilename('test-retired.ini')
+        with open(syspath(testfile), 'w') as f:
+            f.write('[General]\nebook_dir = /books\n\n[Telemetry]\nserver_id = 5f6300cc\ntelemetry_enable = True\n')
+        self.addCleanup(remove_file, testfile)
+        with self.assertNoLogs(level='WARNING'):
+            cfg = LLConfigHandler(defaults=BASE_DEFAULTS, configfile=testfile)
+        self.assertEqual(cfg['EBOOK_DIR'], '/books')
+        self.assertNotIn('SERVER_ID', cfg.config)
 
     def test_configread_defaultini(self):
         """ Test reading a near-default ini file, with all the base definitions loads """
@@ -380,7 +391,6 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             "CALIBRE.CALIBRE_SERVER": Counter({Access.WRITE_OK: 1}),
             "GENERAL.IMP_NOSPLIT": Counter({Access.WRITE_OK: 1}),
             "GENERAL.IMP_PREFLANG": Counter({Access.WRITE_OK: 1}),
-            "TELEMETRY.SERVER_ID": Counter({Access.WRITE_OK: 1}),
             "GENERAL.EBOOK_DIR": Counter({Access.WRITE_OK: 1}),
             "GENERAL.AUDIO_DIR": Counter({Access.WRITE_OK: 1}),
             "GENERAL.ALTERNATE_DIR": Counter({Access.WRITE_OK: 1}),
@@ -528,7 +538,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         try:
             testfile = DIRS.get_tmpfilename('test-changed.ini')
             count = cfg.save_config_to_filename(testfile, False)  # Save only non-default values
-            self.assertEqual(count, 39, 'Saving config.ini has unexpected # of non-default items')
+            self.assertEqual(count, 38, 'Saving config.ini has unexpected # of non-default items')
             cfgnew = LLConfigHandler(defaults=BASE_DEFAULTS, configfile=testfile)
             self.assertTrue(are_equivalent(cfg, cfgnew),
                             f'Save error: {testfile} is not the same as original file!')
@@ -578,7 +588,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             with self.assertLogs(self.logger, level='INFO') as cm:  # Expect only INFO messages
                 count = cfg.save_config_and_backup_old(restart_jobs=False)
             self.assertEqual(len(cm), 2, 'Expected 2 INFO messages')
-            self.assertEqual(count, 39, 'Saving config.ini has unexpected total # of items')
+            self.assertEqual(count, 38, 'Saving config.ini has unexpected total # of items')
             self.assertTrue(path_isfile(backupfile), 'Backup file does not exist')
             acs = cfg.get_all_accesses()
             self.do_access_compare(acs, {}, [], 'Expect all accesses cleared after saving')
@@ -590,7 +600,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
             with self.assertLogs(self.logger, level='INFO') as cm:  # Expect only INFO messages
                 count = cfg.save_config_and_backup_old(restart_jobs=False)
             self.assertEqual(len(cm), 2, 'Expected 2 INFO messages here')
-            self.assertEqual(count, 39, 'Saving config.ini has unexpected total # of items')
+            self.assertEqual(count, 38, 'Saving config.ini has unexpected total # of items')
             self.assertTrue(remove_file(backupfile), 'Could not delete backup file')
             acs = cfg.get_all_accesses()
             self.do_access_compare(acs, {}, [], 'Expect all accesses cleared after saving')

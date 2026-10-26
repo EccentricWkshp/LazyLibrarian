@@ -63,7 +63,6 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import check_int, get_list, unaccented
 from lazylibrarian.processcontrol import get_info_on_caller
-from lazylibrarian.telemetry import TELEMETRY
 
 # A release that ships its content inside an archive says nothing about the
 # format until it is unpacked, so we cannot judge it from the file list.
@@ -348,7 +347,6 @@ def get_download_files(source, downloadid):
     logger = logging.getLogger(__name__)
     dlcommslogger = logging.getLogger("special.dlcomms")
     dlfiles = None
-    TELEMETRY.record_usage_data("Get/DownloadFiles")
     try:
         if source == "TRANSMISSION":
             dlfiles = transmission.get_torrent_files(downloadid)
@@ -396,7 +394,6 @@ def get_download_folder(source, downloadid):
     dlcommslogger = logging.getLogger("special.dlcomms")
     dlfolder = None
     # noinspection PyBroadException
-    TELEMETRY.record_usage_data("Get/DownloadFolder")
     # noinspection PyBroadException
     try:
         if source == "TRANSMISSION":

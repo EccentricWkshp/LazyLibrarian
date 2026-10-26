@@ -20,7 +20,6 @@ from lazylibrarian import i18n
 from lazylibrarian.cache import fetch_url
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int, make_unicode
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def _get_json(url, params):
@@ -119,7 +118,6 @@ def _login(hosturl):
             errnum = result['error']['code']
             logger.debug(f"Synology v{params['version']} Login Error: {_error_msg(errnum, 'login')}")
             return "", "", ""
-        TELEMETRY.record_usage_data(f"Synology/Login/v{params['version']}")
         return hosturl + auth_cgi, hosturl + task_cgi, result['data']['sid']
     logger.debug(f"Synology v{params['version']} Failed to login: {repr(result)}")
     return "", "", ""

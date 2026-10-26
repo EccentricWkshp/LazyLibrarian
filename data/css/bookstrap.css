@@ -98,9 +98,6 @@ form label {
         text-align: right;
     }
 }
-textarea#telemetry_data {
-    font-family: monospace;
-}
 .langpicker .langchip {
     border-radius: 18px;
     margin: 0 6px 8px 0;

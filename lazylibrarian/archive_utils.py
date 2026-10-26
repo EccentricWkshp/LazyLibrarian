@@ -32,7 +32,6 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import listdir, make_dirs, path_isfile, syspath
 from lazylibrarian.formatter import is_valid_type, make_unicode
 from lazylibrarian.postprocess_utils import enforce_str
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def _safe_extract_path(item, targetdir):
@@ -61,7 +60,6 @@ def unpack_multipart(source_dir, download_dir, title):
         str: Path to extraction directory with unpacked content, or empty string on failure.
     """
     logger = logging.getLogger(__name__)
-    TELEMETRY.record_usage_data("Process/MultiPart")
     # noinspection PyBroadException
     try:
         targetdir = os.path.join(download_dir, f"{title}.unpack")
@@ -136,7 +134,6 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
     try:
         xtn = os.path.splitext(archivename)[1].lower()
         if xtn not in [".epub", ".cbz", ".r00"] and zipfile.is_zipfile(archivename):
-            TELEMETRY.record_usage_data("Process/Archive/Zip")
             postprocesslogger.debug(f"{archivename} is a zip file")
             try:
                 z = zipfile.ZipFile(archivename)
@@ -172,7 +169,6 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
                         continue
 
         elif tarfile.is_tarfile(archivename):
-            TELEMETRY.record_usage_data("Process/Archive/Tar")
             postprocesslogger.debug(f"{archivename} is a tar file")
             try:
                 z = tarfile.TarFile(archivename)
@@ -208,7 +204,6 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
                         continue
 
         elif lazylibrarian.UNRARLIB == 1 and lazylibrarian.RARFILE and lazylibrarian.RARFILE.is_rarfile(archivename):
-            TELEMETRY.record_usage_data("Process/Archive/RarOne")
             postprocesslogger.debug(f"{archivename} is a rar file")
             try:
                 z = lazylibrarian.RARFILE.RarFile(archivename)
@@ -248,7 +243,6 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
             try:
                 z = lazylibrarian.RARFILE(archivename)
                 postprocesslogger.debug(f"{archivename} is a rar file")
-                TELEMETRY.record_usage_data("Process/Archive/RarTwo")
             except Exception as e:
                 if archivename.endswith(".rar"):
                     logger.debug(str(e))

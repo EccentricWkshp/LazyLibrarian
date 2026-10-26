@@ -21,7 +21,6 @@ import traceback
 
 from lazylibrarian.config2 import CONFIG
 
-from ..telemetry import TELEMETRY
 from . import (
     androidpn,
     apprise_notify,
@@ -72,7 +71,6 @@ APPRISE_VER: str = apprise_notify.APPRISE_CANLOAD
 def custom_notify_download(bookid):
     logger = logging.getLogger(__name__)
     try:
-        TELEMETRY.record_usage_data('Notify/Download/Custom')
         custom_notifier.notify_download(bookid)
     except Exception as e:
         logger.warning(f'Custom notify download failed: {str(e)}')
@@ -82,7 +80,6 @@ def custom_notify_download(bookid):
 def custom_notify_snatch(bookid, fail=False):
     logger = logging.getLogger(__name__)
     try:
-        TELEMETRY.record_usage_data('Notify/Snatch/Custom')
         custom_notifier.notify_snatch(bookid, fail=fail)
     except Exception as e:
         logger.warning(f'Custom notify snatch failed: {str(e)}')
@@ -94,7 +91,6 @@ def notify_download(title, bookid=None):
     for item in CONFIG.REDACTLIST:
         title = title.replace(item, '******')
     try:
-        TELEMETRY.record_usage_data('Notify/Download')
         for n in notifiers:
             if 'EmailNotifier' in str(n):
                 n.notify_download(title, bookid=bookid)
@@ -110,7 +106,6 @@ def notify_snatch(title, fail=False):
     for item in CONFIG.REDACTLIST:
         title = title.replace(item, '******')
     try:
-        TELEMETRY.record_usage_data('Notify/Snatch')
         for n in notifiers:
             n.notify_snatch(title, fail=fail)
     except Exception as e:

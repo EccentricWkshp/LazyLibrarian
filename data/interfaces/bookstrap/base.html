@@ -388,13 +388,7 @@
     <script type="text/javascript">
       msg = ''
       % if perm&lazylibrarian.perm_config:
-        % if not CONFIG['TELEMETRY_ENABLE']:
-          title = ${_js('LazyLibrarian Telemetry')}
-          msg = '<div class="input-group">' + ${_js('LazyLibrarian has the ability to send basic information about the installation, how it is configured, and how it is used to a server. This helps the developers figure out where it is worth improving, and which parts nobody uses. All telemetry information is 100% anonymized.')} + '<br><br>'
-          msg += '<a href="#" class="btn btn-xs btn-primary" data-toggle="tooltip" title="' + ${_js('Enable Telemetry')} + '" id="enableTelemetry">' + ${_js('Turn on')} + '</a>&nbsp;'
-          msg += '<a href="#" class="btn btn-xs btn-primary" data-toggle="tooltip" title="' + ${_js('Ask me again later')} + '" id="ignoreTelemetry">' + ${_js('Maybe Later')} + '</a></div>'
-          if (readCookie('ignoreTelemetry') != null) { msg = '' }
-        % elif CONFIG['INSTALL_TYPE'] in ['git', 'source']:
+        % if CONFIG['INSTALL_TYPE'] in ['git', 'source']:
           title = ${_js('LazyLibrarian Update')}
           % if not CONFIG['CURRENT_VERSION']:
               msg = '<div class="input-group">' + ${_js('You are running an unknown version of lazylibrarian')}
@@ -482,26 +476,6 @@
           $(document).on('click', '#translateNo', function(e) { e.preventDefault(); hideTranslateNotice(this, 365); });
         }
         %endif
-
-        $('#ignoreTelemetry').click(function() {
-            createCookie("ignoreTelemetry", true, 14);
-            location.reload(true);
-        });
-       $('#enableTelemetry').on('click', function(e) {
-            $.get('enable_telemetry', function(data) {
-                bootbox.dialog({
-                    title: ${_js('Enable Telemetry')},
-                    message: '<pre>'+data+'</pre>',
-                    buttons: {
-                        primary: {
-                            label: ${_js('Close')},
-                            className: 'btn-primary',
-                            callback: function(){ location.reload(true); }
-                        },
-                    }
-                });
-            });
-        });
 
         $('#ignoreUpdate').click(function() {
             createCookie("ignoreUpdate", true, 1);

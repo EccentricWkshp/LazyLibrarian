@@ -244,7 +244,6 @@ class TorDlMethodInvalidDataTest(LLTestCase):
         super().setUp()
         self.set_loglevel(50)
         self.qbittorrent = mock.patch.object(downloadmethods, 'qbittorrent').start()
-        mock.patch.object(downloadmethods, 'record_usage_data').start()
         mock.patch.object(downloadmethods, 'CONFIG', FakeConfig()).start()
         self.addCleanup(mock.patch.stopall)
 
@@ -333,7 +332,6 @@ class TorDlMethodRedirectTest(LLTestCase):
         self.set_loglevel(50)
         self.qbittorrent = mock.patch.object(downloadmethods, 'qbittorrent').start()
         self.qbittorrent.add_torrent.return_value = (False, 'downloader said no', False)
-        mock.patch.object(downloadmethods, 'record_usage_data').start()
         mock.patch.object(downloadmethods, 'CONFIG', FakeConfig()).start()
         self.addCleanup(mock.patch.stopall)
 
@@ -377,7 +375,6 @@ class TorDlMethodRejectionTest(LLTestCase):
         self.set_loglevel(50)
         self.qbittorrent = mock.patch.object(downloadmethods, 'qbittorrent').start()
         self.qbittorrent.get_name.return_value = 'The Book'
-        mock.patch.object(downloadmethods, 'record_usage_data').start()
         mock.patch.object(downloadmethods, 'CONFIG', FakeConfig(DEL_FAILED=True)).start()
         self.check_contents = mock.patch.object(downloadmethods, 'check_contents',
                                                 return_value='The Book has no ebook files').start()

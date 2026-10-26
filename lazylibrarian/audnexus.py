@@ -37,7 +37,6 @@ from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int
-from lazylibrarian.telemetry import TELEMETRY
 
 BASE_URL = "https://api.audnex.us"
 PROVIDER = "audnexus"
@@ -60,7 +59,6 @@ class Audnexus:
         for region in regions:
             data = self._fetch(f"/books/{asin}", region)
             if data:
-                TELEMETRY.record_usage_data("Metadata/Audnexus")
                 return self._parse_book(data)
         self.logger.debug(f"Audnexus: no audiobook for ASIN {asin} in regions {regions}")
         return {}

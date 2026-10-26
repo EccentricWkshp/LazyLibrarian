@@ -32,7 +32,6 @@ from lazylibrarian.formatter import (
     size_in_bytes,
     url_fix,
 )
-from lazylibrarian.telemetry import TELEMETRY
 from lib.zlibrary import Zlibrary
 
 
@@ -302,7 +301,6 @@ def direct_gen(book=None, prov=None, test=False):
                 logger.debug(search_url)
                 logger.debug(f'Error fetching page data from {provider}: {result}')
                 errmsg = result
-                TELEMETRY.record_usage_data("libgenError")
             if test:
                 return False
             return results, errmsg
@@ -382,7 +380,6 @@ def direct_gen(book=None, prov=None, test=False):
                                         f"Lang:{language} Size: {size}")
                         except Exception as e:
                             logger.debug(f'Error parsing libgen comic results: {str(e)}')
-                            TELEMETRY.record_usage_data("libgenComicError")
 
                     elif td and tabletype == 'libgen':
                         try:
@@ -399,7 +396,6 @@ def direct_gen(book=None, prov=None, test=False):
                                 links.append(d.get('href'))
                         except Exception as e:
                             logger.debug(f'Error parsing libgen results: {str(e)}')
-                            TELEMETRY.record_usage_data("libgenError")
 
                     elif ('fiction' in search or 'index.php' in search) and len(td) > 3:
                         try:
@@ -426,7 +422,6 @@ def direct_gen(book=None, prov=None, test=False):
                                     links.append(d.get('href'))
                         except IndexError as e:
                             logger.debug(f'Error parsing libgen fiction results: {str(e)}')
-                            TELEMETRY.record_usage_data("libgenFictionError")
 
                     elif 'search.php' in search and len(td) > 8:
                         # Non-fiction
@@ -448,7 +443,6 @@ def direct_gen(book=None, prov=None, test=False):
                                     links.append(d.get('href'))
                         except IndexError as e:
                             logger.debug(f'Error parsing libgen search.php results; {str(e)}')
-                            TELEMETRY.record_usage_data("libgenSearchError")
 
                     size = size_in_bytes(size)
 
@@ -546,7 +540,6 @@ def direct_gen(book=None, prov=None, test=False):
             except Exception as e:
                 logger.error(f"An error occurred in the {provider} parser: {str(e)}")
                 logger.debug(f'{provider}: {traceback.format_exc()}')
-                TELEMETRY.record_usage_data("libgenParserError")
 
             if test:
                 logger.debug(f"Test found {len(results)} {plural(len(results), 'result')}")

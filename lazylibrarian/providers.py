@@ -52,7 +52,6 @@ from lazylibrarian.formatter import (
 )
 from lazylibrarian.ircbot import irc_query, irc_results
 from lazylibrarian.soulseek import slsk_search
-from lazylibrarian.telemetry import TELEMETRY
 from lazylibrarian.torrentparser import (
     torrent_abb,
     torrent_kat,
@@ -808,7 +807,6 @@ def iterate_over_direct_sites(book=None, search_type=None):
                     ignored = True
                 if not ignored:
                     logger.debug(f"Querying {prov['NAME']}")
-                    TELEMETRY.record_usage_data(f"Query/{prov['NAME']}")
                     results, error = direct_gen(book, prov['NAME'])
                     if error:
                         BLOCKHANDLER.block_provider(prov['NAME'], error)
@@ -840,7 +838,6 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {prov}')
-            TELEMETRY.record_usage_data(f'Query/{prov}')
             results, error = direct_bok(book, prov)
             if error:
                 # use a short delay for site unavailable etc
@@ -881,7 +878,6 @@ def iterate_over_direct_sites(book=None, search_type=None):
         if not ignored:
             logger.debug(f'Querying {search_type} {provider}')
             searchtype = 'audio' if 'audio' in search_type else 'ebook'
-            TELEMETRY.record_usage_data(f'Query/{provider}')
             results, error = slsk_search(book, searchtype=searchtype)
             if error:
                 # use a short delay for site unavailable etc
@@ -914,7 +910,6 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {provider}')
-            TELEMETRY.record_usage_data(f'Query/{provider}')
             searchtype = 'ebook'
             if 'audio' in search_type:
                 searchtype = 'audio'
@@ -956,7 +951,6 @@ def iterate_over_direct_sites(book=None, search_type=None):
             ignored = True
         if not ignored:
             logger.debug(f'Querying {provider}')
-            TELEMETRY.record_usage_data(f'Query/{prov}')
             searchtype = 'ebook'
             if 'audio' in search_type:
                 searchtype = 'audio'
@@ -1149,8 +1143,6 @@ def ny_times(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     ny_times best-sellers query function, return all the results in a list
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/ny_times')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1211,8 +1203,6 @@ def amazon(host=None, feednr=None, priority=0, dispname=None, types='E', test=Fa
     Amazon charts html page
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/amazon')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1280,8 +1270,6 @@ def publishersweekly(host=None, feednr=None, priority=0, dispname=None, types='E
     publishersweekly best-sellers voir dans configLazy folder pour les commentaires
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/publishersweekly')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1341,8 +1329,6 @@ def appsnprorg(host=None, feednr=None, priority=0, dispname=None, types='E', tes
     best-book aoos,npr.org
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/appsnprprg')
     results = []
     basehost = host
     booknames = []
@@ -1415,8 +1401,6 @@ def penguinrandomhouse(host=None, feednr=None, priority=0, dispname=None, types=
     penguinrandomhouse html page
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/penguinrandomhouse')
     results = []
     basehost = host
     if str(host)[:4] != "http":
@@ -1501,8 +1485,6 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
     Goodreads Listopia query function, return all the results in a list
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/listopia')
     results = []
     maxpage = priority
     basehost = host
@@ -1583,8 +1565,6 @@ def listopia(host=None, feednr=None, priority=0, dispname=None, types='E', test=
 
 def mam(host=None, feednr=None, priority=0, dispname=None, types='E', test=False, label=''):
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/mam')
     results = []
     basehost = host
     if not dispname:
@@ -1682,8 +1662,6 @@ def goodreads(host=None, feednr=None, priority=0, dispname=None, types='E', test
     but expects goodreads format (looks for goodreads category names)
     """
     logger = logging.getLogger(__name__)
-    if not test:
-        TELEMETRY.record_usage_data('Wishlist/goodreads')
     results = []
     basehost = host
     if not dispname:

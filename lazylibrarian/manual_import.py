@@ -96,7 +96,6 @@ from lazylibrarian.postprocess import (
     process_book,
 )
 from lazylibrarian.postprocess_metadata import BookType
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def process_mag_from_file(source_file, title, issuenum):
@@ -120,7 +119,6 @@ def process_mag_from_file(source_file, title, issuenum):
             logger.warning(f"No title for {source_file}, rejecting")
             return False
 
-        TELEMETRY.record_usage_data("Process/Magazine/FromFile")
         entry = db.match("SELECT * FROM magazines where Title=?", (title,))
         if not entry:
             logger.debug(f"Magazine title [{title}] not found, adding it")
@@ -275,7 +273,6 @@ def process_book_from_dir(source_dir=None, library="eBook", bookid=None):
         logger.warning("Source directory must not be the same as or inside library")
         return False
 
-    TELEMETRY.record_usage_data("Process/Book/FromDir")
     reject = multibook(source_dir)
     if reject:
         logger.debug(f"Not processing {source_dir}, found multiple {reject}")
@@ -320,7 +317,6 @@ def process_issues(source_dir=None, title=""):
             logger.warning(f"{source_dir} is not a directory")
             return False
 
-        TELEMETRY.record_usage_data("Process/Issues")
         logger.debug(f"Looking for {title} issues in {source_dir}")
         # first, recursively process any items in subdirectories
         flist = str(listdir(source_dir))
@@ -451,7 +447,6 @@ def process_alternate(source_dir=None, library="eBook"):
             )
             return False
 
-        TELEMETRY.record_usage_data("Process/Alternate")
         logger.debug(f"Processing {library} directory {source_dir}")
         # first, recursively process any books in subdirectories
         flist = listdir(source_dir)

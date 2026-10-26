@@ -19,7 +19,12 @@ from urllib.parse import unquote_plus
 
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.configarray import ArrayConfig
-from lazylibrarian.configdefs import ARRAY_DEFS, BASE_DEFAULTS, configitem_from_default
+from lazylibrarian.configdefs import (
+    ARRAY_DEFS,
+    BASE_DEFAULTS,
+    RETIRED_SECTIONS,
+    configitem_from_default,
+)
 from lazylibrarian.configenums import Access, OnChangeReason
 from lazylibrarian.configtypes import (
     CaseInsensitiveDict,
@@ -69,7 +74,9 @@ class LLConfigHandler(ConfigDict):
             parser.optionxform = lambda optionstr: optionstr.upper()
             parser.read(syspath(configfile))
             for section in parser.sections():
-                if section[-1:].isdigit():
+                if section.lower() in RETIRED_SECTIONS:
+                    self.logger.debug(f"Dropping settings for the removed {section} feature")
+                elif section[-1:].isdigit():
                     try:
                         self._load_array_section(section, parser)
                     except Exception as e:
@@ -212,7 +219,7 @@ class LLConfigHandler(ConfigDict):
         return ErrorListIterator(alldicts)
 
     def clear_access_counters(self):
-        """ Clear all counters. Used after sending telemetry or saving config """
+        """ Clear all counters. Used after saving config """
         for _, value in self.all_configs():
             value.get_accesses().clear()
 
@@ -262,8 +269,6 @@ class LLConfigHandler(ConfigDict):
             ok = self.get_bool('GR_SYNC')
         if ok and scheduler.run_name == 'HCSYNC':  # Special case, should maybe add option to object
             ok = self.get_bool('HC_SYNC')
-        if ok and scheduler.run_name == 'TELEMETRYSEND':  # Special case for telemetry
-            ok = self.config['TELEMETRY_ENABLE'].get_bool()
         if ok and scheduler.run_name == 'SEARCHALLRSS':  # Special case for RSS
             ok = self.use_rss()
         return ok
@@ -389,8 +394,6 @@ class LLConfigHandler(ConfigDict):
                     return savecount
                 return -1
         finally:
-            from lazylibrarian.telemetry import record_usage_data
-            record_usage_data()
             thread_name(currentname)
             # Only clear counters if we save the entire config
             clear: bool = not (section and section != '')

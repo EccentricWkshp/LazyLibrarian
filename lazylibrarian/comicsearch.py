@@ -43,7 +43,6 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.telemetry import TELEMETRY
 
 # '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '',
 dictrepl = {'...': '', '.': ' ', ' & ': ' ', ' = ': ' ', '?': '', '$': 's', ' + ': ' ', '"': '',
@@ -58,7 +57,6 @@ def search_item(comicid=None):
     """
     logger = logging.getLogger(__name__)
     results = []
-    TELEMETRY.record_usage_data('Search/Comic')
     if not comicid:
         return results
 
@@ -212,7 +210,6 @@ def cron_search_comics():
 def search_comics(comicid=None):
     logger = logging.getLogger(__name__)
     searchinglogger = logging.getLogger('special.searching')
-    TELEMETRY.record_usage_data('Search/Comics')
 
     if 'SEARCH' not in thread_name():
         if not comicid:
@@ -299,7 +296,6 @@ def search_comics(comicid=None):
 def download_comiclist(foundissues):
     logger = logging.getLogger(__name__)
     loggesearching = logging.getLogger('special.searching')
-    TELEMETRY.record_usage_data('Download/Comiclist')
     db = database.DBConnection()
     try:
         snatched = 0

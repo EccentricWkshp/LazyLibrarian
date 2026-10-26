@@ -30,7 +30,6 @@ from lazylibrarian.common import dbbackup, docker, proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, listdir, path_isdir, syspath
 from lazylibrarian.formatter import check_int, make_unicode, thread_name
-from lazylibrarian.telemetry import TELEMETRY
 
 
 def run_git(args):
@@ -485,7 +484,6 @@ def update_version_file(new_version_id):
 
 
 def update():
-    TELEMETRY.record_usage_data('Version/Update')
     logger = logging.getLogger(__name__)
     logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
     logdir = DIRS.ensure_data_subdir('Logs')

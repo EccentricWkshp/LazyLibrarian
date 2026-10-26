@@ -1695,6 +1695,13 @@ def update_schema(db, upgradelog):
                   'Persistent INTEGER DEFAULT 0, RemoteIP TEXT, UserAgent TEXT)')
         migrate_to_owner_account(db, upgradelog)
 
+    # Telemetry has been removed. Its job row would show as running forever if it was interrupted
+    if db.match("SELECT Name FROM jobs WHERE Name='TELEMETRYSEND'"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Removing the telemetry job'
+        upgradelog.write(f"{time.ctime()} v101: {lazylibrarian.UPDATE_MSG}\n")
+        db.action("DELETE FROM jobs WHERE Name='TELEMETRYSEND'")
+
     if changes:
         upgradelog.write(f"{time.ctime()} Changed: {changes}\n")
     logger.debug(f"Schema changes: {changes}")

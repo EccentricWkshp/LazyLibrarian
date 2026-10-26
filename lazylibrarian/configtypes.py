@@ -860,8 +860,6 @@ class ConfigDict:
 
     def _handle_access_error(self, key: str, status: Access):
         """ Handle accesses to invalid keys """
-        from lazylibrarian.telemetry import TELEMETRY
-        TELEMETRY.record_usage_data(f'Config/AccessError/{status.name}')
         key = key.upper()
         if self.single_section:
             name = f"{self.single_section}.{key}"
