@@ -24,11 +24,11 @@ from mako.lookup import TemplateLookup
 import lazylibrarian
 from lazylibrarian import database, i18n
 from lazylibrarian.auth import get_owner
-from lazylibrarian.calibre import calibredb, get_calibre_id
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.filesystem import DIRS, path_isdir, remove_file, splitext, syspath
+from lazylibrarian.filesystem import DIRS, path_isdir
 from lazylibrarian.formatter import check_int, thread_name
 from lazylibrarian.processcontrol import get_info_on_caller
+from lazylibrarian.services.files import delete_issue_file, remove_from_calibre
 
 # the author page shown last, so its book list only goes back to page one for a new author
 lastauthor = ''
@@ -215,32 +215,6 @@ def serve_template(templatename, **kwargs):
         return exceptions.html_error_template().render()
 
 
-# Per-format variants of Have/Skipped/Ignored, mapped to (status, libraries)
-FORMAT_STATUS_ACTIONS = {
-    'HaveEbook': ('Have', 'eBook'),
-    'HaveAudio': ('Have', 'AudioBook'),
-    'HaveBoth': ('Have', 'eBook+AudioBook'),
-    'SkipEbook': ('Skipped', 'eBook'),
-    'SkipAudio': ('Skipped', 'AudioBook'),
-    'SkipBoth': ('Skipped', 'eBook+AudioBook'),
-    'IgnoreEbook': ('Ignored', 'eBook'),
-    'IgnoreAudio': ('Ignored', 'AudioBook'),
-    'IgnoreBoth': ('Ignored', 'eBook+AudioBook'),
-}
-
-
-def status_mark_targets(action: str, library: str) -> tuple[str, str] | None:
-    """Return (status, libraries) for a Have/Skipped/Ignored mark, or None for any other action.
-
-    The plain actions follow the page's library; the per-format ones name their own.
-    """
-    if action in FORMAT_STATUS_ACTIONS:
-        return FORMAT_STATUS_ACTIONS[action]
-    if action in ('Have', 'Skipped', 'Ignored'):
-        return action, library or ''
-    return None
-
-
 class BasePages:
     """ Methods the page classes share through self """
 
@@ -270,34 +244,11 @@ class BasePages:
 
     @staticmethod
     def delete_from_calibre(data):
-        logger = logging.getLogger(__name__)
-        calibre_id = get_calibre_id(data)
-        if calibre_id:
-            res, err, rc = calibredb('remove', [calibre_id])
-            logger.debug(f"Delete result: {res} [{err}] {rc}")
+        remove_from_calibre(data)
 
-    def delete_issue(self, issuefile):
-        logger = logging.getLogger(__name__)
-        try:
-            # delete the magazine file and any cover image / opf
-            remove_file(issuefile)
-            fname, extn = splitext(issuefile)
-            for extn in ['.opf', '.jpg']:
-                remove_file(fname + extn)
-            # if the directory is now empty, delete that too
-            if CONFIG.get_bool('MAG_DELFOLDER'):
-                parent_dir = syspath(os.path.dirname(issuefile))
-                files = os.listdir(parent_dir)
-                if not files or (len(files) == 1 and files[0] == '.ll_ignore'):
-                    logger.debug(f'Directory {parent_dir} deleted as empty')
-                    rmtree(parent_dir)
-                else:
-                    logger.warning(f'Directory {parent_dir} not deleted as not empty')
-                    logger.debug(f"{files}")
-            return True
-        except Exception as e:
-            logger.warning(f'delete issue failed on {issuefile}, {type(e).__name__} {str(e)}')
-            return False
+    @staticmethod
+    def delete_issue(issuefile):
+        return delete_issue_file(issuefile)
 
     @staticmethod
     def valid_source(source=None):
