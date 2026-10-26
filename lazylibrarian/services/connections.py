@@ -37,6 +37,8 @@ from lazylibrarian import (
 from lazylibrarian.calibre import calibre_test
 from lazylibrarian.common import run_script
 from lazylibrarian.config2 import CONFIG, wishlist_type
+from lazylibrarian.configdefs import CATEGORY_SUFFIXES
+from lazylibrarian.dlcategories import category_setting, download_category
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import check_int, make_unicode, now
 from lazylibrarian.providers import test_provider as provider_test
@@ -44,6 +46,12 @@ from lazylibrarian.services import InvalidRequestError, ServiceError
 from lazylibrarian.services.users import plain_text
 
 TEXT = ('<', '>', '=')
+
+
+def category_fields(field: str, setting: str) -> dict:
+    """ A client's category settings, one per media type, as the test buttons send them:
+    field for eBooks, then field_audio, field_mag and field_comic """
+    return {f"{field}{suffix.lower()}": (f"{setting}{suffix}", 'text') for suffix in CATEGORY_SUFFIXES.values()}
 
 
 # the settings each test can be given, by name, in the order they're checked:
@@ -64,20 +72,21 @@ FIELDS = {
               'emailto': ('EMAIL_TO', 'text'), 'server': ('EMAIL_SMTP_SERVER', 'text'),
               'user': ('EMAIL_SMTP_USER', 'text'), 'port': ('EMAIL_SMTP_PORT', 'checked_int')},
     'deluge': {'host': ('DELUGE_HOST', 'text'), 'base': ('DELUGE_BASE', 'text'), 'cert': ('DELUGE_CERT', 'text'),
-               'port': ('DELUGE_PORT', 'int'), 'label': ('DELUGE_LABEL', 'text'), 'user': ('DELUGE_USER', 'text')},
+               'port': ('DELUGE_PORT', 'int'), **category_fields('label', 'DELUGE_LABEL'),
+               'user': ('DELUGE_USER', 'text')},
     'sabnzbd': {'host': ('SAB_HOST', 'text'), 'port': ('SAB_PORT', 'int'), 'user': ('SAB_USER', 'text'),
-                'api': ('SAB_API', 'text'), 'cat': ('SAB_CAT', 'text'), 'subdir': ('SAB_SUBDIR', 'text')},
+                'api': ('SAB_API', 'text'), **category_fields('cat', 'SAB_CAT'), 'subdir': ('SAB_SUBDIR', 'text')},
     'nzbget': {'host': ('NZBGET_HOST', 'text'), 'port': ('NZBGET_PORT', 'int'), 'user': ('NZBGET_USER', 'text'),
-               'cat': ('NZBGET_CATEGORY', 'text'), 'pri': ('NZBGET_PRIORITY', 'int')},
+               **category_fields('cat', 'NZBGET_CATEGORY'), 'pri': ('NZBGET_PRIORITY', 'int')},
     'transmission': {'host': ('TRANSMISSION_HOST', 'text'), 'base': ('TRANSMISSION_BASE', 'text'),
                      'port': ('TRANSMISSION_PORT', 'int'), 'user': ('TRANSMISSION_USER', 'text')},
     'qbittorrent': {'host': ('QBITTORRENT_HOST', 'text'), 'port': ('QBITTORRENT_PORT', 'int'),
                     'base': ('QBITTORRENT_BASE', 'text'), 'user': ('QBITTORRENT_USER', 'text'),
-                    'label': ('QBITTORRENT_LABEL', 'text'), 'ignore_ssl': ('QBITTORRENT_IGNORE_SSL', '1')},
+                    **category_fields('label', 'QBITTORRENT_LABEL'), 'ignore_ssl': ('QBITTORRENT_IGNORE_SSL', '1')},
     'utorrent': {'host': ('UTORRENT_HOST', 'text'), 'port': ('UTORRENT_PORT', 'int'), 'base': ('UTORRENT_BASE', 'text'),
-                 'user': ('UTORRENT_USER', 'text'), 'label': ('UTORRENT_LABEL', 'text')},
+                 'user': ('UTORRENT_USER', 'text'), **category_fields('label', 'UTORRENT_LABEL')},
     'rtorrent': {'host': ('RTORRENT_HOST', 'text'), 'dir': ('RTORRENT_DIR', 'text'), 'user': ('RTORRENT_USER', 'text'),
-                 'label': ('RTORRENT_LABEL', 'text')},
+                 **category_fields('label', 'RTORRENT_LABEL')},
     'synology': {'host': ('SYNOLOGY_HOST', 'text'), 'port': ('SYNOLOGY_PORT', 'int'), 'user': ('SYNOLOGY_USER', 'text'),
                  'dir': ('SYNOLOGY_DIR', 'text')},
 }
@@ -191,15 +200,16 @@ def test_client(name: str, values: dict) -> dict:
 
 def test_deluge(values: dict) -> dict:
     """ Check Deluge can be reached: its web interface without a username, the daemon with one, which
-        also checks the label (made lower case, and added if it's missing). Returns bad (the settings that
-        aren't valid), and either error (the exception from the daemon), webui (False and the web
-        interface's message if that failed) or daemon (True) with labels (whether the daemon has any),
-        label, label_added and label_error (what adding it said if it went wrong) """
+        also checks the labels, one per media type (made lower case, and added if missing). Returns bad
+        (the settings that aren't valid), and either error (the exception from the daemon), webui (False
+        and the web interface's message if that failed) or daemon (True) with labels (whether the daemon
+        has any) and checked: a dict for each label with label, added and error (what adding it said if
+        that went wrong) """
     dlcommslogger = logging.getLogger('special.dlcomms')
     bad = apply_settings('deluge', values)
     if bad:
         return {'bad': bad}
-    outcome = {'bad': [], 'daemon': False, 'labels': True, 'label': '', 'label_added': False, 'label_error': ''}
+    outcome = {'bad': [], 'daemon': False, 'labels': True, 'checked': []}
     try:
         if not CONFIG['DELUGE_USER']:
             # no username, talk to the webui
@@ -214,22 +224,29 @@ def test_deluge(values: dict) -> dict:
                                      CONFIG['DELUGE_PASS'])
             client.connect()
             outcome['daemon'] = True
-            if CONFIG['DELUGE_LABEL']:
+            if any(download_category('DELUGE', library) for library in CATEGORY_SUFFIXES):
                 labels = client.call('label.get_labels')
                 if labels:
                     dlcommslogger.debug(f"Valid labels: {str(labels)}")
                 else:
                     outcome['labels'] = False
-                mylabel = CONFIG['DELUGE_LABEL'].lower()
-                if mylabel != CONFIG['DELUGE_LABEL']:
-                    CONFIG.set_str('DELUGE_LABEL', mylabel)
-                outcome['label'] = mylabel
-                if mylabel not in [make_unicode(s) for s in labels]:
-                    res = client.call('label.add', mylabel)
-                    if res:
-                        outcome['label_error'] = str(res)
-                    else:
-                        outcome['label_added'] = True
+                known = [make_unicode(s) for s in labels or []]
+                for library in CATEGORY_SUFFIXES:
+                    # deluge lower cases labels
+                    mylabel = download_category('DELUGE', library).lower()
+                    if mylabel != download_category('DELUGE', library):
+                        CONFIG.set_str(category_setting('DELUGE', library), mylabel)
+                    if not mylabel or any(found['label'] == mylabel for found in outcome['checked']):
+                        continue
+                    found = {'label': mylabel, 'added': False, 'error': ''}
+                    if mylabel not in known:
+                        res = client.call('label.add', mylabel)
+                        if res:
+                            found['error'] = str(res)
+                        else:
+                            found['added'] = True
+                            known.append(mylabel)
+                    outcome['checked'].append(found)
         # success, save settings
         CONFIG.save_config_and_backup_old(section='DELUGE')
         return {**outcome, 'webui': msg if not CONFIG['DELUGE_USER'] else ''}

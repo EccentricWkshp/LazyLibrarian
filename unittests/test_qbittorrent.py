@@ -5,12 +5,14 @@
 #   response from torrents/add across old and new qBittorrent Web API
 #   versions.
 
+import contextlib
 import unittest
 from unittest import mock
 
 import requests
 
 from lazylibrarian import qbittorrent
+from lazylibrarian.configdefs import CATEGORY_SUFFIXES
 from lib.qbittorrent import Client
 from unittests.unittesthelpers import LLTestCase
 
@@ -30,10 +32,16 @@ def _http_error(status_code, text=''):
     return requests.HTTPError(response=response)
 
 
-def _label(name):
-    """ Pretend QBITTORRENT_LABEL is set to name """
-    return mock.patch.object(type(qbittorrent.CONFIG), '__getitem__',
-                             lambda _self, key: name if key == 'QBITTORRENT_LABEL' else '')
+@contextlib.contextmanager
+def _label(name, **types):
+    """ Pretend the eBook category is name, and the other media types' are too unless
+    given, like _label('books', audiobook='audiobooks'). Other settings are empty """
+    categories = {library: types.get(library, name) for library in CATEGORY_SUFFIXES}
+    with mock.patch.object(type(qbittorrent.CONFIG), '__getitem__', lambda _self, key: ''), \
+            mock.patch.object(qbittorrent, 'download_category',
+                              lambda client, library='eBook': categories[library.lower()]), \
+            mock.patch.object(qbittorrent, 'download_categories', lambda client: set(categories.values()) - {''}):
+        yield
 
 
 def _torrent(hashid=EXISTING_HASH, **kwargs):
@@ -447,12 +455,11 @@ class RemoveTorrentTest(LLTestCase):
             self.assertTrue(qbittorrent.remove_torrent(EXISTING_HASH, remove_data=True))
         self.qbclient.delete_permanently.assert_called_once_with(EXISTING_HASH)
 
-    def test_a_per_library_label_list_still_matches(self):
-        # QBITTORRENT_LABEL can be a list that resolves per library, so both
-        # halves of it are categories of ours
+    def test_another_media_types_category_still_matches(self):
+        # with nothing recorded, any of our categories will do
         self.qbclient.torrents.return_value = [_torrent(category='llaudio', state='pausedUP')]
 
-        with _label('llbooks, llaudio'):
+        with _label('llbooks', audiobook='llaudio'):
             self.assertTrue(qbittorrent.remove_torrent(EXISTING_HASH, remove_data=True))
         self.qbclient.delete_permanently.assert_called_once_with(EXISTING_HASH)
 
@@ -488,10 +495,9 @@ class ConfiguredCategoriesTest(LLTestCase):
         with _label('books'):
             self.assertEqual(qbittorrent.configured_categories(), {'books'})
 
-    def test_a_per_library_list(self):
-        with _label('books, audiobooks'):
-            self.assertEqual(qbittorrent.configured_categories(),
-                             {'books, audiobooks', 'books', 'audiobooks'})
+    def test_one_per_media_type(self):
+        with _label('books', audiobook='audiobooks', comic=''):
+            self.assertEqual(qbittorrent.configured_categories(), {'books', 'audiobooks'})
 
     def test_no_label_at_all(self):
         with _label(''):
@@ -585,15 +591,20 @@ class AddDuplicateTest(LLTestCase):
         self.assertFalse(adopted)
         self.assertIn('Skipping', res)
 
-    def test_duplicate_in_alternate_configured_category_is_adopted(self):
+    def test_duplicate_in_another_media_types_category_is_declined(self):
+        # an eBook must not be taken from where the audiobooks go
         self.qbclient.download_from_file.side_effect = _http_error(409)
         self.qbclient.torrents.return_value = [_torrent(name='The Great Courses (2011)',
                                                         category='audiobooks',
                                                         content_path='/downloads/audiobooks')]
-        with _label('books,audiobooks'):
+        with _label('books', audiobook='audiobooks'):
             status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {})
+            self.assertFalse(status)
+            self.assertIn('not [books]', res)
+            status, res, adopted = qbittorrent.add_file(b'data', EXISTING_HASH, 'a title', {},
+                                                        label='audiobooks')
 
-        self.assertTrue(status)
+        self.assertTrue(status, 'Filed where we asked for this media type')
         self.assertTrue(adopted)
 
     def test_duplicate_in_any_category_adopted_when_no_label_configured(self):

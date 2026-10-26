@@ -12,7 +12,8 @@ from lazylibrarian.services import InvalidRequestError, ServiceError, connection
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
 KEYS = ('PUSHOVER_PRIORITY', 'PUSHOVER_APITOKEN', 'QBITTORRENT_IGNORE_SSL', 'QBITTORRENT_HOST', 'EMAIL_TLS', 'SAB_HOST',
-        'SAB_PORT', 'DELUGE_HOST', 'DELUGE_USER', 'DELUGE_LABEL', 'DELUGE_CERT', 'FFMPEG', 'EXT_PREPROCESS',
+        'SAB_PORT', 'DELUGE_HOST', 'DELUGE_USER', 'DELUGE_LABEL', 'DELUGE_LABEL_AUDIO', 'DELUGE_LABEL_MAG',
+        'DELUGE_LABEL_COMIC', 'DELUGE_CERT', 'FFMPEG', 'EXT_PREPROCESS',
         'PROWL_PRIORITY', 'SLACK_TOKEN')
 
 
@@ -74,9 +75,21 @@ class ConnectionServiceTest(LLTestCaseWithConfigandDIRS):
         client.return_value.call.side_effect = lambda name, *args: [b'other'] if name == 'label.get_labels' else None
         with mock.patch.object(connections, 'DelugeRPCClient', client):
             found = connections.test_deluge({'user': 'me', 'host': 'http://deluge', 'label': 'Books'})
-        self.assertEqual((found['daemon'], found['label'], found['label_added']), (True, 'books', True))
+        self.assertEqual((found['daemon'], found['checked']),
+                         (True, [{'label': 'books', 'added': True, 'error': ''}]))
         self.assertEqual((CONFIG['DELUGE_HOST'], CONFIG['DELUGE_LABEL']), ('deluge', 'books'))
         client.return_value.call.assert_any_call('label.add', 'books')
+
+    def test_deluge_daemon_checks_each_media_types_label(self):
+        client = mock.MagicMock()
+        client.return_value.call.side_effect = lambda name, *args: [b'books'] if name == 'label.get_labels' else None
+        with mock.patch.object(connections, 'DelugeRPCClient', client):
+            found = connections.test_deluge({'user': 'me', 'host': 'deluge', 'label': 'Books', 'label_audio': 'Audio',
+                                             'label_mag': 'books', 'label_comic': ''})
+        self.assertEqual(found['checked'], [{'label': 'books', 'added': False, 'error': ''},
+                                            {'label': 'audio', 'added': True, 'error': ''}])
+        self.assertEqual(CONFIG['DELUGE_LABEL_AUDIO'], 'audio')
+        client.return_value.call.assert_any_call('label.add', 'audio')
 
     def test_deluge_daemon_failure(self):
         client = mock.MagicMock()

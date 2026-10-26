@@ -157,15 +157,15 @@ class ConnectionTestPages(BasePages):
         if not found['daemon']:
             return found['webui']
         msg = i18n.gettext("Deluge: Daemon connection successful") + "\n"
-        if found['label']:
-            if not found['labels']:
-                msg += i18n.gettext("Deluge daemon seems to have no labels set") + "\n"
-            if found['label_error']:
-                msg = found['label_error']
-            elif found['label_added']:
-                msg += i18n.gettext("Label [%(label)s] was added") % {'label': found['label']}
+        if found['checked'] and not found['labels']:
+            msg += i18n.gettext("Deluge daemon seems to have no labels set") + "\n"
+        for label in found['checked']:
+            if label['error']:
+                msg += label['error'] + "\n"
+            elif label['added']:
+                msg += i18n.gettext("Label [%(label)s] was added") % {'label': label['label']} + "\n"
             else:
-                msg += i18n.gettext("Label [%(label)s] is valid") % {'label': found['label']}
+                msg += i18n.gettext("Label [%(label)s] is valid") % {'label': label['label']} + "\n"
         return msg
 
     def client_test(self, name, kwargs):

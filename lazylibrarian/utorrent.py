@@ -27,6 +27,7 @@ from urllib.request import (
 
 from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.dlcategories import download_categories
 from lazylibrarian.formatter import check_int, get_list
 
 
@@ -231,7 +232,7 @@ def check_link():
             # we would also like to check lazylibrarian.utorrent_label
             # but uTorrent only sends us a list of labels that have active torrents
             # so we can't tell if our label is known, or does it get created anyway?
-            if CONFIG['UTORRENT_LABEL']:
+            if download_categories('UTORRENT'):
                 return i18n.gettext('%(name)s login successful, label not checked') % {'name': 'uTorrent'}, True
             return i18n.gettext('%(name)s login successful') % {'name': 'uTorrent'}, True
         return i18n.gettext('%(name)s login FAILED\nCheck debug log') % {'name': 'uTorrent'}, False

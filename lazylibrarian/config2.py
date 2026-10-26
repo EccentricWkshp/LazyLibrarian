@@ -22,6 +22,9 @@ from lazylibrarian.configarray import ArrayConfig
 from lazylibrarian.configdefs import (
     ARRAY_DEFS,
     BASE_DEFAULTS,
+    CATEGORY_SUFFIXES,
+    CATEGORY_UNSET,
+    DOWNLOAD_CATEGORIES,
     RETIRED_SECTIONS,
     configitem_from_default,
 )
@@ -454,6 +457,7 @@ class LLConfigHandler(ConfigDict):
 
         self.ensure_valid_homepage()
         warnings += self.fixup_auth_settings()
+        self.fixup_download_categories()
 
         if self.config['SSL_CERTS'].get_str() != '' and not path_exists(str(self.config['SSL_CERTS'])):
             self.logger.warning(f"SSL_CERTS [{str(self.config['SSL_CERTS'])}] not found")
@@ -480,6 +484,30 @@ class LLConfigHandler(ConfigDict):
             self.config['AUTH_REQUIRED'].set_str('ENABLED')
             changes += 1
         return changes
+
+    def fixup_download_categories(self) -> int:
+        """ Give each media type its own download category setting, from the one they used to share:
+        a single category for every type, or a comma separated list by type. Each type is only done
+        once, after that its setting is the user's. Returns the number of clients whose categories were split """
+        changed = 0
+        for base in DOWNLOAD_CATEGORIES.values():
+            shared = self.get_str(base)
+            listed = get_list(shared, ',') if ',' in shared else None
+            split = listed is not None
+            for index, suffix in enumerate(CATEGORY_SUFFIXES.values()):
+                if suffix and self.get_str(f"{base}{suffix}") == CATEGORY_UNSET:
+                    if listed is None:
+                        value = shared
+                    else:
+                        value = listed[index] if index < len(listed) else ''
+                    self.config[f"{base}{suffix}"].set_str(value)
+                    split = split or bool(shared)
+            if listed is not None:
+                self.config[base].set_str(listed[0])
+            if split:
+                self.logger.info(f"Each media type now has its own {base} setting, from [{shared}]")
+                changed += 1
+        return changed
 
     def ensure_valid_homepage(self):
         """ Make sure the HOMEPAGE is one that is included """

@@ -46,6 +46,7 @@ from lazylibrarian.cache import fetch_url
 from lazylibrarian.common import proxy_list
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.directparser import bok_grabs, bok_login, session_get
+from lazylibrarian.dlcategories import download_category
 from lazylibrarian.download_client import check_contents, delete_task, seed_requirement
 from lazylibrarian.filemagic import magic
 from lazylibrarian.filesystem import (
@@ -75,37 +76,6 @@ from lazylibrarian.webshare import valid_ident, webshare_download
 from lib.bencode import BencodeDecodeError, bdecode, bencode
 
 from .magnet2torrent import magnet2torrent
-
-
-def use_label(source, library):
-    if source in ['DELUGERPC', 'DELUGEWEBUI']:
-        labels = CONFIG['DELUGE_LABEL']
-    elif source in ['TRANSMISSION', 'UTORRENT', 'RTORRENT', 'QBITTORRENT']:
-        labels = CONFIG[f"{source}_LABEL"]
-    elif source in ['SABNZBD']:
-        labels = CONFIG['SAB_CAT']
-    elif source in ['NZBGET']:
-        labels = CONFIG['NZBGET_CATEGORY']
-    else:
-        labels = ''
-
-    if not library or ',' not in labels:
-        return labels
-
-    labels = get_list(labels, ',')
-    try:
-        if library == 'eBook':
-            return labels[0]
-        if library == 'AudioBook':
-            return labels[1]
-        if library == 'magazine':
-            return labels[2]
-        if library == 'Comic':
-            return labels[3]
-    except IndexError:
-        pass
-
-    return ''
 
 
 def irc_dl_method(bookid=None, dl_title=None, dl_url=None, library='eBook', provider: str = ''):
@@ -886,7 +856,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
                 if CONFIG.get_bool('TORRENT_PAUSED'):
                     utorrent.pause_torrent(download_id)
                 if not label:
-                    label = use_label(source, library)
+                    label = download_category(source, library)
                 if label:
                     utorrent.label_torrent(download_id, label)
                 tor_title = utorrent.name_torrent(download_id)
@@ -903,12 +873,13 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
                     remove_file(torrentfile)
                 if not torrent:
                     logger.debug("Unable to convert magnet")
+            rt_label = label or download_category(source, library)
             if torrent:
                 logger.debug(f"Sending {tor_title} data to rTorrent")
-                download_id, res = rtorrent.add_torrent(tor_title, hashid, data=torrent)
+                download_id, res = rtorrent.add_torrent(tor_title, hashid, data=torrent, label=rt_label)
             else:
                 logger.debug(f"Sending {tor_title} url to rTorrent")
-                download_id, res = rtorrent.add_torrent(tor_url, hashid)  # returns hash or False
+                download_id, res = rtorrent.add_torrent(tor_url, hashid, label=rt_label)  # returns hash or False
             if download_id:
                 tor_title = rtorrent.get_name(download_id)
 
@@ -918,7 +889,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
             # label can be a per library list, and the category we send is the
             # one we have to recognise the torrent by later. Kept local so it
             # cannot leak into another downloader's block.
-            qb_label = label or use_label(source, library)
+            qb_label = label or download_category(source, library)
             if torrent:
                 logger.debug(f"Sending {tor_title} data to qBittorrent")
                 download_id, res, adopted = qbittorrent.add_file(torrent, hashid, tor_title,
@@ -940,7 +911,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
         if CONFIG.get_bool('TOR_DOWNLOADER_TRANSMISSION') and CONFIG['TRANSMISSION_HOST']:
             source = "TRANSMISSION"
             if not label:
-                label = use_label(source, library)
+                label = download_category(source, library)
             directory = CONFIG['TRANSMISSION_DIR']
             if label and not directory.endswith(label):
                 directory = os.path.join(directory, label)
@@ -1011,7 +982,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
                     # can be link or magnet, returns hash or False
                 if download_id:
                     if not label:
-                        label = use_label(source, library)
+                        label = download_category(source, library)
                     if label:
                         deluge.set_torrent_label(download_id, label)
                     result = deluge.get_torrent_status(download_id, {})
@@ -1047,7 +1018,7 @@ def tor_dl_method(bookid=None, tor_title=None, tor_url=None, library='eBook', la
                         if CONFIG.get_bool('TORRENT_PAUSED'):
                             _ = client.call('core.pause_torrent', download_id)
                         if not label:
-                            label = use_label(source, library)
+                            label = download_category(source, library)
                         if label:
                             _ = client.call('label.set_torrent', download_id, label.lower())
                         if "seed_ratio" in provider_options:

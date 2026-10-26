@@ -449,21 +449,20 @@ class TorDlMethodRejectionTest(LLTestCase):
         # what a later cleanup compares the torrent's own category against
         self.qbittorrent.add_file.return_value = (TORRENT_HASH, '', False)
 
-        with mock.patch.object(downloadmethods, 'CONFIG',
-                               FakeConfig(DEL_FAILED=True, QBITTORRENT_LABEL='books')):
+        with mock.patch.object(downloadmethods, 'CONFIG', FakeConfig(DEL_FAILED=True)), \
+                mock.patch.object(downloadmethods, 'download_category', return_value='books'):
             self.snatch()
 
         self.assertIn('books', self.failed_row_update())
         self.assertEqual(self.qbittorrent.add_file.call_args.kwargs['label'], 'books')
 
-    def test_a_per_library_label_list_is_resolved_before_it_is_sent(self):
-        # QBITTORRENT_LABEL can be a list, ebook first then audiobook. Sending
-        # it unresolved filed the torrent under the whole string.
+    def test_each_media_type_has_its_own_category(self):
         self.qbittorrent.add_file.return_value = (TORRENT_HASH, '', False)
         self.check_contents.return_value = ''  # let it get as far as Snatched
+        categories = {'eBook': 'books', 'AudioBook': 'audiobooks'}
 
-        with mock.patch.object(downloadmethods, 'CONFIG',
-                               FakeConfig(QBITTORRENT_LABEL='books, audiobooks')), \
+        with mock.patch.object(downloadmethods, 'download_category',
+                               side_effect=lambda client, library: categories[library]), \
                 self.fetch(TORRENT_DATA):
             downloadmethods.tor_dl_method(bookid='1', tor_title='The Book',
                                           tor_url='https://provider.example/get/1.torrent',

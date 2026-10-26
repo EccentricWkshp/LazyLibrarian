@@ -25,9 +25,9 @@ from http.client import HTTPException
 from urllib.parse import quote
 from xmlrpc.client import ProtocolError, ServerProxy
 
-import lazylibrarian
 from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.dlcategories import download_category
 from lazylibrarian.formatter import make_unicode
 
 
@@ -175,7 +175,7 @@ def send_nzb(nzb=None, cmd=None, nzbid=None, library='eBook', label=''):
     dupescore = 0
 
     if not label:
-        label = lazylibrarian.downloadmethods.use_label('NZBGET', library)
+        label = download_category('NZBGET', library)
 
     try:
         # Find out if nzbget supports priority (Version 9.0+), old versions

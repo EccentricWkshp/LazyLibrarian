@@ -19,7 +19,8 @@ import requests
 
 from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import get_list, redact_url
+from lazylibrarian.dlcategories import download_categories, download_category
+from lazylibrarian.formatter import redact_url
 from lib.qbittorrent import Client, WrongCredentialsError
 
 # qBittorrent Web API 2.14+ can accept a torrents/add request before it has
@@ -224,21 +225,18 @@ def get_content_path(hashid):
     qbclient = get_client()
     if not qbclient:
         return ''
-    cat = CONFIG['QBITTORRENT_LABEL']
-    if not cat:
-        cat = None
     # content_path is normally populated as soon as the torrent exists, but can be briefly
     # empty right after completion; retry a few times (short sleep) before giving up.
+    # By hash, not category: each media type has its own category
     retries = 3
     while retries:
         try:
-            torrents = qbclient.torrents(category=cat)
+            torrent = find_torrent(qbclient, hashid)
         except Exception as e:
             dlcommslogger.error(f"Failed to get_content_path: {e}")
             return ''
-        for torrent in torrents:
-            if torrent.get('hash') == hashid and torrent.get('content_path'):
-                return torrent['content_path']
+        if torrent.get('content_path'):
+            return torrent['content_path']
         retries -= 1
         if retries:
             time.sleep(2)
@@ -288,15 +286,9 @@ def get_progress(hashid):
 
 
 def configured_categories():
-    """ Every category this configuration could have filed a torrent under.
-
-    QBITTORRENT_LABEL is a single category, or a comma separated list that
-    resolves per library, so both spellings have to count as ours.
-    """
-    label = CONFIG['QBITTORRENT_LABEL']
-    if not label:
-        return set()
-    return {label, *get_list(label, ',')}
+    """ Every category this configuration could have filed a torrent under,
+    one per media type at most """
+    return download_categories('QBITTORRENT')
 
 
 def category_mismatch(category, expect_category=None):
@@ -546,7 +538,7 @@ def wait_for_torrent(qbclient, dlcommslogger, hashid, result, label):
     return False, res, False
 
 
-def handle_add_http_error(qbclient, dlcommslogger, err, hashid, label):
+def handle_add_http_error(qbclient, dlcommslogger, err, hashid, label, category=''):
     """ Work out whether an HTTPError from torrents/add means qBittorrent
     already has the torrent we asked it for.
 
@@ -554,6 +546,9 @@ def handle_add_http_error(qbclient, dlcommslogger, err, hashid, label):
     it says that whether or not the trackers could be merged, and whether the
     existing torrent is downloading, seeding or paused. It's only a success if
     the exact infohash we wanted is really there, so ask rather than assume.
+
+    The existing torrent has to be in the category we asked for, if any: the
+    category says which media type it is for, and where the client saved it.
 
     :return: (torrent id, '', True) for a duplicate we can use, else
              (False, message, False). The third value marks a torrent that was
@@ -589,20 +584,15 @@ def handle_add_http_error(qbclient, dlcommslogger, err, hashid, label):
     if torrent:
         found = torrent_id(torrent, hashid)
         logger.info(f"Torrent already exists in qBittorrent; using existing hash {found}")
-        category = torrent.get('category') or ''
-        our_label = CONFIG['QBITTORRENT_LABEL']
-        if our_label and category != our_label:
-            mismatch = category_mismatch(category)
-            if mismatch:
-                res = (f"Torrent {found} is in category [{category}], not [{our_label}]. "
-                       f"Skipping to avoid a snatch loop (the postprocessor would not "
-                       f"find the files and the book would be re-searched indefinitely)")
-                logger.info(res)
-                return False, res, False
-            logger.info(f"Existing torrent is in category [{category}] "
-                        f"(accepted alternate for [{our_label}])")
+        existing = torrent.get('category') or ''
+        if category and existing != category:
+            res = (f"Torrent {found} is in category [{existing}], not [{category}]. "
+                   f"Skipping to avoid a snatch loop (the postprocessor would not "
+                   f"find the files and the book would be re-searched indefinitely)")
+            logger.info(res)
+            return False, res, False
         dlcommslogger.debug(f"Existing torrent: name=[{torrent.get('name')}] state={torrent.get('state')} "
-                            f"category=[{category}] progress={torrent.get('progress')}")
+                            f"category=[{existing}] progress={torrent.get('progress')}")
         return found, '', True
 
     res = f"qBittorrent refused {label} with {status_code} and has no torrent with hash {hashid}"
@@ -632,7 +622,7 @@ def add_file(data, hashid, title, provider_options, label=None):
     try:
         result = qbclient.download_from_file(data, **kwargs)
     except requests.HTTPError as e:
-        return handle_add_http_error(qbclient, dlcommslogger, e, hashid, 'add_file')
+        return handle_add_http_error(qbclient, dlcommslogger, e, hashid, 'add_file', kwargs.get('category', ''))
     except Exception as e:
         dlcommslogger.error(f"Failed to download_from_file: {e}")
         return False, str(e), False
@@ -661,7 +651,7 @@ def add_torrent(link, hashid, provider_options, label=None):
     try:
         result = qbclient.download_from_link(link, **kwargs)
     except requests.HTTPError as e:
-        return handle_add_http_error(qbclient, dlcommslogger, e, hashid, 'add_torrent')
+        return handle_add_http_error(qbclient, dlcommslogger, e, hashid, 'add_torrent', kwargs.get('category', ''))
     except Exception as e:
         dlcommslogger.error(f" Failed to download_from_link: {e}")
         return False, str(e), False
@@ -673,16 +663,14 @@ def get_args(provider_options, label=None):
     """ Get optional arguments based on configuration
 
     :param label: the category to file the torrent under, already resolved for
-        the library being searched. QBITTORRENT_LABEL can be a comma separated
-        list of per library categories, so the unresolved value is not usable as
-        a category on its own.
+        the library being searched. None for the eBook one.
     """
     args = {'paused': bool(CONFIG.get_bool('TORRENT_PAUSED'))}
     if CONFIG['QBITTORRENT_DIR']:
         args['savepath'] = CONFIG['QBITTORRENT_DIR']
 
     if label is None:
-        label = CONFIG['QBITTORRENT_LABEL']
+        label = download_category('QBITTORRENT')
     if label:
         args['category'] = label
 

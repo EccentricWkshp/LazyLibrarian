@@ -67,7 +67,7 @@ def get_server():
     return None, ''
 
 
-def add_torrent(tor_url, hash_id, data=None):
+def add_torrent(tor_url, hash_id, data=None, label=''):
     logger = logging.getLogger(__name__)
     server, version = get_server()
     if not server:
@@ -76,7 +76,6 @@ def add_torrent(tor_url, hash_id, data=None):
         return False, 'rTorrent unable to connect to server'
     try:
         paused = CONFIG.get_bool('TORRENT_PAUSED')
-        label = CONFIG['RTORRENT_LABEL']
         directory = CONFIG['RTORRENT_DIR']
 
         post_load_cmds = []

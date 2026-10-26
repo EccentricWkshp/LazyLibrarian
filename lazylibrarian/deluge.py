@@ -29,9 +29,9 @@ from base64 import b64decode, b64encode
 
 import requests
 
-import lazylibrarian
 from lazylibrarian import i18n
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.dlcategories import download_categories
 from lazylibrarian.filesystem import make_dirs, path_isdir, syspath
 from lazylibrarian.formatter import make_unicode
 
@@ -683,13 +683,14 @@ def check_link():
         logger.debug("Deluge: Connection FAILED")
         return i18n.gettext('%(name)s: Connection FAILED\nCheck debug log') % {'name': 'Deluge'}, False
     msg = i18n.gettext('%(name)s: Connection successful') % {'name': 'Deluge'}
-    label = lazylibrarian.downloadmethods.use_label('DELUGEWEBUI', '')
-    if label:
-        if set_torrent_label(None, CONFIG['DELUGE_LABEL']):
-            msg += '\n' + i18n.gettext('Label is ok')
+    labels = sorted(download_categories('DELUGEWEBUI'))
+    # with no torrent, this only checks each label exists, and adds it if it doesn't
+    for label in labels:
+        if set_torrent_label(None, label):
+            msg += '\n' + i18n.gettext('Label is ok') + f' [{label}]'
         else:
-            msg += '\n' + i18n.gettext('Unable to set label')
-    else:
+            msg += '\n' + i18n.gettext('Unable to set label') + f' [{label}]'
+    if not labels:
         msg += '\n' + i18n.gettext('No label')
-    logger.debug(f"Deluge: Connection successful, label {label!r}")
+    logger.debug(f"Deluge: Connection successful, labels {labels}")
     return msg, True

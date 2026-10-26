@@ -201,6 +201,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('SABnzbd', 'SAB_PASS', ''),
     ConfigStr('SABnzbd', 'SAB_API', ''),
     ConfigStr('SABnzbd', 'SAB_CAT', ''),
+    ConfigStr('SABnzbd', 'SAB_CAT_AUDIO', 'None'),
+    ConfigStr('SABnzbd', 'SAB_CAT_MAG', 'None'),
+    ConfigStr('SABnzbd', 'SAB_CAT_COMIC', 'None'),
     ConfigBool('SABnzbd', 'SAB_DELETE', 1),
     ConfigStr('SABnzbd', 'SAB_EXTERNAL_HOST', ''),
     ConfigStr('SABnzbd', 'SAB_REMOTE', ''),
@@ -210,6 +213,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('NZBGet', 'NZBGET_USER', ''),
     ConfigStr('NZBGet', 'NZBGET_PASS', ''),
     ConfigStr('NZBGet', 'NZBGET_CATEGORY', ''),
+    ConfigStr('NZBGet', 'NZBGET_CATEGORY_AUDIO', 'None'),
+    ConfigStr('NZBGet', 'NZBGET_CATEGORY_MAG', 'None'),
+    ConfigStr('NZBGet', 'NZBGET_CATEGORY_COMIC', 'None'),
     ConfigInt('NZBGet', 'NZBGET_PRIORITY', 0),
     ConfigStr('NZBGet', 'NZBGET_REMOTE', ''),
     ConfigStr('NZBGet', 'NZBGET_LOCAL', ''),
@@ -248,6 +254,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('RTORRENT', 'RTORRENT_USER', ''),
     ConfigStr('RTORRENT', 'RTORRENT_PASS', ''),
     ConfigStr('RTORRENT', 'RTORRENT_LABEL', ''),
+    ConfigStr('RTORRENT', 'RTORRENT_LABEL_AUDIO', 'None'),
+    ConfigStr('RTORRENT', 'RTORRENT_LABEL_MAG', 'None'),
+    ConfigStr('RTORRENT', 'RTORRENT_LABEL_COMIC', 'None'),
     ConfigStr('RTORRENT', 'RTORRENT_DIR', ''),
     ConfigStr('RTORRENT', 'RTORRENT_REMOTE', ''),
     ConfigStr('RTORRENT', 'RTORRENT_LOCAL', ''),
@@ -257,6 +266,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('UTORRENT', 'UTORRENT_USER', ''),
     ConfigStr('UTORRENT', 'UTORRENT_PASS', ''),
     ConfigStr('UTORRENT', 'UTORRENT_LABEL', ''),
+    ConfigStr('UTORRENT', 'UTORRENT_LABEL_AUDIO', 'None'),
+    ConfigStr('UTORRENT', 'UTORRENT_LABEL_MAG', 'None'),
+    ConfigStr('UTORRENT', 'UTORRENT_LABEL_COMIC', 'None'),
     ConfigStr('UTORRENT', 'UTORRENT_REMOTE', ''),
     ConfigStr('UTORRENT', 'UTORRENT_LOCAL', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_HOST', ''),
@@ -265,6 +277,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('QBITTORRENT', 'QBITTORRENT_USER', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_PASS', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL', ''),
+    ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL_AUDIO', 'None'),
+    ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL_MAG', 'None'),
+    ConfigStr('QBITTORRENT', 'QBITTORRENT_LABEL_COMIC', 'None'),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_DIR', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_REMOTE', ''),
     ConfigStr('QBITTORRENT', 'QBITTORRENT_LOCAL', ''),
@@ -277,6 +292,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('TRANSMISSION', 'TRANSMISSION_PASS', ''),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_DIR', ''),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL', ''),
+    ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_AUDIO', 'None'),
+    ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_MAG', 'None'),
+    ConfigStr('TRANSMISSION', 'TRANSMISSION_LABEL_COMIC', 'None'),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_REMOTE', ''),
     ConfigStr('TRANSMISSION', 'TRANSMISSION_LOCAL', ''),
     ConfigStr('DELUGE', 'DELUGE_CERT', ''),
@@ -286,6 +304,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('DELUGE', 'DELUGE_USER', ''),
     ConfigStr('DELUGE', 'DELUGE_PASS', ''),
     ConfigStr('DELUGE', 'DELUGE_LABEL', ''),
+    ConfigStr('DELUGE', 'DELUGE_LABEL_AUDIO', 'None'),
+    ConfigStr('DELUGE', 'DELUGE_LABEL_MAG', 'None'),
+    ConfigStr('DELUGE', 'DELUGE_LABEL_COMIC', 'None'),
     ConfigStr('DELUGE', 'DELUGE_DIR', ''),
     ConfigInt('DELUGE', 'DELUGE_TIMEOUT', 3600),
     ConfigStr('DELUGE', 'DELUGE_REMOTE', ''),
@@ -577,6 +598,16 @@ BASE_DEFAULTS: list[ConfigItem] = [
 # Sections for features that have been removed. An older config.ini still has them, they're
 # skipped without a warning for every setting, and gone the next time the config is saved
 RETIRED_SECTIONS = {'telemetry', 'twitter', 'boxcar', 'androidpn', 'growl', 'nma', 'kat'}
+
+# The setting holding each download client's category (or label) for eBooks. The other media types
+# have their own settings, named with a suffix. These settings used to be shared by every type, as
+# one category or a comma separated list in the order of CATEGORY_SUFFIXES
+DOWNLOAD_CATEGORIES = {'SABNZBD': 'SAB_CAT', 'NZBGET': 'NZBGET_CATEGORY', 'QBITTORRENT': 'QBITTORRENT_LABEL',
+                       'TRANSMISSION': 'TRANSMISSION_LABEL', 'DELUGE': 'DELUGE_LABEL',
+                       'RTORRENT': 'RTORRENT_LABEL', 'UTORRENT': 'UTORRENT_LABEL'}
+CATEGORY_SUFFIXES = {'ebook': '', 'audiobook': '_AUDIO', 'magazine': '_MAG', 'comic': '_COMIC'}
+# a media type's category setting that hasn't been given its own value yet
+CATEGORY_UNSET = 'None'
 
 # (Sectionname, SectionNameTemplate, [Items])
 DefaultArrayDef = tuple[str, str, list[ConfigItem]]
