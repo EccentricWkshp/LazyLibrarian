@@ -41,6 +41,8 @@ BOOK_TYPES = ('ebook', 'audiobook')
 LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
 # how sure a guess at an item's book has to be to fill it in
 MATCH_SCORE = 80
+# how alike an item's name and a queued download's release title are when the item is that download
+SAME_NAME = 95
 # how long an import waits for the post processor to finish a run it's in the middle of
 POSTPROCESS_WAIT = 600
 # the start of the rejection for a book that already has its files, the page knows it by this
@@ -141,6 +143,24 @@ def suggested_folders() -> list[dict]:
     return [{'path': path, 'label': label} for path, label in found.items()]
 
 
+def _queued_downloads(db) -> list[dict]:
+    """ The queued downloads of books and audiobooks, the most recent first """
+    return [dict(row) for row in db.select(
+        "SELECT rowid,* FROM wanted WHERE Status='Snatched' AND IFNULL(Source,'')!='MANUAL' "
+        "AND AuxInfo IN (?,?) ORDER BY rowid DESC", tuple(LIBRARIES.values()))]
+
+
+def _download_of(path: str, downloads: list[dict]) -> dict | None:
+    """ The queued download an item is, by its name being the release title, as Sonarr knows a
+    download's folder when it's imported from somewhere else """
+    name = default_process(_label(path))
+    for row in downloads:
+        title = default_process((row['NZBtitle'] or '').replace('.', ' ').replace('_', ' '))
+        if name and title and fuzz.ratio(name, title) >= SAME_NAME:
+            return row
+    return None
+
+
 def _queued_for(db, book_id, media_type) -> dict | None:
     """ The queued download of a book, the most recent if there are several. Importing the book
     from a folder completes it, as Sonarr links a manual import to its download """
@@ -149,16 +169,19 @@ def _queued_for(db, book_id, media_type) -> dict | None:
     return dict(row) if row else None
 
 
-def _guess(label: str, library: list[dict]) -> dict | None:
-    """ The book a name looks like, scored like the automatic search scores a release """
-    best, best_score = None, 0
+def _guess(label: str, library: list[dict], kind: str = 'ebook') -> dict | None:
+    """ The book a name looks like, scored like the automatic search scores a release. Of books that
+    score the same, as the same book from two sources does, one that is wanted or downloading is the
+    likelier """
+    status = 'AudioStatus' if kind == 'audiobook' else 'Status'
+    best, best_score = None, (0, False)
     for book in library:
         author = fuzz.token_set_ratio(book['AuthorName'], label, processor=default_process)
         title = fuzz.token_set_ratio(book['BookName'], label, processor=default_process)
-        score = title if author >= MATCH_SCORE else (author + title) / 2
+        score = (title if author >= MATCH_SCORE else (author + title) / 2, book[status] in ('Wanted', 'Snatched'))
         if score > best_score:
             best, best_score = book, score
-    return best if best_score >= MATCH_SCORE else None
+    return best if best_score[0] >= MATCH_SCORE else None
 
 
 def _book(book: dict | None) -> dict | None:
@@ -188,17 +211,18 @@ def _client_folder(row) -> str:
 def candidates(folder: str = '', queue_id=None) -> dict:
     """ The items to import from a folder, or from a queued download's folder, with the book each
     one looks like and anything that would stop it importing. A queued download's items are for
-    its book unless another is chosen """
+    its book unless another is chosen, and so are the items of a folder that are queued downloads """
     db = database.DBConnection()
     try:
         row = queue._row(db, queue_id) if queue_id else None
-        target = _queue_target(db, row) if row else None
+        downloads = [row] if row else _queued_downloads(db)
+        targets = {}
+        for download in downloads:
+            target = _queue_target(db, download)
+            book = db.match('SELECT BookFile,AudioFile FROM books WHERE BookID=?', (target['id'],)) \
+                if target['media_type'] in BOOK_TYPES else None
+            targets[download['rowid']] = (target, dict(book) if book else {})
         library = _library(db) if not row else []
-        if target and target['media_type'] in BOOK_TYPES:
-            book = db.match('SELECT BookFile,AudioFile FROM books WHERE BookID=?', (target['id'],))
-            target_files = dict(book) if book else {}
-        else:
-            target_files = {}
     finally:
         db.close()
     own_folder = False
@@ -224,16 +248,18 @@ def candidates(folder: str = '', queue_id=None) -> dict:
         units, base = _items_in(folder), folder
     found = []
     for unit in units:
+        download = row or _download_of(unit['path'], downloads)
+        target, target_files = targets[download['rowid']] if download else (None, {})
         kind = target['media_type'] if target else unit['kind']
         if kind not in BOOK_TYPES + ('magazine', 'comic'):
             kind = 'ebook'
-        guess = None if target or kind not in BOOK_TYPES else _guess(_label(unit['path']), library)
+        guess = None if target or kind not in BOOK_TYPES else _guess(_label(unit['path']), library, kind)
         book = target if target else _book(guess)
         existing = _existing_file(target_files if target else guess, kind)
         first = unit['files'][0] if unit['files'] else unit['path']
         item = {'path': unit['path'], 'files': unit['files'], 'relative_path': os.path.relpath(first, base),
                 'size': sum(_size(name) for name in unit['files'] or [unit['path']]), 'media_type': kind,
-                'book': book, 'queue_id': row['rowid'] if row else None, 'rejections': []}
+                'book': book, 'queue_id': download['rowid'] if download else None, 'rejections': []}
         if unit['kind'] not in (kind, 'archive') and not (unit['kind'] == 'ebook' and kind == 'magazine'):
             item['rejections'].append(f"No {kind} files found, only {unit['kind'] or 'other'} files")
         if not book:

@@ -43,9 +43,16 @@ class ManualImportTestCase(ProcessDirTestCase):
     def book(self, book_id):
         return self.db.match("SELECT Status,BookFile FROM books WHERE BookID=?", (book_id,))
 
-    def queued(self, book_id="mi_001", title="John_Doe-Test_Book_One", result=""):
-        self.create_snatched_download(book_id, title, source="SABNZBD", download_id=f"nzo_{book_id}")
-        self.db.action("UPDATE books SET Status='Snatched' WHERE BookID=?", (book_id,))
+    def same_book_again(self):
+        """ mi_003, Test Book One again, as a library can have a book from two sources """
+        self.db.action("INSERT OR REPLACE INTO books (BookID,AuthorID,BookName,Status,AudioStatus) "
+                       "SELECT 'mi_003',AuthorID,BookName,'Skipped','Skipped' FROM books WHERE BookID='mi_001'")
+
+    def queued(self, book_id="mi_001", title="John_Doe-Test_Book_One", result="", book_type="eBook"):
+        self.create_snatched_download(book_id, title, book_type=book_type, source="SABNZBD",
+                                      download_id=f"nzo_{book_id}")
+        status = 'AudioStatus' if book_type == 'AudioBook' else 'Status'
+        self.db.action(f"UPDATE books SET {status}='Snatched' WHERE BookID=?", (book_id,))
         if result:
             self.db.action("UPDATE wanted SET DLResult=? WHERE BookID=?", (result, book_id))
         return self.db.match("SELECT rowid FROM wanted WHERE BookID=?", (book_id,))['rowid']
@@ -157,6 +164,29 @@ class CandidatesTest(ManualImportTestCase):
         self.assertEqual([(i['relative_path'], i['book']['id']) for i in found['items']],
                          [('Test Book One.epub', 'mi_001')])
 
+    def test_a_folder_that_is_a_queued_download(self):
+        # the reported one: the library had the book twice, the import guessed the other one, so the
+        # download it was stayed in the queue. A folder named as the release is that download
+        self.same_book_again()
+        item_id = self.queued(title="John Doe - Test Book One MP3", book_type="AudioBook")
+        self.write("John Doe - Test Book One MP3", "John Doe - Test Book One 01.mp3")
+        self.write("John Doe - Test Book One MP3", "John Doe - Test Book One 02.mp3")
+        self.write("Jane Roe - Another Story", "Another Story.epub")
+        items = {item['relative_path']: item for item in manualimport.candidates(self.incoming)['items']}
+        item = items["John Doe - Test Book One MP3"]
+        self.assertEqual((item['queue_id'], item['book']['id'], item['media_type']), (item_id, 'mi_001', 'audiobook'))
+        self.assertIsNone(items["Jane Roe - Another Story"]['queue_id'])
+        # and its loose files, when the download's own folder is chosen
+        item = manualimport.candidates(os.path.join(self.incoming, "John Doe - Test Book One MP3"))['items'][0]
+        self.assertEqual((item['queue_id'], item['book']['id']), (item_id, 'mi_001'))
+
+    def test_the_same_book_twice_guesses_the_wanted_one(self):
+        self.same_book_again()
+        self.db.action("UPDATE books SET Status='Skipped' WHERE BookID='mi_001'")
+        self.db.action("UPDATE books SET Status='Wanted' WHERE BookID='mi_003'")
+        self.write("John Doe - Test Book One.epub")
+        self.assertEqual(manualimport.candidates(self.incoming)['items'][0]['book']['id'], 'mi_003')
+
     def test_search_books(self):
         self.assertEqual([book['id'] for book in manualimport.search_books('roe story')], ['mi_002'])
         self.assertEqual(manualimport.search_books(' '), [])
@@ -193,6 +223,18 @@ class ImportTest(ManualImportTestCase):
         manualimport.import_item({'path': epub, 'files': [epub], 'media_type': 'ebook', 'book_id': 'mi_001'})
         self.assertEqual(self.db.match("SELECT Status FROM wanted WHERE rowid=?", (item_id,))['Status'], 'Processed')
         self.assertEqual(len(self.db.select("SELECT * FROM wanted WHERE BookID='mi_001'")), 1, 'No Manual row')
+
+    def test_a_queued_download_found_in_a_folder(self):
+        # importing what the folder's candidates say, as the page does, takes it off the queue
+        self.same_book_again()
+        item_id = self.queued(title="John Doe - Test Book One MP3", book_type="AudioBook")
+        self.write("John Doe - Test Book One MP3", "John Doe - Test Book One 01.mp3")
+        self.write("John Doe - Test Book One MP3", "John Doe - Test Book One 02.mp3")
+        item = manualimport.candidates(os.path.join(self.incoming, "John Doe - Test Book One MP3"))['items'][0]
+        manualimport.import_item({**item, 'book_id': item['book']['id']})
+        self.assertEqual(self.db.match("SELECT Status FROM wanted WHERE rowid=?", (item_id,))['Status'], 'Processed')
+        self.assertEqual(queue.list_queue(), [])
+        self.assertEqual(len(self.db.select("SELECT * FROM wanted")), 1, 'No Manual row')
 
     def test_the_queue_has_no_manual_rows(self):
         self.db.action("INSERT INTO wanted (BookID,NZBurl,NZBtitle,Status,AuxInfo,Source) VALUES "

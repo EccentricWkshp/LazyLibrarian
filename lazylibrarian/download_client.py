@@ -640,10 +640,10 @@ def get_download_progress(source, downloadid):
                     if item["NZBID"] == check_int(downloadid, 0):
                         found = True
                         logger.debug(f"NZBID {item['NZBID']} status {item['Status']}")
-                        total = item["FileSizeHi"] << 32 + item["FileSizeLo"]
+                        total = (item["FileSizeHi"] << 32) + item["FileSizeLo"]
                         if total:
                             remaining = (
-                                item["RemainingSizeHi"] << 32 + item["RemainingSizeLo"]
+                                (item["RemainingSizeHi"] << 32) + item["RemainingSizeLo"]
                             )
                             done = total - remaining
                             progress = int(done * 100 / total)

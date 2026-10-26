@@ -218,6 +218,20 @@ class CheckLinkTest(LLTestCase):
 
 
 
+class ProgressTest(LLTestCase):
+
+    def test_nzbget(self):
+        # NZBGet splits sizes into high and low 32 bits. The total was worked out as Hi << (32 + Lo),
+        # 0 for anything under 4GB, so its downloads stayed at 0% and never looked finished
+        group = {'NZBID': 7, 'Status': 'DOWNLOADING', 'FileSizeHi': 0, 'FileSizeLo': 600000000,
+                 'RemainingSizeHi': 0, 'RemainingSizeLo': 150000000}
+        with mock.patch.object(download_client.nzbget, 'send_nzb', return_value=([group], '')), \
+                mock.patch.object(download_client.database, 'DBConnection'):
+            self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (75, False))
+            group.update(FileSizeHi=1, RemainingSizeHi=0, RemainingSizeLo=0)
+            self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (100, True))
+
+
 class RemotePathTest(LLTestCase):
     """ Folders the clients report go through the remote path mappings, see test_services_remotepaths """
 
