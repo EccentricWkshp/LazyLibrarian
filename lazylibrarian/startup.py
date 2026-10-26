@@ -828,7 +828,7 @@ class StartupLazyLibrarian:
                         host = 'localhost'  # windows doesn't like 0.0.0.0
 
                     if not host.startswith('http'):
-                        host = f"http://{host}"
+                        host = f"{'https' if CONFIG.get_bool('HTTPS_ENABLED') else 'http'}://{host}"
 
                     # depending on proxy might need host:port/root or just host/root
                     if CONFIG['HTTP_ROOT']:
@@ -842,13 +842,15 @@ class StartupLazyLibrarian:
                     if updated:
                         upgradelog.write(f"{time.ctime()} {msg}\n")
                     self.logger.info(msg)
+                    # it's our own server, often with a self-signed certificate
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                     pawse = 18
                     success = False
                     res = ''
                     while pawse:
                         # noinspection PyBroadException
                         try:
-                            r = requests.get(server1)
+                            r = requests.get(server1, verify=False, timeout=10)
                             res = r.status_code
                             if res == 200 or res == 401:
                                 success = True
@@ -859,7 +861,7 @@ class StartupLazyLibrarian:
                         if not r and server2:
                             # noinspection PyBroadException
                             try:
-                                r = requests.get(server2)
+                                r = requests.get(server2, verify=False, timeout=10)
                                 res = r.status_code
                                 if res == 200 or res == 401:
                                     success = True

@@ -30,10 +30,11 @@ class SetupTest(LLTestCase):
 
 class ShutdownTest(LLTestCase):
 
-    def shutdown(self, docker=False, env=None, **kwargs):
+    def shutdown(self, docker=False, env=None, serving=False, **kwargs):
         """ Run shutdown with everything that would touch the system mocked out,
         return the mock standing in for starting a new LazyLibrarian process.
-        The exit status shutdown chose is left in self.status """
+        The exit status shutdown chose is left in self.status, and the mock that
+        checks the new process is up in self.get """
         starter = startup.StartupLazyLibrarian()
         starter.logger = logging.getLogger(__name__)
         tmp = tempfile.TemporaryDirectory()
@@ -44,13 +45,16 @@ class ShutdownTest(LLTestCase):
                 mock.patch.dict(os.environ, env or {}), \
                 mock.patch.object(startup.versioncheck, 'update', return_value=False), \
                 mock.patch.object(startup.subprocess, 'Popen') as popen, \
-                mock.patch('lazylibrarian.webStart.running', return_value=False), \
+                mock.patch('lazylibrarian.webStart.running', return_value=serving), \
+                mock.patch('lazylibrarian.webStart.stop'), \
+                mock.patch.object(startup.requests, 'get', return_value=mock.Mock(status_code=200)) as get, \
                 mock.patch.object(startup.DIRS, 'get_logfile', side_effect=lambda f: os.path.join(logdir, f)), \
                 mock.patch.object(startup.DIRS, 'FULL_PATH', 'LazyLibrarian.py', create=True), \
                 mock.patch.object(startup.DIRS, 'ARGS', [], create=True):
             if env is None:
                 os.environ.pop('LAZYLIBRARIAN_SUPERVISED', None)  # patch.dict puts it back afterwards
             self.status = starter.shutdown(testing=True, **kwargs)
+        self.get = get
         return popen
 
     def test_plain_shutdown_does_not_restart(self):
@@ -64,6 +68,18 @@ class ShutdownTest(LLTestCase):
         command = popen.call_args.args[0]
         self.assertEqual(command[1:], ['LazyLibrarian.py', '--nolaunch'])
         self.assertEqual(self.status, 0)
+
+    def test_restart_waits_for_new_instance(self):
+        saved = {key: CONFIG[key] for key in ('HTTPS_ENABLED', 'HTTP_HOST', 'HTTP_ROOT')}
+        self.addCleanup(lambda: [CONFIG.set_from_ui(key, value) for key, value in saved.items()])
+        CONFIG.set_str('HTTP_HOST', '0.0.0.0')
+        CONFIG.set_str('HTTP_ROOT', '')
+        for https, scheme in ((False, 'http'), (True, 'https')):
+            CONFIG.set_bool('HTTPS_ENABLED', https)
+            self.shutdown(restart=True, serving=True).assert_called_once()
+            # a self-signed certificate is fine, it's our own server
+            self.get.assert_called_once_with(f"{scheme}://localhost:{CONFIG['HTTP_PORT']}", verify=False,
+                                             timeout=10)
 
     def test_restart_under_service_manager_exits(self):
         # systemd and Docker restart LazyLibrarian when it exits with RESTART_EXIT_STATUS.
