@@ -158,8 +158,49 @@ class CandidatesTest(ManualImportTestCase):
         self.assertEqual([book['id'] for book in manualimport.search_books('roe story')], ['mi_002'])
         self.assertEqual(manualimport.search_books(' '), [])
 
+    def test_already_in_the_library(self):
+        have = self.write("library copy", "Test Book One.epub")
+        self.db.action("UPDATE books SET BookFile=? WHERE BookID='mi_001'", (have,))
+        self.write("John Doe - Test Book One.epub")
+        item = next(i for i in manualimport.candidates(self.incoming)['items'] if i['book'])
+        self.assertEqual(item['rejections'], [f"{manualimport.ALREADY} {have}"], 'Like Sonarr\'s existing file')
+        item_id = self.queued()
+        item = manualimport.candidates(self.incoming, item_id)['items'][0]
+        self.assertIn(f"{manualimport.ALREADY} {have}", item['rejections'], 'A queued download\'s book too')
+
+    def test_suggested_folders(self):
+        mapped = os.path.join(self.test_root, "mapped")
+        os.makedirs(mapped)
+        with mock.patch.object(manualimport.remotepaths, 'mappings',
+                               return_value=[{'Id': 1, 'Host': 'nas', 'RemotePath': '/downloads', 'LocalPath': mapped},
+                                             {'Id': 2, 'Host': 'nas', 'RemotePath': '/x', 'LocalPath': '/gone'}]):
+            folders = manualimport.suggested_folders()
+        self.assertIn({'path': os.path.normpath(self.download_dir), 'label': 'Download directory'}, folders)
+        self.assertIn({'path': os.path.normpath(mapped), 'label': 'nas /downloads'}, folders)
+        self.assertNotIn('/gone', [folder['path'] for folder in folders])
+
 
 class ImportTest(ManualImportTestCase):
+
+    def test_a_folder_for_a_queued_book(self):
+        # the reported one: importing a book from a folder left its queued download in the queue
+        item_id = self.queued()
+        epub = self.write("John Doe - Test Book One.epub")
+        manualimport.import_item({'path': epub, 'files': [epub], 'media_type': 'ebook', 'book_id': 'mi_001'})
+        self.assertEqual(self.db.match("SELECT Status FROM wanted WHERE rowid=?", (item_id,))['Status'], 'Processed')
+        self.assertEqual(len(self.db.select("SELECT * FROM wanted WHERE BookID='mi_001'")), 1, 'No Manual row')
+
+    def test_the_queue_has_no_manual_rows(self):
+        self.db.action("INSERT INTO wanted (BookID,NZBurl,NZBtitle,Status,AuxInfo,Source) VALUES "
+                       "('mi_002','manual:1','x','Snatched','eBook','MANUAL')")
+        self.assertEqual(queue.list_queue(), [])
+
+    def test_a_queued_book_that_does_not_import_from_another_folder_is_not_blocked(self):
+        item_id = self.queued()
+        folder = os.path.dirname(self.write("chosen", "notes.txt"))
+        with self.assertRaises(InvalidRequestError):
+            manualimport.import_item({'path': folder, 'media_type': 'ebook', 'book_id': 'mi_001'})
+        self.assertFalse(self.db.match("SELECT DLResult FROM wanted WHERE rowid=?", (item_id,))['DLResult'])
 
     def test_from_a_folder(self):
         epub = self.write("John Doe - Test Book One.epub")

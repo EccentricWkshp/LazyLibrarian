@@ -1,16 +1,17 @@
-// Sonarr's InteractiveImportSelectFolderModalContent and its file browser in one: type a folder
-// or find it, then import from it
+// Sonarr's InteractiveImportSelectFolderModalContent and its file browser in one: type a folder or
+// find it, starting from the folders downloads are in and the ones imported from lately
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp, Folder } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowUp, Clock, Download, Folder } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { TextInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator } from 'Components/Misc';
 import { ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
-import { FileSystem } from 'typings/InteractiveImport';
+import { FileSystem, SuggestedFolder } from 'typings/InteractiveImport';
 import { api } from 'Utilities/api';
+import { addRecentFolder, recentFolders } from '../recentFolders';
 import styles from '../InteractiveImport.module.css';
 
 interface SelectFolderModalContentProps {
@@ -20,22 +21,70 @@ interface SelectFolderModalContentProps {
 }
 
 function SelectFolderModalContent({ initialPath = '', onFolderSelect, onModalClose }: SelectFolderModalContentProps) {
-  const [path, setPath] = useState(initialPath);
-  const [browsing, setBrowsing] = useState(initialPath);
+  const recent = recentFolders();
+  const [path, setPath] = useState(initialPath || recent[0] || '');
+  const [browsing, setBrowsing] = useState<string | null>(initialPath || recent[0] || null);
+  const suggestions = useQuery({
+    queryKey: ['manualimport', 'folders'],
+    queryFn: () => api<SuggestedFolder[]>('/manualimport/folders'),
+  });
   const { data, error, isLoading } = useQuery({
     queryKey: ['filesystem', browsing],
     queryFn: () => api<FileSystem>('/filesystem', { query: { path: browsing } }),
+    enabled: browsing !== null,
   });
+
+  // with nowhere to start from yet, start where downloads are
+  useEffect(() => {
+    if (browsing === null && suggestions.data) {
+      const first = suggestions.data[0]?.path ?? '';
+      setBrowsing(first);
+      setPath(first);
+    }
+  }, [browsing, suggestions.data]);
+
+  // a folder that isn't there shows the nearest one that is
+  useEffect(() => {
+    if (data && browsing && data.path && data.path !== browsing) {
+      setPath(data.path);
+    }
+  }, [data, browsing]);
 
   function browse(folder: string) {
     setBrowsing(folder);
     setPath(folder);
   }
 
+  function select() {
+    addRecentFolder(path);
+    onFolderSelect(path);
+  }
+
+  const shortcuts = [
+    ...recent.map((folder) => ({ path: folder, label: 'Recent', icon: Clock })),
+    ...(suggestions.data ?? [])
+      .filter((folder) => !recent.includes(folder.path))
+      .map((folder) => ({ path: folder.path, label: folder.label, icon: Download })),
+  ];
+
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>Manual Import - Select Folder</ModalHeader>
       <ModalBody>
+        {shortcuts.length ? (
+          <ul className={styles.shortcuts}>
+            {shortcuts.map((shortcut) => (
+              <li key={shortcut.path}>
+                <Link className={styles.shortcut} onPress={() => browse(shortcut.path)}>
+                  <Icon name={shortcut.icon} />
+                  <span className={styles.shortcutPath}>{shortcut.path}</span>
+                  <span className={styles.shortcutLabel}>{shortcut.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         <TextInput
           value={path}
           placeholder="The folder to import from, as a full path"
@@ -73,7 +122,7 @@ function SelectFolderModalContent({ initialPath = '', onFolderSelect, onModalClo
       </ModalBody>
       <ModalFooter>
         <Button onPress={onModalClose}>Cancel</Button>
-        <Button kind="primary" isDisabled={!path} onPress={() => onFolderSelect(path)}>
+        <Button kind="primary" isDisabled={!path} onPress={select}>
           Interactive Import
         </Button>
       </ModalFooter>

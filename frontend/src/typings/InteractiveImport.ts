@@ -33,6 +33,11 @@ export interface LibraryBook {
   audioStatus: string | null;
 }
 
+export interface SuggestedFolder {
+  path: string;
+  label: string;
+}
+
 export interface FileSystem {
   path: string;
   parent: string | null;

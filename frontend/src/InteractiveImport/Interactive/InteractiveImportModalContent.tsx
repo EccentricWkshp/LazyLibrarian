@@ -17,6 +17,9 @@ import SelectBookModal from '../Book/SelectBookModal';
 import InteractiveImportRow from './InteractiveImportRow';
 import styles from '../InteractiveImport.module.css';
 
+// the start of the rejection for a book that already has its files, manualimport.ALREADY
+const ALREADY = 'Already in the library:';
+
 const COLUMNS: Column[] = [
   { name: 'relativePath', label: 'Relative Path' },
   { name: 'mediaType', label: 'Type' },
@@ -61,9 +64,13 @@ function InteractiveImportModalContent({
         const choice = choices[item.path] ?? {};
         const book = choice.book === undefined ? item.book : choice.book;
         const mediaType = choice.mediaType ?? item.mediaType;
-        // the rejections that choosing has dealt with go
+        // the rejections that choosing has dealt with go. Another book or type may not have files yet
+        const changed = choice.book !== undefined || choice.mediaType !== undefined;
         const rejections = item.rejections.filter(
-          (rejection) => !(book && rejection === 'Choose the book') && !(choice.mediaType && rejection.startsWith('No '))
+          (rejection) =>
+            !(book && rejection === 'Choose the book') &&
+            !(choice.mediaType && rejection.startsWith('No ')) &&
+            !(changed && rejection.startsWith(ALREADY))
         );
 
         return { ...item, book, mediaType, rejections: book ? rejections : [...new Set([...rejections, 'Choose the book'])] };

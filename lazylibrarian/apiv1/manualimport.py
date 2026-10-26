@@ -76,6 +76,17 @@ def manual_import(folder: str = '', queue_id: int | None = Query(None, alias='qu
     return manualimport.candidates(folder, queue_id)
 
 
+class SuggestedFolder(ApiModel):
+    path: str
+    label: str
+
+
+@router.get('/manualimport/folders', response_model=list[SuggestedFolder])
+def suggested_folders():
+    """ Where downloads are: the download directories and the remote path mappings' local paths """
+    return manualimport.suggested_folders()
+
+
 @router.get('/book', response_model=list[Book], tags=['Book'])
 def books(term: str):
     """ Library books with every word of term in their title or author """
@@ -92,11 +103,17 @@ def _roots() -> list[dict]:
 
 @router.get('/filesystem', response_model=FileSystem, tags=['File System'])
 def filesystem(path: str = ''):
-    """ The folders in a folder, to choose one. No path lists the top level """
+    """ The folders in a folder, to choose one. No path lists the top level, and a folder that
+    doesn't exist lists the nearest one above it that does """
     if not path:
         return {'path': '', 'parent': None, 'directories': _roots()}
-    if not os.path.isabs(path) or not path_isdir(path):
-        raise InvalidRequestError(f'[{path}] is not a folder')
+    if not os.path.isabs(path):
+        raise InvalidRequestError(f'[{path}] is not a full path')
+    while not path_isdir(path):
+        parent = os.path.dirname(path.rstrip('/\\'))
+        if not parent or parent == path:
+            return {'path': '', 'parent': None, 'directories': _roots()}
+        path = parent
     try:
         names = sorted(os.listdir(path), key=str.lower)
     except OSError as why:

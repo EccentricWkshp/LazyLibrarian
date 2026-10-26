@@ -303,6 +303,10 @@ class ApiV1Test(LLTestCaseWithDB):
         response = self.get('/ll/api/v1/filesystem', headers=key, params={'path': TESTDIR})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(all(os.path.isdir(folder['path']) for folder in response.json()['directories']))
+        response = self.get('/ll/api/v1/filesystem', headers=key,
+                            params={'path': os.path.join(TESTDIR, 'no', 'such', 'folder')})
+        self.assertEqual(response.json()['path'], TESTDIR, 'The nearest folder that is there')
+        self.assertEqual(self.get('/ll/api/v1/manualimport/folders', headers=key).status_code, 200)
         self.assertEqual(self.get('/ll/api/v1/book', headers=key, params={'term': 'zzzznothing'}).json(), [])
 
         response = self.client.post('/ll/api/v1/command', headers=key, json={

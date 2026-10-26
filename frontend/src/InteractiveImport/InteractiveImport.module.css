@@ -77,6 +77,40 @@
   text-align: center;
 }
 
+.shortcuts {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 1px solid var(--borderColor);
+  border-radius: 8px;
+  list-style: none;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  width: 100%;
+  gap: 8px;
+
+  &:hover {
+    background-color: var(--tableRowHoverBackgroundColor);
+  }
+}
+
+.shortcutPath {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-family: var(--monoSpaceFontFamily);
+  overflow-wrap: anywhere;
+}
+
+.shortcutLabel {
+  flex-shrink: 0;
+  color: var(--inkMuted);
+  font-size: var(--smallFontSize);
+}
+
 .browser {
   overflow-y: auto;
   margin-top: 12px;

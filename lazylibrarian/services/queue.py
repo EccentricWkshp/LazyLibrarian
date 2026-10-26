@@ -112,7 +112,9 @@ def list_queue() -> list[dict]:
     download clients """
     db = database.DBConnection()
     try:
-        rows = [dict(row) for row in db.select("SELECT rowid,* FROM wanted WHERE Status='Snatched' ORDER BY rowid")]
+        # not a manual import's own row, it was never downloaded and is only there while it imports
+        rows = [dict(row) for row in db.select("SELECT rowid,* FROM wanted WHERE Status='Snatched' "
+                                               "AND IFNULL(Source,'')!='MANUAL' ORDER BY rowid")]
         items = []
         for row in rows:
             item = _what(db, row)
@@ -142,7 +144,8 @@ def _number(value) -> bool:
 
 
 def _row(db, item_id) -> dict:
-    row = db.match("SELECT rowid,* FROM wanted WHERE rowid=? AND Status='Snatched'", (item_id,))
+    row = db.match("SELECT rowid,* FROM wanted WHERE rowid=? AND Status='Snatched' AND IFNULL(Source,'')!='MANUAL'",
+                   (item_id,))
     if not row:
         raise NotFoundError(f'No queue item {item_id}')
     return dict(row)

@@ -32,8 +32,8 @@ from rapidfuzz.utils import default_process
 from lazylibrarian import database, postprocess
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import is_archive_file
-from lazylibrarian.filesystem import DIRS, path_isdir, path_isfile, safe_copy
-from lazylibrarian.formatter import make_unicode, now, thread_name
+from lazylibrarian.filesystem import DIRS, get_directory, path_isdir, path_isfile, safe_copy
+from lazylibrarian.formatter import get_list, make_unicode, now, thread_name
 from lazylibrarian.services import InvalidRequestError, NotFoundError, queue, remotepaths
 from lazylibrarian.services.history import reset_snatched_books
 
@@ -43,6 +43,8 @@ LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
 MATCH_SCORE = 80
 # how long an import waits for the post processor to finish a run it's in the middle of
 POSTPROCESS_WAIT = 600
+# the start of the rejection for a book that already has its files, the page knows it by this
+ALREADY = 'Already in the library:'
 
 
 def _kind(name: str) -> str:
@@ -111,9 +113,40 @@ def _items_in(folder: str) -> list[dict]:
 
 
 def _library(db) -> list[dict]:
-    rows = db.select('SELECT BookID,BookName,AuthorName,books.Status,AudioStatus FROM books,authors '
+    rows = db.select('SELECT BookID,BookName,AuthorName,books.Status,AudioStatus,BookFile,AudioFile FROM books,authors '
                      'WHERE books.AuthorID=authors.AuthorID')
     return [dict(row) for row in rows]
+
+
+def _existing_file(book: dict | None, kind: str) -> str:
+    """ The library's file for a book of this kind, when it has one, as Sonarr shows an episode's
+    existing file. Importing again puts a second copy beside it """
+    if not book or kind not in BOOK_TYPES:
+        return ''
+    path = book.get('AudioFile' if kind == 'audiobook' else 'BookFile') or ''
+    return path if path and path_isfile(path) else ''
+
+
+def suggested_folders() -> list[dict]:
+    """ Where downloads are, to start looking for something to import: the download directories and
+    the local paths of the remote path mappings """
+    found = {}
+    for path in [str(get_directory('Download')), *get_list(CONFIG['DOWNLOAD_DIR'], ',')]:
+        if path and path_isdir(path):
+            found.setdefault(os.path.normpath(path), 'Download directory')
+    for mapping in remotepaths.mappings():
+        if path_isdir(mapping['LocalPath']):
+            found.setdefault(os.path.normpath(mapping['LocalPath']),
+                             f"{mapping['Host']} {mapping['RemotePath']}")
+    return [{'path': path, 'label': label} for path, label in found.items()]
+
+
+def _queued_for(db, book_id, media_type) -> dict | None:
+    """ The queued download of a book, the most recent if there are several. Importing the book
+    from a folder completes it, as Sonarr links a manual import to its download """
+    row = db.match("SELECT rowid,* FROM wanted WHERE Status='Snatched' AND BookID=? AND AuxInfo=? "
+                   "AND IFNULL(Source,'')!='MANUAL' ORDER BY rowid DESC", (book_id, LIBRARIES[media_type]))
+    return dict(row) if row else None
 
 
 def _guess(label: str, library: list[dict]) -> dict | None:
@@ -161,6 +194,11 @@ def candidates(folder: str = '', queue_id=None) -> dict:
         row = queue._row(db, queue_id) if queue_id else None
         target = _queue_target(db, row) if row else None
         library = _library(db) if not row else []
+        if target and target['media_type'] in BOOK_TYPES:
+            book = db.match('SELECT BookFile,AudioFile FROM books WHERE BookID=?', (target['id'],))
+            target_files = dict(book) if book else {}
+        else:
+            target_files = {}
     finally:
         db.close()
     own_folder = False
@@ -189,7 +227,9 @@ def candidates(folder: str = '', queue_id=None) -> dict:
         kind = target['media_type'] if target else unit['kind']
         if kind not in BOOK_TYPES + ('magazine', 'comic'):
             kind = 'ebook'
-        book = target if target else (_book(_guess(_label(unit['path']), library)) if kind in BOOK_TYPES else None)
+        guess = None if target or kind not in BOOK_TYPES else _guess(_label(unit['path']), library)
+        book = target if target else _book(guess)
+        existing = _existing_file(target_files if target else guess, kind)
         first = unit['files'][0] if unit['files'] else unit['path']
         item = {'path': unit['path'], 'files': unit['files'], 'relative_path': os.path.relpath(first, base),
                 'size': sum(_size(name) for name in unit['files'] or [unit['path']]), 'media_type': kind,
@@ -198,6 +238,8 @@ def candidates(folder: str = '', queue_id=None) -> dict:
             item['rejections'].append(f"No {kind} files found, only {unit['kind'] or 'other'} files")
         if not book:
             item['rejections'].append('Choose the book')
+        if existing:
+            item['rejections'].append(f"{ALREADY} {existing}")
         found.append(item)
     return {'folder': folder, 'items': found, 'error': ''}
 
@@ -263,7 +305,13 @@ def import_item(item: dict) -> str:
         files = [path]
     db = database.DBConnection()
     work = ''
+    linked = False
     try:
+        if not queue_id and media_type in BOOK_TYPES and book_id:
+            queued = _queued_for(db, book_id, media_type)
+            if queued:
+                queue_id, linked = queued['rowid'], True
+                logger.info(f"Importing {path} for the queued download {queued['NZBtitle']}")
         if queue_id:
             row = queue._row(db, queue_id)
             if (book_id and book_id != row['BookID']) or \
@@ -305,7 +353,9 @@ def import_item(item: dict) -> str:
         reason = postprocess._block_reason(state)
         if row['Source'] == 'MANUAL':
             db.action('DELETE FROM wanted WHERE rowid=?', (row['rowid'],))
-        else:
+        elif not linked:
+            # a queued download's own files didn't import. Other files that didn't are no reason to
+            # block it
             postprocess._block_import(db, state, logger)
         raise InvalidRequestError(reason)
     finally:
