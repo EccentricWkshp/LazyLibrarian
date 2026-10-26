@@ -24,9 +24,9 @@ from lazylibrarian.auth import owner_id, require_auth
 from lazylibrarian.bookwork import add_series_members
 from lazylibrarian.common import get_readinglist, set_readinglist
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import check_int, get_list, surname_first
+from lazylibrarian.formatter import check_int, fold, get_list, natural_sort, surname_first
 from lazylibrarian.scheduling import ensure_running
-from lazylibrarian.web.common import BasePages, fold, mark_summary, serve_template
+from lazylibrarian.web.common import BasePages, mark_summary, serve_template
 
 
 class SeriesPages(BasePages):
@@ -68,7 +68,7 @@ class SeriesPages(BasePages):
             members = []
             for itm in memberdata:
                 members.append(dict(itm))
-            self.natural_sort(members, key=lambda y: y['SeriesNum'] if y['SeriesNum'] is not None else '')
+            natural_sort(members, key=lambda y: y['SeriesNum'] if y['SeriesNum'] is not None else '')
             db.close()
             return serve_template(templatename="editseries.html", title=i18n.gettext("Edit Series"), config=seriesdata,
                                   members=members)

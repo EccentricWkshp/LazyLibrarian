@@ -1106,6 +1106,27 @@ def unaccented_bytes(str_or_unicode, only_ascii=True):
     return stripped  # return bytestring
 
 
+def fold(s):
+    """ Lower case without accents, for searches that should match either way """
+    s = unicodedata.normalize('NFKD', str(s))
+    return ''.join(c for c in s if not unicodedata.combining(c)).casefold()
+
+
+def natural_sort(lst, key=lambda s: s, reverse=False):
+    """
+    Sort the list into natural alphanumeric order.
+    """
+
+    def convert(text):
+        return int(text) if text and text.isdigit() else text
+
+    def get_alphanum_key_func(skey):
+        return lambda s: [convert(c) for c in re.split('([0-9]+)', skey(s))]
+
+    sort_key = get_alphanum_key_func(key)
+    lst.sort(key=sort_key, reverse=reverse)
+
+
 def replace_all(text, dic):
     if not text:
         return ''

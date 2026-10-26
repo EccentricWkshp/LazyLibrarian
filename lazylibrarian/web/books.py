@@ -56,7 +56,9 @@ from lazylibrarian.formatter import (
     check_year,
     clean_name,
     date_format,
+    fold,
     get_list,
+    natural_sort,
     now,
     plural,
     sort_definite,
@@ -74,13 +76,7 @@ from lazylibrarian.opfedit import opf_read, opf_write
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
 from lazylibrarian.searchbook import search_book
 from lazylibrarian.web import common
-from lazylibrarian.web.common import (
-    BasePages,
-    fold,
-    mark_summary,
-    serve_template,
-    status_mark_targets,
-)
+from lazylibrarian.web.common import BasePages, mark_summary, serve_template, status_mark_targets
 
 
 def refresh_book_languages():
@@ -569,7 +565,7 @@ class BookPages(BasePages):
                 serversidelogger.debug(f"final sortcolumn {sortcolumn}")
 
                 if sortcolumn in [12, 13, 15, 18]:  # series, dates
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 elif sortcolumn in [2]:  # title
                     filtered.sort(key=lambda y: y[sortcolumn].lower() if y[sortcolumn] is not None else '',

@@ -24,8 +24,8 @@ from lazylibrarian.auth import require_auth
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import get_download_progress
-from lazylibrarian.formatter import date_format, make_unicode, plural
-from lazylibrarian.web.common import BasePages, fold, serve_template
+from lazylibrarian.formatter import date_format, fold, make_unicode, natural_sort, plural
+from lazylibrarian.web.common import BasePages, serve_template
 
 
 class HistoryPages(BasePages):
@@ -80,7 +80,7 @@ class HistoryPages(BasePages):
                     sortcolumn = 9
 
                 if sortcolumn == 5:
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 else:
                     filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',

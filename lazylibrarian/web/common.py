@@ -14,8 +14,6 @@
 
 import logging
 import os
-import re
-import unicodedata
 from shutil import rmtree
 from urllib.parse import unquote, unquote_plus
 
@@ -34,11 +32,6 @@ from lazylibrarian.processcontrol import get_info_on_caller
 
 # the author page shown last, so its book list only goes back to page one for a new author
 lastauthor = ''
-
-
-def fold(s):
-    s = unicodedata.normalize('NFKD', str(s))
-    return ''.join(c for c in s if not unicodedata.combining(c)).casefold()
 
 
 def clear_mako_cache(userid=0):
@@ -274,21 +267,6 @@ class BasePages:
             threadname = thread_name()
             if "Thread" in threadname:
                 thread_name("WEBSERVER")
-
-    @staticmethod
-    def natural_sort(lst, key=lambda s: s, reverse=False):
-        """
-        Sort the list into natural alphanumeric order.
-        """
-
-        def convert(text):
-            return int(text) if text and text.isdigit() else text
-
-        def get_alphanum_key_func(skey):
-            return lambda s: [convert(c) for c in re.split('([0-9]+)', skey(s))]
-
-        sort_key = get_alphanum_key_func(key)
-        lst.sort(key=sort_key, reverse=reverse)
 
     @staticmethod
     def delete_from_calibre(data):

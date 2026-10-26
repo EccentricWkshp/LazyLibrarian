@@ -45,6 +45,7 @@ from lazylibrarian.filesystem import (
 from lazylibrarian.formatter import (
     check_int,
     date_format,
+    fold,
     format_author_name,
     get_list,
     safe_unicode,
@@ -64,7 +65,7 @@ from lazylibrarian.importer import (
 from lazylibrarian.librarysync import library_scan
 from lazylibrarian.startup import prioritized_infosources
 from lazylibrarian.web import common
-from lazylibrarian.web.common import BasePages, fold, mark_summary, serve_template
+from lazylibrarian.web.common import BasePages, mark_summary, serve_template
 
 
 class AuthorPages(BasePages):

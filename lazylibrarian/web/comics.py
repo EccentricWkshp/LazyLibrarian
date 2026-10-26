@@ -29,10 +29,18 @@ from lazylibrarian.comicid import cv_identify, cx_identify, name_words, title_wo
 from lazylibrarian.comicsearch import search_comics
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, path_isfile, splitext, syspath
-from lazylibrarian.formatter import check_int, check_year, date_format, now, strip_quotes
+from lazylibrarian.formatter import (
+    check_int,
+    check_year,
+    date_format,
+    fold,
+    natural_sort,
+    now,
+    strip_quotes,
+)
 from lazylibrarian.images import createthumb
 from lazylibrarian.magazinescan import remove_if_empty
-from lazylibrarian.web.common import BasePages, fold, serve_template
+from lazylibrarian.web.common import BasePages, serve_template
 
 lastcomic = ''
 
@@ -202,7 +210,7 @@ class ComicPages(BasePages):
                 serversidelogger.debug(f"sortcolumn {sortcolumn}")
 
                 if sortcolumn in [4, 5]:  # dates
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 elif sortcolumn == 2:  # title
                     filtered.sort(key=lambda y: y[sortcolumn].lower() if y[sortcolumn] is not None else '',
@@ -361,7 +369,7 @@ class ComicPages(BasePages):
                 serversidelogger.debug(f"sortcolumn {sortcolumn}")
 
                 if sortcolumn in [2, 3]:  # dates
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 else:
                     filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',

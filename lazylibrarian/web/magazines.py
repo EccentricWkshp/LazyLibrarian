@@ -37,8 +37,10 @@ from lazylibrarian.formatter import (
     check_int,
     check_year,
     date_format,
+    fold,
     get_list,
     make_unicode,
+    natural_sort,
     now,
     plural,
     replace_all,
@@ -54,7 +56,7 @@ from lazylibrarian.images import (
 from lazylibrarian.magazinescan import get_dateparts, magazine_scan, remove_if_empty, rename_issue
 from lazylibrarian.processcontrol import get_info_on_caller
 from lazylibrarian.searchmag import download_maglist, search_magazines
-from lazylibrarian.web.common import BasePages, fold, mark_summary, serve_template
+from lazylibrarian.web.common import BasePages, mark_summary, serve_template
 
 lastmagazine = ''
 
@@ -130,7 +132,7 @@ class MagazinePages(BasePages):
                 serversidelogger.debug(f"sortcolumn {sortcolumn}")
 
                 if sortcolumn in [4, 5]:  # dates
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 elif sortcolumn == 2:  # title
                     filtered.sort(key=lambda y: y[sortcolumn].lower() if y[sortcolumn] is not None else '',
@@ -359,7 +361,7 @@ class MagazinePages(BasePages):
                 serversidelogger.debug(f"sortcolumn {sortcolumn}")
 
                 if sortcolumn in [2, 3]:  # dates
-                    self.natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
+                    natural_sort(filtered, key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
                                       reverse=sSortDir_0 == "desc")
                 else:
                     filtered.sort(key=lambda y: y[sortcolumn] if y[sortcolumn] is not None else '',
