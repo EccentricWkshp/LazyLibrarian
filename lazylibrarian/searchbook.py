@@ -112,6 +112,7 @@ def search_book(books=None, library=None):
     searchinglogger = logging.getLogger('special.searching')
     searchinglogger.debug(f"search_book: {books}")
     db = database.DBConnection()
+    found = 0
     # noinspection PyBroadException
     try:
         threadname = thread_name()
@@ -159,7 +160,7 @@ def search_book(books=None, library=None):
         if len(searchbooks) == 0:
             logger.debug("No books to search for")
             db.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
-            return
+            return 0
 
         nprov = CONFIG.total_active_providers()
         if nprov == 0:
@@ -171,7 +172,7 @@ def search_book(books=None, library=None):
                 msg += " (check you have some enabled)"
             logger.debug(msg)
             db.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
-            return
+            return 0
 
         modelist = []
         if CONFIG.use_nzb():
@@ -638,6 +639,7 @@ def search_book(books=None, library=None):
             time.sleep(CONFIG.get_int('SEARCH_RATELIMIT'))
 
         logger.info(f"Search for Wanted items complete, found {book_count} {plural(book_count, 'book')}")
+        found = book_count
 
     except Exception:
         logger.error(f'Unhandled exception in search_book: {traceback.format_exc()}')
@@ -646,6 +648,8 @@ def search_book(books=None, library=None):
         db.upsert("jobs", {"Finish": time.time()}, {"Name": thread_name()})
         db.close()
         thread_name("WEBSERVER")
+    # how many were downloaded, for the BookSearch command to say
+    return found
 
 def weighted_score(s):
     # priority is already 0-100-ish per provider; normalize it down to a modest bonus

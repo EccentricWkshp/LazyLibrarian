@@ -30,9 +30,15 @@ class ManualImportFile(ApiModel):
     queue_id: int | None = None
 
 
+class BookRef(ApiModel):
+    book_id: str
+    media_type: str
+
+
 class CommandIn(ApiModel):
     name: str
     files: list[ManualImportFile] = []
+    books: list[BookRef] = []
 
 
 class Command(ApiModel):
@@ -49,7 +55,8 @@ class Command(ApiModel):
 @router.post('', response_model=Command, status_code=201)
 def start(command: CommandIn):
     """ Start a command. ManualImport imports files, each with the book it is for (bookId and
-    mediaType) and, when it came from the queue, its queueId """
+    mediaType) and, when it came from the queue, its queueId. BookSearch searches for books
+    (bookId and mediaType), MissingBookSearch for every wanted book """
     return commands.start(command.name, command.model_dump())
 
 

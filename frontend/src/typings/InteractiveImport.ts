@@ -58,5 +58,6 @@ export interface Command {
   queued: string;
   started: string | null;
   ended: string | null;
-  result: CommandResult[] | null;
+  // ManualImport's results, or how many a search found
+  result: CommandResult[] | { found: number } | null;
 }

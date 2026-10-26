@@ -28,7 +28,7 @@ from lazylibrarian.downloadmethods import (
     nzb_dl_method,
     tor_dl_method,
 )
-from lazylibrarian.formatter import check_int, get_list, now, replace_all, unaccented
+from lazylibrarian.formatter import check_int, get_list, now, plural, replace_all, unaccented
 from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.providers import get_searchterm
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
@@ -57,18 +57,77 @@ def process_result_list(resultlist, book, searchtype, source):
     return 0
 
 
-def find_best_result(resultlist, book, searchtype, source):
-    """ resultlist: collated results from search providers
+# Language tags that appear in release names, mapped to the set of
+# IMP_PREFLANG values each one satisfies.  Only unambiguous indicators:
+# two-letter codes (en, fr, de ...) are too common as English words.
+_LANG_TO_PREFLANG = {
+    'english': {'en', 'eng', 'english'},
+    'eng': {'en', 'eng', 'english'},
+    'french': {'fr', 'fre', 'fra', 'french'},
+    'fre': {'fr', 'fre', 'fra', 'french'},
+    'fra': {'fr', 'fre', 'fra', 'french'},
+    'german': {'de', 'ger', 'deu', 'german'},
+    'ger': {'de', 'ger', 'deu', 'german'},
+    'deu': {'de', 'ger', 'deu', 'german'},
+    'spanish': {'es', 'spa', 'spanish'},
+    'spa': {'es', 'spa', 'spanish'},
+    'italian': {'it', 'ita', 'italian'},
+    'ita': {'it', 'ita', 'italian'},
+    'swedish': {'sv', 'swe', 'swedish'},
+    'swe': {'sv', 'swe', 'swedish'},
+    'norwegian': {'no', 'nor', 'norwegian'},
+    'nor': {'no', 'nor', 'norwegian'},
+    'danish': {'da', 'dan', 'danish'},
+    'dan': {'da', 'dan', 'danish'},
+    'dutch': {'nl', 'dut', 'nld', 'dutch'},
+    'dut': {'nl', 'dut', 'nld', 'dutch'},
+    'nld': {'nl', 'dut', 'nld', 'dutch'},
+    'portuguese': {'pt', 'por', 'portuguese'},
+    'por': {'pt', 'por', 'portuguese'},
+    'russian': {'ru', 'rus', 'russian'},
+    'rus': {'ru', 'rus', 'russian'},
+    'polish': {'pl', 'pol', 'polish'},
+    'pol': {'pl', 'pol', 'polish'},
+    'czech': {'cs', 'cze', 'ces', 'czech'},
+    'cze': {'cs', 'cze', 'ces', 'czech'},
+    'ces': {'cs', 'cze', 'ces', 'czech'},
+    'finnish': {'fi', 'fin', 'finnish'},
+    'fin': {'fi', 'fin', 'finnish'},
+    'hungarian': {'hu', 'hun', 'hungarian'},
+    'hun': {'hu', 'hun', 'hungarian'},
+    'turkish': {'tr', 'tur', 'turkish'},
+    'tur': {'tr', 'tur', 'turkish'},
+    'japanese': {'ja', 'jpn', 'japanese'},
+    'jpn': {'ja', 'jpn', 'japanese'},
+    'chinese': {'zh', 'chi', 'zho', 'chinese'},
+    'chi': {'zh', 'chi', 'zho', 'chinese'},
+    'zho': {'zh', 'chi', 'zho', 'chinese'},
+    'korean': {'ko', 'kor', 'korean'},
+    'kor': {'ko', 'kor', 'korean'},
+    'arabic': {'ar', 'ara', 'arabic'},
+    'ara': {'ar', 'ara', 'arabic'},
+    'romanian': {'ro', 'ron', 'romanian'},
+    'ron': {'ro', 'ron', 'romanian'},
+    'greek': {'el', 'ell', 'greek'},
+    'ell': {'el', 'ell', 'greek'},
+}
+
+
+def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
+    """ Every result from the search providers, scored and checked like the automatic search does,
+        each with the reasons it would be rejected, as Sonarr's decision engine gives its
+        interactive search. A result with no rejections can be downloaded.
+        resultlist: collated results from search providers
         book:       the book we want to find
         searchtype: book, magazine, shortbook, audiobook etc.
         source:     nzb, tor, rss, irc, direct
-        return:     highest scoring match, or None if no match
+        Each is {'title', 'provider', 'url', 'mode', 'size' (MB), 'seeders', 'priority', 'score',
+        'rejections', 'new_value_dict', 'control_value_dict'}
     """
-    # noinspection PyBroadException
     logger = logging.getLogger(__name__)
     fuzzlogger = logging.getLogger('special.fuzz')
+    evaluated = []
     db = database.DBConnection()
-    highest = None
     try:
         # '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '',
         dictrepl = {'...': '', '.': ' ', ' & ': ' ', ' = ': ' ', '?': '', '$': 's', ' + ': ' ', '"': '',
@@ -99,60 +158,6 @@ def find_best_result(resultlist, book, searchtype, source):
             minsize = CONFIG.get_int('REJECT_MINSIZE')
             auxinfo = 'eBook'
 
-        # Language tags that appear in release names, mapped to the set of
-        # IMP_PREFLANG values each one satisfies.  Only unambiguous indicators:
-        # two-letter codes (en, fr, de ...) are too common as English words.
-        _LANG_TO_PREFLANG = {
-            'english': {'en', 'eng', 'english'},
-            'eng': {'en', 'eng', 'english'},
-            'french': {'fr', 'fre', 'fra', 'french'},
-            'fre': {'fr', 'fre', 'fra', 'french'},
-            'fra': {'fr', 'fre', 'fra', 'french'},
-            'german': {'de', 'ger', 'deu', 'german'},
-            'ger': {'de', 'ger', 'deu', 'german'},
-            'deu': {'de', 'ger', 'deu', 'german'},
-            'spanish': {'es', 'spa', 'spanish'},
-            'spa': {'es', 'spa', 'spanish'},
-            'italian': {'it', 'ita', 'italian'},
-            'ita': {'it', 'ita', 'italian'},
-            'swedish': {'sv', 'swe', 'swedish'},
-            'swe': {'sv', 'swe', 'swedish'},
-            'norwegian': {'no', 'nor', 'norwegian'},
-            'nor': {'no', 'nor', 'norwegian'},
-            'danish': {'da', 'dan', 'danish'},
-            'dan': {'da', 'dan', 'danish'},
-            'dutch': {'nl', 'dut', 'nld', 'dutch'},
-            'dut': {'nl', 'dut', 'nld', 'dutch'},
-            'nld': {'nl', 'dut', 'nld', 'dutch'},
-            'portuguese': {'pt', 'por', 'portuguese'},
-            'por': {'pt', 'por', 'portuguese'},
-            'russian': {'ru', 'rus', 'russian'},
-            'rus': {'ru', 'rus', 'russian'},
-            'polish': {'pl', 'pol', 'polish'},
-            'pol': {'pl', 'pol', 'polish'},
-            'czech': {'cs', 'cze', 'ces', 'czech'},
-            'cze': {'cs', 'cze', 'ces', 'czech'},
-            'ces': {'cs', 'cze', 'ces', 'czech'},
-            'finnish': {'fi', 'fin', 'finnish'},
-            'fin': {'fi', 'fin', 'finnish'},
-            'hungarian': {'hu', 'hun', 'hungarian'},
-            'hun': {'hu', 'hun', 'hungarian'},
-            'turkish': {'tr', 'tur', 'turkish'},
-            'tur': {'tr', 'tur', 'turkish'},
-            'japanese': {'ja', 'jpn', 'japanese'},
-            'jpn': {'ja', 'jpn', 'japanese'},
-            'chinese': {'zh', 'chi', 'zho', 'chinese'},
-            'chi': {'zh', 'chi', 'zho', 'chinese'},
-            'zho': {'zh', 'chi', 'zho', 'chinese'},
-            'korean': {'ko', 'kor', 'korean'},
-            'kor': {'ko', 'kor', 'korean'},
-            'arabic': {'ar', 'ara', 'arabic'},
-            'ara': {'ar', 'ara', 'arabic'},
-            'romanian': {'ro', 'ron', 'romanian'},
-            'ron': {'ro', 'ron', 'romanian'},
-            'greek': {'el', 'ell', 'greek'},
-            'ell': {'el', 'ell', 'greek'},
-        }
         preflang_lower = {v.strip().lower() for v in get_list(CONFIG['IMP_PREFLANG'], ',') if v.strip()}
         check_lang = preflang_lower and 'all' not in preflang_lower
 
@@ -162,8 +167,6 @@ def find_best_result(resultlist, book, searchtype, source):
             prefix = 'tor_'
 
         logger.debug(f'Searching {len(resultlist)} {source} results for best {auxinfo} match')
-        matches = []
-        ignored_messages = []
         for res in resultlist:
             result_title = unaccented(replace_all(res[f"{prefix}title"], dictrepl),
                                       only_ascii=False).strip()
@@ -183,101 +186,72 @@ def find_best_result(resultlist, book, searchtype, source):
             fuzzlogger.debug(f"{source.upper()} author/book Match: {author_match}/{book_match} {result_title} "
                              f"at {res[prefix + 'prov']}")
 
-            rejected = False
-
+            rejections = []
             url = res[f"{prefix}url"]
             if not url:
-                rejected = True
-                logger.debug(f"Rejecting {result_title}, no URL found")
+                rejections.append('No download link')
 
-            if not rejected and CONFIG.get_bool('BLACKLIST_FAILED'):
+            if url and CONFIG.get_bool('BLACKLIST_FAILED'):
                 cmd = "SELECT * from wanted WHERE NZBurl=? and Status='Failed'"
                 args = (url,)
                 if res.get('tor_type', '') == 'irc':
                     cmd += " and NZBTitle=?"
                     args += (res['tor_title'],)
                 blacklisted = db.match(cmd, args)
-                if blacklisted:
-                    logger.debug(f"Rejecting {res[prefix + 'title']}, url blacklisted (Failed) at "
-                                 f"{blacklisted['NZBprov']}")
-                    rejected = True
-                if not rejected:
+                if not blacklisted:
                     blacklisted = db.match("SELECT * from wanted WHERE NZBprov=? and NZBtitle=? "
                                            "and Status='Failed'",
                                            (res[f"{prefix}prov"], res[f"{prefix}title"]))
-                    if blacklisted:
-                        logger.debug(f"Rejecting {res[prefix + 'title']}, title blacklisted (Failed) at "
-                                     f"{blacklisted['NZBprov']}")
-                        rejected = True
+                if blacklisted:
+                    rejections.append(f"Blocklisted, it failed before at {blacklisted['NZBprov']}")
 
-            if not rejected and CONFIG.get_bool('BLACKLIST_PROCESSED'):
+            if url and CONFIG.get_bool('BLACKLIST_PROCESSED'):
                 cmd = "SELECT * from wanted WHERE NZBurl=?"
                 args = (url,)
                 if res.get('tor_type', '') == 'irc':
                     cmd += " and NZBTitle=?"
                     args += (res['tor_title'],)
                 blacklisted = db.match(cmd, args)
-                if blacklisted:
-                    logger.debug(f"Rejecting {res[prefix + 'title']}, url blacklisted ({blacklisted['Status']}) "
-                                 f"at {blacklisted['NZBprov']}")
-                    rejected = True
-                if not rejected:
+                if not blacklisted:
                     blacklisted = db.match('SELECT * from wanted WHERE NZBprov=? and NZBtitle=?',
                                            (res[f"{prefix}prov"], res[f"{prefix}title"]))
-                    if blacklisted:
-                        logger.debug(f"Rejecting {res[prefix + 'title']}, title blacklisted ({blacklisted['Status']}) "
-                                     f"at {blacklisted['NZBprov']}")
-                        rejected = True
+                if blacklisted and not (blacklisted['Status'] == 'Failed' and CONFIG.get_bool('BLACKLIST_FAILED')):
+                    rejections.append(f"Already downloaded ({blacklisted['Status']}) from {blacklisted['NZBprov']}")
 
-            if not rejected and source == 'rss':
+            if source == 'rss':
                 if searchtype in ['book', 'shortbook'] and 'E' not in res['types']:
-                    rejected = True
-                    ignore_msg = f"Ignoring {res[prefix + 'prov']} for eBook"
-                    if ignore_msg not in ignored_messages:
-                        ignored_messages.append(ignore_msg)
-                        logger.debug(ignore_msg)
+                    rejections.append(f"{res[prefix + 'prov']} isn't used for eBooks")
                 if 'audio' in searchtype and 'A' not in res['types']:
-                    rejected = True
-                    ignore_msg = f"Ignoring {res[prefix + 'prov']} for AudioBook"
-                    if ignore_msg not in ignored_messages:
-                        ignored_messages.append(ignore_msg)
-                        logger.debug(ignore_msg)
+                    rejections.append(f"{res[prefix + 'prov']} isn't used for AudioBooks")
                 if 'mag' in searchtype and 'M' not in res['types']:
-                    rejected = True
-                    ignore_msg = f"Ignoring {res[prefix + 'prov']} for Magazine"
-                    if ignore_msg not in ignored_messages:
-                        ignored_messages.append(ignore_msg)
-                        logger.debug(ignore_msg)
+                    rejections.append(f"{res[prefix + 'prov']} isn't used for Magazines")
 
-            if not rejected:
+            if url:
+                invalid = False
                 if source == 'irc':
-                    if not url.startswith('!'):
-                        rejected = True
+                    invalid = not url.startswith('!')
                 elif res[prefix + 'prov'] in ['zlibrary', 'soulseek']:
-                    if '^' not in url:
-                        rejected = True
+                    invalid = '^' not in url
                 elif res[prefix + 'prov'] == 'webshare':
-                    rejected = not valid_ident(url)
+                    invalid = not valid_ident(url)
                 elif res[prefix + 'prov'] == 'annas':
                     # annas gives us an id in hex, verify we got hex digits
                     try:
                         _ = int(url, 16)
                     except ValueError:
-                        rejected = True
+                        invalid = True
                 elif not url.startswith('http') and not url.startswith('magnet'):
-                    rejected = True
-                if rejected:
-                    logger.debug(f"Rejecting {res[prefix + 'title']}, invalid URL [{url}]")
+                    invalid = True
+                if invalid:
+                    rejections.append(f"Not a download link it can use [{url}]")
 
-            if not rejected:
-                for word in reject_list:
-                    if word in get_list(result_title.lower()) and word not in get_list(author.lower()) \
-                            and word not in get_list(title.lower()):
-                        rejected = True
-                        logger.debug(f"Rejecting {result_title}, contains {word}")
-                        break
+            for word in reject_list:
+                if word in get_list(result_title.lower()) and word not in get_list(author.lower()) \
+                        and word not in get_list(title.lower()):
+                    rejections.append(f"Contains {word}, one of the words to reject")
+                    break
 
-            if not rejected and check_lang:
+            if check_lang:
                 title_words = get_list(title.lower())
                 author_words = get_list(author.lower())
                 # a three letter code only counts in capitals, as release names give them (GER, ITA),
@@ -290,119 +264,132 @@ def find_best_result(resultlist, book, searchtype, source):
                         continue
                     mapped = _LANG_TO_PREFLANG.get(word)
                     if mapped and not mapped.intersection(preflang_lower):
-                        rejected = True
-                        logger.debug(f"Rejecting {result_title}, language '{word}' "
-                                     f"not in preferred languages")
+                        rejections.append(f"Language '{word}' is not a preferred language")
                         break
 
-            if not rejected:
-                result_words = set(get_list(result_title.lower()))
-                ebook_types = {t.lower() for t in get_list(CONFIG['EBOOK_TYPE'])}
-                audio_types = {t.lower() for t in get_list(CONFIG['AUDIOBOOK_TYPE'])}
-                format_tokens = result_words & (ebook_types | audio_types)
-                if format_tokens:
-                    if auxinfo == 'eBook' and format_tokens <= audio_types:
-                        rejected = True
-                        logger.debug(f"Rejecting {result_title}, format tokens are audiobook types")
-                    elif auxinfo == 'AudioBook' and format_tokens <= ebook_types:
-                        rejected = True
-                        logger.debug(f"Rejecting {result_title}, format tokens are ebook types")
+            result_words = set(get_list(result_title.lower()))
+            ebook_types = {t.lower() for t in get_list(CONFIG['EBOOK_TYPE'])}
+            audio_types = {t.lower() for t in get_list(CONFIG['AUDIOBOOK_TYPE'])}
+            format_tokens = result_words & (ebook_types | audio_types)
+            if format_tokens:
+                if auxinfo == 'eBook' and format_tokens <= audio_types:
+                    rejections.append(f"An audiobook ({', '.join(sorted(format_tokens))}), not an eBook")
+                elif auxinfo == 'AudioBook' and format_tokens <= ebook_types:
+                    rejections.append(f"An eBook ({', '.join(sorted(format_tokens))}), not an audiobook")
 
             size_temp = check_int(res[f"{prefix}size"], 1000)  # Need to cater for when this is NONE (Issue 35)
             size = round(float(size_temp) / 1048576, 2)
 
-            if not rejected and maxsize and size > maxsize:
-                rejected = True
-                logger.debug(f"Rejecting {result_title}, too large ({size}Mb)")
+            if maxsize and size > maxsize:
+                rejections.append(f"Too large, {size}MB is over the {maxsize}MB limit")
+            if minsize and size < minsize:
+                rejections.append(f"Too small, {size}MB is under the {minsize}MB limit")
 
-            if not rejected and minsize and size < minsize:
-                rejected = True
-                logger.debug(f"Rejecting {result_title}, too small ({size}Mb)")
+            min_seeders = CONFIG.get_int('MIN_SEEDERS')
+            seeders = check_int(res.get('seeders', -1), -1)
+            if min_seeders and 0 <= seeders < min_seeders:
+                rejections.append(f"Only {seeders} {plural(seeders, 'seeder')}, the minimum is {min_seeders}")
 
-            if not rejected:
-                min_seeders = CONFIG.get_int('MIN_SEEDERS')
-                seeders = check_int(res.get('seeders', -1), -1)
-                if min_seeders and seeders >= 0 and seeders < min_seeders:
-                    rejected = True
-                    logger.debug(f"Rejecting {result_title}, only {seeders} seeders (minimum {min_seeders})")
+            if rejections:
+                logger.debug(f"Rejecting {result_title}: {'; '.join(rejections)}")
 
-            if not rejected:
-                bookid = book['bookid']
+            bookid = book['bookid']
 
-                if source == 'nzb':
-                    mode = res.get('nzbmode', '')  # nzb, torznab
-                else:
-                    mode = res.get('tor_type', '')  # torrent, magnet, nzb(from rss), direct, irc
+            if source == 'nzb':
+                mode = res.get('nzbmode', '')  # nzb, torznab
+            else:
+                mode = res.get('tor_type', '')  # torrent, magnet, nzb(from rss), direct, irc
 
-                control_value_dict = {"NZBurl": url}
-                new_value_dict = {
-                    "NZBprov": res[f"{prefix}prov"],
-                    "BookID": bookid,
-                    "NZBdate": now(),  # when we asked for it
-                    "NZBsize": size,
-                    "NZBtitle": res[f"{prefix}title"],  # was resultTitle,
-                    "NZBmode": mode,
-                    "AuxInfo": auxinfo,
-                    "Label": res.get('label', ''),
-                    "Status": "Matched"
-                }
-                if source == 'irc':
-                    new_value_dict['NZBprov'] = res['tor_feed']
-                    new_value_dict['NZBtitle'] = res[f"{prefix}title"]
+            control_value_dict = {"NZBurl": url}
+            new_value_dict = {
+                "NZBprov": res[f"{prefix}prov"],
+                "BookID": bookid,
+                "NZBdate": now(),  # when we asked for it
+                "NZBsize": size,
+                "NZBtitle": res[f"{prefix}title"],  # was resultTitle,
+                "NZBmode": mode,
+                "AuxInfo": auxinfo,
+                "Label": res.get('label', ''),
+                "Status": "Matched"
+            }
+            if source == 'irc':
+                new_value_dict['NZBprov'] = res['tor_feed']
+                new_value_dict['NZBtitle'] = res[f"{prefix}title"]
 
-                if author_match >= CONFIG.get_int('MATCH_RATIO'):
-                    score = book_match
-                else:
-                    score = (book_match + author_match) / 2  # as a percentage
-                # lose a point for each unwanted word in the title so we get the closest match
-                # but for rss ignore anything at the end in square braces [keywords, genres etc]
-                if source == 'rss':
-                    wordlist = get_list(result_title.rsplit('[', 1)[0].lower())
-                else:
-                    wordlist = get_list(result_title.lower())
-                words = [x for x in wordlist if x not in get_list(author.lower())]
-                words = [x for x in words if x not in get_list(title.lower())]
-                typelist = ''
+            if author_match >= CONFIG.get_int('MATCH_RATIO'):
+                score = book_match
+            else:
+                score = (book_match + author_match) / 2  # as a percentage
+            # lose a point for each unwanted word in the title so we get the closest match
+            # but for rss ignore anything at the end in square braces [keywords, genres etc]
+            if source == 'rss':
+                wordlist = get_list(result_title.rsplit('[', 1)[0].lower())
+            else:
+                wordlist = get_list(result_title.lower())
+            words = [x for x in wordlist if x not in get_list(author.lower())]
+            words = [x for x in words if x not in get_list(title.lower())]
+            typelist = ''
 
-                if new_value_dict['AuxInfo'] == 'eBook':
-                    words = [x for x in words if x not in get_list(CONFIG['EBOOK_TYPE'])]
-                    typelist = get_list(CONFIG['EBOOK_TYPE'])
-                elif new_value_dict['AuxInfo'] == 'AudioBook':
-                    words = [x for x in words if x not in get_list(CONFIG['AUDIOBOOK_TYPE'])]
-                    typelist = get_list(CONFIG['AUDIOBOOK_TYPE'])
+            if new_value_dict['AuxInfo'] == 'eBook':
+                words = [x for x in words if x not in get_list(CONFIG['EBOOK_TYPE'])]
+                typelist = get_list(CONFIG['EBOOK_TYPE'])
+            elif new_value_dict['AuxInfo'] == 'AudioBook':
+                words = [x for x in words if x not in get_list(CONFIG['AUDIOBOOK_TYPE'])]
+                typelist = get_list(CONFIG['AUDIOBOOK_TYPE'])
 
-                # Don't treat wanted language as noise, and ignore separator "words" (#3100)
-                preferred_tags = {w for w, langs in _LANG_TO_PREFLANG.items() if langs & preflang_lower}
-                words = [x for x in words if x not in preferred_tags and x not in ('by', '/', '-')]
+            # Don't treat wanted language as noise, and ignore separator "words" (#3100)
+            preferred_tags = {w for w, langs in _LANG_TO_PREFLANG.items() if langs & preflang_lower}
+            words = [x for x in words if x not in preferred_tags and x not in ('by', '/', '-')]
 
-                score -= len(words)
-                # prioritise titles that include the ebook types we want
-                # add more points for booktypes nearer the left in the list
-                # eg if epub, mobi, pdf  add 3 points if epub found, 2 for mobi, 1 for pdf
-                booktypes = [x for x in wordlist if x in typelist]
-                if booktypes:
-                    typelist = list(reversed(typelist))
-                    for item in booktypes:
-                        for i in [i for i, x in enumerate(typelist) if x == item]:
-                            score += i + 1
+            score -= len(words)
+            # prioritise titles that include the ebook types we want
+            # add more points for booktypes nearer the left in the list
+            # eg if epub, mobi, pdf  add 3 points if epub found, 2 for mobi, 1 for pdf
+            booktypes = [x for x in wordlist if x in typelist]
+            if booktypes:
+                typelist = list(reversed(typelist))
+                for item in booktypes:
+                    for i in [i for i, x in enumerate(typelist) if x == item]:
+                        score += i + 1
 
-                # now do the same for words in the "preferred words" list"
-                preferwords = get_list(CONFIG['PREFER_WORDS'])
-                if preferwords:
-                    preferwords = list(reversed(preferwords))
-                    for word in wordlist:
-                        for i in [i for i, x in enumerate(preferwords) if x == word]:
-                            score += i + 1
+            # now do the same for words in the "preferred words" list"
+            preferwords = get_list(CONFIG['PREFER_WORDS'])
+            if preferwords:
+                preferwords = list(reversed(preferwords))
+                for word in wordlist:
+                    for i in [i for i, x in enumerate(preferwords) if x == word]:
+                        score += i + 1
 
-                # now do the same for words in preferred language list, not weighted, 1 point if match
-                if preferred_tags:
-                    for word in wordlist:
-                        if word in preferred_tags:
-                            score += 1
-                            break
+            # now do the same for words in preferred language list, not weighted, 1 point if match
+            if preferred_tags:
+                for word in wordlist:
+                    if word in preferred_tags:
+                        score += 1
+                        break
 
-                matches.append([score, new_value_dict, control_value_dict, res['priority'],
-                                check_int(res.get('seeders', 0), 0)])
+            evaluated.append({'title': res[f"{prefix}title"], 'provider': new_value_dict['NZBprov'], 'url': url,
+                              'mode': mode, 'size': size, 'seeders': seeders, 'priority': res['priority'],
+                              'score': score, 'rejections': rejections, 'new_value_dict': new_value_dict,
+                              'control_value_dict': control_value_dict})
+    finally:
+        db.close()
+    return evaluated
+
+
+def find_best_result(resultlist, book, searchtype, source):
+    """ resultlist: collated results from search providers
+        book:       the book we want to find
+        searchtype: book, magazine, shortbook, audiobook etc.
+        source:     nzb, tor, rss, irc, direct
+        return:     highest scoring match, or None if no match
+    """
+    # noinspection PyBroadException
+    logger = logging.getLogger(__name__)
+    highest = None
+    try:
+        matches = [[result['score'], result['new_value_dict'], result['control_value_dict'], result['priority'],
+                    check_int(result['seeders'], 0) if result['seeders'] >= 0 else 0]
+                   for result in evaluate_results(resultlist, book, searchtype, source) if not result['rejections']]
 
         if matches:
             highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0),
@@ -425,7 +412,6 @@ def find_best_result(resultlist, book, searchtype, source):
     except Exception:
         logger.error(f'Unhandled exception in find_best_result: {traceback.format_exc()}')
 
-    db.close()
     return highest
 
 

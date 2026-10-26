@@ -43,6 +43,32 @@
   vertical-align: middle;
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  gap: 10px;
+}
+
+.pagerControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pageNumber {
+  padding: 0 8px;
+  color: var(--inkSoft);
+  font-size: var(--smallFontSize);
+}
+
+.recordsInfo {
+  color: var(--inkMuted);
+  font-size: var(--smallFontSize);
+}
+
 .visuallyHidden {
   position: absolute;
   overflow: hidden;

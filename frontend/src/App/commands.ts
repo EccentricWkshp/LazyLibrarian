@@ -13,7 +13,9 @@ function wait(ms: number) {
 
 // what to ask for again when a command is done, as it changes them
 const CHANGES: Record<string, string[][]> = {
-  ManualImport: [['queue'], ['manualimport']],
+  ManualImport: [['queue'], ['manualimport'], ['wanted']],
+  BookSearch: [['queue'], ['wanted']],
+  MissingBookSearch: [['queue'], ['wanted']],
 };
 
 export async function runCommand(name: string, body: Record<string, unknown>, label: string) {
@@ -33,7 +35,11 @@ export async function runCommand(name: string, body: Record<string, unknown>, la
       }
     }
 
-    const someFailed = command.result?.some((result) => !result.imported);
+    // an import that left some out, or a search that found nothing, is worth a second look
+    const result = command.result;
+    const someFailed = Array.isArray(result)
+      ? result.some((item) => !item.imported)
+      : result?.found === 0;
     showMessage({
       id,
       text: command.message || `${label} ${command.status}`,

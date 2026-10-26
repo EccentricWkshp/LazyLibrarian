@@ -17,11 +17,12 @@
 
 from fastapi import APIRouter, HTTPException
 
-from lazylibrarian.apiv1 import command, manualimport, queue, remotepathmapping, system
+from lazylibrarian.apiv1 import command, manualimport, queue, remotepathmapping, system, wanted
 
 router = APIRouter(prefix='/api/v1')
 router.include_router(system.router)
 router.include_router(queue.router)
+router.include_router(wanted.router)
 router.include_router(manualimport.router)
 router.include_router(command.router)
 router.include_router(remotepathmapping.router)

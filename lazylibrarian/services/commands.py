@@ -21,7 +21,7 @@ import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from lazylibrarian.services import InvalidRequestError, NotFoundError, manualimport
+from lazylibrarian.services import InvalidRequestError, NotFoundError, manualimport, wanted
 
 KEEP = 100
 _commands: dict[int, dict] = {}
@@ -49,7 +49,26 @@ def _manual_import(command: dict, body: dict) -> str:
     return message
 
 
-HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import}
+def _book_search(command: dict, body: dict) -> str:
+    def progress(message):
+        command['message'] = message
+
+    found, message = wanted.search_books(body.get('books') or [], progress=progress)
+    command['result'] = {'found': found}
+    return message
+
+
+def _missing_book_search(command: dict, body: dict) -> str:
+    def progress(message):
+        command['message'] = message
+
+    found, message = wanted.search_books([], progress=progress)
+    command['result'] = {'found': found}
+    return message
+
+
+HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
+                                                    'MissingBookSearch': _missing_book_search}
 
 
 def _run(command: dict, body: dict):

@@ -1,0 +1,57 @@
+/* From Sonarr's InteractiveSearchRow styles */
+
+.title {
+  min-width: 300px;
+  word-break: normal;
+  font-size: 12px;
+  font-family: var(--monoSpaceFontFamily);
+  overflow-wrap: anywhere;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.good {
+  color: var(--successColor);
+  font-weight: 600;
+}
+
+.poor {
+  color: var(--inkMuted);
+}
+
+.rejections {
+  width: 40px;
+  text-align: center;
+}
+
+.download {
+  width: 60px;
+  text-align: right;
+}
+
+.confirm {
+  margin-top: 6px;
+  color: var(--warningColor);
+  font-size: var(--smallFontSize);
+  white-space: normal;
+}
+
+.error {
+  margin-top: 6px;
+  max-width: 260px;
+  color: var(--dangerColor);
+  font-size: var(--smallFontSize);
+  white-space: normal;
+}
+
+.searching,
+.summary {
+  color: var(--inkMuted);
+  text-align: center;
+}
+
+.summary {
+  text-align: left;
+}

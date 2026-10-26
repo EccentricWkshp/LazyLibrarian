@@ -11,6 +11,7 @@ import {
   Monitor,
   Newspaper,
   Settings,
+  TriangleAlert,
   Users,
 } from 'lucide-react';
 import React, { useEffect } from 'react';
@@ -49,6 +50,12 @@ function groups(): SidebarGroup[] {
         { iconName: Newspaper, title: 'Magazines', to: '/magazines', isHidden: !tabs.mag },
         { iconName: Layers, title: 'Comics', to: '/comics', isHidden: !tabs.comic },
         { iconName: ListChecks, title: 'Manage', to: '/manage' },
+        {
+          iconName: TriangleAlert,
+          title: 'Wanted',
+          to: '/wanted/missing',
+          children: [{ title: 'Missing', to: '/wanted/missing' }],
+        },
       ],
     },
     {

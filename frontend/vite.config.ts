@@ -16,7 +16,12 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     // imports from the top of src, like Sonarr's: 'Components/Page/Page'
-    alias: [{ find: /^(Activity|App|Components|InteractiveImport|Styles|Utilities|typings)\//, replacement: `${src}/$1/` }],
+    alias: [
+      {
+        find: /^(Activity|App|Components|InteractiveImport|InteractiveSearch|Styles|Utilities|Wanted|typings)\//,
+        replacement: `${src}/$1/`,
+      },
+    ],
   },
   build: {
     outDir: path.resolve(import.meta.dirname, '../data/ui'),

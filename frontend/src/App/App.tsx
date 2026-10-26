@@ -8,6 +8,7 @@ import Page from 'Components/Page/Page';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import { urlBase } from 'Utilities/api';
+import Missing from 'Wanted/Missing/Missing';
 import queryClient from './queryClient';
 
 function NotFound() {
@@ -31,6 +32,8 @@ function App() {
             <Routes>
               <Route path="/activity" element={<Navigate to="/activity/queue" replace={true} />} />
               <Route path="/activity/queue" element={<Queue />} />
+              <Route path="/wanted" element={<Navigate to="/wanted/missing" replace={true} />} />
+              <Route path="/wanted/missing" element={<Missing />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Page>

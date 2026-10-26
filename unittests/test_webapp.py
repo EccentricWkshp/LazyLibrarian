@@ -322,6 +322,21 @@ class ApiV1Test(LLTestCaseWithDB):
         with DBConnection() as db:
             self.assertEqual(db.match("SELECT Status FROM wanted WHERE NZBurl='u1'")['Status'], 'Failed')
 
+    def test_wanted_and_releases(self):
+        self.set_owner()
+        key = {'X-Api-Key': self.FULL_KEY}
+        page = self.get('/ll/api/v1/wanted/missing', headers=key, params={'pageSize': 5}).json()
+        self.assertEqual((page['page'], page['pageSize'], page['sortKey']), (1, 5, 'added'), 'Like Sonarr\'s paging')
+        self.assertIn('totalRecords', page)
+        response = self.get('/ll/api/v1/wanted/missing', headers=key, params={'sortKey': 'nosuch'})
+        self.assertEqual(response.status_code, 400)
+        response = self.get('/ll/api/v1/release', headers=key, params={'bookId': 'x', 'mediaType': 'magazine'})
+        self.assertEqual((response.status_code, response.json()['detail']),
+                         (400, 'Interactive search is for books and audiobooks'))
+        response = self.client.post('/ll/api/v1/release', headers=key, json={'id': 'nosuch'})
+        self.assertEqual((response.status_code, response.json()['detail']),
+                         (404, 'That release is no longer known, search again'))
+
     def test_unknown_endpoint_is_not_the_old_api(self):
         self.set_owner()
         response = self.get('/ll/api/v1/nosuch', headers={'X-Api-Key': self.FULL_KEY})
