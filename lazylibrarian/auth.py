@@ -23,8 +23,10 @@
 #     - a local client ip, if AUTH_REQUIRED is DISABLED_LOCAL
 #     - EXTERNAL: the proxy header naming the owner
 #     - FORM/BASIC: a login session cookie, or an HTTP Basic Authorization header
-#   Endpoints opt in with @require_auth(), paths like /api and /opds are switched
-#   off in webStart.py as they have their own authentication.
+#   CherryPy pages opt in with @require_auth(), paths like /api and /opds are switched
+#   off in webStart.py as they have their own authentication. FastAPI routes use the
+#   dependencies in webapp.py. Both describe the request as a WebRequest and get the same
+#   answers from the checks here, which raise AccessDeniedError to stop a request.
 #
 #   Cross-site request forgery: almost every action is a GET, so another website could make
 #   a logged-in browser run them. Requests another site starts are refused, except that a
@@ -39,6 +41,8 @@ import ipaddress
 import logging
 import threading
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
 from html import escape
 from urllib.parse import quote, urlsplit
 
@@ -93,6 +97,37 @@ _setup_lock = threading.Lock()
 _owner_id = ''
 _failed_logins = []  # (remote ip, time)
 _basic_cache = {}  # sha256 of the Authorization header: expiry time
+
+
+@dataclass
+class WebRequest:
+    """ What the checks here need to know about a request, whichever web framework received it """
+    method: str
+    path: str  # below HTTP_ROOT, without the query string
+    target: str  # the path and query string as sent, HTTP_ROOT included
+    headers: Mapping  # the frameworks' header maps ignore case
+    cookies: Mapping
+    peer_ip: str  # the address the connection came from
+    base: str  # scheme://host[:port] the request was addressed to
+
+
+@dataclass
+class Access:
+    """ How a request is authenticated, method is '' if it isn't """
+    method: str
+    username: str | None
+    setup_needed: bool
+
+
+class AccessDeniedError(Exception):
+    """ The request may not go ahead: send the browser to redirect, or answer with status """
+
+    def __init__(self, status: int = 403, message: str = '', redirect: str = '', headers: dict | None = None):
+        super().__init__(message or redirect or str(status))
+        self.status = status
+        self.message = message
+        self.redirect = redirect
+        self.headers = headers or {}
 
 
 # Owner account ###################################################################
@@ -180,7 +215,7 @@ def set_owner_credentials(db, username: str = '', password: str = '', keep_token
 
 # Client address and whitelist ####################################################
 
-def get_remote_ip():
+def client_ip(req: WebRequest) -> str:
     """Return the client IP used for whitelist checks.
 
     Only trust X-Forwarded-For when PROXY_LOCAL is configured, which
@@ -188,13 +223,13 @@ def get_remote_ip():
     of LazyLibrarian.  Without that setting, use the TCP peer address
     so a remote client cannot spoof a local IP via a forged header."""
     if CONFIG.get_str('PROXY_LOCAL'):
-        remote_ip = cherrypy.request.headers.get('X-Host')  # lighttpd
+        remote_ip = req.headers.get('X-Host')  # lighttpd
         if not remote_ip:
-            remote_ip = cherrypy.request.headers.get('X-Forwarded-For')  # apache2 / nginx
+            remote_ip = req.headers.get('X-Forwarded-For')  # apache2 / nginx
         if remote_ip:
             remote_ip = remote_ip.split(',')[0].strip()
             return remote_ip
-    return cherrypy.request.remote.ip
+    return req.peer_ip
 
 
 def is_whitelisted_ip(remote_ip):
@@ -334,43 +369,38 @@ def _check_basic_header(db, owner, header: str) -> bool:
     return True
 
 
-def _check_proxy_header(owner) -> bool:
+def _check_proxy_header(owner, headers) -> bool:
     header = CONFIG.get_str('PROXY_AUTH_USER')
-    proxy_user = cherrypy.request.headers.get(header, '') if header else ''
+    proxy_user = headers.get(header, '') if header else ''
     return bool(proxy_user) and hmac.compare_digest(proxy_user.encode('utf-8'), owner['UserName'].encode('utf-8'))
 
 
-def authenticate_request() -> str:
-    """ Return how this request is authenticated, or '' if it isn't.
-    Sets cherrypy.request.login to the owner username when it is, and
-    cherrypy.request.ll_setup when first-run setup hasn't been done """
-    request = cherrypy.request
-    remote_ip = get_remote_ip()
+def authenticate(req: WebRequest) -> Access:
+    """ How this request is authenticated, see the top of this file """
+    remote_ip = client_ip(req)
     db = database.DBConnection()
     try:
         owner = get_owner(db)
-        request.ll_setup = not credentials_set(owner)
+        setup_needed = not credentials_set(owner)
         method = ''
-        if request.ll_setup:
+        if setup_needed:
             pass
         elif is_whitelisted_ip(remote_ip):
             method = 'whitelist'
         elif local_bypass() and is_local_address(remote_ip):
             method = 'local'
         elif auth_type() == AUTH_EXTERNAL:
-            if _check_proxy_header(owner):
+            if _check_proxy_header(owner, req.headers):
                 method = 'external'
         else:
-            found = lookup_session(db, session_token())
+            found = lookup_session(db, req.cookies.get(SESSION_COOKIE, ''))
             if found and found[0] == owner['UserID']:
                 method = 'session'
-            elif _check_basic_header(db, owner, request.headers.get('Authorization', '')):
+            elif _check_basic_header(db, owner, req.headers.get('Authorization', '')):
                 method = 'basic'
     finally:
         db.close()
-    request.ll_auth = method
-    request.login = owner['UserName'] if method else None
-    return method
+    return Access(method, owner['UserName'] if method else None, setup_needed)
 
 
 def is_safe_page(path: str) -> bool:
@@ -392,17 +422,16 @@ def safe_from_page(from_page: str) -> str:
     return f"{root}{path}"
 
 
-def _own_hosts() -> set:
+def _own_hosts(req: WebRequest) -> set:
     """ The host names this request could have been addressed to, directly or through a proxy """
-    request = cherrypy.request
-    hosts = {urlsplit(request.base).netloc, request.headers.get('Host', ''),
-             request.headers.get('X-Forwarded-Host', '').split(',')[0].strip()}
+    hosts = {urlsplit(req.base).netloc, req.headers.get('Host', ''),
+             req.headers.get('X-Forwarded-Host', '').split(',')[0].strip()}
     return {host.lower() for host in hosts if host}
 
 
-def foreign_request() -> bool:
+def is_foreign(req: WebRequest) -> bool:
     """ True if another website made the browser send this request """
-    headers = cherrypy.request.headers
+    headers = req.headers
     site = headers.get('Sec-Fetch-Site')
     if site:
         # 'none' is the user typing the address or using a bookmark
@@ -413,26 +442,93 @@ def foreign_request() -> bool:
         return False  # not a browser, or the browser hid it. Scripts, OPDS readers etc.
     if source == 'null':
         return True  # sandboxed frames and some cross-site redirects
-    return urlsplit(source).netloc.lower() not in _own_hosts()
+    return urlsplit(source).netloc.lower() not in _own_hosts(req)
+
+
+def check_origin(req: WebRequest):
+    """ Refuse requests started by another website (CSRF), see the top of this file """
+    if not is_foreign(req):
+        return
+    headers = req.headers
+    page_load = req.method in ('GET', 'HEAD') and (
+        headers.get('Sec-Fetch-Mode') == 'navigate' if headers.get('Sec-Fetch-Mode')
+        else 'text/html' in headers.get('Accept', ''))
+    if page_load and is_safe_page(req.path):
+        return
+    logger = logging.getLogger(__name__)
+    source = headers.get('Origin') or headers.get('Referer') or headers.get('Sec-Fetch-Site')
+    logger.warning(f"Refused cross-site {req.method} {req.path} from [{source}] at [{client_ip(req)}]")
+    if page_load:
+        # someone followed a link to an action, show them LazyLibrarian without doing it
+        raise AccessDeniedError(redirect=f"{CONFIG['HTTP_ROOT'].rstrip('/')}/home")
+    raise AccessDeniedError(403, 'Cross-site request refused')
+
+
+def check_access(req: WebRequest, page_load: bool) -> Access:
+    """ Let an authenticated request through, else raise AccessDeniedError: page loads go to the
+    setup or login page, anything else gets a 401 """
+    check_origin(req)
+    access = authenticate(req)
+    if access.method:
+        return access
+    root = CONFIG['HTTP_ROOT'].rstrip('/')
+    from_page = quote(req.target)
+    if access.setup_needed:
+        if not page_load:
+            raise AccessDeniedError(401, 'Authentication has not been set up')
+        raise AccessDeniedError(redirect=f"{root}/auth/setup?from_page={from_page}")
+    if auth_type() == AUTH_BASIC:
+        raise AccessDeniedError(401, headers={'WWW-Authenticate': 'Basic realm="LazyLibrarian", charset="UTF-8"'})
+    if auth_type() == AUTH_EXTERNAL:
+        raise AccessDeniedError(401, f"Login is handled by your reverse proxy, which did not send "
+                          f"the {CONFIG.get_str('PROXY_AUTH_USER')} header")
+    if not page_load:
+        raise AccessDeniedError(401)
+    raise AccessDeniedError(redirect=f"{root}/auth/login?from_page={from_page}")
+
+
+# The CherryPy side ###############################################################
+
+def cherrypy_request() -> WebRequest:
+    request = cherrypy.request
+    return WebRequest(method=request.method, path=request.path_info, target=request.request_line.split()[1],
+                      headers=request.headers, cookies={key: morsel.value for key, morsel in request.cookie.items()},
+                      peer_ip=request.remote.ip, base=request.base)
+
+
+def raise_for_cherrypy(denied: AccessDeniedError):
+    if denied.redirect:
+        raise cherrypy.HTTPRedirect(denied.redirect)
+    for key, value in denied.headers.items():
+        cherrypy.response.headers[key] = value
+    raise cherrypy.HTTPError(denied.status, denied.message or None)
+
+
+def get_remote_ip() -> str:
+    return client_ip(cherrypy_request())
+
+
+def _note_access(access: Access):
+    request = cherrypy.request
+    request.ll_setup = access.setup_needed
+    request.ll_auth = access.method
+    request.login = access.username
+
+
+def authenticate_request() -> str:
+    """ Return how this request is authenticated, or '' if it isn't.
+    Sets cherrypy.request.login to the owner username when it is, and
+    cherrypy.request.ll_setup when first-run setup hasn't been done """
+    access = authenticate(cherrypy_request())
+    _note_access(access)
+    return access.method
 
 
 def check_request_origin():
-    """ Refuse requests started by another website (CSRF), see the top of this file """
-    request = cherrypy.request
-    if not foreign_request():
-        return
-    page_load = request.method in ('GET', 'HEAD') and (
-        request.headers.get('Sec-Fetch-Mode') == 'navigate' if request.headers.get('Sec-Fetch-Mode')
-        else 'text/html' in request.headers.get('Accept', ''))
-    if page_load and is_safe_page(request.path_info):
-        return
-    logger = logging.getLogger(__name__)
-    source = request.headers.get('Origin') or request.headers.get('Referer') or request.headers.get('Sec-Fetch-Site')
-    logger.warning(f"Refused cross-site {request.method} {request.path_info} from [{source}] at [{get_remote_ip()}]")
-    if page_load:
-        # someone followed a link to an action, show them LazyLibrarian without doing it
-        raise cherrypy.HTTPRedirect(f"{CONFIG['HTTP_ROOT'].rstrip('/')}/home")
-    raise cherrypy.HTTPError(403, 'Cross-site request refused')
+    try:
+        check_origin(cherrypy_request())
+    except AccessDeniedError as denied:
+        raise_for_cherrypy(denied)
 
 
 def check_auth(*args, **kwargs):
@@ -441,25 +537,11 @@ def check_auth(*args, **kwargs):
     request = cherrypy.request
     if request.config.get('auth.require', None) is None:
         return
-    check_request_origin()
-    if authenticate_request():
-        return
     page_load = request.method == 'GET' and request.headers.get('X-Requested-With') != 'XMLHttpRequest'
-    root = CONFIG['HTTP_ROOT'].rstrip('/')
-    get_params = quote(request.request_line.split()[1])
-    if request.ll_setup:
-        if not page_load:
-            raise cherrypy.HTTPError(401, 'Authentication has not been set up')
-        raise cherrypy.HTTPRedirect(f"{root}/auth/setup?from_page={get_params}")
-    if auth_type() == AUTH_BASIC:
-        cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="LazyLibrarian", charset="UTF-8"'
-        raise cherrypy.HTTPError(401)
-    if auth_type() == AUTH_EXTERNAL:
-        raise cherrypy.HTTPError(401, f"Login is handled by your reverse proxy, which did not send "
-                                      f"the {CONFIG.get_str('PROXY_AUTH_USER')} header")
-    if not page_load:
-        raise cherrypy.HTTPError(401)
-    raise cherrypy.HTTPRedirect(f"{root}/auth/login?from_page={get_params}")
+    try:
+        _note_access(check_access(cherrypy_request(), page_load))
+    except AccessDeniedError as denied:
+        raise_for_cherrypy(denied)
 
 
 cherrypy.tools.auth = cherrypy.Tool('before_handler', check_auth)
