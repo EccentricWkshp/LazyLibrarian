@@ -303,11 +303,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('ABB', 'ABB_DLPRIORITY', 0),
     ConfigDownloadTypes('ABB', 'ABB_DLTYPES', 'A'),
     ConfigInt('ABB', 'ABB_SEEDERS', 0),
-    ConfigStr('KAT', 'KAT_HOST', 'kickass.cd'),
-    ConfigBool('KAT', 'KAT', 0),
-    ConfigInt('KAT', 'KAT_DLPRIORITY', 0),
-    ConfigDownloadTypes('KAT', 'KAT_DLTYPES', 'A,E,M'),
-    ConfigInt('KAT', 'KAT_SEEDERS', 0),
     ConfigStr('TPB', 'TPB_HOST', 'https://pirateproxy.cc'),
     ConfigBool('TPB', 'TPB', 0),
     ConfigInt('TPB', 'TPB_DLPRIORITY', 0),
@@ -468,16 +463,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('Magazines', 'IMP_AUTOADD_MAGONLY', 0),
 
     ConfigBool('General', 'HIDE_OLD_NOTIFIERS', 0),
-    ConfigBool('Twitter', 'USE_TWITTER', 0),
-    ConfigBool('Twitter', 'TWITTER_NOTIFY_ONSNATCH', 0),
-    ConfigBool('Twitter', 'TWITTER_NOTIFY_ONDOWNLOAD', 0),
-    ConfigStr('Twitter', 'TWITTER_USERNAME', ''),
-    ConfigStr('Twitter', 'TWITTER_PASSWORD', ''),
-    ConfigStr('Twitter', 'TWITTER_PREFIX', 'LazyLibrarian'),
-    ConfigBool('Boxcar', 'USE_BOXCAR', 0),
-    ConfigBool('Boxcar', 'BOXCAR_NOTIFY_ONSNATCH', 0),
-    ConfigBool('Boxcar', 'BOXCAR_NOTIFY_ONDOWNLOAD', 0),
-    ConfigStr('Boxcar', 'BOXCAR_TOKEN', ''),
     ConfigBool('Pushbullet', 'USE_PUSHBULLET', 0),
     ConfigBool('Pushbullet', 'PUSHBULLET_NOTIFY_ONSNATCH', 0),
     ConfigBool('Pushbullet', 'PUSHBULLET_NOTIFY_ONDOWNLOAD', 0),
@@ -490,12 +475,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('Pushover', 'PUSHOVER_APITOKEN', ''),
     ConfigInt('Pushover', 'PUSHOVER_PRIORITY', 0),
     ConfigStr('Pushover', 'PUSHOVER_DEVICE', ''),
-    ConfigBool('AndroidPN', 'USE_ANDROIDPN', 0),
-    ConfigBool('AndroidPN', 'ANDROIDPN_NOTIFY_ONSNATCH', 0),
-    ConfigBool('AndroidPN', 'ANDROIDPN_NOTIFY_ONDOWNLOAD', 0),
-    ConfigURL('AndroidPN', 'ANDROIDPN_URL', ''),
-    ConfigStr('AndroidPN', 'ANDROIDPN_USERNAME', ''),
-    ConfigBool('AndroidPN', 'ANDROIDPN_BROADCAST', 0),
     ConfigBool('Telegram', 'USE_TELEGRAM', 0),
     ConfigStr('Telegram', 'TELEGRAM_TOKEN', ''),
     ConfigStr('Telegram', 'TELEGRAM_USERID', ''),
@@ -506,11 +485,6 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('Prowl', 'PROWL_PRIORITY', 0),
     ConfigBool('Prowl', 'PROWL_ONSNATCH', 0),
     ConfigBool('Prowl', 'PROWL_ONDOWNLOAD', 0),
-    ConfigBool('Growl', 'USE_GROWL', 0),
-    ConfigStr('Growl', 'GROWL_HOST', ''),
-    ConfigStr('Growl', 'GROWL_PASSWORD', ''),
-    ConfigBool('Growl', 'GROWL_ONSNATCH', 0),
-    ConfigBool('Growl', 'GROWL_ONDOWNLOAD', 0),
     ConfigBool('Slack', 'USE_SLACK', 0),
     ConfigBool('Slack', 'SLACK_NOTIFY_ONSNATCH', 0),
     ConfigBool('Slack', 'SLACK_NOTIFY_ONDOWNLOAD', 0),
@@ -602,7 +576,7 @@ BASE_DEFAULTS: list[ConfigItem] = [
 
 # Sections for features that have been removed. An older config.ini still has them, they're
 # skipped without a warning for every setting, and gone the next time the config is saved
-RETIRED_SECTIONS = {'telemetry'}
+RETIRED_SECTIONS = {'telemetry', 'twitter', 'boxcar', 'androidpn', 'growl', 'nma', 'kat'}
 
 # (Sectionname, SectionNameTemplate, [Items])
 DefaultArrayDef = tuple[str, str, list[ConfigItem]]

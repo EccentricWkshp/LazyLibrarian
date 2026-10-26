@@ -54,7 +54,6 @@ from lazylibrarian.ircbot import irc_query, irc_results
 from lazylibrarian.soulseek import slsk_search
 from lazylibrarian.torrentparser import (
     torrent_abb,
-    torrent_kat,
     torrent_lime,
     torrent_tdl,
     torrent_tpb,
@@ -87,11 +86,6 @@ def test_provider(name: str, host=None, api=None):
         if host:
             CONFIG.set_str('TPB_HOST', host)
         return torrent_tpb(book, test=True), "Pirate Bay"
-    if name == 'KAT':
-        logger.debug(f"Testing provider {name}")
-        if host:
-            CONFIG.set_str('KAT_HOST', host)
-        return torrent_kat(book, test=True), "KickAss Torrents"
     if name == 'LIME':
         logger.debug(f"Testing provider {name}")
         if host:
@@ -725,7 +719,7 @@ def iterate_over_torrent_sites(book=None, search_type=None):
         else:
             book['searchterm'] = f"{authorname} {bookname}"
 
-    for prov in ['KAT', 'TPB', 'TDL', 'LIME', 'ABB']:
+    for prov in ['TPB', 'TDL', 'LIME', 'ABB']:
         iterateproviderslogger.debug(f"DLTYPES: {prov}: {CONFIG[prov]} {CONFIG[prov + '_DLTYPES']}")
         if CONFIG[prov]:
             ignored = False
@@ -747,9 +741,7 @@ def iterate_over_torrent_sites(book=None, search_type=None):
                 ignored = True
             if not ignored:
                 logger.debug(f'[iterate_over_torrent_sites] - {CONFIG[prov + "_HOST"]}')
-                if prov == 'KAT':
-                    results, error = torrent_kat(book)
-                elif prov == 'TPB':
+                if prov == 'TPB':
                     results, error = torrent_tpb(book)
                 elif prov == 'TDL':
                     results, error = torrent_tdl(book)

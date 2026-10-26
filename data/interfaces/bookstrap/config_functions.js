@@ -78,14 +78,9 @@
             toggleElement("#calibre_use_server", "#calibre_options");
 
             // Notifications
-            toggleElement("#use_twitter", "#twitteroptions");
-            toggleElement("#use_boxcar", "#boxcaroptions");
             toggleElement("#use_pushbullet", "#pushbulletoptions");
             toggleElement("#use_pushover", "#pushoveroptions");
-            toggleElement("#use_androidpn", "#androidpnoptions");
-            toggleElement("#androidpn_broadcast", "#androidpn_username");
             toggleElement("#use_prowl", "#prowloptions");
-            toggleElement("#use_growl", "#growloptions");
             toggleElement("#use_telegram", "#telegramoptions");
             toggleElement("#use_slack", "#slackoptions");
             toggleElement("#use_custom", "#customoptions");
@@ -178,7 +173,7 @@
             let prov = $(this).val();
             let host = ""
             let api = ""
-            if ( 'KAT TPB TDL LIME'.indexOf(prov) >= 0 ) {
+            if ( 'TPB TDL LIME'.indexOf(prov) >= 0 ) {
                 host = $("#" + prov.toLowerCase() + "_host").val();
                 api = $("#" + prov.toLowerCase() + "_seeders").val();
             }
@@ -642,52 +637,6 @@
         });
 
 
-        $('#twitter_step1').click(function () {
-            $('#testTwitter-result').html('');
-            $.get("twitter_step1", function (data) {window.open(data); })
-                .done(function () { $('#testTwitter-result').html('<b>' + ${_js('Step 1:')} + '</b> ' + ${_js('Confirm Authorization')}); });
-        });
-
-        $('#twitter_step2').click(function () {
-            $('#testTwitter-result').html('');
-            let twitter_key = $("#twitter_key").val();
-            $.get("twitter_step2", {'key': twitter_key},
-                function (data) { $('#testTwitter-result').html(data); });
-        });
-
-        $('#test_twitter').click(function () {
-            $.get("test_twitter", {},
-                function (data) {
-                    bootbox.dialog({
-                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Twitter'),
-                        message: '<pre>'+data+'</pre>',
-                        buttons: {
-                            primary: {
-                                label: ${_js('Close')},
-                                className: 'btn-primary'
-                            }
-                        }
-                    });
-                });
-        });
-
-        $('#test_boxcar').click(function () {
-            let token = $.trim($("#boxcar_token").val());
-            $.get("test_boxcar", {'token': token},
-                function (data) {
-                    bootbox.dialog({
-                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Boxcar'),
-                        message: '<pre>'+data+'</pre>',
-                        buttons: {
-                            primary: {
-                                label: ${_js('Close')},
-                                className: 'btn-primary'
-                            }
-                        }
-                    });
-                });
-        });
-
         $('#test_pushbullet').click(function () {
             let token = $.trim($("#pushbullet_token").val());
             let device = $.trim($("#pushbullet_deviceid").val());
@@ -733,24 +682,6 @@
                 function (data) {
                     bootbox.dialog({
                         title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Prowl'),
-                        message: '<pre>'+data+'</pre>',
-                        buttons: {
-                            primary: {
-                                label: ${_js('Close')},
-                                className: 'btn-primary'
-                            }
-                        }
-                    });
-                });
-        });
-
-        $('#test_growl').click(function () {
-            let host = $.trim($("#growl_host").val());
-            let password = $.trim($("#growl_password").val());
-            $.get("test_growl", {'host': host, 'password': password},
-                function (data) {
-                    bootbox.dialog({
-                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Growl'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {
@@ -829,25 +760,6 @@
                 function (data) {
                     bootbox.dialog({
                         title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Email'),
-                        message: '<pre>'+data+'</pre>',
-                        buttons: {
-                            primary: {
-                                label: ${_js('Close')},
-                                className: 'btn-primary'
-                            }
-                        }
-                    });
-                });
-        });
-
-        $("#test_androidpn").click(function () {
-            let androidpn_url = $.trim($("#androidpn_url").val());
-            let androidpn_username = $.trim($("#androidpn_username").val());
-            let androidpn_broadcast = ($("#androidpn_broadcast").prop('checked') === true) ? 'Y' : 'N';
-            $.get("test_androidpn", {'url': androidpn_url, 'username': androidpn_username, 'broadcast': androidpn_broadcast},
-                function (data) {
-                    bootbox.dialog({
-                        title: ${_js('%(name)s Notifier')}.replace('%(name)s', 'Android'),
                         message: '<pre>'+data+'</pre>',
                         buttons: {
                             primary: {

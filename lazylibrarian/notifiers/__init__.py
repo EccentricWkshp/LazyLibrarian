@@ -22,28 +22,20 @@ import traceback
 from lazylibrarian.config2 import CONFIG
 
 from . import (
-    androidpn,
     apprise_notify,
-    boxcar,
     custom_notify,
     email_notify,
-    growl,
     prowl,
     pushbullet,
     pushover,
     slack,
     telegram,
-    tweet,
 )
 
 # online
-twitter_notifier = tweet.TwitterNotifier()
-boxcar_notifier = boxcar.BoxcarNotifier()
 pushbullet_notifier = pushbullet.PushbulletNotifier()
 pushover_notifier = pushover.PushoverNotifier()
-androidpn_notifier = androidpn.AndroidPNNotifier()
 prowl_notifier = prowl.ProwlNotifier()
-growl_notifier = growl.GrowlNotifier()
 slack_notifier = slack.SlackNotifier()
 email_notifier = email_notify.EmailNotifier()
 telegram_notifier = telegram.TelegramNotifier()
@@ -52,13 +44,9 @@ apprise_notifier = apprise_notify.AppriseNotifier()
 custom_notifier = custom_notify.CustomNotifier()
 
 notifiers = [
-    twitter_notifier,
-    boxcar_notifier,
     pushbullet_notifier,
     pushover_notifier,
-    androidpn_notifier,
     prowl_notifier,
-    growl_notifier,
     slack_notifier,
     email_notifier,
     telegram_notifier,

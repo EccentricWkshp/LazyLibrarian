@@ -669,7 +669,7 @@ class LLConfigHandler(ConfigDict):
     def use_tor(self) -> int:
         """ Returns number of TOR providers that are not blocked """
         count = 0
-        for provider in ['KAT', 'TPB', 'LIME', 'TDL', 'ABB']:
+        for provider in ['TPB', 'LIME', 'TDL', 'ABB']:
             if self.get_bool(provider) and not BLOCKHANDLER.is_blocked(provider):
                 count += 1
         return count

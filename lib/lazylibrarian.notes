@@ -12,9 +12,6 @@ bencode  - there are several different bencode libraries available, easier to us
 
 mobi is not available from pip, sources https://github.com/kroo/mobi-python
 
-pythontwitter - there is a much more recent version, but I dont have twitter account so am unable to test.
-leaving it as not broken, and it may get dropped eventually as apprise notifier also provides twitter
-
 icrawler is patched as the upstream version doesn't work (at the time of writing)
 and hasn't been updated for ages, pull requests ignored.
 it's a top level folder so can be removed to use a pip installed version if the upstream version improves

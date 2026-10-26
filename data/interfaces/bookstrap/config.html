@@ -1743,29 +1743,6 @@
                       <label for="show_tor_prov" class="fa">  ${_('Torrent Providers')}</label>
                   </legend>
                   <fieldset id="tor_prov">
-                  <% checked = 'checked="checked"' if CONFIG['KAT'] else '' %>
-                  <div class="col-md-4 form-group">
-                    <label for="kat_host" class="sr-only">${_('KAT Host')}</label>
-                    <div class="input-group">
-                      <input type="text" placeholder="${_('KAT Host') | h}" id="kat_host" name="kat_host" value="${CONFIG['KAT_HOST']}" class="form-control">
-                      <span class="input-group-addon" data-toggle="tooltip" data-placement="bottom" title="${_('Enable provider') | h}">
-                      <input type="checkbox" id="kat" name="kat" value="1" ${checked} />
-                      </span>
-                    </div>
-                    <div class="input-group">
-                      <span class="input-group-addon">${_('Priority')}</span>
-                      <input type="number" id="kat_dlpriority" name="kat_dlpriority" value="${CONFIG['KAT_DLPRIORITY']}" class="form-control" placeholder="0">
-                      <span class="input-group-addon">${_('Seeders')}</span>
-                      <input type="number" id="kat_seeders" name="kat_seeders" value="${CONFIG['KAT_SEEDERS']}" class="form-control" placeholder="0">
-                    </div>
-                    <div class="input-group">
-                      <span class="input-group-addon">${_('Types')}</span>
-                      <input type="text" id="kat_dltypes" name="kat_dltypes" value="${CONFIG['KAT_DLTYPES']}" class="form-control" placeholder="">
-                      <span class="input-group-addon">
-                      <button role="testprov" class="button btn btn-xs btn-warning active" type="button" value="KAT"> ${_('Test')}</button>
-                      </span>
-                    </div>
-                  </div>
                   <% checked = 'checked="checked"' if CONFIG['TPB'] else '' %>
                   <div class="col-md-4 form-group">
                     <label for="tpb_host" class="sr-only">${_('TPB Host')}</label>
@@ -2909,77 +2886,6 @@
               <div class="col-md-6">
               %if CONFIG.get_bool('HIDE_OLD_NOTIFIERS') == False:
                 <div class="checkbox">
-                  <% checked = 'checked="checked"' if CONFIG['USE_TWITTER'] else '' %>
-                  <label for="use_twitter">
-                    <input type="checkbox" id="use_twitter" name="use_twitter" value="1" ${checked} />
-                    ${_('Enable Twitter Notifications')}</label>
-                </div>
-                <div id="twitteroptions">
-                  <fieldset>
-                    <legend>Twitter</legend>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['TWITTER_NOTIFY_ONSNATCH'] else '' %>
-                      <label for="twitter_notify_onsnatch" class="control-label">
-                        <input type="checkbox" id="twitter_notify_onsnatch" name="twitter_notify_onsnatch" value="1" ${checked} />
-                        ${_('Notify on snatch')}</label>
-                    </div>
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['TWITTER_NOTIFY_ONDOWNLOAD'] else '' %>
-                      <label for="twitter_notify_ondownload">
-                        <input type="checkbox" id="twitter_notify_ondownload" name="twitter_notify_ondownload" value="1" ${checked} />
-                        ${_('Notify on download')}</label>
-                    </div>
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Request Authorization') | h}" id="twitter_step1" class="btn btn-default" />
-                    </div>
-                    <div class="form-group">
-                      <label for="twitter_key" class="control-label">${_('Twitter Key')}</label>
-                      <input type="text" id="twitter_key" name="twitter_key" value="" placeholder="${_('Twitter Authorization Key') | h}" class="form-control" />
-                      <span class="help-block">${_('Enter the key from the twitter authorization page here, DO NOT press Enter or save the config. The key is single-use and will not be saved. Press [Verify Key] to complete authorization.')}</span>
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Verify Key') | h}" id="twitter_step2" class="btn btn-default" />
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Test Twitter') | h}" id="test_twitter" class="btn btn-default" />
-                    </div>
-                  </fieldset>
-                </div>
-                <div class="checkbox">
-                  <% checked = 'checked="checked"' if CONFIG['USE_BOXCAR'] else '' %>
-                  <label for="use_boxcar" class="control-label">
-                    <input type="checkbox" id="use_boxcar" name="use_boxcar" value="1" ${checked} />
-                    ${_('Enable boxcar Notifications')}</label>
-                </div>
-                <div id="boxcaroptions">
-                  <fieldset>
-                    <legend>Boxcar2</legend>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['BOXCAR_NOTIFY_ONSNATCH'] else '' %>
-                      <label for="boxcar_notify_onsnatch" class="control-label">
-                        <input type="checkbox" id="boxcar_notify_onsnatch" name="boxcar_notify_onsnatch" value="1" ${checked} />
-                        ${_('Notify on snatch')}</label>
-                    </div>
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['BOXCAR_NOTIFY_ONDOWNLOAD'] else '' %>
-                      <label for="boxcar_notify_ondownload">
-                        <input type="checkbox" id="boxcar_notify_ondownload" name="boxcar_notify_ondownload" value="1" ${checked} />
-                        ${_('Notify on download')}</label>
-                    </div>
-                    </div>
-                    <div class="form-group">
-                      <label for="boxcar_token" class="control-label">${_('Boxcar Token')}</label>
-                      <input type="text" id="boxcar_token" name="boxcar_token" value="${CONFIG['BOXCAR_TOKEN']}" placeholder="${_('Boxcar token') | h}" class="form-control">
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Test Boxcar') | h}" id="test_boxcar" class="btn btn-default">
-                    </div>
-                  </fieldset>
-                </div>
-                <div class="checkbox">
                   <% checked = 'checked="checked"' if CONFIG['USE_PUSHBULLET'] else '' %>
                   <label for="use_pushbullet" class="control-label">
                     <input type="checkbox" id="use_pushbullet" name="use_pushbullet" value="1" ${checked} />
@@ -3056,50 +2962,6 @@
                     </div>
                     <div class="form-group">
                       <input type="button" value="${_('Test Pushover') | h}" id="test_pushover" class="btn btn-default">
-                    </div>
-                  </fieldset>
-                </div>
-                <div class="checkbox">
-                  <% checked = 'checked="checked"' if CONFIG['USE_ANDROIDPN'] else '' %>
-                  <label for="use_androidpn" class="control-label">
-                    <input type="checkbox" id="use_androidpn" name="use_androidpn" value="1" ${checked} />
-                    ${_('Enable AndroidPN Notifications')}</label>
-                </div>
-                <div id="androidpnoptions">
-                  <fieldset>
-                    <legend>AndroidPN</legend>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['ANDROIDPN_NOTIFY_ONSNATCH'] else '' %>
-                      <label for="androidpn_notify_onsnatch" class="control-label">
-                        <input type="checkbox" id="androidpn_notify_onsnatch" name="androidpn_notify_onsnatch" value="1" ${checked} />
-                        ${_('Notify on snatch')}</label>
-                    </div>
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['ANDROIDPN_NOTIFY_ONDOWNLOAD'] else '' %>
-                      <label for="androidpn_notify_ondownload" class="control-label">
-                        <input type="checkbox" id="androidpn_notify_ondownload" name="androidpn_notify_ondownload" value="1" ${checked} />
-                        ${_('Notify on download')}</label>
-                    </div>
-                    </div>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['ANDROIDPN_BROADCAST'] else '' %>
-                      <label for="androidpn_broadcast" class="control-label">
-                        <input type="checkbox" id="androidpn_broadcast" name="androidpn_broadcast" value="1" ${checked} />
-                        ${_('Broadcast notification')}</label>
-                    </div>
-                    </div>
-                    <div class="form-group">
-                      <label for="androidpn_url" class="control-label">${_('AndroidPN Notification URL')}</label>
-                      <input type="text" id="androidpn_url" name="androidpn_url" value="${CONFIG['ANDROIDPN_URL']}" class="form-control" placeholder="${_('AndroidPN Notification URL') | h}" />
-                    </div>
-                    <div class="form-group">
-                      <label for="androidpn_username" class="control-label">${_('Username')}</label>
-                      <input type="text" id="androidpn_username" name="androidpn_username"  value="${CONFIG['ANDROIDPN_USERNAME']}" class="form-control" placeholder="${_('AndroidPN Username') | h}" />
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Test AndroidPN') | h}" id="test_android_pn" class="btn btn-default" />
                     </div>
                   </fieldset>
                 </div>
@@ -3268,40 +3130,6 @@
                     </div>
                     <div class="form-group">
                       <input type="button" value="${_('Test Prowl') | h}" id="test_prowl" class="btn btn-default" />
-                    </div>
-                  </fieldset>
-                </div>
-                <div class="checkbox">
-                  <% checked = 'checked="checked"' if CONFIG['USE_GROWL'] else '' %>
-                  <label for="use_growl" class="control-label">
-                    <input type="checkbox" name="use_growl" id="use_growl" value="1" ${checked} />
-                    ${_('Enable Growl')}</label>
-                </div>
-                <div id="growloptions">
-                  <fieldset>
-                    <legend>Growl</legend>
-                    <div class="row checkbox">
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['GROWL_ONSNATCH'] else '' %>
-                      <label for="growl_onsnatch" class="control-label">
-                        <input type="checkbox" id="growl_onsnatch" name="growl_onsnatch" value="1" ${checked} />
-                        ${_('Notify on snatch')}</label>
-                    </div>
-                    <div class="col-md-6">
-                      <% checked = 'checked="checked"' if CONFIG['GROWL_ONDOWNLOAD'] else '' %>
-                      <label for="growl_ondownload" class="control-label">
-                        <input type="checkbox" id="growl_ondownload" name="growl_ondownload" value="1" ${checked} />
-                        ${_('Notify on download')}</label>
-                    </div>
-                    </div>
-                    <div class="input-group">
-                      <span class="input-group-addon">${_('Host')}</span>
-                      <input type="text" id="growl_host" name="growl_host" value="${CONFIG['GROWL_HOST']}" class="form-control" placeholder="eg localhost:23053">
-                      <span class="input-group-addon">${_('Password')}</span>
-                      <input type="number" id="growl_password" name="growl_password" value="${CONFIG['GROWL_PASSWORD']}" class="form-control" placeholder="${_('none') | h}">
-                    </div>
-                    <div class="form-group">
-                      <input type="button" value="${_('Test Growl') | h}" id="test_growl" class="btn btn-default" />
                     </div>
                   </fieldset>
                 </div>

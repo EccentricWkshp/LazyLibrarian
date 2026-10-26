@@ -8155,88 +8155,6 @@ class WebInterface:
 
     @cherrypy.expose
     @require_auth()
-    def twitter_step1(self):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        return notifiers.twitter_notifier._get_authorization()
-
-    @cherrypy.expose
-    @require_auth()
-    def twitter_step2(self, key):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        if key:
-            result = notifiers.twitter_notifier._get_credentials(key)
-            if result:
-                CONFIG.save_config_and_backup_old(section='Twitter')
-                return i18n.gettext("Key verification successful")
-            return i18n.gettext("Unable to verify key")
-        return i18n.gettext("No key provided")
-
-    @cherrypy.expose
-    @require_auth()
-    def test_twitter(self):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        thread_name("WEBSERVER")
-        result = notifiers.twitter_notifier.test_notify()
-        if result:
-            return i18n.gettext("Tweet successful, check your twitter to make sure it worked")
-        return i18n.gettext("Error sending tweet")
-
-    @cherrypy.expose
-    @require_auth()
-    def test_android_pn(self, **kwargs):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        thread_name("WEBSERVER")
-        fail = ''
-        if 'url' in kwargs:
-            if self.validate_param("android_pn url", kwargs['url'], ['<', '>', '='], None):
-                CONFIG.set_str('ANDROIDPN_URL', kwargs['url'])
-            else:
-                fail = 'url'
-        if 'username' in kwargs:
-            if self.validate_param("android_pn username", kwargs['username'], ['<', '>', '='], None):
-                CONFIG.set_str('ANDROIDPN_USERNAME', kwargs['username'])
-            else:
-                fail = 'username'
-        if 'broadcast' in kwargs:
-            if kwargs['broadcast'] == 'True':
-                CONFIG.set_bool('ANDROIDPN_BROADCAST', True)
-            else:
-                CONFIG.set_bool('ANDROIDPN_BROADCAST', False)
-        if fail:
-            result = ''
-        else:
-            result = notifiers.androidpn_notifier.test_notify()
-        if result:
-            CONFIG.save_config_and_backup_old(section='AndroidPN')
-            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'AndroidPN'}
-        if fail:
-            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'AndroidPN', 'param': fail}
-        return i18n.gettext("Test %(name)s notice failed") % {'name': 'AndroidPN'}
-
-    @cherrypy.expose
-    @require_auth()
-    def test_boxcar(self, **kwargs):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        thread_name("WEBSERVER")
-        fail = ''
-        if 'token' in kwargs:
-            if self.validate_param("boxcar token", kwargs['token'], ['<', '>'], None):
-                CONFIG.set_str('BOXCAR_TOKEN', kwargs['token'])
-            else:
-                fail = 'token'
-        if fail:
-            result = ''
-        else:
-            result = notifiers.boxcar_notifier.test_notify()
-        if result:
-            CONFIG.save_config_and_backup_old(section='Boxcar')
-            return i18n.gettext("%(name)s notification successful") % {'name': 'Boxcar'} + f",\n{result}"
-        if fail:
-            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Boxcar', 'param': fail}
-        return i18n.gettext("%(name)s notification failed") % {'name': 'Boxcar'}
-
-    @cherrypy.expose
-    @require_auth()
     def test_pushbullet(self, **kwargs):
         cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
         thread_name("WEBSERVER")
@@ -8352,33 +8270,6 @@ class WebInterface:
         if fail:
             return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Prowl', 'param': fail}
         return i18n.gettext("Test %(name)s notice failed") % {'name': 'Prowl'}
-
-    @cherrypy.expose
-    @require_auth()
-    def test_growl(self, **kwargs):
-        cherrypy.response.headers['Cache-Control'] = "max-age=0,no-cache,no-store"
-        thread_name("WEBSERVER")
-        fail = ''
-        if 'host' in kwargs:
-            if self.validate_param("growl host", kwargs['host'], ['<', '>', '='], None):
-                CONFIG.set_str('GROWL_HOST', kwargs['host'])
-            else:
-                fail += 'host '
-        # if 'password' in kwargs:
-        #    if self.validate_param("growl password", kwargs['password'], ['<', '>'], None):
-        #        CONFIG.set_str('GROWL_PASSWORD', kwargs['password'])
-        #    else:
-        #        fail += 'password'
-        if fail:
-            result = ''
-        else:
-            result = notifiers.growl_notifier.test_notify()
-        if result:
-            CONFIG.save_config_and_backup_old(section='Growl')
-            return i18n.gettext("Test %(name)s notice sent successfully") % {'name': 'Growl'}
-        if fail:
-            return i18n.gettext("%(name)s failed, bad parameter: %(param)s") % {'name': 'Growl', 'param': fail}
-        return i18n.gettext("Test %(name)s notice failed") % {'name': 'Growl'}
 
     @cherrypy.expose
     @require_auth()

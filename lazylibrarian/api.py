@@ -737,7 +737,7 @@ class Api:
 
     def _listtorrentproviders(self):
         providers = []
-        for provider in ['KAT', 'TPB', 'LIME', 'TDL']:
+        for provider in ['TPB', 'LIME', 'TDL']:
             mydict = {'NAME': provider, 'ENABLED': CONFIG.get_bool(provider)}
             for item in ['HOST', 'DLTYPES']:
                 name = f"{provider}_{item}"
@@ -832,7 +832,7 @@ class Api:
             providers = CONFIG.providers('IRC')
         elif name.startswith('GEN_'):
             providers = CONFIG.providers('GEN')
-        elif name in ['BOK', 'KAT', 'TPB', 'LIME', 'TDL']:
+        elif name in ['BOK', 'TPB', 'LIME', 'TDL']:
             for arg in kwargs:
                 if arg in ['HOST', 'DLTYPES', 'DLPRIORITY', 'DLLIMIT', 'SEEDERS']:
                     itemname = f"{name}_{arg}"
@@ -1582,7 +1582,7 @@ class Api:
         lst = []
         for item in sys.modules:
             data = str(sys.modules[item]).replace('<', '').replace('>', '')
-            for libname in ['apscheduler', 'mobi', 'oauth2', 'pynma', 'pythontwitter', 'unrar']:
+            for libname in ['apscheduler', 'mobi', 'oauth2', 'unrar']:
                 if libname in data and 'dist-packages' in data:
                     lst.append(f"{item}: {data}")
         self.data = lst
