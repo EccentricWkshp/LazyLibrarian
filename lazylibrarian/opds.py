@@ -130,9 +130,8 @@ class OPDS:
                     return self.data
                 cherrypy.response.headers['Content-Type'] = "text/xml"
                 self.logger.debug(f"Returning {self.data['title']}: {len(self.data['entries'])} entries")
-                # noinspection PyUnresolvedReferences
-                return lazylibrarian.webServe.serve_template(templatename="opds.html",
-                                                             title=self.data['title'], opds=self.data)
+                from lazylibrarian.web.common import serve_template
+                return serve_template(templatename="opds.html", title=self.data['title'], opds=self.data)
             except Exception as e:
                 self.logger.error(f"Unhandled OPDS {self.cmd} error: {e}")
         else:

@@ -1,7 +1,7 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test the owner account UI language handling in webServe.py
+#   Test the owner account UI language handling in the web interface
 
 import contextlib
 from http.cookies import SimpleCookie
@@ -14,6 +14,7 @@ from lazylibrarian.auth import reset_owner_cache
 from lazylibrarian.database import DBConnection
 from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
 from lazylibrarian.filesystem import DIRS, remove_file
+from lazylibrarian.web import common
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
 
@@ -75,10 +76,10 @@ class UILangTest(LLTestCaseWithConfigandDIRS):
         return webServe.WebInterface().user_update(**kwargs)
 
     def test_valid_ui_lang(self):
-        self.assertTrue(webServe.valid_ui_lang(''))
-        self.assertTrue(webServe.valid_ui_lang('auto'))
-        self.assertFalse(webServe.valid_ui_lang('None'))
-        self.assertFalse(webServe.valid_ui_lang('xx_YY'))
+        self.assertTrue(common.valid_ui_lang(''))
+        self.assertTrue(common.valid_ui_lang('auto'))
+        self.assertFalse(common.valid_ui_lang('None'))
+        self.assertFalse(common.valid_ui_lang('xx_YY'))
 
     def test_profile_save_without_ui_lang(self):
         result = self.profile_save(booktype='mobi', password='newpassword', password2='newpassword')
@@ -101,8 +102,8 @@ class UILangTest(LLTestCaseWithConfigandDIRS):
         self.assertEqual(self.user_field('UI_Lang'), '')
 
     def test_serve_template_sends_owner_ui_lang(self):
-        with mock.patch.object(webServe, 'TemplateLookup') as lookup:
-            webServe.serve_template(templatename='index.html', title='test')
+        with mock.patch.object(common, 'TemplateLookup') as lookup:
+            common.serve_template(templatename='index.html', title='test')
         lookup.return_value.get_template.assert_called_with('index.html')
         self.assertNotIn('ll_uid', self.response.cookie)
         self.assertEqual(self.response.cookie['ll_uilang'].value, '')

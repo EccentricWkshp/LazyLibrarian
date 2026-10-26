@@ -1,11 +1,11 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test status_mark_targets() in webServe.py
+#   Test status_mark_targets() in web/common.py
 
 import unittest
 
-from lazylibrarian.webServe import FORMAT_STATUS_ACTIONS, status_mark_targets
+from lazylibrarian.web.common import FORMAT_STATUS_ACTIONS, status_mark_targets
 
 
 def _libraries(targets):

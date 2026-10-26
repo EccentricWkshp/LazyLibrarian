@@ -495,7 +495,7 @@ class AuthController:
     @staticmethod
     def render(templatename, title, **kwargs):
         """ The login and setup pages, they stand alone without the rest of the interface """
-        from lazylibrarian.webServe import serve_template
+        from lazylibrarian.web.common import serve_template
         root = CONFIG['HTTP_ROOT'].rstrip('/')
         return serve_template(templatename=templatename, title=title, img=f"{root}/images/ll.png",
                               css=f"{root}/css/ll-auth.css", **kwargs)
