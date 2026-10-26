@@ -14,7 +14,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from lazylibrarian.config2 import CONFIG
+from lazylibrarian.config2 import CONFIG, LLConfigHandler
+from lazylibrarian.configdefs import BASE_DEFAULTS
 from lazylibrarian.database import DBConnection
 from lazylibrarian.postprocess import (
     BookState,
@@ -1729,6 +1730,22 @@ class ClientDownloadLocationTest(ProcessDirTestCase):
         folder.return_value = os.path.join(self.download_dir, "John_Doe-Test_Book_One")
         process_dir(ignoreclient=True)
         self.assert_status_updated("client_001", "Processed")
+
+    def test_a_failed_copy_is_blocked_and_the_files_kept(self):
+        folder = os.path.join(self.download_dir, "John_Doe-Test_Book_One")
+        self.client_folder(folder)
+        working_copy = f"{folder}.unpack"
+        os.makedirs(working_copy)
+        with mock.patch('lazylibrarian.postprocess._process_destination',
+                        return_value=(False, 'Calibre refused it', working_copy)):
+            process_dir(ignoreclient=True)
+        self.assertEqual(dict(self.row()), {'Status': 'Snatched', 'DLResult': 'Import blocked: Calibre refused it'})
+        self.assertTrue(os.path.isfile(os.path.join(folder, "Test Book One.epub")), "The client's files are untouched")
+        self.assertFalse(os.path.exists(f"{folder}.fail"))
+        self.assertFalse(os.path.exists(working_copy), 'Our own working copy goes')
+
+    def test_failed_jobs_stay_in_the_client_by_default(self):
+        self.assertFalse(LLConfigHandler(defaults=BASE_DEFAULTS).get_bool('DEL_FAILED'))
 
     def test_a_folder_asked_for_is_searched_by_name(self):
         # like Sonarr's scan of a path: the user points it at a folder

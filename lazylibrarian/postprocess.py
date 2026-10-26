@@ -2360,6 +2360,15 @@ def _process_book_after_matching(
             db,
             logger,
         )
+    if book_state.source in TRACKED_SOURCES:
+        # Like Sonarr and Radarr, a download client's download that won't import is blocked, not
+        # failed: its files stay as they are in the client, to see what went wrong, try again or
+        # import by hand. Only our own working copy goes
+        logger.error(f"Postprocessing for {metadata.global_name!r} has failed: {dest_file!r}")
+        book_state.mark_failed("destination", enforce_str(make_unicode(dest_file)))
+        if book_path and book_path.endswith(".unpack"):
+            shutil.rmtree(book_path, ignore_errors=True)
+        return 0
     # Handle failed processing
     _handle_failed_processing(
         book_state, book_path, metadata, dest_file, db, logger
@@ -3274,10 +3283,8 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
 
                 if book_state.source in TRACKED_SOURCES and not startdir:
                     # Like Sonarr and Radarr: a download client's download is only looked for where the
-                    # client says it is. Anything else could be another download with a similar name.
-                    # A failed copy to the library has already marked it Failed
-                    if book_state.processing_stage != "destination":
-                        _block_import(db, book_state, postprocesslogger)
+                    # client says it is. Anything else could be another download with a similar name
+                    _block_import(db, book_state, postprocesslogger)
                     continue
 
                 # =======================================================

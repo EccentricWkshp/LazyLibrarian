@@ -445,7 +445,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('PostProcess', 'ONE_FORMAT', 0),
     ConfigBool('Postprocess', 'DEL_DOWNLOADFAILED', 0),
     ConfigInt('PostProcess', 'PP_DELAY', 0),
-    ConfigBool('PostProcess', 'DEL_FAILED', 1),
+    # like Sonarr, a failed job stays in the download client to see what went wrong, unless asked
+    ConfigBool('PostProcess', 'DEL_FAILED', 0),
     ConfigBool('PostProcess', 'DEL_COMPLETED', 1),
 
     ConfigFolder('Comics', 'COMIC_DEST_FOLDER', '_Comics/$Title/$Issue'),
