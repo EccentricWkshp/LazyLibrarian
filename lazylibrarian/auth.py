@@ -277,6 +277,24 @@ def setup_allowed(remote_ip) -> bool:
     return is_local_address(remote_ip) or is_whitelisted_ip(remote_ip)
 
 
+def key_matches(given, key: str) -> bool:
+    """ Constant time check of an api key. An unset key matches nothing, not an empty one """
+    if not key or not isinstance(given, str):
+        return False  # a repeated apikey parameter arrives as a list
+    return hmac.compare_digest(given.encode('utf-8'), key.encode('utf-8'))
+
+
+def api_key_access(given) -> str:
+    """ 'full' for the API key, 'read' for the read-only one, '' for anything else or with the api off """
+    if not CONFIG.get_bool('API_ENABLED'):
+        return ''
+    if key_matches(given, CONFIG.get_str('API_KEY')):
+        return 'full'
+    if key_matches(given, CONFIG.get_str('API_RO_KEY')):
+        return 'read'
+    return ''
+
+
 def auth_type() -> str:
     value = CONFIG.get_str('AUTH_TYPE')
     return value if value in (AUTH_FORM, AUTH_BASIC, AUTH_EXTERNAL) else AUTH_FORM

@@ -261,6 +261,14 @@ def create_support_zip() -> tuple[str, str]:
     return msg, outfile
 
 
+def url_root(http_root: str) -> str:
+    """ HTTP_ROOT as a path prefix: '' or '/something' """
+    root = (http_root or '').strip().rstrip('/')
+    if root and not root.startswith('/'):
+        root = f"/{root}"
+    return root
+
+
 def docker():
     # this is from https://stackoverflow.com/questions/43878953
     if Path('/.dockerenv').is_file():

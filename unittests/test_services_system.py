@@ -9,6 +9,7 @@ from unittest import mock
 
 import lazylibrarian
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.dbupgrade import db_current_version
 from lazylibrarian.formatter import thread_name
 from lazylibrarian.services import InvalidRequestError, system
 from unittests.unittesthelpers import TESTDIR, LLTestCaseWithDB
@@ -113,6 +114,14 @@ class SystemServiceTest(LLTestCaseWithDB):
         broken.return_value.match.side_effect = Exception('database is locked')
         with mock.patch.object(system.database, 'DBConnection', broken):
             self.assertFalse(system.database_ok())
+
+    def test_status(self):
+        saved = CONFIG['HTTP_ROOT']
+        self.addCleanup(CONFIG.set_str, 'HTTP_ROOT', saved)
+        CONFIG.set_str('HTTP_ROOT', 'books/')
+        status = system.status()
+        self.assertEqual((status['app_name'], status['url_base']), ('LazyLibrarian', '/books'))
+        self.assertEqual(status['database_version'], db_current_version, 'The test database is a new one')
 
     def test_sync_calibre_marks_itself_running(self):
         seen = []

@@ -14,13 +14,14 @@
 
 import logging
 import os
+import platform
 import threading
 
 import lazylibrarian
 from lazylibrarian import database, grsync, hc, magazinescan, versioncheck
 from lazylibrarian.calibre import sync_calibre_list
 from lazylibrarian.comicsearch import search_comics
-from lazylibrarian.common import create_support_zip
+from lazylibrarian.common import create_support_zip, docker, url_root
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.csvfile import export_csv, import_csv
 from lazylibrarian.filesystem import DIRS, csv_file, path_exists, remove_file
@@ -154,6 +155,21 @@ def request_stop(signal: str):
         raise InvalidRequestError(f'Unknown signal {signal}')
     remove_file(os.path.join(DIRS.CACHEDIR, 'alive.png'))
     lazylibrarian.SIGNAL = signal
+
+
+def status() -> dict:
+    """ What is running where, like Sonarr's system status """
+    db = database.DBConnection()
+    try:
+        schema = db.match('PRAGMA user_version')['user_version']
+    finally:
+        db.close()
+    return {'app_name': 'LazyLibrarian', 'version': CONFIG['CURRENT_VERSION'], 'branch': CONFIG['GIT_BRANCH'],
+            'install_type': CONFIG['INSTALL_TYPE'], 'latest_version': CONFIG['LATEST_VERSION'],
+            'commits_behind': CONFIG.get_int('COMMITS_BEHIND'), 'database_version': schema,
+            'url_base': url_root(CONFIG['HTTP_ROOT']), 'authentication': CONFIG.get_str('AUTH_TYPE'),
+            'is_docker': docker(), 'os_name': platform.system(), 'os_version': platform.release(),
+            'python_version': platform.python_version(), 'app_data': DIRS.DATADIR, 'startup_path': DIRS.PROG_DIR}
 
 
 def update_status() -> dict:

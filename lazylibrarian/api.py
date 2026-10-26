@@ -14,7 +14,6 @@
 import ast
 import configparser
 import contextlib
-import hmac
 import json
 import logging
 import os
@@ -30,6 +29,7 @@ from cherrypy.lib.static import serve_file
 
 import lazylibrarian
 from lazylibrarian import database
+from lazylibrarian.auth import key_matches
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import audio_rename, book_rename, name_vars
 from lazylibrarian.bookwork import (
@@ -383,13 +383,6 @@ def normalize_library_param(library):
     except ValueError:
         return library
     return "Audio" if book_type == BookType.AUDIOBOOK else "eBook" if book_type == BookType.EBOOK else library
-
-
-def key_matches(given, key: str) -> bool:
-    """ Constant time check of an api key. An unset key matches nothing, not an empty one """
-    if not key or not isinstance(given, str):
-        return False  # a repeated apikey parameter arrives as a list
-    return hmac.compare_digest(given.encode('utf-8'), key.encode('utf-8'))
 
 
 class Api:

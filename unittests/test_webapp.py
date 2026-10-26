@@ -1,7 +1,7 @@
 #  This file is part of Lazylibrarian.
 #
 # Purpose:
-#   Test the FastAPI app that hosts the CherryPy pages, and starting and stopping it with uvicorn
+#   Test the FastAPI app that hosts the CherryPy pages and /api/v1, and starting and stopping it
 
 import socket
 from unittest import mock
@@ -10,7 +10,11 @@ import requests
 import uvicorn
 from fastapi.testclient import TestClient
 
-from lazylibrarian import webapp, webStart
+from lazylibrarian import auth, passwords, sessions, webapp, webStart
+from lazylibrarian.common import url_root
+from lazylibrarian.config2 import CONFIG
+from lazylibrarian.database import DBConnection
+from lazylibrarian.sessions import SESSION_COOKIE
 from unittests.unittesthelpers import LLTestCaseWithDB
 
 
@@ -27,7 +31,7 @@ class WebAppTest(LLTestCaseWithDB):
 
     def test_url_root(self):
         for http_root, root in (('', ''), ('/', ''), ('ll', '/ll'), ('/ll/', '/ll'), (' /ll ', '/ll')):
-            self.assertEqual(webapp.url_root(http_root), root, http_root)
+            self.assertEqual(url_root(http_root), root, http_root)
 
     def test_no_telemetry(self):
         with mock.patch.dict('os.environ', {'FASTAPI_OTEL_AUTO_CONFIGURE': 'true'}):
@@ -90,3 +94,115 @@ class ServerTest(LLTestCaseWithDB):
             with self.assertLogs('uvicorn.error', 'ERROR'):
                 self.assertFalse(self.serve(sock.getsockname()[1]))
         self.assertFalse(webStart.running())
+
+
+class ApiV1Test(LLTestCaseWithDB):
+    """ /api/v1 takes an API key or the pages' login, with the same checks as the pages """
+    FULL_KEY = 'f' * 32
+    READ_KEY = 'r' * 32
+    SETTINGS = ('API_ENABLED', 'API_KEY', 'API_RO_KEY', 'AUTH_TYPE', 'AUTH_REQUIRED', 'WHITELIST', 'HTTP_ROOT')
+
+    def setUp(self):
+        super().setUp()
+        saved = {key: CONFIG[key] for key in self.SETTINGS}
+        self.addCleanup(lambda: [CONFIG.set_from_ui(key, value) for key, value in saved.items()])
+        CONFIG.set_bool('API_ENABLED', True)
+        CONFIG.set_str('API_KEY', self.FULL_KEY)
+        CONFIG.set_str('API_RO_KEY', self.READ_KEY)
+        CONFIG.set_str('AUTH_TYPE', 'FORM')
+        CONFIG.set_str('AUTH_REQUIRED', 'ENABLED')
+        CONFIG.set_str('WHITELIST', '')
+        CONFIG.set_str('HTTP_ROOT', '/ll')
+        patch = mock.patch.object(passwords, 'ITERATIONS', 1000)
+        patch.start()
+        self.addCleanup(patch.stop)
+        auth.reset_owner_cache()
+        self.addCleanup(auth.reset_owner_cache)
+        self.client = TestClient(webapp.create_app('/ll', legacy_app))
+
+    @staticmethod
+    def set_owner():
+        """ Finish first-run setup, return a login session token """
+        with DBConnection() as db:
+            auth.set_owner_credentials(db, username='owner', password='correct horse')
+            return sessions.create_session(db, auth.owner_id(), False)
+
+    def get(self, path='/ll/api/v1/system/status', **kwargs):
+        return self.client.get(path, **kwargs)
+
+    def test_status(self):
+        self.set_owner()
+        response = self.get(headers={'X-Api-Key': self.FULL_KEY})
+        self.assertEqual(response.status_code, 200)
+        status = response.json()
+        self.assertEqual(status['appName'], 'LazyLibrarian')
+        self.assertEqual(status['urlBase'], '/ll')
+        self.assertIsInstance(status['databaseVersion'], int)
+        self.assertIn('pythonVersion', status, 'camelCase, like Sonarr')
+
+    def test_api_keys(self):
+        self.set_owner()
+        self.assertEqual(self.get(headers={'X-Api-Key': self.READ_KEY}).status_code, 200)
+        self.assertEqual(self.get(params={'apikey': self.FULL_KEY}).status_code, 200)
+        response = self.get(headers={'X-Api-Key': 'x' * 32})
+        self.assertEqual((response.status_code, response.json()['detail']),
+                         (401, 'Incorrect API key, or the API is not enabled'))
+        CONFIG.set_bool('API_ENABLED', False)
+        self.assertEqual(self.get(headers={'X-Api-Key': self.FULL_KEY}).status_code, 401)
+
+    def test_read_only_key_cannot_change_things(self):
+        self.set_owner()
+        response = self.client.post('/ll/api/v1/system/status', headers={'X-Api-Key': self.READ_KEY})
+        self.assertEqual(response.status_code, 403)
+        response = self.client.post('/ll/api/v1/system/status', headers={'X-Api-Key': self.FULL_KEY})
+        self.assertEqual(response.status_code, 404, 'Allowed in, but there is no such endpoint')
+
+    def test_login_session(self):
+        token = self.set_owner()
+        response = self.get()
+        self.assertEqual((response.status_code, response.json()), (401, {'detail': 'Unauthorized'}),
+                         'An API answers 401, it does not redirect to the login page')
+        self.client.cookies.set(SESSION_COOKIE, token)
+        self.assertEqual(self.get().status_code, 200)
+        response = self.get(headers={'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors'})
+        self.assertEqual((response.status_code, response.json()['detail']), (403, 'Cross-site request refused'))
+
+    def test_before_setup(self):
+        response = self.get()
+        self.assertEqual((response.status_code, response.json()['detail']),
+                         (401, 'Authentication has not been set up'))
+
+    def test_basic_auth(self):
+        self.set_owner()
+        CONFIG.set_str('AUTH_TYPE', 'BASIC')
+        response = self.get()
+        self.assertEqual(response.status_code, 401)
+        self.assertTrue(response.headers['WWW-Authenticate'].startswith('Basic'))
+        self.assertEqual(self.get(auth=('owner', 'correct horse')).status_code, 200)
+
+    def test_whitelist(self):
+        self.set_owner()
+        with mock.patch.object(auth, 'client_ip', return_value='192.168.1.20'):
+            self.assertEqual(self.get().status_code, 401)
+            CONFIG.set_str('WHITELIST', '192.168.1.0/24')
+            self.assertEqual(self.get().status_code, 200)
+
+    def test_docs(self):
+        token = self.set_owner()
+        response = self.get('/ll/api/v1/docs', follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers['Location'], '/ll/auth/login?from_page=/ll/api/v1/docs')
+        self.client.cookies.set(SESSION_COOKIE, token)
+        response = self.get('/ll/api/v1/docs')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('/ll/api/v1/openapi.json', response.text)
+        schema = self.get('/ll/api/v1/openapi.json').json()
+        self.assertIn('/ll/api/v1/system/status', schema['paths'])
+        self.client.cookies.clear()
+        self.assertEqual(self.get('/ll/api/v1/openapi.json').status_code, 401)
+
+    def test_unknown_endpoint_is_not_the_old_api(self):
+        self.set_owner()
+        response = self.get('/ll/api/v1/nosuch', headers={'X-Api-Key': self.FULL_KEY})
+        self.assertEqual((response.status_code, response.json()['detail']), (404, 'No such endpoint: nosuch'))
+        self.assertEqual(self.get('/ll/api', params={'cmd': 'help'}).text, '|/ll/api|cmd=help', 'Still CherryPy')
