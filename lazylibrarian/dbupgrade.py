@@ -255,10 +255,10 @@ def db_upgrade(current_version: int, restartjobs: bool = False):
                               'BookGenre TEXT, BookIsbn TEXT, BookPub TEXT, BookRate INTEGER DEFAULT 0, ' +
                               'BookImg TEXT, BookPages INTEGER DEFAULT 0, BookLink TEXT, BookID TEXT UNIQUE, ' +
                               'BookFile TEXT, BookDate TEXT, BookLang TEXT, BookAdded TEXT, ' +
-                              'Status TEXT DEFAULT "Skipped", ' +
+                              "Status TEXT DEFAULT 'Skipped', " +
                               'WorkPage TEXT, Manual TEXT, SeriesDisplay TEXT, BookLibrary TEXT, ' +
                               'AudioFile TEXT, AudioLibrary TEXT, ' +
-                              'AudioStatus TEXT DEFAULT "Skipped", WorkID TEXT, ' +
+                              "AudioStatus TEXT DEFAULT 'Skipped', WorkID TEXT, " +
                               'ScanResult TEXT, OriginalPubDate TEXT, Requester TEXT, AudioRequester TEXT, ' +
                               'LT_WorkID TEXT, Narrator TEXT)')
                     db.action(
