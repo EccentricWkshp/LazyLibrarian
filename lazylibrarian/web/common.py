@@ -72,11 +72,6 @@ def clear_our_cookies():
     cookie['ll_uilang'] = ''
 
 
-def valid_ui_lang(value: str) -> bool:
-    """ Empty (use the global setting), auto, or a language we have a translation for """
-    return value in ('', i18n.AUTO) or value in i18n.available_languages()
-
-
 def set_request_language():
     """ Set the UI language for the current request: the user's own setting (cookie),
         then UI_LANGUAGE from the config, which may be 'auto' to follow the browser """

@@ -14,6 +14,7 @@ from lazylibrarian.auth import reset_owner_cache
 from lazylibrarian.database import DBConnection
 from lazylibrarian.dbupgrade import db_upgrade, upgrade_needed
 from lazylibrarian.filesystem import DIRS, remove_file
+from lazylibrarian.services import users
 from lazylibrarian.web import common
 from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 
@@ -76,10 +77,10 @@ class UILangTest(LLTestCaseWithConfigandDIRS):
         return webServe.WebInterface().user_update(**kwargs)
 
     def test_valid_ui_lang(self):
-        self.assertTrue(common.valid_ui_lang(''))
-        self.assertTrue(common.valid_ui_lang('auto'))
-        self.assertFalse(common.valid_ui_lang('None'))
-        self.assertFalse(common.valid_ui_lang('xx_YY'))
+        self.assertTrue(users.valid_ui_lang(''))
+        self.assertTrue(users.valid_ui_lang('auto'))
+        self.assertFalse(users.valid_ui_lang('None'))
+        self.assertFalse(users.valid_ui_lang('xx_YY'))
 
     def test_profile_save_without_ui_lang(self):
         result = self.profile_save(booktype='mobi', password='newpassword', password2='newpassword')

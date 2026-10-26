@@ -19,19 +19,13 @@ import logging
 import cherrypy
 
 import lazylibrarian
-from lazylibrarian import database, i18n
-from lazylibrarian.auth import (
-    end_session,
-    owner_id,
-    require_auth,
-    session_token,
-    set_owner_credentials,
-)
-from lazylibrarian.common import is_valid_email, pwd_check, pwd_generator
-from lazylibrarian.config2 import CONFIG, wishlist_type
+from lazylibrarian import i18n
+from lazylibrarian.auth import end_session, owner_id, require_auth, session_token
+from lazylibrarian.common import pwd_generator
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int, get_list
-from lazylibrarian.passwords import verify_password
-from lazylibrarian.web.common import BasePages, clear_our_cookies, serve_template, valid_ui_lang
+from lazylibrarian.services import InvalidRequestError, NotFoundError, users
+from lazylibrarian.web.common import BasePages, clear_our_cookies, serve_template
 
 
 class UserPages(BasePages):
@@ -40,49 +34,15 @@ class UserPages(BasePages):
     @cherrypy.expose
     @require_auth()
     def profile(self):
-        title = i18n.gettext('User Profile')
-        userid = owner_id()
-        if userid:
-            db = database.DBConnection()
-            try:
-                user = db.match('SELECT UserName,UserID,Name,Email,SendTo,BookType,Theme,hc_id,hc_token,'
-                                'CalibreRead,CalibreToRead from users where UserID=?', (userid,))
-                if user:
-                    subs = db.select('SELECT Type,WantID from subscribers WHERE UserID=?', (userid,))
-                    subscriptions = ''
-                    for itm in subs:
-                        if subscriptions:
-                            subscriptions += '\n'
-                        item_name = ''
-                        if itm['Type'] == 'author':
-                            res = db.match('SELECT AuthorName from authors WHERE authorid=?', (itm['WantID'],))
-                            if res:
-                                item_name = f"({res['AuthorName']})"
-                        elif itm['Type'] == 'series':
-                            res = db.match('SELECT SeriesName from series WHERE seriesid=?', (itm['WantID'],))
-                            if res:
-                                item_name = f"({res['SeriesName']})"
-                        elif itm['Type'] == 'comic':
-                            try:
-                                comicid, issueid = itm['WantID'].split('_')
-                            except ValueError:
-                                comicid = ''
-                            if comicid:
-                                res = db.match('SELECT Title from comics WHERE comicid=?', (comicid,))
-                                if res:
-                                    item_name = f"({res['Title']})"
-                        subscriptions += f'{itm["Type"]} {itm["WantID"]} {item_name}'
-                    user = dict(user)
-                    if not user['Theme']:
-                        user['Theme'] = ''
-                    themelist = ['Default']
-                    for itm in lazylibrarian.BOOKSTRAP_THEMELIST:
-                        themelist.append('bookstrap_' + itm)
-                    return serve_template(templatename="profile.html", title=title, user=user, subs=subscriptions,
-                                          typelist=get_list(CONFIG['EBOOK_TYPE']), themelist=themelist)
-            finally:
-                db.close()
-        return serve_template(templatename="index.html", title=i18n.gettext('Authors'), redirect='authors')
+        try:
+            found = users.get_profile(owner_id())
+        except NotFoundError:
+            return serve_template(templatename="index.html", title=i18n.gettext('Authors'), redirect='authors')
+        subscriptions = '\n'.join(f"{s['Type']} {s['WantID']} {'(' + s['Name'] + ')' if s['Name'] else ''}"
+                                  for s in found['subscriptions'])
+        themelist = ['Default'] + ['bookstrap_' + itm for itm in lazylibrarian.BOOKSTRAP_THEMELIST]
+        return serve_template(templatename="profile.html", title=i18n.gettext('User Profile'), user=found['user'],
+                              subs=subscriptions, typelist=get_list(CONFIG['EBOOK_TYPE']), themelist=themelist)
 
     @cherrypy.expose
     @require_auth()
@@ -118,12 +78,7 @@ class UserPages(BasePages):
     def logout(self):
         cookie = cherrypy.request.cookie
         if cookie and 'll_prefs' in list(cookie.keys()):
-            db = database.DBConnection()
-            try:
-                db.action('UPDATE users SET prefs=? where UserID=?',
-                          (check_int(cookie['ll_prefs'].value, 0), owner_id()))
-            finally:
-                db.close()
+            users.save_prefs(owner_id(), check_int(cookie['ll_prefs'].value, 0))
         end_session()
         clear_our_cookies()
         if cherrypy.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -134,172 +89,47 @@ class UserPages(BasePages):
     @cherrypy.expose
     @require_auth()
     def user_update(self, **kwargs):
-        if ('password' in kwargs and 'password2' in kwargs and kwargs['password'] and
-                kwargs['password'] != kwargs['password2']):
-            return i18n.gettext("Passwords do not match")
-        if kwargs['password'] and not pwd_check(kwargs['password']):
-            return i18n.gettext("Password must be at least 8 characters long\nand not contain spaces")
-        logger = logging.getLogger(__name__)
-        changes = ''
         userid = owner_id()
-        if userid:
-            db = database.DBConnection()
-            user = db.match('SELECT UserName,Name,Email,Password,BookType,SendTo,Theme,hc_token,ui_lang,'
-                            'CalibreRead,CalibreToRead from users where UserID=?', (userid,))
-            if user:
-                if kwargs['username'] and user['UserName'] != kwargs['username']:
-                    if self.validate_param("username", kwargs['username'], ['<', '>', '=', ':'], None):
-                        changes += ' username'
-                        set_owner_credentials(db, username=kwargs['username'])
-                    else:
-                        logger.warning("Invalid username")
-
-                if kwargs['fullname'] and user['Name'] != kwargs['fullname']:
-                    if self.validate_param("fullname", kwargs['fullname'], ['<', '>', '='], None):
-                        changes += ' name'
-                        db.action('UPDATE users SET Name=? WHERE UserID=?', (kwargs['fullname'], userid))
-                    else:
-                        logger.warning("Invalid fullname")
-
-                if kwargs['email'] and user['Email'] != kwargs['email']:
-                    if not is_valid_email(kwargs['email']):
-                        logger.warning("Invalid email")
-                    else:
-                        changes += ' email'
-                        db.action('UPDATE users SET email=? WHERE UserID=?', (kwargs['email'], userid))
-
-                if user['Theme'] != kwargs['theme']:
-                    valid = False
-                    theme = kwargs['theme']
-                    if theme in ['None', 'Default', '']:
-                        theme = ''
-                    if not theme:
-                        valid = True
-                    if theme == 'legacy':
-                        valid = True
-                    else:
-                        parts = theme.split('_', 1)
-                        if (parts[0] == 'bookstrap' and len(parts) == 2 and parts[1] in
-                                lazylibrarian.BOOKSTRAP_THEMELIST):
-                            valid = True
-                    if valid:
-                        changes += ' Theme'
-                        db.action('UPDATE users SET Theme=? WHERE UserID=?', (theme, userid))
-                    else:
-                        logger.warning(f"Invalid user theme [{theme}]")
-
-                # profile.html doesn't send ui_lang, only the admin users page does
-                if 'ui_lang' in kwargs and (user['UI_Lang'] or '') != kwargs['ui_lang']:
-                    if valid_ui_lang(kwargs['ui_lang']):
-                        changes += ' UI_Lang'
-                        db.action('UPDATE users SET UI_Lang=? WHERE UserID=?', (kwargs['ui_lang'], userid))
-                    else:
-                        logger.warning(f"Invalid UI Language [{kwargs['ui_lang']}]")
-
-                if user['SendTo'] != kwargs['sendto']:
-                    if not is_valid_email(kwargs['sendto']):
-                        logger.warning("Invalid email")
-                    else:
-                        changes += ' sendto'
-                        db.action('UPDATE users SET sendto=? WHERE UserID=?', (kwargs['sendto'], userid))
-
-                if user['BookType'] != kwargs['booktype']:
-                    changes += ' BookType'
-                    db.action('UPDATE users SET BookType=? WHERE UserID=?', (kwargs['booktype'], userid))
-
-                if user['hc_token'] != kwargs['hc_token']:
-                    if self.validate_param("hardcopy token", kwargs['hc_token'], ['<', '>', '='], None):
-                        changes += ' hc_token'
-                        db.action('UPDATE users SET hc_token=? WHERE UserID=?', (kwargs['hc_token'], userid))
-                    else:
-                        logger.warning("Invalid hardcopy token")
-
-                if kwargs['password'] and not verify_password(kwargs['password'], user['password']):
-                    changes += ' password'
-                    # logs out everywhere else, but not this browser
-                    set_owner_credentials(db, password=kwargs['password'], keep_token=session_token())
-
-                for key, column in [('calread', 'CalibreRead'), ('caltoread', 'CalibreToRead')]:
-                    if key in kwargs and (user[column] or '') != kwargs[key]:
-                        if self.validate_param(column, kwargs[key], ['<', '>', '='], None):
-                            changes += f' {column}'
-                            db.action(f'UPDATE users SET {column}=? WHERE UserID=?', (kwargs[key], userid))
-                        else:
-                            logger.warning(f"Invalid {column}")
-            db.close()
-
-            if changes:
-                return i18n.gettext('Updated user details: %(fields)s') % {'fields': changes.strip()}
+        try:
+            changes = users.update_profile(userid, kwargs, keep_token=session_token()) if userid else []
+        except InvalidRequestError as e:
+            return i18n.gettext(str(e))
+        except NotFoundError:
+            changes = []
+        if changes:
+            return i18n.gettext('Updated user details: %(fields)s') % {'fields': ' '.join(changes)}
         return i18n.gettext("No changes made")
 
     @cherrypy.expose
     @require_auth()
     def update_feeds(self, **kwargs):
-        logger = logging.getLogger(__name__)
         if 'value' in kwargs and kwargs['value'] == '':
             # cancel or [x] pressed
             return i18n.gettext('No changes made')
         kwargs.pop('user', None)
-        user = owner_id()
-        value = get_list(kwargs.pop('value[]', ''))
-        cnt = 0
-        db = database.DBConnection()
+        selected = get_list(kwargs.pop('value[]', ''))
+        feeds = {}
         for itm in kwargs:
             if '[text]' in itm:
                 feedname = kwargs[itm]
                 feednum = kwargs.get(itm.replace('[text]', '[value]'), '')
                 if feedname and feednum:
-                    res = db.match('SELECT * from subscribers WHERE Type=? and UserID=? and WantID=?',
-                                   ("feed", user, feedname))
-                    if feednum in value:
-                        if res:
-                            logger.debug(f"{feedname} {user} was already subscribed")
-                        else:
-                            cnt += 1
-                            db.action('INSERT INTO subscribers (Type, UserID, WantID) VALUES (?, ?, ?)',
-                                      ("feed", user, feedname))
-                            logger.debug(f"Subscribed {user} to {feedname}")
-                    else:
-                        if res:
-                            cnt += 1
-                            db.action('DELETE from subscribers WHERE Type=? and UserID=? and WantID=?',
-                                      ("feed", user, feedname))
-                            logger.debug(f"Unsubscribed {user} to {feedname}")
-                        else:
-                            logger.debug(f"{feedname} {user} was already unsubscribed")
-        db.close()
+                    feeds[feedname] = feednum in selected
+        cnt = users.set_feeds(owner_id(), feeds)
         return i18n.ngettext('Changed %(count)s feed', 'Changed %(count)s feeds', cnt) % {'count': cnt}
 
     @cherrypy.expose
     @require_auth()
     def user_feeds(self, **kwargs):
-        logger = logging.getLogger(__name__)
-        user = owner_id()
-        if user:
-            feedlist = []
-            value = []
-            cnt = 0
-            db = database.DBConnection()
-            try:
-                feeds = db.select("SELECT * from subscribers where Type='feed' and UserID=?", (user,))
-            finally:
-                db.close()
-            for provider in CONFIG.providers('RSS'):
-                wishtype = wishlist_type(provider['HOST'])
-                if wishtype:
-                    cnt += 1
-                    subscribed = False
-                    for itm in feeds:
-                        if itm['WantID'] == provider['DISPNAME']:
-                            subscribed = True
-                            break
-                    feedlist.append({'text': provider['DISPNAME'], 'value': str(cnt)})
-                    if subscribed:
-                        value.append(str(cnt))
-            res = json.dumps({'feeds': feedlist, 'value': value})
-            logger.debug(res)
-            return res
-        return json.dumps({'feeds': '', 'value': ''})
+        userid = owner_id()
+        if not userid:
+            return json.dumps({'feeds': '', 'value': ''})
+        choices = users.feed_choices(userid)
+        feedlist = [{'text': feed['name'], 'value': str(cnt)} for cnt, feed in enumerate(choices, start=1)]
+        value = [str(cnt) for cnt, feed in enumerate(choices, start=1) if feed['subscribed']]
+        res = json.dumps({'feeds': feedlist, 'value': value})
+        logging.getLogger(__name__).debug(res)
+        return res
 
     @cherrypy.expose
     @require_auth()
