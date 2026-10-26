@@ -141,6 +141,29 @@ class LLTestCaseWithConfigandDIRS(LLTestCase):
                 print(str(e))
 
 
+class LLTestCaseWithDB(LLTestCaseWithConfigandDIRS):
+    """ Test case with a new, empty database for each test """
+    DBFILENAME = 'test-services.db'
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(setattr, DIRS, 'DBFILENAME', DIRS.DBFILENAME)
+        DIRS.DBFILENAME = self.DBFILENAME
+        self.removetestDB()
+        db_upgrade(upgrade_needed(), restartjobs=False)
+        self.addCleanup(self.removetestDB)
+
+    @staticmethod
+    def sql(query: str, args=()) -> list:
+        """ Run a query on the test database, returns the rows as dicts """
+        from lazylibrarian.database import DBConnection
+        with DBConnection() as db:
+            if query.lstrip().upper().startswith('SELECT'):
+                return [dict(row) for row in db.select(query, args)]
+            db.action(query, args)
+            return []
+
+
 class LLTestCaseWithStartup(LLTestCase):
     """ LL test case that uses global CONFIG as well as some of the standard LL startup sequence.
     These should get increasingly rare as the code gets parameterised. """
