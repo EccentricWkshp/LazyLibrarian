@@ -239,7 +239,9 @@ def candidates(folder: str = '', queue_id=None) -> dict:
         if not book:
             item['rejections'].append('Choose the book')
         if existing:
-            item['rejections'].append(f"{ALREADY} {existing}")
+            # an audiobook's parts are all replaced, an ebook's other formats stay
+            replaces = 'importing replaces it' if kind == 'audiobook' else 'importing replaces the same format'
+            item['rejections'].append(f"{ALREADY} {existing}, {replaces}")
         found.append(item)
     return {'folder': folder, 'items': found, 'error': ''}
 

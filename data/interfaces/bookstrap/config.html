@@ -2465,6 +2465,11 @@
                       <input type="checkbox" id="destination_copy" name="destination_copy" value="1" ${checked} />
                       ${_('Keep original files')}</label>
                   </div>
+                  <div class="form-group">
+                    <label for="recycle_bin">${_('Recycling Bin:')}</label>
+                    <input type="text" id="recycle_bin" name="recycle_bin" value="${CONFIG['RECYCLE_BIN'] | h}" class="form-control" placeholder="${_('Empty: replaced files are deleted') | h}">
+                    <span class="help-block">${_('An audiobook imported where one already is replaces it. The old files go here, in the folders they were in, instead of being deleted, like Sonarr\'s recycling bin')}</span>
+                  </div>
                   <div class="checkbox">
                     <% checked = 'checked="checked"' if CONFIG['ONE_FORMAT'] else '' %>
                     <label for="one_format">

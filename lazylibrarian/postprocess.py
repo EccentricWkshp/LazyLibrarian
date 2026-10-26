@@ -3836,6 +3836,49 @@ def _should_use_calibre(book_type: str) -> bool:
     return False
 
 
+def recycle(path: str, library_dir: str, logger: logging.Logger) -> None:
+    """ Sonarr's recycling bin: a library file an import replaces goes to RECYCLE_BIN, in the same
+    folders it had below library_dir, or is deleted when there's no recycling bin """
+    recycle_bin = CONFIG['RECYCLE_BIN']
+    if not recycle_bin:
+        logger.info(f"Deleting {path}, an import replaces it")
+        remove_file(path)
+        return
+    try:
+        below = os.path.relpath(os.path.dirname(path), library_dir)
+    except ValueError:  # another drive
+        below = ''
+    if below.startswith('..'):
+        below = os.path.basename(os.path.dirname(path))
+    folder = os.path.join(recycle_bin, below)
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, os.path.basename(path))
+    if path_exists(target):
+        remove_file(target)
+    logger.info(f"Moving {path} to the recycling bin, an import replaces it")
+    safe_move(path, target)
+
+
+def replace_audiobook_files(book_path: str, dest_dir: str, logger: logging.Logger) -> None:
+    """ An audiobook's parts keep their own names, so a new copy imported into a folder with an
+    older one sits beside it, and the parts get numbered twice. Like Sonarr replacing an episode's
+    file, the old parts go first. Nothing goes when the files are being imported from that folder """
+    if not path_isdir(dest_dir) or not path_isdir(book_path):
+        return
+    source, dest = os.path.realpath(book_path), os.path.realpath(dest_dir)
+    if source == dest or source.startswith(dest + os.sep) or dest.startswith(source + os.sep):
+        return
+    old = [name for name in listdir(dest_dir) if CONFIG.is_valid_booktype(enforce_str(name), booktype='audiobook')]
+    if not old:
+        return
+    logger.info(f"Replacing the audiobook already in {dest_dir}, {len(old)} {plural(len(old), 'file')}")
+    for name in old:
+        try:
+            recycle(os.path.join(dest_dir, enforce_str(name)), str(get_directory('Audio')), logger)
+        except OSError as why:
+            logger.error(f"Could not remove {name} from {dest_dir}: {why}")
+
+
 def _prepare_destination_directory(dest_path, logger) -> "tuple[bool, str, bytes]":
     """
     Ensure destination directory exists and is ready for file operations.
@@ -4245,6 +4288,9 @@ def _process_destination(
 
     # dest_path is bytes - create unicode version for string operations
     udest_path = enforce_str(dest_path)  # Convert bytes to string for os.path.join
+
+    if book_type == BookType.AUDIOBOOK.value:
+        replace_audiobook_files(book_path, udest_path, logger)
 
     dir_list = listdir(book_path)  # Refresh our directory listing
     copied_count = 0

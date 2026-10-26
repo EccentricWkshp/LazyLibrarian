@@ -4,11 +4,14 @@
 #   Test services/queue.py, the download queue, and services/manualimport.py, Manual Import, with
 #   real files going through the post processor's import, and the commands that run imports
 
+import logging
 import os
 import time
 from unittest import mock
 
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
+from lazylibrarian.postprocess import replace_audiobook_files
 from lazylibrarian.services import InvalidRequestError, NotFoundError, commands, manualimport, queue
 from unittests.test_postprocess import ProcessDirTestCase
 
@@ -163,10 +166,11 @@ class CandidatesTest(ManualImportTestCase):
         self.db.action("UPDATE books SET BookFile=? WHERE BookID='mi_001'", (have,))
         self.write("John Doe - Test Book One.epub")
         item = next(i for i in manualimport.candidates(self.incoming)['items'] if i['book'])
-        self.assertEqual(item['rejections'], [f"{manualimport.ALREADY} {have}"], 'Like Sonarr\'s existing file')
+        rejection = f"{manualimport.ALREADY} {have}, importing replaces the same format"
+        self.assertEqual(item['rejections'], [rejection], 'Like Sonarr\'s existing file')
         item_id = self.queued()
         item = manualimport.candidates(self.incoming, item_id)['items'][0]
-        self.assertIn(f"{manualimport.ALREADY} {have}", item['rejections'], 'A queued download\'s book too')
+        self.assertIn(rejection, item['rejections'], 'A queued download\'s book too')
 
     def test_suggested_folders(self):
         mapped = os.path.join(self.test_root, "mapped")
@@ -250,6 +254,54 @@ class ImportTest(ManualImportTestCase):
         row = self.db.match("SELECT Status,DLResult FROM wanted WHERE rowid=?", (item_id,))
         self.assertEqual(row['Status'], 'Snatched')
         self.assertTrue(row['DLResult'] == 'Import blocked: No valid file or archives found', row['DLResult'])
+
+
+class ReplaceAudiobookTest(ManualImportTestCase):
+    """ Like Sonarr replacing an episode's file: an audiobook imported where one already is replaces it """
+
+    def setUp(self):
+        super().setUp()
+        self.library = os.path.join(self.audio_library, "John Doe", "Test Book One")
+        self.download = os.path.join(self.incoming, "new copy")
+        for folder, names in ((self.library, ("Test Book One Part 01 of 02.mp3", "Test Book One Part 02 of 02.mp3",
+                                              "cover.jpg")),
+                              (self.download, ("Track 01.mp3", "Track 02.mp3"))):
+            os.makedirs(folder, exist_ok=True)
+            for name in names:
+                with open(os.path.join(folder, name), "w") as f:
+                    f.write(folder)
+        saved = CONFIG['RECYCLE_BIN']
+        self.addCleanup(CONFIG.set_str, 'RECYCLE_BIN', saved)
+        CONFIG.set_str('RECYCLE_BIN', '')
+
+    def test_the_old_parts_are_deleted(self):
+        replace_audiobook_files(self.download, self.library, logging.getLogger(__name__))
+        self.assertEqual(os.listdir(self.library), ["cover.jpg"], 'Only the audio files go')
+
+    def test_or_go_to_the_recycling_bin(self):
+        recycle_bin = os.path.join(self.test_root, "recycle")
+        CONFIG.set_str('RECYCLE_BIN', recycle_bin)
+        replace_audiobook_files(self.download, self.library, logging.getLogger(__name__))
+        self.assertEqual(sorted(os.listdir(os.path.join(recycle_bin, "John Doe", "Test Book One"))),
+                         ["Test Book One Part 01 of 02.mp3", "Test Book One Part 02 of 02.mp3"],
+                         'In the folders they were in')
+
+    def test_importing_one(self):
+        # the reported one: a second import of Without Fail left two sets of parts
+        self.db.action("UPDATE books SET AudioFile=? WHERE BookID='mi_001'",
+                       (os.path.join(self.library, "Test Book One Part 01 of 02.mp3"),))
+        manualimport.import_item({'path': self.download, 'media_type': 'audiobook', 'book_id': 'mi_001'})
+        audio = sorted(name for name in os.listdir(self.library) if name.endswith('.mp3'))
+        self.assertEqual(len(audio), 2, audio)
+        self.assertFalse([name for name in audio if 'Part 01 of 02' in name and 'Track' in name])
+        for name in audio:
+            with open(os.path.join(self.library, name)) as f:
+                self.assertEqual(f.read(), self.download, f'{name} is from the new copy')
+
+    def test_not_when_importing_from_the_library_folder(self):
+        replace_audiobook_files(self.library, self.library, logging.getLogger(__name__))
+        replace_audiobook_files(os.path.dirname(self.library), self.library, logging.getLogger(__name__))
+        self.assertEqual(len(os.listdir(self.library)), 3)
 
 
 class CommandTest(ManualImportTestCase):

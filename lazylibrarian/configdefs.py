@@ -216,6 +216,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigStr('NZBGet', 'NZBGET_CATEGORY_COMIC', 'None'),
     ConfigInt('NZBGet', 'NZBGET_PRIORITY', 0),
     ConfigBool('General', 'DESTINATION_COPY', 0),
+    # Sonarr's recycling bin: files an import replaces go here, or are deleted when it's empty
+    ConfigFolder('PostProcess', 'RECYCLE_BIN', ''),
     ConfigStr('General', 'EBOOK_DIR', ''),
     ConfigStr('General', 'AUDIO_DIR', ''),
     ConfigStr('General', 'ALTERNATE_DIR', ''),
