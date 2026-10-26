@@ -1,0 +1,39 @@
+/* From Sonarr's FieldSet, ScheduledTaskRow and QueuedTaskRow styles */
+
+.legend {
+  margin: 0 0 15px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+
+  &:not(:first-child) {
+    margin-top: 30px;
+  }
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.actions {
+  width: 40px;
+  text-align: right;
+}
+
+.status {
+  width: 30px;
+}
+
+.disabled {
+  color: var(--disabledColor);
+}
+
+.reason,
+.message {
+  margin-top: 2px;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize);
+  overflow-wrap: anywhere;
+}

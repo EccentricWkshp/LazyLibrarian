@@ -27,6 +27,7 @@ from lazylibrarian.services import (
     NotFoundError,
     blocklist,
     manualimport,
+    tasks,
     wanted,
 )
 
@@ -80,9 +81,16 @@ def _clear_blocklist(command: dict, body: dict) -> str:
     return f"Cleared {cleared} {plural(cleared, 'release')} from the blocklist"
 
 
+def _run_task(command: dict, body: dict) -> str:
+    return tasks.run(body.get('task') or '')
+
+
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
                                                     'MissingBookSearch': _missing_book_search,
-                                                    'ClearBlocklist': _clear_blocklist}
+                                                    'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task}
+# what System, Tasks calls each command
+TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
+          'ClearBlocklist': 'Clear Blocklist'}
 
 
 def _run(command: dict, body: dict):
@@ -103,8 +111,10 @@ def start(name: str, body: dict) -> dict:
     """ Start a command in the background, returns it as it is now """
     if name not in HANDLERS:
         raise InvalidRequestError(f"There is no command {name}, there is {', '.join(HANDLERS)}")
-    command = {'id': next(_ids), 'name': name, 'status': 'queued', 'message': '', 'queued': _now(),
-               'started': None, 'ended': None, 'result': None}
+    # a task is known by its name in Settings, one that isn't there is NotFound before it starts
+    title = tasks.task_name(body.get('task') or '') if name == 'RunTask' else TITLES.get(name, name)
+    command = {'id': next(_ids), 'name': name, 'title': title, 'status': 'queued', 'message': '',
+               'queued': _now(), 'started': None, 'ended': None, 'result': None}
     with _lock:
         _commands[command['id']] = command
         for old in sorted(_commands)[:-KEEP]:

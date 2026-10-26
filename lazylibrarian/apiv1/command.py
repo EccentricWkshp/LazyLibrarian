@@ -39,11 +39,13 @@ class CommandIn(ApiModel):
     name: str
     files: list[ManualImportFile] = []
     books: list[BookRef] = []
+    task: str = ''
 
 
 class Command(ApiModel):
     id: int
     name: str
+    title: str
     status: str
     message: str
     queued: str
@@ -57,7 +59,7 @@ def start(command: CommandIn):
     """ Start a command. ManualImport imports files, each with the book it is for (bookId and
     mediaType) and, when it came from the queue, its queueId. BookSearch searches for books
     (bookId and mediaType), MissingBookSearch for every wanted book, ClearBlocklist empties the
-    blocklist """
+    blocklist, RunTask runs a scheduled task (task, its name from /system/task) now """
     return commands.start(command.name, command.model_dump())
 
 

@@ -70,7 +70,15 @@ function groups(): SidebarGroup[] {
     {
       items: [
         { iconName: Settings, title: 'Settings', to: '/config' },
-        { iconName: Monitor, title: 'System', to: '/logs', children: [{ title: 'Logs', to: '/logs' }] },
+        {
+          iconName: Monitor,
+          title: 'System',
+          to: '/system/tasks',
+          children: [
+            { title: 'Tasks', to: '/system/tasks' },
+            { title: 'Logs', to: '/logs' },
+          ],
+        },
       ],
     },
   ];

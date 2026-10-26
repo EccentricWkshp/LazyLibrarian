@@ -17,6 +17,7 @@ const CHANGES: Record<string, string[][]> = {
   BookSearch: [['queue'], ['wanted']],
   MissingBookSearch: [['queue'], ['wanted']],
   ClearBlocklist: [['blocklist']],
+  RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history']],
 };
 
 export async function runCommand(name: string, body: Record<string, unknown>, label: string) {

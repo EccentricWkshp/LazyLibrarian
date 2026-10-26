@@ -16,6 +16,52 @@ export function formatBytes(bytes: number) {
   return `${size.toFixed(unit ? 1 : 0)} ${UNITS[unit]}`;
 }
 
+function count(amount: number, unit: string) {
+  return `${amount} ${unit}${amount === 1 ? '' : 's'}`;
+}
+
+// a task's interval, as Sonarr says it: 10 minutes, 6 hours, 1 day
+export function formatInterval(minutes: number) {
+  if (!minutes) {
+    return '';
+  }
+
+  if (minutes % 1440 === 0) {
+    return count(minutes / 1440, 'day');
+  }
+
+  if (minutes % 60 === 0) {
+    return count(minutes / 60, 'hour');
+  }
+
+  return count(minutes, 'minute');
+}
+
+// how long something took: 0.4 seconds, 12 seconds, 3 minutes, 1 hour 5 minutes
+export function formatDuration(seconds: number | null) {
+  if (seconds === null || seconds < 0) {
+    return '';
+  }
+
+  if (seconds < 10) {
+    return `${Number(seconds.toFixed(1))} seconds`;
+  }
+
+  if (seconds < 60) {
+    return count(Math.round(seconds), 'second');
+  }
+
+  const minutes = Math.round(seconds / 60);
+
+  if (minutes < 60) {
+    return count(minutes, 'minute');
+  }
+
+  const rest = minutes % 60;
+
+  return rest ? `${count(Math.floor(minutes / 60), 'hour')} ${count(rest, 'minute')}` : count(minutes / 60, 'hour');
+}
+
 // LazyLibrarian's dates are local time, 2026-10-26 10:57:14
 export function parseDate(value: string) {
   if (!value) {

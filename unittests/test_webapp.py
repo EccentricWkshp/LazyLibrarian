@@ -193,6 +193,12 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertEqual(status['urlBase'], '/ll')
         self.assertIsInstance(status['databaseVersion'], int)
         self.assertIn('pythonVersion', status, 'camelCase, like Sonarr')
+        found = self.get('/ll/api/v1/system/task', headers={'X-Api-Key': self.FULL_KEY}).json()
+        self.assertIn('search_book', [task['name'] for task in found])
+        self.assertIn('nextExecution', found[0])
+        response = self.client.post('/ll/api/v1/command', headers={'X-Api-Key': self.FULL_KEY},
+                                    json={'name': 'RunTask', 'task': 'nosuch'})
+        self.assertEqual((response.status_code, response.json()['detail']), (404, 'No task nosuch'))
 
     def test_api_keys(self):
         self.set_owner()

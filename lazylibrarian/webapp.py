@@ -45,7 +45,7 @@ API_KEY_HEADER = APIKeyHeader(name='X-Api-Key', auto_error=False, description='T
 API_KEY_QUERY = APIKeyQuery(name='apikey', auto_error=False, description='The API key, if a header is no use')
 
 # The single page front end, built from frontend/ into data/ui. Its pages are below these paths
-UI_PAGES = ('activity', 'wanted')
+UI_PAGES = ('activity', 'wanted', 'system')
 # Bootswatch themes the old pages can have that are dark, the new pages follow them
 DARK_THEMES = frozenset(('slate', 'darkly', 'cyborg', 'superhero', 'solar', 'vapor', 'quartz'))
 

@@ -15,7 +15,7 @@
 from fastapi import APIRouter
 
 from lazylibrarian.apiv1.models import ApiModel
-from lazylibrarian.services import system
+from lazylibrarian.services import system, tasks
 
 router = APIRouter(prefix='/system', tags=['System'])
 
@@ -38,7 +38,26 @@ class SystemStatus(ApiModel):
     startup_path: str
 
 
+class Task(ApiModel):
+    name: str
+    task_name: str
+    interval: int
+    last_start_time: str | None
+    last_execution: str | None
+    last_duration: float | None
+    next_execution: str | None
+    is_running: bool
+    disabled_reason: str
+
+
 @router.get('/status', response_model=SystemStatus)
 def get_status():
     """ Versions, platform and web settings """
     return system.status()
+
+
+@router.get('/task', response_model=list[Task])
+def list_tasks():
+    """ The scheduled tasks, like Sonarr's: interval in minutes, lastDuration in seconds, and why a
+    task doesn't run when it doesn't. The RunTask command runs one now """
+    return tasks.list_tasks()

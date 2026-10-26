@@ -53,6 +53,7 @@ export interface CommandResult {
 export interface Command {
   id: number;
   name: string;
+  title: string;
   status: 'queued' | 'started' | 'completed' | 'failed';
   message: string;
   queued: string;
