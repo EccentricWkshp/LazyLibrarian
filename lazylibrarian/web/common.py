@@ -28,7 +28,6 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_isdir
 from lazylibrarian.formatter import check_int, thread_name
 from lazylibrarian.processcontrol import get_info_on_caller
-from lazylibrarian.services.files import delete_issue_file, remove_from_calibre
 
 # the author page shown last, so its book list only goes back to page one for a new author
 lastauthor = ''
@@ -241,14 +240,6 @@ class BasePages:
             threadname = thread_name()
             if "Thread" in threadname:
                 thread_name("WEBSERVER")
-
-    @staticmethod
-    def delete_from_calibre(data):
-        remove_from_calibre(data)
-
-    @staticmethod
-    def delete_issue(issuefile):
-        return delete_issue_file(issuefile)
 
     @staticmethod
     def valid_source(source=None):
