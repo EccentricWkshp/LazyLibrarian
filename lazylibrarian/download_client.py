@@ -641,10 +641,10 @@ def get_download_progress(source, downloadid):
                     db.action(cmd, (errorstring, downloadid, source))
 
         elif source == "NZBGET":
-            res, _ = nzbget.send_nzb(cmd="listgroups")
+            res, error = nzbget.send_nzb(cmd="listgroups")
             dlcommslogger.debug(str(res))
             found = False
-            if res:
+            if res and not error:
                 for item in res:
                     # nzbget NZBIDs are integers
                     if item["NZBID"] == check_int(downloadid, 0):
@@ -660,10 +660,10 @@ def get_download_progress(source, downloadid):
                             if progress == 100:
                                 finished = True
                         break
-            if not found:  # not in queue, try history in case completed or error
-                res, _ = nzbget.send_nzb(cmd="history")
+            if not found and not error:  # not in queue, try history in case completed or error
+                res, error = nzbget.send_nzb(cmd="history")
                 dlcommslogger.debug(str(res))
-                if res:
+                if res and not error:
                     for item in res:
                         if item["NZBID"] == check_int(downloadid, 0):
                             found = True
@@ -691,7 +691,11 @@ def get_download_progress(source, downloadid):
                                 db.action(cmd, (reason, downloadid, source))
                                 progress = -1
                             break
-            if not found:
+            if error:
+                # NZBGet couldn't be asked, which says nothing about the download. It used to be
+                # aborted, so every NZBGet download failed while NZBGet was restarting
+                progress = -2
+            elif not found:
                 errorstring = f"{downloadid} not found at {source}"
                 logger.debug(errorstring)
                 cmd = "UPDATE wanted SET Status='Aborted',DLResult=? WHERE DownloadID=? and Source=? and Status<>'Failed'"

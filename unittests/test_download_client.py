@@ -242,6 +242,18 @@ class ProgressTest(LLTestCase):
         self.assertEqual(args, ('NZBGet deleted it as a copy of a download it already has (DELETED/COPY)', '7',
                                 'NZBGET'))
 
+    def test_nzbget_unreachable(self):
+        # it used to abort every NZBGet download, as if NZBGet didn't have them
+        with mock.patch.object(download_client.nzbget, 'send_nzb', return_value=('', 'Connection refused')), \
+                mock.patch.object(download_client.database, 'DBConnection') as db:
+            self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (-2, False))
+        db.return_value.action.assert_not_called()
+        with mock.patch.object(download_client.nzbget, 'send_nzb', side_effect=[([], ''), ([], '')]), \
+                mock.patch.object(download_client.database, 'DBConnection') as db:
+            self.assertEqual(download_client.get_download_progress('NZBGET', '7'), (-1, False),
+                             'Reachable and without it')
+        self.assertIn("Status='Aborted'", db.return_value.action.call_args.args[0])
+
 
 class RemotePathTest(LLTestCase):
     """ Folders the clients report go through the remote path mappings, see test_services_remotepaths """
