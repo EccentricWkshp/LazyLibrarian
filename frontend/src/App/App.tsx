@@ -12,6 +12,13 @@ import { Alert } from 'Components/Misc';
 import Page from 'Components/Page/Page';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import BookIndex from 'Library/Books/BookIndex';
+import ComicDetails from 'Library/Comics/ComicDetails';
+import ComicIndex from 'Library/Comics/ComicIndex';
+import MagazineDetails from 'Library/Magazines/MagazineDetails';
+import MagazineIndex from 'Library/Magazines/MagazineIndex';
+import SeriesDetails from 'Library/Series/SeriesDetails';
+import SeriesIndex from 'Library/Series/SeriesIndex';
 import Backups from 'System/Backup/Backups';
 import Events from 'System/Events/Events';
 import LogFiles from 'System/LogFiles/LogFiles';
@@ -63,6 +70,14 @@ function App() {
               <Route path="/add/new" element={<AddNew />} />
               <Route path="/authors" element={<AuthorIndex />} />
               <Route path="/author/:authorId" element={<AuthorDetails />} />
+              <Route path="/books" element={<BookIndex key="ebook" mediaType="ebook" />} />
+              <Route path="/audio" element={<BookIndex key="audiobook" mediaType="audiobook" />} />
+              <Route path="/magazines" element={<MagazineIndex />} />
+              <Route path="/magazine" element={<MagazineDetails />} />
+              <Route path="/comics" element={<ComicIndex />} />
+              <Route path="/comic/:comicId" element={<ComicDetails />} />
+              <Route path="/series" element={<SeriesIndex />} />
+              <Route path="/series/:seriesId" element={<SeriesDetails />} />
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
               <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />

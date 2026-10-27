@@ -17,13 +17,13 @@ import {
 } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import TablePager from 'Components/Table/TablePager';
+import styles from 'Library/Library.module.css';
 import { Author } from 'typings/Author';
 import { api } from 'Utilities/api';
 import { formatDateTime, relativeDate } from 'Utilities/format';
 import { imageUrl } from 'Utilities/images';
 import { AUTHOR_STATUSES, setAuthorStatus, statusKind } from '../authors';
 import DeleteAuthorModal from '../DeleteAuthorModal';
-import styles from '../Author.module.css';
 
 type View = 'posters' | 'table';
 

@@ -5,10 +5,27 @@ import { urlBase } from 'Utilities/api';
 import styles from './Link.module.css';
 
 // the paths the front end has, anything else is one of the old pages
-const UI_PATHS = ['/activity', '/wanted', '/system', '/settings', '/add', '/authors', '/author'];
+const UI_PATHS = [
+  '/activity',
+  '/wanted',
+  '/system',
+  '/settings',
+  '/add',
+  '/authors',
+  '/author',
+  '/books',
+  '/audio',
+  '/magazines',
+  '/magazine',
+  '/comics',
+  '/comic',
+  '/series',
+];
 
 export function isUiPath(to: string) {
-  return UI_PATHS.some((path) => to === path || to.startsWith(`${path}/`));
+  const page = to.split(/[?#]/)[0];
+
+  return UI_PATHS.some((path) => page === path || page.startsWith(`${path}/`));
 }
 
 export interface LinkProps extends Omit<React.HTMLAttributes<HTMLElement>, 'onClick'> {

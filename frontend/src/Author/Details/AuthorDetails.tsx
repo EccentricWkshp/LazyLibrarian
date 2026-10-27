@@ -1,23 +1,12 @@
 // Sonarr's series details for an author: who they are, how much of them the library has, their
 // books with what's wanted of each as an eBook and an audiobook, and searching for them
 import { useQuery } from '@tanstack/react-query';
-import {
-  Bookmark,
-  BookmarkX,
-  ExternalLink,
-  RefreshCw,
-  Search,
-  SquarePen,
-  Trash2,
-  User,
-  UserSearch,
-} from 'lucide-react';
+import { ExternalLink, RefreshCw, Search, SquarePen, Trash2, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { runCommand } from 'App/commands';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
-import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator, ProgressBar } from 'Components/Misc';
 import PageContent from 'Components/Page/PageContent';
@@ -29,21 +18,14 @@ import {
   PageToolbarSeparator,
 } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
-import { InteractiveSearchModal } from 'InteractiveSearch/InteractiveSearch';
+import { BookSearchButtons, Format, FormatCell, FormatInfo, OWNED, shownFormats } from 'Library/BookFormats';
+import styles from 'Library/Library.module.css';
 import { AuthorBook, AuthorDetail } from 'typings/Author';
 import { api } from 'Utilities/api';
 import { formatDateTime } from 'Utilities/format';
 import { imageUrl } from 'Utilities/images';
 import { AUTHOR_STATUSES, setAuthorStatus, setBookStatus } from '../authors';
 import DeleteAuthorModal from '../DeleteAuthorModal';
-import styles from '../Author.module.css';
-
-type Format = 'ebook' | 'audiobook';
-
-const FORMATS: { format: Format; label: string; tab: 'ebook' | 'audio'; status: 'status' | 'audioStatus' }[] = [
-  { format: 'ebook', label: 'eBook', tab: 'ebook', status: 'status' },
-  { format: 'audiobook', label: 'Audiobook', tab: 'audio', status: 'audioStatus' },
-];
 
 const BOOK_FILTERS = [
   { key: 'shown', value: 'All but ignored' },
@@ -53,33 +35,8 @@ const BOOK_FILTERS = [
   { key: 'missing', value: 'Not in the library' },
 ];
 
-const OWNED = ['Open', 'Have'];
 // about this many characters show before More
 const ABOUT_SHOWN = 400;
-
-function shownFormats() {
-  const tabs = window.LazyLibrarian?.tabs ?? { ebook: true, audio: true, series: true, mag: true, comic: false };
-  const shown = FORMATS.filter((f) => tabs[f.tab]);
-
-  return shown.length ? shown : FORMATS.slice(0, 1);
-}
-
-function bookKind(status: string) {
-  if (OWNED.includes(status)) {
-    return 'success';
-  }
-
-  switch (status) {
-    case 'Wanted':
-      return 'danger';
-    case 'Snatched':
-      return 'purple';
-    case 'Ignored':
-      return 'default';
-    default:
-      return 'default';
-  }
-}
 
 function bookMatches(book: AuthorBook, filter: string, formats: Format[]) {
   const statuses = formats.map((format) => (format === 'ebook' ? book.status : book.audioStatus));
@@ -98,28 +55,6 @@ function bookMatches(book: AuthorBook, filter: string, formats: Format[]) {
   }
 }
 
-function FormatCell({ book, format }: { book: AuthorBook; format: (typeof FORMATS)[number] }) {
-  const status = book[format.status] || 'Skipped';
-  const fileFormat = format.format === 'ebook' ? book.ebookFormat : book.audioFormat;
-  const owned = OWNED.includes(status);
-  const wanted = status === 'Wanted';
-
-  return (
-    <TableRowCell className={styles.formatCell}>
-      <Label kind={bookKind(status)} title={book.scanResult || undefined}>
-        {owned && fileFormat ? fileFormat : status}
-      </Label>
-      {owned || status === 'Snatched' ? null : (
-        <IconButton
-          name={wanted ? BookmarkX : Bookmark}
-          title={wanted ? `Skip the ${format.label}` : `Want the ${format.label}`}
-          onPress={() => setBookStatus([book.id], [format.format], wanted ? 'Skipped' : 'Wanted')}
-        />
-      )}
-    </TableRowCell>
-  );
-}
-
 function BookRow({
   book,
   formats,
@@ -127,13 +62,10 @@ function BookRow({
   onSelectedChange,
 }: {
   book: AuthorBook;
-  formats: typeof FORMATS;
+  formats: FormatInfo[];
   isSelected: boolean;
   onSelectedChange: (isSelected: boolean) => void;
 }) {
-  const [searching, setSearching] = useState<Format | null>(null);
-  const wanted = formats.filter((f) => book[f.status] === 'Wanted').map((f) => f.format);
-
   return (
     <TableRow className={book.status === 'Ignored' && book.audioStatus === 'Ignored' ? styles.ignored : undefined}>
       <TableRowCell className={styles.select}>
@@ -148,7 +80,7 @@ function BookRow({
         {book.series.length ? (
           <div className={styles.series}>
             {book.series.map((series) => (
-              <Link key={series.id} to={`/series_members?seriesid=${encodeURIComponent(series.id)}`}>
+              <Link key={series.id} to={`/series/${encodeURIComponent(series.id)}`}>
                 {series.name}
                 {series.number ? ` #${series.number}` : ''}
               </Link>
@@ -161,47 +93,9 @@ function BookRow({
         <FormatCell key={format.format} book={book} format={format} />
       ))}
       <TableRowCell className={styles.actions}>
-        <IconButton
-          name={Search}
-          title={wanted.length ? 'Automatic Search' : 'Want it first to search for it'}
-          isDisabled={!wanted.length}
-          isSpinning={!!searching}
-          onPress={() => {
-            setSearching(wanted[0]);
-            runCommand(
-              'BookSearch',
-              { books: wanted.map((mediaType) => ({ bookId: book.id, mediaType })) },
-              `Search for ${book.title}`
-            ).finally(() => setSearching(null));
-          }}
-        />
-        <InteractiveSearchButton book={book} formats={formats} />
+        <BookSearchButtons book={book} formats={formats} />
       </TableRowCell>
     </TableRow>
-  );
-}
-
-function InteractiveSearchButton({ book, formats }: { book: AuthorBook; formats: typeof FORMATS }) {
-  const [format, setFormat] = useState<Format | null>(null);
-  // the format to look for: the wanted one, or the first that isn't in the library
-  const choice =
-    formats.find((f) => book[f.status] === 'Wanted') ??
-    formats.find((f) => !OWNED.includes(book[f.status])) ??
-    formats[0];
-
-  return (
-    <>
-      <IconButton name={UserSearch} title={`Interactive Search (${choice.label})`} onPress={() => setFormat(choice.format)} />
-      {format ? (
-        <InteractiveSearchModal
-          isOpen={true}
-          bookId={book.id}
-          mediaType={format}
-          title={book.title}
-          onModalClose={() => setFormat(null)}
-        />
-      ) : null}
-    </>
   );
 }
 

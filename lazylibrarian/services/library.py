@@ -11,13 +11,23 @@
 #  along with Lazylibrarian.  If not, see <http://www.gnu.org/licenses/>.
 
 """ The library as the front end's pages show it, like Sonarr's series pages: the authors, one
-author with their books, and changing what's wanted of them. The old pages' services do the work,
-this shapes it for /api/v1 """
+author with their books, the eBooks and audiobooks, magazines and comics with their issues, the
+series, and changing what's wanted of them. The old pages' services do the work, this shapes it
+for /api/v1 """
 
 import lazylibrarian
 from lazylibrarian import database, quality
 from lazylibrarian.formatter import check_float, check_int
-from lazylibrarian.services import InvalidRequestError, authors, books
+from lazylibrarian.services import (
+    InvalidRequestError,
+    NotFoundError,
+    authors,
+    books,
+    comics,
+    magazines,
+    series,
+)
+from lazylibrarian.services.paging import Page
 
 AUTHOR_STATUSES = authors.AUTHOR_STATUSES
 # what a book can be set to for a format
@@ -81,16 +91,13 @@ def author_books(author_id) -> list[dict]:
     finally:
         db.close()
 
-    def file_format(path, media_type) -> str:
-        return quality.name(quality.of_file(path, media_type)) if path else ''
-
     found = [{'id': row['BookID'], 'title': row['BookName'] or '', 'subtitle': row['BookSub'] or '',
               'release_date': row['BookDate'] or '', 'image': row['BookImg'] or '',
               'rating': check_float(row['BookRate'], 0), 'language': row['BookLang'] or '',
               'genres': row['BookGenre'] or '', 'pages': check_int(row['BookPages'], 0),
               'status': row['Status'] or '', 'audio_status': row['AudioStatus'] or '',
-              'ebook_format': file_format(row['BookFile'], 'ebook'),
-              'audio_format': file_format(row['AudioFile'], 'audiobook'),
+              'ebook_format': _file_format(row['BookFile'], 'ebook'),
+              'audio_format': _file_format(row['AudioFile'], 'audiobook'),
               'added': row['BookAdded'] or '', 'scan_result': row['ScanResult'] or '',
               'is_primary': row['AuthorID'] == author_id, 'series': series.get(row['BookID'], [])}
              for row in rows]
@@ -127,3 +134,219 @@ def set_book_status(book_ids: list, media_types: list[str], status: str) -> dict
     library = '+'.join(LIBRARIES[kind] for kind in media_types)
     result = books.mark_books(status, book_ids, library=library)
     return {'passed': result['passed'], 'failed': result['failed']}
+
+
+def _file_format(path, media_type) -> str:
+    return quality.name(quality.of_file(path, media_type)) if path else ''
+
+
+# --- eBooks and audiobooks
+
+# the list's sorts, by the columns list_books sorts on, the library's date by type
+BOOK_SORTS = {'title': 'TitleSort', 'author': 'AuthorSort', 'released': 'BookDate', 'rating': 'BookRate',
+              'added': {'ebook': 'BookLibrary', 'audiobook': 'AudioLibrary'}}
+# a book is listed in its library once it's more than skipped or ignored
+LISTED_STATUSES = ('Wanted', 'Snatched', 'Open', 'Have')
+
+
+def _series(text: str) -> list[dict]:
+    """ The series list_books gives, seriesid~name #number joined with ^ """
+    found = []
+    for part in (text or '').split('^'):
+        if '~' not in part:
+            continue
+        series_id, name = part.split('~', 1)
+        name, _, number = name.rpartition(' #') if ' #' in name else (name, '', '')
+        found.append({'id': series_id, 'name': name, 'number': number})
+    return found
+
+
+def list_books(media_type: str, status: str = '', search: str = '', sort: str = 'title', descending: bool = False,
+               offset: int = 0, limit: int | None = None) -> Page:
+    """ The eBooks or the audiobooks in the library, wanted, snatched or had, or those with a status,
+    one row a book, by its primary author """
+    if media_type not in LIBRARIES:
+        raise InvalidRequestError(f"The type is one of {', '.join(LIBRARIES)}")
+    if status and status not in LISTED_STATUSES + ('Skipped', 'Ignored'):
+        raise InvalidRequestError(f"The status is one of {', '.join(LISTED_STATUSES)}, Skipped or Ignored")
+    if sort not in BOOK_SORTS:
+        raise InvalidRequestError(f"Sort by one of {', '.join(BOOK_SORTS)}")
+    library = LIBRARIES[media_type]
+    sort_column = BOOK_SORTS[sort][media_type] if sort == 'added' else BOOK_SORTS[sort]
+    # sorted and searched by list_books, but a book written together is listed once for each author
+    if status:
+        found = books.list_books('Manage', library, status=status, search=search, sort=sort_column,
+                                 descending=descending, primary_only=True)
+    else:
+        found = books.list_books('Books' if media_type == 'ebook' else 'Audio', library, search=search,
+                                 sort=sort_column, descending=descending, primary_only=True)
+    db = database.DBConnection()
+    try:
+        files = {row['BookID']: dict(row) for row in db.select(
+            "SELECT BookID, AuthorID, BookFile, AudioFile FROM books WHERE Status IN ({0}) OR AudioStatus IN ({0})"
+            .format(','.join('?' * len(LISTED_STATUSES + (status,)))), (*LISTED_STATUSES, status) * 2)}
+    finally:
+        db.close()
+    rows = {}
+    for row in found.items:
+        book = files.get(row['BookID'], {})
+        # its own author's row, the first otherwise
+        if row['BookID'] not in rows or row['AuthorID'] == book.get('AuthorID'):
+            rows[row['BookID']] = row
+    unique = [row for row in found.items if rows.get(row['BookID']) is row]
+    page = unique[offset:offset + limit if limit else None]
+    column = 'Status' if media_type == 'ebook' else 'AudioStatus'
+    records = []
+    for row in page:
+        path = files.get(row['BookID'], {})
+        path = (path['BookFile'] if media_type == 'ebook' else path['AudioFile']) if path else ''
+        records.append({'id': row['BookID'], 'title': row['BookName'] or '', 'subtitle': row['BookSub'] or '',
+                        'author_id': row['AuthorID'] or '', 'author_name': row['AuthorName'] or '',
+                        'series': _series(row['series']), 'release_date': row['BookDate'] or '',
+                        'image': row['BookImg'] or '', 'rating': check_float(row['BookRate'], 0),
+                        'language': row['BookLang'] or '', 'status': row[column] or '',
+                        'format': _file_format(path, media_type),
+                        'added': (row['BookLibrary'] if media_type == 'ebook' else row['AudioLibrary']) or ''})
+    return Page(items=records, total=len(unique), matched=len(unique))
+
+
+# --- magazines
+
+
+def _magazine(row: dict) -> dict:
+    return {'title': row['Title'], 'status': row['Status'] or '', 'issues': check_int(row.get('Iss_Cnt'), 0),
+            'latest_issue': row['IssueDate'] or '', 'last_acquired': row['LastAcquired'] or '',
+            'cover': row['LatestCover'] or '', 'added': row['MagazineAdded'] or '',
+            'reject_words': row['Reject'] or '', 'language': row.get('Language') or '', 'genre': row.get('Genre') or ''}
+
+
+def list_magazines() -> list[dict]:
+    return [_magazine(row) for row in magazines.list_magazines(limit=None).items]
+
+
+def get_magazine(title: str) -> dict:
+    """ A magazine with its issues, newest first """
+    magazine = magazines.get_magazine(title)
+    issues = magazines.list_issues(magazine['Title'], limit=None).items
+    found = _magazine({**magazine, 'Iss_Cnt': len(issues)})
+    found['issue_list'] = [{'id': issue['IssueID'], 'date': issue['IssueDate'] or '',
+                            'acquired': issue['IssueAcquired'] or '', 'cover': issue['Cover'] or '',
+                            'format': _file_format(issue['IssueFile'], 'magazine')} for issue in issues]
+    return found
+
+
+def set_magazine_status(titles: list[str], status: str) -> int:
+    if status not in ('Active', 'Paused'):
+        raise InvalidRequestError('The status is Active or Paused')
+    passed, _failed = magazines.mark_magazines(status, titles)
+    return passed
+
+
+def delete_magazines(titles: list[str], delete_files: bool = False) -> int:
+    """ Forget magazines, deleting their issues' files too if delete_files """
+    passed, _failed = magazines.mark_magazines('Delete' if delete_files else 'Remove', titles)
+    return passed
+
+
+def delete_issues(issue_ids: list[str], delete_files: bool = False) -> int:
+    passed, _failed, _title = magazines.mark_issues('Delete' if delete_files else 'Remove', issue_ids)
+    return passed
+
+
+# --- comics
+
+
+def _comic(row: dict) -> dict:
+    return {'id': row['ComicID'], 'title': row['Title'] or '', 'status': row['Status'] or '',
+            'issues': check_int(row.get('Iss_Cnt'), 0), 'latest_issue': str(row['LatestIssue'] or ''),
+            'last_acquired': row['LastAcquired'] or '', 'cover': row['LatestCover'] or '',
+            'added': row['Added'] or '', 'publisher': row['Publisher'] or '', 'start': str(row['Start'] or ''),
+            'first': check_int(row['First'], 0), 'last': check_int(row['Last'], 0),
+            'overview': row.get('Description') or '', 'link': row['Link'] or ''}
+
+
+def list_comics() -> list[dict]:
+    return [_comic(row) for row in comics.list_comics(limit=None).items]
+
+
+def get_comic(comic_id: str) -> dict:
+    """ A comic with its issues, newest first """
+    comic = comics.get_comic(comic_id)
+    issues = comics.list_issues(comic_id, limit=None).items
+    found = _comic({**comic, 'Iss_Cnt': len(issues)})
+    found['issue_list'] = [{'id': str(issue['IssueID']), 'acquired': issue['IssueAcquired'] or '',
+                            'cover': issue['Cover'] or '', 'overview': issue.get('Description') or '',
+                            'format': _file_format(issue['IssueFile'], 'comic')} for issue in issues]
+    return found
+
+
+def set_comic_status(comic_ids: list[str], status: str) -> int:
+    if status not in ('Active', 'Paused'):
+        raise InvalidRequestError('The status is Active or Paused')
+    return comics.mark_comics(status, comic_ids)
+
+
+def delete_comics(comic_ids: list[str], delete_files: bool = False) -> int:
+    return comics.mark_comics('Delete' if delete_files else 'Remove', comic_ids)
+
+
+def delete_comic_issues(comic_id: str, issue_ids: list[str], delete_files: bool = False) -> int:
+    comics.mark_issues('Delete' if delete_files else 'Remove', [f"{comic_id}_{issue}" for issue in issue_ids])
+    return len(issue_ids)
+
+
+# --- series
+
+SERIES_STATUSES = series.SERIES_STATUSES
+
+
+def _one_series(row: dict) -> dict:
+    have, total = check_int(row['Have'], 0), check_int(row['Total'], 0)
+    return {'id': str(row['SeriesID']), 'name': row['SeriesName'] or '', 'status': row['Status'] or '',
+            'author_id': row['AuthorID'] or '', 'author_name': row['AuthorName'] or '', 'have': have,
+            'total': total, 'percent': min(have * 100 // total, 100) if total else 0,
+            'source': str(row['SeriesID'])[:2]}
+
+
+def list_series(status: str = 'All') -> list[dict]:
+    """ The series, by author and name; status one of theirs, or All """
+    return [_one_series(row) for row in series.list_series(status=status, limit=None).items]
+
+
+def get_series(series_id: str) -> dict:
+    """ A series with its books, in order, the ignored ones too """
+    found = series.series_page(series_id)
+    members = found['members'] + series.series_page(series_id, ignored=True)['members']
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT Status, Have, Total FROM series WHERE SeriesID=?', (series_id,))
+        ids = [member['BookID'] for member in members]
+        files = {r['BookID']: dict(r) for r in db.select(
+            f"SELECT BookID, BookFile, AudioFile, BookDate FROM books WHERE BookID IN ({','.join('?' * len(ids))})",
+            tuple(ids))} if ids else {}
+    finally:
+        db.close()
+    if not row:
+        raise NotFoundError(f'Series {series_id} not found')
+    result = _one_series({**found['series'], **dict(row)})
+
+    def number(member) -> float:
+        return check_float(member['SeriesNum'], 9999)
+
+    result['books'] = [{'id': m['BookID'], 'title': m['BookName'] or '', 'subtitle': m['BookSub'] or '',
+                        'number': m['SeriesNum'] or '', 'author_id': m['AuthorID'] or '',
+                        'author_name': m['AuthorName'] or '', 'image': m['BookImg'] or '',
+                        'release_date': (files.get(m['BookID']) or {}).get('BookDate') or '',
+                        'status': m['Status'] or '', 'audio_status': m['AudioStatus'] or '',
+                        'ebook_format': _file_format((files.get(m['BookID']) or {}).get('BookFile'), 'ebook'),
+                        'audio_format': _file_format((files.get(m['BookID']) or {}).get('AudioFile'), 'audiobook')}
+                       for m in sorted(members, key=number)]
+    return result
+
+
+def set_series_status(series_ids: list[str], status: str) -> int:
+    """ Wanted and Active look for the series' books and keep watching it, the others stop """
+    if status not in SERIES_STATUSES:
+        raise InvalidRequestError(f"The status is one of {', '.join(SERIES_STATUSES)}")
+    passed, _failed = series.mark_series(status, series_ids)
+    return passed

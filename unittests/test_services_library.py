@@ -79,6 +79,84 @@ class LibraryTest(LLTestCaseWithStartup):
             with self.subTest(status=status, kinds=kinds), self.assertRaises(InvalidRequestError):
                 library.set_book_status(['b3'], kinds, status)
 
+    def test_the_book_lists(self):
+        found = library.list_books('ebook')
+        self.assertEqual([(b['id'], b['status'], b['format']) for b in found.items],
+                         [('b1', 'Open', 'EPUB'), ('b4', 'Wanted', '')], 'Wanted, snatched or had, by title')
+        self.assertEqual(found.items[0]['series'], [{'id': 'OL1', 'name': 'Jack Reacher', 'number': '1'}])
+        self.assertEqual([b['id'] for b in library.list_books('audiobook').items], ['b2'])
+        self.assertEqual([b['id'] for b in library.list_books('ebook', status='Skipped').items], ['b2', 'b3'])
+        self.assertEqual([b['id'] for b in library.list_books('ebook', search='killing').items], ['b1'])
+        self.assertEqual([b['id'] for b in library.list_books('ebook', sort='released', descending=True).items],
+                         ['b4', 'b1'])
+        for args in (('comic',), ('ebook', 'Gone'), ('ebook', '', '', 'pages')):
+            with self.subTest(args), self.assertRaises(InvalidRequestError):
+                library.list_books(*args)
+
+    def test_magazines(self):
+        with DBConnection() as db:
+            db.action("DELETE FROM magazines")
+            db.action("INSERT INTO magazines (Title, Status, IssueDate, MagazineAdded, Reject) VALUES "
+                      "('Wired', 'Active', '2026-10', '2026-01-01', 'uk')")
+            db.action("INSERT INTO issues (Title, IssueID, IssueDate, IssueFile, IssueAcquired) VALUES "
+                      "('Wired', 'i1', '2026-10', '/mags/Wired 2026-10.pdf', '2026-10-05'), "
+                      "('Wired', 'i2', '2026-09', '', '2026-09-05')")
+        self.assertEqual([(m['title'], m['issues'], m['reject_words']) for m in library.list_magazines()],
+                         [('Wired', 2, 'uk')])
+        wired = library.get_magazine('wired')
+        self.assertEqual([(i['id'], i['format']) for i in wired['issue_list']], [('i1', 'PDF'), ('i2', '')])
+        self.assertEqual(library.set_magazine_status(['Wired'], 'Paused'), 1)
+        self.assertEqual(library.list_magazines()[0]['status'], 'Paused')
+        with self.assertRaises(InvalidRequestError):
+            library.set_magazine_status(['Wired'], 'Wanted')
+        self.assertEqual(library.delete_issues(['i2']), 1)
+        self.assertEqual(len(library.get_magazine('Wired')['issue_list']), 1)
+        library.delete_magazines(['Wired'])
+        self.assertEqual(library.list_magazines(), [])
+
+    def test_comics(self):
+        with DBConnection() as db:
+            db.action("DELETE FROM comics")
+            db.action("INSERT INTO comics (ComicID, Title, Status, Publisher, Start, First, Last) VALUES "
+                      "('CV1', 'Saga', 'Active', 'Image', '2012', 1, 54)")
+            db.action("INSERT INTO comicissues (ComicID, IssueID, IssueFile, IssueAcquired) VALUES "
+                      "('CV1', '1', '/comics/Saga 001.cbz', '2026-10-01'), ('CV1', '2', '', '2026-10-02')")
+        self.assertEqual([(c['id'], c['issues'], c['publisher']) for c in library.list_comics()], [('CV1', 2, 'Image')])
+        saga = library.get_comic('CV1')
+        self.assertEqual(sorted((i['id'], i['format']) for i in saga['issue_list']), [('1', 'CBZ'), ('2', '')])
+        self.assertEqual(library.set_comic_status(['CV1'], 'Paused'), 1)
+        library.delete_comic_issues('CV1', ['2'])
+        self.assertEqual(len(library.get_comic('CV1')['issue_list']), 1)
+
+    def test_series(self):
+        with DBConnection() as db:
+            db.action("INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES ('OL1', 'a1')")
+            db.action("UPDATE series SET Have=1, Total=2 WHERE SeriesID='OL1'")
+            db.action("INSERT INTO member (SeriesID, BookID, SeriesNum) VALUES ('OL1', 'b2', '2')")
+        found = library.list_series()
+        self.assertEqual([(s['id'], s['name'], s['author_name'], s['percent']) for s in found],
+                         [('OL1', 'Jack Reacher', 'Lee Child', 50)])
+        reacher = library.get_series('OL1')
+        self.assertEqual([(b['number'], b['title'], b['ebook_format']) for b in reacher['books']],
+                         [('1', 'Killing Floor', 'EPUB'), ('2', 'Die Trying', '')])
+        self.assertEqual(library.set_series_status(['OL1'], 'Paused'), 1)
+        self.assertEqual(library.list_series('Paused')[0]['status'], 'Paused')
+        with self.assertRaises(NotFoundError):
+            library.get_series('nothere')
+
+    def test_scan_now(self):
+        from lazylibrarian.services import system
+        with self.assertRaisesRegex(InvalidRequestError, 'The type is one of'):
+            system.scan_now('film')
+        saved = CONFIG.get_bool('AUDIO_TAB')
+        self.addCleanup(CONFIG.set_bool, 'AUDIO_TAB', saved)
+        CONFIG.set_bool('AUDIO_TAB', False)
+        with self.assertRaisesRegex(InvalidRequestError, 'switched off'):
+            system.scan_now('audiobook')
+        with mock.patch.object(system.magazinescan, 'magazine_scan') as scan:
+            self.assertEqual(system.scan_now('magazine', title='Wired'), 'Wired scan finished')
+        scan.assert_called_once_with('Wired')
+
     def test_author_status_and_removing(self):
         self.assertEqual(library.set_author_status(['a1', 'a2'], 'Paused'), 2)
         with self.assertRaises(InvalidRequestError):

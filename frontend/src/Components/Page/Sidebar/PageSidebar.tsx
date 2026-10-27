@@ -30,6 +30,8 @@ interface SidebarItem {
   to: string;
   isHidden?: boolean;
   statusComponent?: React.ElementType;
+  // other pages it's the one for, by how their path starts
+  under?: string;
   children?: SidebarChild[];
 }
 
@@ -67,9 +69,9 @@ function groups(): SidebarGroup[] {
         },
         { iconName: BookOpen, title: 'eBooks', to: '/books', isHidden: !tabs.ebook },
         { iconName: Headphones, title: 'Audiobooks', to: '/audio', isHidden: !tabs.audio },
-        { iconName: Library, title: 'Series', to: '/series', isHidden: !tabs.series },
-        { iconName: Newspaper, title: 'Magazines', to: '/magazines', isHidden: !tabs.mag },
-        { iconName: Layers, title: 'Comics', to: '/comics', isHidden: !tabs.comic },
+        { iconName: Library, title: 'Series', to: '/series', under: '/series/', isHidden: !tabs.series },
+        { iconName: Newspaper, title: 'Magazines', to: '/magazines', under: '/magazine', isHidden: !tabs.mag },
+        { iconName: Layers, title: 'Comics', to: '/comics', under: '/comic/', isHidden: !tabs.comic },
         { iconName: ListChecks, title: 'Manage', to: '/manage' },
         {
           iconName: TriangleAlert,
@@ -150,7 +152,7 @@ function PageSidebar() {
                     iconName={item.iconName}
                     title={item.title}
                     to={item.to}
-                    isActive={pathname === item.to && !item.children}
+                    isActive={!item.children && isChildActive(item, pathname)}
                     isActiveParent={isActiveParent}
                     statusComponent={item.statusComponent}
                   >

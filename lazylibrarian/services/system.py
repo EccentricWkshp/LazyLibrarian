@@ -110,6 +110,37 @@ def start_library_scan(library: str) -> bool:
     return start_task(f"{library.upper()}_SCAN", library_scan, None, library, None, CONFIG.get_bool('FULL_SCAN'))
 
 
+def scan_now(media_type: str, title: str = '', comic_id: str = '') -> str:
+    """ Scan a library now, as Library Scan does, and wait for it to finish: the eBook or audiobook
+    library, the magazines (one if title) or the comics (one if comic_id). Its thread has the name
+    the old pages give it, so one already running isn't started again. Returns what it did """
+    from lazylibrarian import comicscan  # noqa: PLC0415, it imports most of LazyLibrarian
+    libraries = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
+    if media_type in libraries:
+        library = libraries[media_type]
+        if library not in book_libraries():
+            raise InvalidRequestError(f"The {library} library is switched off")
+        name, target, args = f"{library.upper()}_SCAN", library_scan, (None, library, None,
+                                                                        CONFIG.get_bool('FULL_SCAN'))
+        label = 'eBook library' if media_type == 'ebook' else 'Audiobook library'
+    elif media_type == 'magazine':
+        name, target, args = (f'MAGAZINE_SCAN_{title}', magazinescan.magazine_scan, (title,)) if title else \
+            ('MAGAZINE_SCAN', magazinescan.magazine_scan, ())
+        label = title or 'Magazine library'
+    elif media_type == 'comic':
+        name, target, args = (f'COMICSCAN_{comic_id}', comicscan.comic_scan, (comic_id,)) if comic_id else \
+            ('COMICSCAN', comicscan.comic_scan, ())
+        label = 'Comic' if comic_id else 'Comic library'
+    else:
+        raise InvalidRequestError('The type is one of ebook, audiobook, magazine or comic')
+    if is_running(name):
+        raise InvalidRequestError(f"A scan of the {label} is running already")
+    scan = threading.Thread(target=target, name=name, args=args)
+    scan.start()
+    scan.join()
+    return f"{label} scan finished"
+
+
 def start_alternate_scan(library: str = 'eBook') -> bool:
     """ Scan the alternate folder for books to add to a library """
     return start_task('ALT-LIBRARYSCAN', library_scan, CONFIG['ALTERNATE_DIR'], library, None, False)

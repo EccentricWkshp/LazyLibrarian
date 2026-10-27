@@ -249,6 +249,74 @@
   white-space: nowrap;
 }
 
+.posterFooter {
+  padding: 4px 8px 0;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize, 12px);
+  text-align: center;
+}
+
+/* a magazine's or comic's issues, as covers */
+.issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 15px;
+}
+
+.issue {
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--cardBackgroundColor, var(--inputBackgroundColor));
+  box-shadow: 0 0 10px rgb(0 0 0 / 30%);
+}
+
+.issueCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 2 / 3;
+  background: var(--borderColor);
+  color: var(--inkMuted);
+
+  & img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.issueInfo {
+  padding: 6px 8px 8px;
+}
+
+.issueDate {
+  font-weight: 500;
+}
+
+.issueMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+
+  & a {
+    color: var(--inkMuted);
+  }
+}
+
+.coverCell {
+  width: 40px;
+  color: var(--inkMuted);
+
+  & img {
+    display: block;
+    width: 28px;
+    height: 42px;
+    border-radius: 2px;
+    object-fit: cover;
+  }
+}
+
 .ignored {
   opacity: 0.55;
 }

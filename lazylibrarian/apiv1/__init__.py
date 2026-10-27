@@ -24,6 +24,7 @@ from lazylibrarian.apiv1 import (
     events,
     health,
     history,
+    library,
     log,
     manualimport,
     notification,
@@ -49,6 +50,7 @@ router.include_router(remotepathmapping.router)
 router.include_router(notification.router)
 router.include_router(addnew.router)
 router.include_router(author.router)
+router.include_router(library.router)
 
 
 @router.api_route('/{path:path}', methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], include_in_schema=False)

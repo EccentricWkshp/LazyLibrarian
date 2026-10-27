@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { CheckInput, FormInputHelpText, FormRow } from 'Components/Form/Form';
 import Button from 'Components/Link/Button';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
+import styles from 'Library/Library.module.css';
 import { deleteAuthors } from './authors';
-import styles from './Author.module.css';
 
 interface DeleteAuthorModalProps {
   isOpen: boolean;

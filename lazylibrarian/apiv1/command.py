@@ -46,6 +46,9 @@ class CommandIn(ApiModel):
     source: str = ''
     monitor: str = 'new'
     media_types: list[str] = []
+    media_type: str = ''
+    title: str = ''
+    comic_id: str = ''
     search: bool = False
 
 
@@ -72,7 +75,9 @@ def start(command: CommandIn):
     new wants them as the settings say, all wants every one as mediaTypes (ebook, audiobook), none
     pauses the author; search searches for the ones wanted. AddBook adds a book from /lookup
     (bookId, source, authorId) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
-    (bookId) fetch their details again. AuthorSearch searches for an author's (authorId) wanted books """
+    (bookId) fetch their details again. AuthorSearch searches for an author's (authorId) wanted books.
+    LibraryScan scans a library (mediaType ebook, audiobook, magazine or comic), one magazine (title)
+    or comic (comicId) """
     return commands.start(command.name, command.model_dump())
 
 

@@ -12,17 +12,18 @@ const POLL = 5000;
 // what to ask for again when a command is done, as it changes them
 const CHANGES: Record<string, string[][]> = {
   ManualImport: [['queue'], ['manualimport'], ['wanted']],
-  BookSearch: [['queue'], ['wanted'], ['author']],
+  BookSearch: [['queue'], ['wanted'], ['author'], ['library']],
   MissingBookSearch: [['queue'], ['wanted']],
   ClearBlocklist: [['blocklist']],
-  RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update']],
+  RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update'], ['library'], ['author']],
   Backup: [['backups']],
   CutoffUnmetSearch: [['queue'], ['wanted']],
   AddAuthor: [['lookup'], ['wanted'], ['author']],
-  AddBook: [['lookup'], ['wanted'], ['author']],
+  AddBook: [['lookup'], ['wanted'], ['author'], ['library']],
   RefreshAuthor: [['lookup'], ['wanted'], ['author']],
   AuthorSearch: [['queue'], ['wanted'], ['author']],
-  RefreshBook: [['lookup'], ['wanted'], ['author']],
+  RefreshBook: [['lookup'], ['wanted'], ['author'], ['library']],
+  LibraryScan: [['library'], ['author'], ['wanted']],
 };
 
 function isDone(command: Command) {

@@ -42,6 +42,13 @@ SIGNATURES = {
               "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||COUNT(*) AS c FROM authors GROUP BY Status)),"
               "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||'/'||AudioStatus||COUNT(*) AS c FROM books "
               "GROUP BY Status, AudioStatus))",
+    # the library pages: the books by status, the magazines, comics and their issues, the series
+    'library': "SELECT (SELECT GROUP_CONCAT(c) FROM (SELECT Status||'/'||AudioStatus||COUNT(*) AS c FROM books "
+               "GROUP BY Status, AudioStatus)),"
+               "(SELECT COUNT(*)||GROUP_CONCAT(Status) FROM magazines),(SELECT COUNT(*) FROM issues),"
+               "(SELECT COUNT(*)||GROUP_CONCAT(Status) FROM comics),(SELECT COUNT(*) FROM comicissues),"
+               "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||COUNT(*)||'/'||TOTAL(Have) AS c FROM series "
+               "GROUP BY Status))",
 }
 
 _subscribers: set[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = set()
