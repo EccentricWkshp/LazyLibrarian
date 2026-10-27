@@ -638,9 +638,10 @@ def clean_title(title: str) -> tuple[str, str | None]:
     return ' '.join('and' if word in ('&', '+') else word for word in title.split()), reject
 
 
-def add_magazine(title: str) -> tuple[str, bool]:
+def add_magazine(title: str, search: bool | None = None) -> tuple[str, bool]:
     """ Add a magazine, title may end with ~ and words that rule out a search result. Searches for it straight
-        away if IMP_AUTOSEARCH is set. Returns (the title as stored, whether it's new) """
+        away if search, or if IMP_AUTOSEARCH is set when search is None. Returns (the title as stored,
+        whether it's new, the one there is if not) """
     logger = logging.getLogger(__name__)
     title, reject = clean_title(title)
     db = database.DBConnection()
@@ -648,13 +649,13 @@ def add_magazine(title: str) -> tuple[str, bool]:
         exists = db.match('SELECT * from magazines WHERE Title=? COLLATE NOCASE', (title,))
         if exists:
             logger.debug(f"Magazine {title} already exists ({exists['Title']})")
-            return title, False
+            return exists['Title'], False
         db.upsert("magazines", {"Reject": reject, "Genre": "", "DateType": "", "Status": "Active",
                                 "MagazineAdded": today(), "LastAcquired": None, "LatestCover": None,
                                 "IssueDate": None, "IssueStatus": "Wanted", "Regex": None, "CoverPage": 1,
                                 "Language": CONFIG['PREF_MAGLANG']}, {"Title": title})
     finally:
         db.close()
-    if CONFIG.get_bool('IMP_AUTOSEARCH'):
+    if CONFIG.get_bool('IMP_AUTOSEARCH') if search is None else search:
         start_search([{"bookid": title}])
     return title, True

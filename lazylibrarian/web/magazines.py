@@ -419,7 +419,10 @@ class MagazinePages(BasePages):
         if not title or title == 'None':
             raise cherrypy.HTTPRedirect("magazines")
         self.validate_param("magazine title", title, ['<', '>', '='], 404)
-        magazines.add_magazine(title)
+        stored, new = magazines.add_magazine(title)
+        if not new:
+            # it was there already, show it
+            raise cherrypy.HTTPRedirect(f"magazines?mag_filter={quote(stored)}")
         if kwargs.get('magfilter'):
             raise cherrypy.HTTPRedirect("magazines?mag_filter=" + kwargs.get('magfilter'))
         raise cherrypy.HTTPRedirect("magazines")

@@ -141,7 +141,7 @@ class MagazineServiceTest(LLTestCaseWithDB):
     def test_add_magazine(self):
         self.assertEqual(magazines.clean_title('Rock & Roll + More ~ digest, special'),
                          ('Rock and Roll and More', 'digest, special'))
-        self.assertEqual(magazines.add_magazine('wired'), ('wired', False))
+        self.assertEqual(magazines.add_magazine('wired'), ('Wired', False), 'The one there is')
         self.assertEqual(magazines.add_magazine('Rock & Roll ~ digest'), ('Rock and Roll', True))
         self.assertEqual(self.sql("SELECT Reject,Status FROM magazines WHERE Title='Rock and Roll'")[0],
                          {'Reject': 'digest', 'Status': 'Active'})
