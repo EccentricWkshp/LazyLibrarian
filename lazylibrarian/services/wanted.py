@@ -159,7 +159,7 @@ def search_upgrades(books: list[dict], progress=None) -> tuple[int, str]:
     from lazylibrarian.searchmag import search_magazines
 
     if not CONFIG.total_active_providers():
-        raise InvalidRequestError('No search providers are enabled, add one in Settings, Providers')
+        raise InvalidRequestError('No search providers are enabled, add one in Settings, Indexers')
     if any(book.get('media_type') not in MEDIA_TYPES for book in books):
         raise InvalidRequestError(f"The type is one of {', '.join(MEDIA_TYPES)}")
     wanted = books or [{'book_id': record['book_id'], 'media_type': record['media_type']}
@@ -271,7 +271,7 @@ def search_books(books: list[dict], progress=None) -> tuple[int, str]:
     """ The automatic search for these items, [{'book_id', 'media_type'}], or for everything wanted
     when there are none. Returns how many it found and sent to a download client, and a message """
     if not CONFIG.total_active_providers():
-        raise InvalidRequestError('No search providers are enabled, add one in Settings, Providers')
+        raise InvalidRequestError('No search providers are enabled, add one in Settings, Indexers')
     if any(book.get('media_type') not in MEDIA_TYPES for book in books):
         raise InvalidRequestError(f"The type is one of {', '.join(MEDIA_TYPES)}")
     last = _last_download()

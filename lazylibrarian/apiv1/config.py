@@ -49,6 +49,12 @@ class Choices(ApiModel):
     issue_date_formats: list[Choice]
     book_statuses: list[str]
     owner: str
+    # a language's value is its codes
+    book_languages: list[Choice]
+    countries: list[Choice]
+    magazine_languages: list[Choice]
+    date_languages: list[str]
+    special_logs: list[Choice]
 
 
 class ConfigChange(ApiModel):
@@ -58,6 +64,37 @@ class ConfigChange(ApiModel):
 
 class Saved(ApiModel):
     messages: list[str]
+
+
+class ConfigKeys(ApiModel):
+    keys: list[str]
+
+
+class ListItem(ApiModel):
+    index: int
+    # its section, like newznab_0
+    name: str
+    values: list[ConfigValue]
+
+
+class SavedItem(ListItem):
+    messages: list[str]
+
+
+class ConfigTest(ApiModel):
+    # the connection: a download client, notifier, indexer or tool, or a list's item
+    test: str = ''
+    values: dict[str, Any]
+    list_name: str = ''
+    # a list's item, none for a new one
+    index: int | None = None
+
+
+class TestResult(ApiModel):
+    ok: bool
+    message: str
+    # a list's item tested, added if it was new and worked
+    index: int | None = None
 
 
 class ApiKeyIn(ApiModel):
@@ -84,6 +121,48 @@ def get_choices():
 def save(change: ConfigChange, request: Request):
     """ Change settings and save them. messages says what wasn't changed, and why """
     return {'messages': settings.save_values(change.values, keep_token=request.cookies.get(SESSION_COOKIE))}
+
+
+@router.post('/reset', response_model=Saved)
+def reset(which: ConfigKeys):
+    """ Put settings back to their defaults, as for a download client or notifier taken out """
+    settings.reset_values(which.keys)
+    return {'messages': []}
+
+
+@router.post('/test', response_model=TestResult)
+def test(testing: ConfigTest):
+    """ Test a connection with these settings. If it works they're saved, as the old settings page did,
+    a new item of a list is added; if not they're put back """
+    return settings.run_test(testing.test, testing.values, testing.list_name, testing.index)
+
+
+@router.get('/list/{name}', response_model=list[ListItem])
+def list_items(name: str):
+    """ A list's items: NEWZNAB, TORZNAB, RSS, IRC, GEN or APPRISE """
+    return settings.array_items(name)
+
+
+@router.get('/list/{name}/schema', response_model=list[ConfigValue])
+def item_schema(name: str):
+    """ A new item's settings, as their defaults """
+    return settings.array_schema(name)
+
+
+@router.post('/list/{name}', response_model=SavedItem, status_code=201)
+def add_item(name: str, change: ConfigChange):
+    return settings.save_array_item(name, change.values)
+
+
+@router.put('/list/{name}/{index}', response_model=SavedItem)
+def change_item(name: str, index: int, change: ConfigChange):
+    return settings.save_array_item(name, change.values, index)
+
+
+@router.delete('/list/{name}/{index}', response_model=Saved)
+def delete_item(name: str, index: int):
+    settings.delete_array_item(name, index)
+    return {'messages': []}
 
 
 @router.post('/apikey', response_model=ApiKey)

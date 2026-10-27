@@ -72,6 +72,20 @@ export function TextInput({ className, onChange, ...otherProps }: TextInputProps
   );
 }
 
+interface TextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> {
+  onChange: (value: string) => void;
+}
+
+export function TextArea({ className, onChange, ...otherProps }: TextAreaProps) {
+  return (
+    <textarea
+      className={classNames(styles.input, styles.textArea, className)}
+      onChange={(event) => onChange(event.target.value)}
+      {...otherProps}
+    />
+  );
+}
+
 interface CheckInputProps {
   checked: boolean;
   isIndeterminate?: boolean;

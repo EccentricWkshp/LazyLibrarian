@@ -25,7 +25,7 @@ from lazylibrarian.comicid import comic_metadata, cv_identify, cv_issue, cx_iden
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     DIRS,
-    get_directory,
+    issue_folder,
     path_isfile,
     setperm,
     splitext,
@@ -58,8 +58,7 @@ def comic_scan(comicid=None):
         while '$' in mag_path:
             mag_path = os.path.dirname(mag_path)
 
-        if CONFIG.get_bool('COMIC_RELATIVE'):
-            mag_path = os.path.join(get_directory('eBook'), mag_path)
+        mag_path = issue_folder('comic', mag_path)
 
         if CONFIG.get_bool('FULL_SCAN') and not onetitle:
             cmd = ("select Title,IssueID,IssueFile,comics.ComicID from comics,comicissues "

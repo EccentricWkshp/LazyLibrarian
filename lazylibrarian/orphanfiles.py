@@ -3,7 +3,7 @@ import os
 
 from lazylibrarian import database
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.filesystem import book_file, get_directory
+from lazylibrarian.filesystem import book_file, get_directory, issue_folder
 
 
 def list_orphan_books():
@@ -79,9 +79,7 @@ def list_orphan_audio():
 
 def list_orphan_comics():
     logger = logging.getLogger(__name__)
-    startdir = CONFIG['COMIC_DEST_FOLDER']
-    if CONFIG.get_bool('COMIC_RELATIVE'):
-        startdir = os.path.join(get_directory('eBook'), startdir)
+    startdir = issue_folder('comic', CONFIG['COMIC_DEST_FOLDER'])
     startdir = startdir.split('$')[0]
     db = database.DBConnection()
     logger.debug(f"Counting directories: {startdir}")
@@ -109,9 +107,7 @@ def list_orphan_comics():
 
 def list_orphan_magazines():
     logger = logging.getLogger(__name__)
-    startdir = CONFIG['MAG_DEST_FOLDER']
-    if CONFIG.get_bool('MAG_RELATIVE'):
-        startdir = os.path.join(get_directory('eBook'), startdir)
+    startdir = issue_folder('magazine', CONFIG['MAG_DEST_FOLDER'])
     startdir = startdir.split('$')[0]
     db = database.DBConnection()
     logger.debug(f"Counting directories: {startdir}")

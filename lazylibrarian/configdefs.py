@@ -225,6 +225,9 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigFolder('PostProcess', 'RECYCLE_BIN', ''),
     ConfigStr('General', 'EBOOK_DIR', ''),
     ConfigStr('General', 'AUDIO_DIR', ''),
+    # a magazine's and a comic's own library folder, the eBook library's when empty
+    ConfigStr('General', 'MAG_DIR', ''),
+    ConfigStr('General', 'COMIC_DIR', ''),
     ConfigStr('General', 'ALTERNATE_DIR', ''),
     ConfigStr('General', 'TESTDATA_DIR', ''),
     ConfigBool('General', 'DELETE_CSV', 0),

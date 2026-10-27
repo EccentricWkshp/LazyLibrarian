@@ -1,0 +1,20 @@
+/* From Sonarr's Settings page */
+
+.section {
+  margin-bottom: 20px;
+}
+
+.link {
+  color: var(--ink);
+  font-size: 21px;
+
+  &:hover {
+    color: var(--linkHoverColor, var(--accentDeep));
+    text-decoration: none;
+  }
+}
+
+.summary {
+  margin-top: 4px;
+  color: var(--helpTextColor);
+}

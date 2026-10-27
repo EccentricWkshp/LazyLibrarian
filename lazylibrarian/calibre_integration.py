@@ -41,6 +41,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     book_file,
     get_directory,
+    issue_folder,
     listdir,
     path_isdir,
     path_isfile,
@@ -398,13 +399,9 @@ def send_to_calibre(booktype, global_name, folder, data):
                 res = f"{{ {res.split('{')[1].split('}')[0]} }}"
                 res = json.loads(res)
                 if booktype == "magazine":
-                    dest_dir = CONFIG["MAG_DEST_FOLDER"]
-                    if CONFIG.get_bool("MAG_RELATIVE"):
-                        dest_dir = os.path.join(get_directory("eBook"), dest_dir)
+                    dest_dir = issue_folder("magazine", CONFIG["MAG_DEST_FOLDER"])
                 elif booktype == "comic":
-                    dest_dir = CONFIG["COMIC_DEST_FOLDER"]
-                    if CONFIG.get_bool("COMIC_RELATIVE"):
-                        dest_dir = os.path.join(get_directory("eBook"), dest_dir)
+                    dest_dir = issue_folder("comic", CONFIG["COMIC_DEST_FOLDER"])
 
                 while "$" in dest_dir:
                     dest_dir = os.path.dirname(dest_dir)

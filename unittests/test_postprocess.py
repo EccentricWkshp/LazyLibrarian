@@ -590,6 +590,31 @@ class PostprocessMetadataTest(LLTestCaseWithStartup):
         finally:
             db.close()
 
+    def test_issues_go_to_their_library_folder(self):
+        """A magazine or comic with a library folder of its own is imported there"""
+        for key in ('MAG_DIR', 'COMIC_DIR', 'MAG_DEST_FOLDER', 'COMIC_DEST_FOLDER'):
+            self.addCleanup(setattr, CONFIG.config[key], 'value', CONFIG.config[key].value)
+        library = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, library, True)
+        CONFIG.set_str('MAG_DIR', os.path.join(library, 'mags'))
+        CONFIG.set_str('COMIC_DIR', os.path.join(library, 'comics'))
+        CONFIG.set_str('MAG_DEST_FOLDER', '$Title/$IssueDate')
+        CONFIG.set_str('COMIC_DEST_FOLDER', '$Title/$Issue')
+        db = DBConnection()
+        try:
+            db.action("INSERT INTO magazines (Title) VALUES ('Folder Test Mag')")
+            db.action("INSERT INTO comics (ComicID, Title, Publisher) VALUES ('CV999', 'Folder Test Comic', 'Pub')")
+            db.action("INSERT INTO comicissues (ComicID, IssueID, IssueAcquired) VALUES ('CV999', '12', '2025-02-03')")
+            magazine = prepare_magazine_metadata('Folder Test Mag', '2025-01-01', db)
+            comic = prepare_comic_metadata('CV999_12', db)
+            db.action("DELETE FROM magazines WHERE Title='Folder Test Mag'")
+            db.action("DELETE FROM comics WHERE ComicID='CV999'")
+        finally:
+            db.close()
+        self.assertEqual(comic.issue_acquired, '2025-02-03', "The issue's own details are read")
+        self.assertEqual(magazine.dest_path, os.path.join(library, 'mags', 'Folder Test Mag', '2025-01-01'))
+        self.assertEqual(comic.dest_path, os.path.join(library, 'comics', 'Folder Test Comic', '12'))
+
 
 class PostprocessFileOperationsTest(LLTestCaseWithStartup):
     """Test file operation helper functions"""

@@ -49,6 +49,12 @@
   cursor: pointer;
 }
 
+.textArea {
+  min-height: 100px;
+  font-family: inherit;
+  resize: vertical;
+}
+
 .check {
   width: 16px;
   height: 16px;

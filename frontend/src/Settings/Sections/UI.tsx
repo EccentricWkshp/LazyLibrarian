@@ -70,6 +70,9 @@ const GROUPS: Group[] = [
       },
       { key: 'BOOKSTRAP_THEME', label: 'Theme', input: 'select', choices: 'themes', help: 'A dark one makes these pages dark too' },
       { key: 'DISPLAYLENGTH', label: 'Rows a page', advanced: true },
+      { key: 'MAX_WALL', label: 'Covers on a cover wall', help: '0 for all', advanced: true },
+      { key: 'MAG_SINGLE', label: "Open a magazine's only issue", help: "Instead of its issues' page", advanced: true },
+      { key: 'COMIC_SINGLE', label: "Open a comic's only issue", advanced: true },
     ],
   },
 ];

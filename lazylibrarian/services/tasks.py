@@ -23,6 +23,12 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import thread_name
 from lazylibrarian.services import InvalidRequestError, NotFoundError
 
+# the tasks that only run when asked, by the command that runs them: (their name, the name their runs
+# are under in the jobs table, what they do)
+MANUAL = {'RefreshLanguages': ('Refresh Book Languages', 'LANGREFRESH',
+                               "Looks again at the language of books whose language is unknown or might be "
+                               "wrong, and stops ignoring the ones that turn out to be in a preferred language")}
+
 
 def _when(seconds) -> str | None:
     """ A time in the jobs table, seconds since the epoch, as an ISO date with its offset """
@@ -45,7 +51,7 @@ def _why_not(scheduler) -> str:
         return f"{scheduler.friendly_name} is switched off in Settings"
     if not CONFIG.scheduler_can_run(scheduler):
         if scheduler.needs_provider and not CONFIG.use_any():
-            return f"{scheduler.friendly_name} needs a download provider, add one in Settings, Providers"
+            return f"{scheduler.friendly_name} needs a download provider, add one in Settings, Indexers"
         return f"{scheduler.friendly_name} is switched off in Settings"
     return ''
 
@@ -84,6 +90,25 @@ def list_tasks() -> list[dict]:
                       if job and job.next_run_time else None,
                       'is_running': running, 'disabled_reason': _why_not(scheduler)})
     return sorted(tasks, key=lambda task: task['task_name'].lower())
+
+
+def list_manual_tasks() -> list[dict]:
+    """ The tasks that only run when asked, by their command, with when they last did """
+    db = database.DBConnection()
+    try:
+        runs = {row['Name']: row for row in db.select('SELECT Name,Start,Finish FROM jobs')}
+    finally:
+        db.close()
+    found = []
+    for command, (name, run_name, description) in MANUAL.items():
+        row = runs.get(run_name)
+        start = row['Start'] if row else None
+        finish = row['Finish'] if row else None
+        found.append({'command': command, 'task_name': name, 'description': description,
+                      'last_start_time': _when(start), 'last_execution': _when(finish),
+                      'last_duration': round(finish - start, 1) if start and finish and finish >= start else None,
+                      'is_running': any(t.name == run_name for t in threading.enumerate())})
+    return found
 
 
 def _scheduler(name: str):

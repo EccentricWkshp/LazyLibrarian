@@ -24,6 +24,7 @@ const CHANGES: Record<string, string[][]> = {
   AuthorSearch: [['queue'], ['wanted'], ['author']],
   RefreshBook: [['lookup'], ['wanted'], ['author'], ['library']],
   LibraryScan: [['library'], ['author'], ['wanted']],
+  RefreshLanguages: [['tasks'], ['library'], ['author'], ['wanted']],
 };
 
 function isDone(command: Command) {

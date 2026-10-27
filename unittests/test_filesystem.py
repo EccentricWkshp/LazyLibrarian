@@ -168,6 +168,26 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
         faultydir = get_directory("This is invalid")
         self.assertEqual(faultydir, "")
 
+    def test_issue_folder(self):
+        # magazines and comics go below their own library folder, or the eBook library's without one
+        config = DIRS.config
+        for key in ('MAG_DIR', 'COMIC_DIR', 'MAG_RELATIVE', 'COMIC_RELATIVE'):
+            self.addCleanup(setattr, config.config[key], 'value', config.config[key].value)
+        config.set_str('MAG_DIR', '')
+        config.set_bool('MAG_RELATIVE', True)
+        self.assertEqual(filesystem.issue_folder('magazine', '_Magazines/$Title'),
+                         os.path.join(get_directory('eBook'), '_Magazines/$Title'))
+        config.set_bool('MAG_RELATIVE', False)
+        self.assertEqual(filesystem.issue_folder('magazine', '/mags/$Title'), '/mags/$Title',
+                         'Without a library folder or relative, the pattern is a full path')
+        mags = get_directory('Testdata')
+        config.set_str('MAG_DIR', mags)
+        self.assertEqual(get_directory('Magazine'), mags)
+        self.assertEqual(filesystem.issue_folder('magazine', '$Title'), os.path.join(mags, '$Title'),
+                         'Its own folder is used whatever MAG_RELATIVE says')
+        config.set_str('COMIC_DIR', '')
+        self.assertEqual(get_directory('Comic'), get_directory('eBook'))
+
     @unittest.skipUnless(sys.platform == 'win32', 'This test is only for Windows')
     def test_get_directory_cannot_be_valid(self):
         # Test the get_directory() function for invalid paths

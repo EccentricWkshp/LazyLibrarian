@@ -1,5 +1,5 @@
 // Sonarr's System, Tasks: the scheduled tasks, how often each runs and when it last and next
-// does, to run one now, and the queue of commands with how each ended
+// does, to run one now, the tasks that only run when asked, and the queue of commands with how each ended
 import { useQuery } from '@tanstack/react-query';
 import { Check, Clock, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { useState } from 'react';
@@ -11,7 +11,7 @@ import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import { Command } from 'typings/InteractiveImport';
-import { Task } from 'typings/System';
+import { ManualTask, Task } from 'typings/System';
 import { api } from 'Utilities/api';
 import { formatDateTime, formatDuration, formatInterval, parseDate, relativeDate } from 'Utilities/format';
 import styles from './Tasks.module.css';
@@ -25,6 +25,13 @@ const TASK_COLUMNS: Column[] = [
   { name: 'lastExecution', label: 'Last Execution' },
   { name: 'lastDuration', label: 'Last Duration' },
   { name: 'nextExecution', label: 'Next Execution' },
+  { name: 'actions', label: 'Actions', isVisuallyHidden: true },
+];
+
+const MANUAL_COLUMNS: Column[] = [
+  { name: 'name', label: 'Name' },
+  { name: 'lastExecution', label: 'Last Execution' },
+  { name: 'lastDuration', label: 'Last Duration' },
   { name: 'actions', label: 'Actions', isVisuallyHidden: true },
 ];
 
@@ -70,6 +77,34 @@ function TaskRow({ task }: { task: Task }) {
   );
 }
 
+function ManualTaskRow({ task }: { task: ManualTask }) {
+  const [isStarting, setIsStarting] = useState(false);
+
+  return (
+    <TableRow>
+      <TableRowCell>
+        {task.taskName}
+        <div className={styles.reason}>{task.description}</div>
+      </TableRowCell>
+      <TableRowCell className={styles.nowrap} title={task.lastExecution ? formatDateTime(task.lastExecution) : ''}>
+        {task.isRunning ? 'Running' : task.lastExecution ? relativeDate(task.lastExecution) : 'Never'}
+      </TableRowCell>
+      <TableRowCell className={styles.nowrap}>{formatDuration(task.lastDuration)}</TableRowCell>
+      <TableRowCell className={styles.actions}>
+        <IconButton
+          name={RefreshCw}
+          title="Execute"
+          isSpinning={isStarting || task.isRunning}
+          onPress={() => {
+            setIsStarting(true);
+            runCommand(task.command, {}, task.taskName).finally(() => setIsStarting(false));
+          }}
+        />
+      </TableRowCell>
+    </TableRow>
+  );
+}
+
 function CommandStatus({ command }: { command: Command }) {
   if (command.status === 'completed') {
     return <Icon name={Check} kind="success" title="Completed" />;
@@ -104,6 +139,11 @@ function Tasks() {
     queryFn: () => api<Task[]>('/system/task'),
     refetchInterval: REFRESH,
   });
+  const manualList = useQuery({
+    queryKey: ['tasks', 'manual'],
+    queryFn: () => api<ManualTask[]>('/system/task/manual'),
+    refetchInterval: REFRESH,
+  });
   const commandList = useQuery({
     queryKey: ['commands'],
     queryFn: () => api<Command[]>('/command'),
@@ -120,6 +160,16 @@ function Tasks() {
           <Table columns={TASK_COLUMNS}>
             {taskList.data.map((task) => (
               <TaskRow key={task.name} task={task} />
+            ))}
+          </Table>
+        ) : null}
+
+        <h2 className={styles.legend}>Manual</h2>
+        {manualList.error ? <Alert kind="danger">Failed to load the tasks: {manualList.error.message}</Alert> : null}
+        {manualList.data ? (
+          <Table columns={MANUAL_COLUMNS}>
+            {manualList.data.map((task) => (
+              <ManualTaskRow key={task.command} task={task} />
             ))}
           </Table>
         ) : null}

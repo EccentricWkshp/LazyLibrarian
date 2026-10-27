@@ -29,9 +29,16 @@ import Updates from 'System/Updates/Updates';
 import { urlBase } from 'Utilities/api';
 import Connect from 'Settings/Connect/Connect';
 import Profiles from 'Settings/Profiles/Profiles';
+import DownloadClients from 'Settings/Sections/DownloadClients';
+import Filters from 'Settings/Sections/Filters';
 import General from 'Settings/Sections/General';
+import Indexers from 'Settings/Sections/Indexers';
+import Languages from 'Settings/Sections/Languages';
 import MediaManagement from 'Settings/Sections/MediaManagement';
+import Metadata from 'Settings/Sections/Metadata';
+import Tools from 'Settings/Sections/Tools';
 import UI from 'Settings/Sections/UI';
+import Settings from 'Settings/Settings';
 import CutoffUnmet from 'Wanted/CutoffUnmet/CutoffUnmet';
 import Missing from 'Wanted/Missing/Missing';
 import BookSearch from 'Wanted/Search/BookSearch';
@@ -67,12 +74,18 @@ function App() {
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="/wanted/search" element={<BookSearch />} />
               <Route path="/wanted/cutoffunmet" element={<CutoffUnmet />} />
-              <Route path="/settings" element={<Navigate to="/settings/mediamanagement" replace={true} />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/settings/mediamanagement" element={<MediaManagement />} />
               <Route path="/settings/general" element={<General />} />
               <Route path="/settings/ui" element={<UI />} />
               <Route path="/settings/profiles" element={<Profiles />} />
               <Route path="/settings/connect" element={<Connect />} />
+              <Route path="/settings/indexers" element={<Indexers />} />
+              <Route path="/settings/downloadclients" element={<DownloadClients />} />
+              <Route path="/settings/metadata" element={<Metadata />} />
+              <Route path="/settings/filters" element={<Filters />} />
+              <Route path="/settings/languages" element={<Languages />} />
+              <Route path="/settings/tools" element={<Tools />} />
               <Route path="/add" element={<Navigate to="/add/new" replace={true} />} />
               <Route path="/add/new" element={<AddNew />} />
               <Route path="/authors" element={<AuthorIndex />} />

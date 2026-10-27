@@ -59,6 +59,17 @@ class Task(ApiModel):
     disabled_reason: str
 
 
+class ManualTask(ApiModel):
+    # the command that runs it
+    command: str
+    task_name: str
+    description: str
+    last_start_time: str | None
+    last_execution: str | None
+    last_duration: float | None
+    is_running: bool
+
+
 @router.get('/status', response_model=SystemStatus)
 def get_status():
     """ Versions, platform and web settings """
@@ -82,6 +93,12 @@ def list_tasks():
     """ The scheduled tasks, like Sonarr's: interval in minutes, lastDuration in seconds, and why a
     task doesn't run when it doesn't. The RunTask command runs one now """
     return tasks.list_tasks()
+
+
+@router.get('/task/manual', response_model=list[ManualTask])
+def list_manual_tasks():
+    """ The tasks that only run when asked, each by the command that runs it """
+    return tasks.list_manual_tasks()
 
 
 @router.post('/restart', response_model=Message)

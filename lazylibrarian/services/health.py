@@ -43,8 +43,10 @@ from lazylibrarian.services import backups, notifications, queue, remotepaths
 CLIENT_KEEP = 300
 # seconds to wait for the download clients
 CLIENT_WAIT = 30
-# Settings pages to fix things in
-SETTINGS = '/config'
+# the Settings pages to fix things in
+MEDIA_MANAGEMENT = '/settings/mediamanagement'
+INDEXERS = '/settings/indexers'
+DOWNLOAD_CLIENTS = '/settings/downloadclients'
 
 
 def _deluge_link():
@@ -118,7 +120,7 @@ def client_checks() -> list[dict]:
                 ok, message = False, 'It did not answer'
             if not ok:
                 checks.append(_check('DownloadClientStatusCheck', 'error',
-                                     f"Unable to communicate with {name}. {message}".strip(), SETTINGS))
+                                     f"Unable to communicate with {name}. {message}".strip(), DOWNLOAD_CLIENTS))
     finally:
         pool.shutdown(wait=False)
     return checks
@@ -129,7 +131,7 @@ def checks() -> list[dict]:
     found = []
     if not CONFIG.use_any():
         found.append(_check('IndexerCheck', 'warning', "No indexers are enabled, LazyLibrarian won't find "
-                            "releases automatically. Add one in Settings, Providers", SETTINGS))
+                            "releases automatically. Add one in Settings, Indexers", INDEXERS))
     blocked = BLOCKHANDLER.blocked()
     if blocked:
         names = ', '.join(entry['name'] for entry in blocked)
@@ -140,10 +142,10 @@ def checks() -> list[dict]:
     torrent = [name for setting, name, _check_link in CLIENTS if setting.startswith('TOR') and CONFIG.get_bool(setting)]
     if CONFIG.use_nzb() and not usenet and not CONFIG.get_bool('NZB_DOWNLOADER_BLACKHOLE'):
         found.append(_check('DownloadClientCheck', 'warning', "There are usenet indexers but no usenet download "
-                            "client to send their releases to. Add one in Settings, Downloaders", SETTINGS))
+                            "client to send their releases to. Add one in Settings, Download Clients", DOWNLOAD_CLIENTS))
     if CONFIG.use_tor() and not torrent and not CONFIG.get_bool('TOR_DOWNLOADER_BLACKHOLE'):
         found.append(_check('DownloadClientCheck', 'warning', "There are torrent indexers but no torrent download "
-                            "client to send their releases to. Add one in Settings, Downloaders", SETTINGS))
+                            "client to send their releases to. Add one in Settings, Download Clients", DOWNLOAD_CLIENTS))
     found.extend(client_checks())
     found.extend(notifications.health_checks())
 
@@ -152,28 +154,32 @@ def checks() -> list[dict]:
         libraries.append(('eBook', CONFIG['EBOOK_DIR']))
     if CONFIG.get_bool('AUDIO_TAB'):
         libraries.append(('Audiobook', CONFIG['AUDIO_DIR']))
-    for label, path in libraries:
+    # a magazine or comic library folder is optional, they go in the eBook library without one
+    optional = [(label, CONFIG[key]) for tab, key, label in (('MAG_TAB', 'MAG_DIR', 'Magazine'),
+                                                              ('COMIC_TAB', 'COMIC_DIR', 'Comic'))
+                if CONFIG.get_bool(tab) and CONFIG[key]]
+    for label, path in libraries + optional:
         folder = _folder(path)
         if not folder:
             found.append(_check('RootFolderCheck', 'error', f"No {label} library folder is set. "
-                                f"Set it in Settings, Processing", SETTINGS))
+                                f"Set it in Settings, Media Management", MEDIA_MANAGEMENT))
         elif not os.path.isdir(folder):
             found.append(_check('RootFolderCheck', 'error', f"The {label} library folder [{folder}] is missing",
-                                SETTINGS))
+                                MEDIA_MANAGEMENT))
         elif not os.access(folder, os.W_OK):
             found.append(_check('RootFolderCheck', 'error', f"LazyLibrarian can't write to the {label} library "
-                                f"folder [{folder}]", SETTINGS))
+                                f"folder [{folder}]", MEDIA_MANAGEMENT))
     for path in get_list(CONFIG['DOWNLOAD_DIR'], ','):
         folder = _folder(path)
         if folder and not os.path.isdir(folder):
             found.append(_check('DownloadFolderCheck', 'warning', f"The download folder [{folder}] is missing",
-                                SETTINGS))
+                                MEDIA_MANAGEMENT))
 
     for mapping in remotepaths.mappings():
         if not os.path.isdir(mapping['LocalPath']):
             found.append(_check('RemotePathMappingCheck', 'error',
                                 f"The remote path mapping of {mapping['RemotePath']} on {mapping['Host']} goes to "
-                                f"[{mapping['LocalPath']}], which LazyLibrarian can't see", SETTINGS))
+                                f"[{mapping['LocalPath']}], which LazyLibrarian can't see", DOWNLOAD_CLIENTS))
 
     db = database.DBConnection()
     try:
@@ -207,7 +213,11 @@ def disk_space() -> list[dict]:
         places.append((_folder(CONFIG['EBOOK_DIR']), 'eBook library'))
     if CONFIG.get_bool('AUDIO_TAB'):
         places.append((_folder(CONFIG['AUDIO_DIR']), 'Audiobook library'))
-    places += [(_folder(path), 'Downloads') for path in get_list(CONFIG['DOWNLOAD_DIR'], ',')]
+    if CONFIG.get_bool('MAG_TAB') and CONFIG['MAG_DIR']:
+        places.append((_folder(CONFIG['MAG_DIR']), 'Magazine library'))
+    if CONFIG.get_bool('COMIC_TAB') and CONFIG['COMIC_DIR']:
+        places.append((_folder(CONFIG['COMIC_DIR']), 'Comic library'))
+    places +=[(_folder(path), 'Downloads') for path in get_list(CONFIG['DOWNLOAD_DIR'], ',')]
     disks = {}
     for path, label in places:
         if not path or not os.path.isdir(path):

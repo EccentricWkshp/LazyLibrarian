@@ -87,3 +87,15 @@ export interface Task {
   // why it doesn't run, '' when it does
   disabledReason: string;
 }
+
+// a task that only runs when asked, by the command that runs it
+export interface ManualTask {
+  command: string;
+  taskName: string;
+  description: string;
+  lastStartTime: string | null;
+  lastExecution: string | null;
+  // seconds
+  lastDuration: number | null;
+  isRunning: boolean;
+}

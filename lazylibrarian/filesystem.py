@@ -578,6 +578,10 @@ def get_directory(dirname):
         usedir = DIRS.config['EBOOK_DIR']
     elif dirname == "AudioBook" or dirname == "Audio":
         usedir = DIRS.config['AUDIO_DIR']
+    elif dirname == "Magazine":
+        usedir = DIRS.config['MAG_DIR'] or DIRS.config['EBOOK_DIR']
+    elif dirname == "Comic":
+        usedir = DIRS.config['COMIC_DIR'] or DIRS.config['EBOOK_DIR']
     elif dirname == "Download":
         try:
             usedir = get_list(DIRS.config.get_str('DOWNLOAD_DIR'), ',')[0]
@@ -619,6 +623,17 @@ def get_directory(dirname):
         usedir = DIRS.DATADIR
 
     return make_unicode(usedir)
+
+
+def issue_folder(library: str, folder: str) -> str:
+    """ Where a magazine's (library 'magazine') or comic's issues go, from its folder pattern: below the
+    library's own folder when it has one, as eBooks are below theirs. Without one, below the eBook
+    library if MAG_RELATIVE or COMIC_RELATIVE says so, otherwise the pattern is a full path """
+    own, relative, name = (('MAG_DIR', 'MAG_RELATIVE', 'Magazine') if library == 'magazine'
+                           else ('COMIC_DIR', 'COMIC_RELATIVE', 'Comic'))
+    if DIRS.config[own] or DIRS.config.get_bool(relative):
+        return os.path.join(get_directory(name), folder)
+    return folder
 
 
 def copy_tree(src_dir, dest_dir):

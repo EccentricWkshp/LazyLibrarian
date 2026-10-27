@@ -27,7 +27,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     DIRS,
     book_file,
-    get_directory,
+    issue_folder,
     make_dirs,
     path_exists,
     path_isdir,
@@ -139,9 +139,7 @@ def magazine_scan(title=None):
     db = database.DBConnection()
     # noinspection PyBroadException
     try:
-        mag_path = CONFIG['MAG_DEST_FOLDER']
-        if CONFIG.get_bool('MAG_RELATIVE'):
-            mag_path = os.path.join(get_directory('eBook'), mag_path)
+        mag_path = issue_folder('magazine', CONFIG['MAG_DEST_FOLDER'])
 
         onetitle = title
         if onetitle and '$Title' in mag_path:
@@ -947,10 +945,8 @@ def rename_issue(issueid, tags=None):
     new_name = format_issue_filename(CONFIG['MAG_DEST_FILE'], match['Title'], parts)
     old_name, extn = splitext(os.path.basename(match['IssueFile']))
     old_folder = os.path.dirname(match['IssueFile'])
-    new_folder = format_issue_filename(CONFIG['MAG_DEST_FOLDER'], match['Title'], parts)
-    if CONFIG.get_bool('MAG_RELATIVE'):
-        dest_dir = get_directory('eBook')
-        new_folder = stripspaces(os.path.join(dest_dir, new_folder))
+    new_folder = stripspaces(issue_folder('magazine', format_issue_filename(CONFIG['MAG_DEST_FOLDER'], match['Title'],
+                                                                             parts)))
 
     new_filename = os.path.join(new_folder, new_name + extn)
 

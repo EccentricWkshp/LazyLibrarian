@@ -158,6 +158,11 @@ def _refresh_book(command: dict, body: dict) -> str:
     return addnew.refresh_book(body.get('book_id') or '', progress=lambda text: _update(command, message=text))
 
 
+def _refresh_languages(command: dict, body: dict) -> str:
+    from lazylibrarian.services import books  # it imports most of LazyLibrarian
+    return books.refresh_languages_now(progress=lambda text: _update(command, message=text))
+
+
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
                                                     'MissingBookSearch': _missing_book_search,
                                                     'CutoffUnmetSearch': _cutoff_unmet_search,
@@ -165,13 +170,15 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'Backup': _backup, 'ApplicationUpdate': _application_update,
                                                     'AddAuthor': _add_author, 'AddBook': _add_book,
                                                     'RefreshAuthor': _refresh_author, 'RefreshBook': _refresh_book,
-                                                    'AuthorSearch': _author_search, 'LibraryScan': _library_scan}
+                                                    'AuthorSearch': _author_search, 'LibraryScan': _library_scan,
+                                                    'RefreshLanguages': _refresh_languages}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
           'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update',
           'AddAuthor': 'Add Author', 'AddBook': 'Add Book', 'RefreshAuthor': 'Refresh Author',
-          'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search', 'LibraryScan': 'Library Scan'}
+          'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search', 'LibraryScan': 'Library Scan',
+          'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0]}
 
 
 def _run(command: dict, body: dict):

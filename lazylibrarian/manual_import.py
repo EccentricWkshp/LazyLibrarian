@@ -49,6 +49,7 @@ from lazylibrarian.config2 import CONFIG, DIRS
 from lazylibrarian.filesystem import (
     book_file,
     get_directory,
+    issue_folder,
     listdir,
     make_dirs,
     opf_file,
@@ -137,9 +138,8 @@ def process_mag_from_file(source_file, title, issuenum):
         dateparts = get_dateparts(issuenum)
         dest_path = format_issue_filename(CONFIG["MAG_DEST_FOLDER"], title, dateparts)
 
-        if CONFIG.get_bool("MAG_RELATIVE"):
-            dest_dir = str(get_directory("eBook"))
-            dest_path = stripspaces(os.path.join(dest_dir, dest_path))
+        if CONFIG["MAG_DIR"] or CONFIG.get_bool("MAG_RELATIVE"):
+            dest_path = stripspaces(issue_folder("magazine", dest_path))
             dest_path = make_utf8bytes(dest_path)[0]
         else:
             dest_path = make_utf8bytes(dest_path)[0]

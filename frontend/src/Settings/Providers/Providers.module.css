@@ -1,0 +1,92 @@
+/* From Sonarr's AddDownloadClientModal and AddIndexerItem styles, and its edit modals' footer */
+
+.section {
+  margin-bottom: 30px;
+}
+
+.protocol {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 18px;
+}
+
+section + section .protocol {
+  margin-top: 20px;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--cardBackgroundColor, var(--inputBackgroundColor));
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--inputFocusBorderColor);
+  }
+}
+
+.choiceName {
+  font-weight: 500;
+}
+
+.choiceDescription {
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.description {
+  margin: 0 0 20px;
+  color: var(--helpTextColor);
+}
+
+.message {
+  white-space: pre-line;
+}
+
+.footer {
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.mappings {
+  width: 100%;
+  max-width: 900px;
+  border-collapse: collapse;
+
+  & th,
+  & td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--borderColor);
+    text-align: left;
+  }
+
+  & th {
+    color: var(--inkMuted);
+    font-weight: 500;
+  }
+}
+
+.mappingActions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.addMapping {
+  margin-top: 10px;
+}

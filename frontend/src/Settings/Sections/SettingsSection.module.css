@@ -83,6 +83,53 @@
   cursor: pointer;
 }
 
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 20px;
+}
+
+.languages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 12px;
+  background: var(--inputBackgroundColor);
+  font-size: var(--smallFontSize);
+}
+
+.tests {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 270px;
+  max-width: 600px;
+}
+
+.testButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.testMessage {
+  white-space: pre-line;
+}
+
 @media (--breakpointSmall) {
   .row,
   .advancedRow {
@@ -94,5 +141,9 @@
     flex: none;
     padding-top: 0;
     text-align: left;
+  }
+
+  .tests {
+    margin-left: 0;
   }
 }

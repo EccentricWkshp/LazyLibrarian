@@ -87,3 +87,29 @@ class TasksTest(LLTestCaseWithStartup):
         self.assertEqual((command['status'], command['message']), ('completed', 'Check for updates completed'))
         with self.assertRaises(NotFoundError):
             commands.start('RunTask', {'task': 'nosuch'})
+
+    def test_refreshing_the_book_languages(self):
+        from lazylibrarian.services import books
+        self.assertFalse(tasks.list_manual_tasks()[0]['last_execution'], "It hasn't run")
+        with DBConnection() as db:
+            db.action("INSERT INTO authors (AuthorID, AuthorName) VALUES ('LANGA1', 'Lang Author')")
+            db.action("INSERT INTO books (BookID, BookName, BookLang, Status, ScanResult, AuthorID) "
+                      "VALUES ('LANG1', 'A Plain English Title', 'de', 'Ignored', 'Invalid language: de', 'LANGA1')")
+        self.addCleanup(lambda: DBConnection().action("DELETE FROM authors WHERE AuthorID='LANGA1'"))
+        with mock.patch.object(books, 'language_from_words', return_value=('en', 0.9)):
+            command = commands.start('RefreshLanguages', {})
+            self.assertEqual(command['title'], 'Refresh Book Languages')
+            for _ in range(200):
+                command = commands.get(command['id'])
+                if command['status'] in ('completed', 'failed'):
+                    break
+                time.sleep(0.05)
+        self.assertEqual(command['status'], 'completed', command['message'])
+        self.assertIn('1 no longer ignored', command['message'])
+        with DBConnection() as db:
+            book = db.match("SELECT BookLang, Status FROM books WHERE BookID='LANG1'")
+        self.assertEqual(book['BookLang'], 'en')
+        self.assertNotEqual(book['Status'], 'Ignored')
+        manual = tasks.list_manual_tasks()[0]
+        self.assertEqual((manual['command'], manual['is_running']), ('RefreshLanguages', False))
+        self.assertTrue(manual['last_execution'], 'When it last ran')

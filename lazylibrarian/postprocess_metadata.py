@@ -28,7 +28,7 @@ from enum import Enum
 
 from lazylibrarian.bookrename import name_vars, stripspaces
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.filesystem import get_directory
+from lazylibrarian.filesystem import get_directory, issue_folder
 from lazylibrarian.formatter import (
     check_int,
     make_unicode,
@@ -396,9 +396,8 @@ def prepare_magazine_metadata(title, aux_info, db) -> MagazineMetadata | None:
     dateparts = get_dateparts(aux_info)
     dest_path: str = format_issue_filename(CONFIG["MAG_DEST_FOLDER"], title, dateparts)
 
-    if CONFIG.get_bool("MAG_RELATIVE"):
-        dest_dir = str(get_directory("eBook"))
-        dest_path = stripspaces(os.path.join(dest_dir, dest_path))
+    if CONFIG["MAG_DIR"] or CONFIG.get_bool("MAG_RELATIVE"):
+        dest_path = stripspaces(enforce_str(make_unicode(issue_folder("magazine", dest_path))))
 
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))
@@ -444,7 +443,7 @@ def prepare_comic_metadata(book_id, db) -> ComicMetadata | None:
 
     # Get issue-specific data
     result = db.match(
-        "SELECT IssueDate,IssueAcquired,IssueFile,Cover,Contributors "
+        "SELECT IssueAcquired,IssueFile,Cover,Contributors "
         "from comicissues WHERE ComicID=? AND IssueID=?",
         (comicid, issueid),
     )
@@ -466,11 +465,8 @@ def prepare_comic_metadata(book_id, db) -> ComicMetadata | None:
         .replace("$Title", comic_name)
     )
 
-    if CONFIG.get_bool("COMIC_RELATIVE"):
-        dest_dir = enforce_str(
-            make_unicode(get_directory("eBook") or "")
-        )  # Enforce string for join
-        dest_path = stripspaces(os.path.join(dest_dir, dest_path))
+    if CONFIG["COMIC_DIR"] or CONFIG.get_bool("COMIC_RELATIVE"):
+        dest_path = stripspaces(enforce_str(make_unicode(issue_folder("comic", dest_path))))
 
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))

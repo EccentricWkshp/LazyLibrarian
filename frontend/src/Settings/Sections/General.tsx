@@ -119,6 +119,14 @@ const GROUPS: Group[] = [
       { key: 'LOGREDACT', label: 'Redact the on-screen log' },
       { key: 'HOSTREDACT', label: 'Redact host names too', showIf: (v) => !!v.LOGREDACT },
       { key: 'LOGFILEREDACT', label: 'Redact the log files' },
+      {
+        key: 'LOGSPECIALDEBUG',
+        label: 'Debug logs of',
+        input: 'flags',
+        choices: 'specialLogs',
+        help: 'More detail on these, with the Debug log level',
+        advanced: true,
+      },
     ],
   },
   {
@@ -132,8 +140,20 @@ const GROUPS: Group[] = [
   {
     legend: 'Backups',
     fields: [
-      { key: 'BACKUP_INTERVAL', label: 'Back up every', help: 'See System, Backup. 0 never backs up' },
+      { key: 'BACKUP_DB', label: 'Back up every', unit: 'days', help: 'See System, Backup. 0 never backs up' },
       { key: 'BACKUP_RETENTION', label: 'Keep scheduled backups for', unit: 'days' },
+    ],
+  },
+  {
+    legend: 'Cache',
+    advanced: true,
+    fields: [
+      {
+        key: 'CACHE_AGE',
+        label: 'Keep what is looked up for',
+        unit: 'days',
+        help: 'And refresh authors and series this often',
+      },
     ],
   },
   {

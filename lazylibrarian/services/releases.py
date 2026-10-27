@@ -91,7 +91,7 @@ def search(book_id, media_type: str) -> list[dict]:
     if media_type not in LIBRARIES:
         raise InvalidRequestError('Interactive search is for books and audiobooks')
     if not CONFIG.total_active_providers():
-        raise InvalidRequestError('No search providers are enabled, add one in Settings, Providers')
+        raise InvalidRequestError('No search providers are enabled, add one in Settings, Indexers')
     book = _search_book(book_id, LIBRARIES[media_type])
     searchtype = 'audio' if media_type == 'audiobook' else 'book'
     ratio = CONFIG.get_int('MATCH_RATIO')

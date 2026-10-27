@@ -116,12 +116,14 @@ def status_mark_targets(action: str, library: str) -> tuple[str, str] | None:
     return None
 
 
-def refresh_book_languages():
+def refresh_book_languages(progress=None) -> str:
     """ Background job: re-evaluates language for books in the database.
     Corrects short-title false positives (e.g. English titles misidentified as German/French/Spanish),
     normalizes English dialects (e.g. en-CA), resolves 'Unknown' languages, and automatically
-    un-ignores books that were falsely marked Ignored due to invalid language. """
+    un-ignores books that were falsely marked Ignored due to invalid language. progress is told how
+    far it got now and then. Returns what it did """
     logger = logging.getLogger(__name__)
+    message = ''
     incoming_threadname = thread_name()
     thread_name('LANGREFRESH')
 
@@ -140,6 +142,8 @@ def refresh_book_languages():
         total = len(rows)
         lazylibrarian.LANG_REFRESH_STATUS = {'checked': 0, 'updated': 0, 'unignored': 0, 'total': total}
         logger.info(f"Language refresh: {total} candidate book{plural(total)} to check")
+        if progress:
+            progress(f"Checking {total} {plural(total, 'book')}")
 
         valid_langs = get_list(CONFIG['IMP_PREFLANG'])
         checked = 0
@@ -198,6 +202,8 @@ def refresh_book_languages():
             if checked % 250 == 0:
                 db.commit()
                 logger.info(f"Language refresh: checked {checked}/{total}, updated {updated}, restored {unignored}")
+                if progress:
+                    progress(f"Checked {checked} of {total}, {updated} updated, {unignored} restored")
 
         db.commit()
         for auth_id in authors_to_update:
@@ -205,10 +211,13 @@ def refresh_book_languages():
                 lazylibrarian.importer.update_totals(auth_id)
 
         logger.info(f"Language refresh: complete, checked {checked}/{total}, updated {updated}, restored {unignored}")
+        message = (f"Checked {checked} {plural(checked, 'book')}: {updated} updated, "
+                   f"{unignored} no longer ignored")
     finally:
         db.upsert("jobs", {"Finish": time.time()}, {"Name": "LANGREFRESH"})
         db.close()
         thread_name(incoming_threadname)
+    return message
 
 
 def start_language_refresh():
@@ -217,6 +226,14 @@ def start_language_refresh():
         raise InvalidRequestError('Language refresh is already running')
     start_task('LANGREFRESH', refresh_book_languages)
     logging.getLogger(__name__).info("Manually triggered book language refresh")
+
+
+def refresh_languages_now(progress=None) -> str:
+    """ Re-evaluate the languages of the books that might be wrong, in this thread, as the
+    RefreshLanguages command does. Returns what it did """
+    if is_running('LANGREFRESH'):
+        raise InvalidRequestError('Refreshing the book languages is already running')
+    return refresh_book_languages(progress)
 
 
 def language_refresh_status() -> dict:

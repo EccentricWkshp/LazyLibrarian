@@ -19,6 +19,7 @@ import React, { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import QueueStatus from 'Activity/Queue/Status/QueueStatus';
 import { setIsSidebarVisible, useAppValue } from 'App/appStore';
+import { SECTIONS } from 'Settings/Settings';
 import HealthStatus from 'System/Status/HealthStatus';
 import Messages from './Messages/Messages';
 import PageSidebarItem from './PageSidebarItem';
@@ -97,14 +98,10 @@ function groups(): SidebarGroup[] {
         {
           iconName: Settings,
           title: 'Settings',
-          to: '/settings/mediamanagement',
+          to: '/settings',
           children: [
-            { title: 'Media Management', to: '/settings/mediamanagement' },
-            { title: 'Profiles', to: '/settings/profiles' },
-            { title: 'Connect', to: '/settings/connect' },
-            { title: 'General', to: '/settings/general' },
-            { title: 'UI', to: '/settings/ui' },
-            // what isn't on the new pages yet: download clients, indexers, info sources and more
+            ...SECTIONS.map((section) => ({ title: section.title, to: section.to })),
+            // the old page, with every setting on one page
             { title: 'All Settings', to: '/config' },
           ],
         },
@@ -147,7 +144,9 @@ function PageSidebar() {
             {group.items
               .filter((item) => !item.isHidden)
               .map((item) => {
-                const isActiveParent = !!item.children?.some((child) => isChildActive(child, pathname));
+                const isActiveParent =
+                  !!item.children &&
+                  (pathname === item.to || item.children.some((child) => isChildActive(child, pathname)));
                 // like Sonarr, a section's pages show while you're in it
 
                 return (

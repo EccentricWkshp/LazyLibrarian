@@ -2543,6 +2543,20 @@
                     <input type="text" id="audio_dir" name="audio_dir" value="${CONFIG['AUDIO_DIR']}" class="form-control" placeholder="${_('AudioBook Library Folder') | h}">
                   </div>
                   %endif
+                  %if CONFIG['MAG_TAB']:
+                  <div class="form-group">
+                    <label for="mag_dir" class="control-label">${_('Magazine Library Folder:')}</label>
+                    <input type="text" id="mag_dir" name="mag_dir" value="${CONFIG['MAG_DIR']}" class="form-control" placeholder="${_('Magazine Library Folder') | h}">
+                    <span class="help-block">${_('Empty keeps them in the eBook library')}</span>
+                  </div>
+                  %endif
+                  %if CONFIG['COMIC_TAB']:
+                  <div class="form-group">
+                    <label for="comic_dir" class="control-label">${_('Comic Library Folder:')}</label>
+                    <input type="text" id="comic_dir" name="comic_dir" value="${CONFIG['COMIC_DIR']}" class="form-control" placeholder="${_('Comic Library Folder') | h}">
+                    <span class="help-block">${_('Empty keeps them in the eBook library')}</span>
+                  </div>
+                  %endif
                   <div class="form-group">
                     <label for="alternate_dir" class="control-label">${_('Alternate Import/Export Folder:')}</label>
                     <input type="text" id="alternate_dir" name="alternate_dir" value="${CONFIG['ALTERNATE_DIR']}" class="form-control" placeholder="${_('Alternate Directory') | h}">

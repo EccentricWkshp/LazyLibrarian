@@ -16,9 +16,16 @@ const GROUPS: Group[] = [
       { key: 'EBOOK_DIR', label: 'eBook library', showIf: (v) => !!v.EBOOK_TAB },
       { key: 'AUDIO_DIR', label: 'Audiobook library', showIf: (v) => !!v.AUDIO_TAB },
       {
+        key: 'MAG_DIR',
+        label: 'Magazine library',
+        help: 'Empty keeps magazines with the eBooks',
+        showIf: (v) => !!v.MAG_TAB,
+      },
+      { key: 'COMIC_DIR', label: 'Comic library', help: 'Empty keeps comics with the eBooks', showIf: (v) => !!v.COMIC_TAB },
+      {
         key: 'DOWNLOAD_DIR',
         label: 'Download folders',
-        help: 'Where the download clients put finished downloads, separated by commas. Remote path mappings are in the Download Clients settings of the old page',
+        help: 'Where the download clients put finished downloads, separated by commas. Remote path mappings are in Download Clients',
       },
       {
         key: 'ALTERNATE_DIR',
@@ -53,10 +60,16 @@ const GROUPS: Group[] = [
       {
         key: 'MAG_DEST_FOLDER',
         label: 'Magazine folder',
-        help: 'A full path, or below the eBook library. $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay and any text',
+        help: 'Below the magazine library. $Title, $IssueDate, $IssueYear, $IssueVol, $IssueNum, $IssueMonth, $IssueMNum, $IssueDay and any text',
         showIf: (v) => !!v.MAG_TAB,
       },
-      { key: 'MAG_RELATIVE', label: 'Magazines below the eBook library', showIf: (v) => !!v.MAG_TAB },
+      {
+        key: 'MAG_RELATIVE',
+        label: 'Magazines below the eBook library',
+        help: 'Off, the magazine folder is a full path',
+        showIf: (v) => !!v.MAG_TAB && !v.MAG_DIR,
+        advanced: true,
+      },
       {
         key: 'MAG_DEST_FILE',
         label: 'Magazine file',
@@ -67,10 +80,16 @@ const GROUPS: Group[] = [
       {
         key: 'COMIC_DEST_FOLDER',
         label: 'Comic folder',
-        help: 'A full path, or below the eBook library. $Title, $Issue, $Publisher and any text',
+        help: 'Below the comic library. $Title, $Issue, $Publisher and any text',
         showIf: (v) => !!v.COMIC_TAB,
       },
-      { key: 'COMIC_RELATIVE', label: 'Comics below the eBook library', showIf: (v) => !!v.COMIC_TAB },
+      {
+        key: 'COMIC_RELATIVE',
+        label: 'Comics below the eBook library',
+        help: 'Off, the comic folder is a full path',
+        showIf: (v) => !!v.COMIC_TAB && !v.COMIC_DIR,
+        advanced: true,
+      },
       { key: 'COMIC_DELFOLDER', label: "Delete a comic's folder with its last issue", showIf: (v) => !!v.COMIC_TAB, advanced: true },
     ],
   },
