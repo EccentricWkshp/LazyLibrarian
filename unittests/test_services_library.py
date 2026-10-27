@@ -120,7 +120,7 @@ class LibraryTest(LLTestCaseWithStartup):
         self.assertEqual((book['title'], book['author_name'], book['ebook_format']), ('Killing Floor', 'Lee Child', 'EPUB'))
         self.assertEqual(book['series'], [{'id': 'OL1', 'name': 'Jack Reacher', 'number': '1'}])
         self.assertEqual(book['ebook_file'], {'path': '/books/Killing Floor.epub', 'format': 'EPUB', 'size': 0,
-                                              'exists': False})
+                                              'exists': False, 'parts': []})
         self.assertIsNone(book['audio_file'])
         with DBConnection() as db:
             db.action("INSERT INTO wanted (BookID, NZBtitle, NZBprov, NZBdate, Status, AuxInfo, Source, DLResult) "

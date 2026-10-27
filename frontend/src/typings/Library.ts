@@ -29,8 +29,11 @@ export interface LibraryBook {
 export interface BookFile {
   path: string;
   format: string;
+  // all of them, an audiobook's parts
   size: number;
   exists: boolean;
+  // an audiobook's files, from its first part
+  parts: string[];
 }
 
 export interface BookDownload {

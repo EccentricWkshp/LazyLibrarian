@@ -199,6 +199,8 @@ def magazine_scan(title=None):
             logger.error(f"Pattern failed for [{matchto}] {str(e)}")
             pattern = None
 
+        # the magazines whose issues were seen, their latest issue and cover are set from them after
+        touched = set()
         if pattern:
             total_items = issue_cnt
             current_item = 0
@@ -232,7 +234,7 @@ def magazine_scan(title=None):
                                     if title:
                                         res = get_dateparts(issuefile)
                                         if res:
-                                            issuedate = res['dbdate']
+                                            issuedate = issue_date(res)
                                 if title and issuedate:
                                     match = True
                                     logger.debug(f"Using {title}:{issuedate} from opf file")
@@ -313,20 +315,20 @@ def magazine_scan(title=None):
                         if issuedate:
                             dateparts = get_dateparts(issuedate, datetype=datetype)
                             issuenum_type = dateparts['style']
-                            issuedate = dateparts['dbdate']
+                            issuedate = issue_date(dateparts)
                             matchinglogger.debug(f"Date style [{issuenum_type}][{issuedate}]")
 
                         if not issuedate:
                             dateparts = get_dateparts(fname, datetype=datetype)
                             issuenum_type = dateparts['style']
-                            issuedate = dateparts['dbdate']
+                            issuedate = issue_date(dateparts)
                             matchinglogger.debug(f"Filename date style [{issuenum_type}][{issuedate}]")
 
                         if not issuedate:  # the date or number the file gives itself
                             meta = meta or filemeta.read_metadata(issuefile)
                             if meta['date'] or meta['number']:
                                 dateparts = get_dateparts(meta['date'] or meta['number'], datetype=datetype)
-                                issuedate = dateparts['dbdate']
+                                issuedate = issue_date(dateparts)
                                 matchinglogger.debug(f"Metadata date style [{dateparts['style']}][{issuedate}]")
 
                         if not issuedate:
@@ -371,6 +373,10 @@ def magazine_scan(title=None):
                             maglanguage = mag_entry['Language']
 
                         issuedate = str(issuedate).zfill(4)  # for sorting issue numbers
+                        touched.add(title)
+                        # a file known by another date, as one with none was given 0-00-01, is this one
+                        db.action('DELETE FROM issues WHERE IssueFile=? AND (Title!=? OR IssueDate!=?)',
+                                  (issuefile, title, issuedate))
 
                         # is this issue already in the database?
                         issue_id = create_id(f"{title} {issuedate}")
@@ -454,6 +460,10 @@ def magazine_scan(title=None):
                                 new_value_dict["LatestCover"] = cover
                             db.upsert("magazines", new_value_dict, control_value_dict)
 
+            # as if the issues had come in in order, whatever order the files were found in
+            for seen in touched:
+                update_latest(db, seen)
+
             if CONFIG.get_bool('FULL_SCAN') and not onetitle:
                 magcount = db.match("select count(*) from magazines")
                 isscount = db.match("select count(*) from issues")
@@ -472,6 +482,21 @@ def magazine_scan(title=None):
         if 'MAGAZINE_SCAN' in threading.current_thread().name:
             threading.current_thread().name = 'WEBSERVER'
         db.close()
+
+
+def update_latest(db, title: str):
+    """ A magazine's latest issue date and cover from its newest issue, as they would be if each issue
+    had come in in order """
+    newest = db.match('SELECT IssueDate,Cover FROM issues WHERE Title=? ORDER BY IssueDate DESC', (title,))
+    if newest:
+        db.action('UPDATE magazines SET IssueDate=?, LatestCover=? WHERE Title=?',
+                  (newest['IssueDate'], newest['Cover'], title))
+
+
+def issue_date(dateparts: dict) -> str:
+    """ The date or number get_dateparts found, '' when it found none: without a style its parts are
+    zeros, a date of 0-00-01 """
+    return str(dateparts['dbdate']) if dateparts['style'] and dateparts['dbdate'] else ''
 
 
 def title_folder(folder: str, scan_root: str, pattern: str) -> str:

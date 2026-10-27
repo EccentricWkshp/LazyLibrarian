@@ -28,7 +28,9 @@ function statusLabel(status: string, format: string) {
 }
 
 function Cover({ book }: { book: BookLookup }) {
-  const [failed, setFailed] = useState(false);
+  // the picture that didn't load, another one is tried
+  const [failedSrc, setFailedSrc] = useState('');
+  const failed = failedSrc === book.cover;
 
   if (!book.cover || failed) {
     return (
@@ -45,7 +47,7 @@ function Cover({ book }: { book: BookLookup }) {
       alt=""
       loading="lazy"
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(book.cover)}
     />
   );
 }

@@ -212,3 +212,25 @@ class MagazineServiceTest(LLTestCaseWithDB):
         self.assertEqual(self.sql("SELECT Title, IssueDate FROM issues WHERE IssueFile LIKE '%Wood%'"),
                          [{'Title': 'Wood Magazine', 'IssueDate': '20110206'}],
                          'The title folder, not the library folder above it')
+
+        # a file with no date in its name isn't dated 0-00-01, one that was is dated again, and the
+        # magazine's latest issue and cover are its newest issue's whatever order they're found in
+        newest = os.path.join(root, 'Wood Magazine', 'Wood 20110301.pdf')
+        for name in (newest, os.path.join(root, 'Wood Magazine', 'Wood notes.pdf')):
+            with open(name, 'wb') as f:
+                f.write(b'%PDF-1.4 not really')
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile,Cover) VALUES "
+                 "('Wood Magazine','old','0-00-01',?,'cache/magazine/x.jpg')", (newest,))
+        self.sql("UPDATE magazines SET IssueDate='0-00-01' WHERE Title='Wood Magazine'")
+        magazinescan.magazine_scan()
+        self.assertEqual([row['IssueDate'] for row in self.sql(
+            "SELECT IssueDate FROM issues WHERE IssueFile LIKE '%Wood%' ORDER BY IssueDate")], ['20110206', '20110301'])
+        found = self.sql("SELECT IssueDate, LatestCover FROM magazines WHERE Title='Wood Magazine'")[0]
+        self.assertEqual(found['IssueDate'], '20110301')
+        self.assertEqual(found['LatestCover'], self.sql("SELECT Cover FROM issues WHERE IssueDate='20110301'")[0]['Cover'])
+
+    def test_a_date_found_or_not(self):
+        from lazylibrarian import magazinescan
+        self.assertEqual(magazinescan.issue_date(magazinescan.get_dateparts('Wood May 2024')), '2024-05-01')
+        self.assertEqual(magazinescan.issue_date(magazinescan.get_dateparts('Wood notes')), '',
+                         'Not 0-00-01')

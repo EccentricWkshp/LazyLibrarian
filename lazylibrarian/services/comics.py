@@ -307,9 +307,11 @@ def mark_comics(action: str, comicids, userid=None) -> int:
 def set_latest(db, comicid):
     """ Set the comic's latest issue and cover from its newest issue, when it was last acquired from that
         issue's file and when it was added from its oldest issue's file """
-    cmd = "select IssueID,IssueAcquired,IssueFile,Cover from comicissues where ComicID=? order by IssueID "
-    newest = db.match(cmd + 'DESC', (comicid,))
-    oldest = db.match(cmd + 'ASC', (comicid,))
+    # by number, issue 12 is newer than issue 9
+    cmd = ("select IssueID,IssueAcquired,IssueFile,Cover from comicissues where ComicID=? "
+           "order by CAST(IssueID AS REAL) {0}, IssueID {0}")
+    newest = db.match(cmd.format('DESC'), (comicid,))
+    oldest = db.match(cmd.format('ASC'), (comicid,))
     if newest and oldest:
         # the newest issue's cover in the cache, as a scan sets it; the picture next to its file
         # isn't one the pages can show

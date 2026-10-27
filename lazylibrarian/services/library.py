@@ -22,7 +22,7 @@ import re
 import lazylibrarian
 from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import check_float, check_int, fold
+from lazylibrarian.formatter import check_float, check_int, fold, natural_sort
 from lazylibrarian.importer import author_name_key, update_totals
 from lazylibrarian.services import (
     InvalidRequestError,
@@ -278,6 +278,14 @@ def set_book_status(book_ids: list, media_types: list[str], status: str) -> dict
     return {'passed': result['passed'], 'failed': result['failed']}
 
 
+def audio_parts(path: str) -> list[str]:
+    """ An audiobook's parts, from its first: the audio files in its folder, part 2 before part 10 """
+    folder = os.path.dirname(path)
+    names = [name for name in os.listdir(folder) if CONFIG.is_valid_booktype(name, booktype='audiobook')]
+    natural_sort(names, key=lambda name: name.lower())
+    return [os.path.join(folder, name) for name in names]
+
+
 def _file_format(path, media_type) -> str:
     return quality.name(quality.of_file(path, media_type)) if path else ''
 
@@ -418,16 +426,18 @@ def get_book(book_id: str) -> dict:
         if not path:
             return None
         size = 0
+        parts = []
         exists = os.path.exists(path)
         if exists:
-            # an audiobook's file is one of its parts, its folder is the book
-            folder = os.path.dirname(path) if media_type == 'audiobook' else ''
             try:
-                size = sum(os.path.getsize(os.path.join(folder, f)) for f in os.listdir(folder)) if folder \
-                    else os.path.getsize(path)
+                if media_type == 'audiobook':
+                    # an audiobook's file is its first part, its parts are the audio files in its folder
+                    parts = audio_parts(path)
+                size = sum(os.path.getsize(part) for part in parts or [path])
             except OSError:
                 size = 0
-        return {'path': path, 'format': _file_format(path, media_type), 'size': size, 'exists': exists}
+        return {'path': path, 'format': _file_format(path, media_type), 'size': size, 'exists': exists,
+                'parts': parts}
 
     return {'id': row['BookID'], 'title': row['BookName'] or '', 'subtitle': row['BookSub'] or '',
             'author_id': row['AuthorID'] or '', 'author_name': row['AuthorName'] or '',

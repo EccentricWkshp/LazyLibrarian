@@ -118,14 +118,15 @@ function Progress({ author }: { author: Author }) {
 }
 
 function Poster({ author }: { author: Author }) {
-  const [failed, setFailed] = useState(false);
   const src = imageUrl(author.image);
+  // the picture that didn't load, another one is tried
+  const [failedSrc, setFailedSrc] = useState('');
 
   return (
     <Link className={styles.poster} to={`/author/${encodeURIComponent(author.id)}`}>
       <div className={styles.posterImage}>
-        {src && !failed ? (
-          <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        {src && failedSrc !== src ? (
+          <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} />
         ) : (
           <Icon name={User} size={48} />
         )}

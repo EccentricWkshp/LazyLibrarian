@@ -40,10 +40,11 @@ interface Editing {
 }
 
 function Cover({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false);
+  // the picture that didn't load, another one is tried
+  const [failedSrc, setFailedSrc] = useState('');
 
-  return src && !failed ? (
-    <img className={styles.cover} src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+  return src && failedSrc !== src ? (
+    <img className={styles.cover} src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} />
   ) : (
     <div className={styles.cover}>
       <Icon name={BookOpen} size={24} />

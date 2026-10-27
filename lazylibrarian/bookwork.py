@@ -246,19 +246,24 @@ def set_all_book_series():
     return msg
 
 
-def set_series(serieslist=None, bookid=None, reason=""):
+def set_series(serieslist=None, bookid=None, reason="", replace=False):
     """ set series details in series/member tables from the supplied dict
         and a displayable summary in book table
         serieslist is a tuple (SeriesID, SeriesNum, SeriesName)
+        A source's series are added to the book's, and their numbers updated: one source doesn't
+        know another's series, or may give none when it's asked again. replace makes them the book's
+        only series, as when they are edited
         Return how many api hits and the original publication date if known """
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
     api_hits = 0
     originalpubdate = ''
+    serieslist = serieslist or []
     try:
         if bookid:
-            # delete any old series-member entries
-            db.action('DELETE from member WHERE BookID=?', (bookid,))
+            if replace:
+                # delete any old series-member entries
+                db.action('DELETE from member WHERE BookID=?', (bookid,))
             for item in serieslist:
                 item = list(item)  # change tuple to list so we can modify it
                 if not item[0] and item[2] and item[2][0].isdigit and ')' in item[2]:

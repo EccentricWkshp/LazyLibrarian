@@ -650,6 +650,37 @@ def _skip_already_scanned_directory(subdirectory, processed_subdirectories):
     return subdirectory in processed_subdirectories and CONFIG.get_bool('IMP_SINGLEBOOK')
 
 
+def file_owner(db, library: str, rootdir: str, filename: str) -> dict | None:
+    """ The book a file found is the file of already: an ebook's by any of its formats, an
+    audiobook's by its folder, as its first part is kept, or by the file when a folder can hold
+    several audiobooks. A scan that found the same book again under another source's id used to add
+    that book too and give it the same file. The first added keeps a file several books have, the
+    others are told they don't have it, as a book whose file is gone is """
+    path = os.path.join(rootdir, filename)
+    if library == 'AudioBook':
+        rows = db.select("SELECT BookID,Status,AudioStatus,AudioFile AS Path FROM books WHERE AudioFile IS NOT NULL "
+                         "AND AudioFile!='' ORDER BY BookAdded, rowid")
+        if CONFIG.get_bool('IMP_SINGLEBOOK'):
+            owners = [row for row in rows if os.path.dirname(row['Path']) == rootdir]
+        else:
+            owners = [row for row in rows if row['Path'] == path]
+        status, column = 'AudioStatus', 'AudioFile'
+    else:
+        stem = splitext(path)[0]
+        formats = [f"{stem}.{extension}" for extension in get_list(CONFIG['EBOOK_TYPE'])] + [path]
+        owners = db.select(f"SELECT BookID,Status,AudioStatus,BookFile AS Path FROM books WHERE BookFile IN "
+                           f"({','.join('?' * len(formats))}) ORDER BY BookAdded, rowid", tuple(formats))
+        status, column = 'Status', 'BookFile'
+    if not owners:
+        return None
+    for other in owners[1:]:
+        logging.getLogger(__name__).warning(f"{other['Path']} is {owners[0]['BookID']}'s, not {other['BookID']}'s too")
+        db.action(f"UPDATE books SET {column}='', {status}=? WHERE BookID=? AND {status} IN ('Open','Have')",
+                  (CONFIG['NOTFOUND_STATUS'], other['BookID']))
+        db.action(f"UPDATE books SET {column}='' WHERE BookID=?", (other['BookID'],))
+    return dict(owners[0])
+
+
 def _path_is_under(path, folder):
     """Whether path is folder itself or somewhere inside it"""
     path = os.path.abspath(path)
@@ -1157,7 +1188,13 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                     match = None
                                     bookid = None
                                     key = None
-                                    if ident:
+                                    # a file that's a book's already is that book, not another found for it
+                                    owner = file_owner(db, library, rootdir, files)
+                                    if owner:
+                                        match, bookid = owner, owner['BookID']
+                                        mtype = owner['AudioStatus' if library == 'AudioBook' else 'Status']
+                                        logger.debug(f"{files} is the file of {bookid} already")
+                                    if ident and not owner:
                                         try:
                                             key, bookid = ident.split(':')
                                             bookid = bookid.strip()

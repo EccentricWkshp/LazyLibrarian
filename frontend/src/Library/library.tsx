@@ -55,11 +55,12 @@ export async function change(
 }
 
 export function Cover({ src, size = 48, icon = BookOpen }: { src: string; size?: number; icon?: typeof BookOpen }) {
-  const [failed, setFailed] = useState(false);
   const url = imageUrl(src);
+  // the picture that didn't load, another one is tried, as when a new cover is chosen
+  const [failedUrl, setFailedUrl] = useState('');
 
-  return url && !failed ? (
-    <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+  return url && failedUrl !== url ? (
+    <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedUrl(url)} />
   ) : (
     <Icon name={icon} size={size} />
   );

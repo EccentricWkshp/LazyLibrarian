@@ -105,9 +105,10 @@ function BookRow({
 }
 
 function AuthorHeader({ author }: { author: AuthorDetail }) {
-  const [failed, setFailed] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const src = imageUrl(author.image);
+  // the picture that didn't load, another one is tried
+  const [failedSrc, setFailedSrc] = useState('');
   // the sources give About as HTML, shown as its text
   const about = useMemo(
     () => (author.about ? new DOMParser().parseFromString(author.about, 'text/html').body.textContent?.trim() : ''),
@@ -117,8 +118,8 @@ function AuthorHeader({ author }: { author: AuthorDetail }) {
   return (
     <div className={styles.header}>
       <div className={styles.headerImage}>
-        {src && !failed ? (
-          <img src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        {src && failedSrc !== src ? (
+          <img src={src} alt="" referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} />
         ) : (
           <Icon name={User} size={64} />
         )}

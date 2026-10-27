@@ -47,9 +47,18 @@ const DOWNLOAD_KINDS: Record<string, 'success' | 'danger' | 'purple' | 'default'
 // about this many characters show before More
 const DESCRIPTION_SHOWN = 600;
 
+function folderOf(path: string) {
+  const at = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  return at > 0 ? path.slice(0, at) : path;
+}
+
 function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isPartsOpen, setIsPartsOpen] = useState(false);
   const file = format.format === 'ebook' ? book.ebookFile : book.audioFile;
+  // an audiobook in parts is its folder of them
+  const parts = file?.parts ?? [];
+  const shownPath = parts.length > 1 ? folderOf(file?.path ?? '') : (file?.path ?? '');
 
   function deleteFile() {
     const id = `delete-${Date.now()}`;
@@ -75,7 +84,17 @@ function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo })
       </div>
       {file ? (
         <div className={styles.fileRow}>
-          <code title={file.path}>{file.path}</code>
+          <code title={shownPath}>{shownPath}</code>
+          {parts.length > 1 ? (
+            <button
+              type="button"
+              className={styles.iconLink}
+              aria-expanded={isPartsOpen}
+              onClick={() => setIsPartsOpen(!isPartsOpen)}
+            >
+              {parts.length} parts
+            </button>
+          ) : null}
           <span className={styles.muted}>
             {file.exists ? formatBytes(file.size) : "the file isn't there"}
           </span>
@@ -109,10 +128,19 @@ function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo })
       ) : (
         <p className={styles.muted}>No file</p>
       )}
+      {isPartsOpen ? (
+        <ol className={styles.parts}>
+          {parts.map((part) => (
+            <li key={part}>
+              <code>{part.slice(shownPath.length).replace(/^[\\/]/, '')}</code>
+            </li>
+          ))}
+        </ol>
+      ) : null}
       <ConfirmModal
         isOpen={isDeleteOpen}
         title={`Delete the ${format.label}`}
-        message={`${file?.path ?? ''} is deleted, and the ${format.label} is ignored from now on.`}
+        message={`${parts.length > 1 ? `${shownPath} and its ${parts.length} parts are` : `${file?.path ?? ''} is`} deleted, and the ${format.label} is ignored from now on.`}
         confirmLabel="Delete"
         onConfirm={() => {
           setIsDeleteOpen(false);

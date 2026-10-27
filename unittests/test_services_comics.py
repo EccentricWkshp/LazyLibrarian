@@ -92,8 +92,8 @@ class ComicServiceTest(LLTestCaseWithDB):
 
     def test_mark_issues(self):
         self.assertEqual(comics.mark_issues('Remove', ['CV1_54', 'CV1_99']), 'CV1')
-        self.assertEqual(self.sql("SELECT LatestIssue FROM comics WHERE ComicID='CV1'")[0]['LatestIssue'], '9',
-                         'The newest left, as text')
+        self.assertEqual(self.sql("SELECT LatestIssue FROM comics WHERE ComicID='CV1'")[0]['LatestIssue'], '10',
+                         'The newest left, by number: 10 is newer than 9')
         comics.mark_issues('Remove', ['CV2_3'])
         self.assertEqual(self.sql("SELECT LatestIssue FROM comics WHERE ComicID='CV2'")[0]['LatestIssue'], '')
 

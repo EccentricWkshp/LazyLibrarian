@@ -20,6 +20,15 @@
   color: var(--inkMuted);
 }
 
+.parts {
+  overflow-y: auto;
+  margin: 8px 0 0;
+  padding-left: 28px;
+  max-height: 240px;
+  color: var(--inkMuted);
+  font-size: 12px;
+}
+
 .contributorList {
   overflow-y: auto;
   margin: 0 0 16px;

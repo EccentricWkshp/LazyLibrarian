@@ -62,8 +62,11 @@ class SourceLink(ApiModel):
 class BookFile(ApiModel):
     path: str
     format: str
+    # all of them, an audiobook's parts
     size: int
     exists: bool
+    # an audiobook's files, from its first part
+    parts: list[str] = []
 
 
 class BookDownload(ApiModel):

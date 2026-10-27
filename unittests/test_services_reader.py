@@ -135,6 +135,21 @@ class ReaderTest(LLTestCaseWithDB):
         cover = self.sql("SELECT Cover FROM comicissues")[0]['Cover']
         self.assertTrue(os.path.exists(os.path.join(DIRS.DATADIR, cover)), 'The no cover picture, cached')
 
+    def test_the_newest_issues_cover_is_the_magazines(self):
+        # the reported one: the magazine's latest date was an older issue's, so a cover chosen for the
+        # newest issue wasn't the magazine's, the second issue's stayed
+        older = touch(os.path.join(TESTDIR, 'reader', 'Wired', 'Wired 2025-12.pdf'), pdf(2))
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile,Cover) VALUES "
+                 "('Wired','I0','2025-12',?,'cache/magazine/older.jpg')", (older,))
+        self.sql("UPDATE magazines SET IssueDate='2025-12', LatestCover='cache/magazine/older.jpg'")
+        magazines.set_issue_cover('I1', 2)
+        newest = self.sql("SELECT Cover FROM issues WHERE IssueID='I1'")[0]['Cover']
+        self.assertEqual(dict(self.sql("SELECT IssueDate, LatestCover FROM magazines")[0]),
+                         {'IssueDate': '2026-01', 'LatestCover': newest})
+        magazines.set_issue_cover('I0', 1)
+        self.assertEqual(self.sql("SELECT LatestCover FROM magazines")[0]['LatestCover'], newest,
+                         "An older issue's isn't")
+
     def test_reading_progress(self):
         self.assertEqual(reader.progress('comic', 'CV1_54')['page'], 0)
         saved = reader.save_progress('comic', 'CV1_54', page=1, pages=2)

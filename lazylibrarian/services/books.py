@@ -893,7 +893,7 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
         logger.debug(f"New series list for {bookid}: {new_list}")
         if any(itm[1:] not in [i[1:] for i in new_list] for itm in old_list) or \
                 any(itm[1:] not in [i[1:] for i in old_list] for itm in new_list):
-            set_series(new_list, bookid, reason=scanresult)
+            set_series(new_list, bookid, reason=scanresult, replace=True)  # the series edited are its only ones
             delete_empty_series()
             edited += "Series "
         else:

@@ -46,7 +46,13 @@ from lazylibrarian.images import (
     read_pdf_tags,
     write_pdf_tags,
 )
-from lazylibrarian.magazinescan import get_dateparts, magazine_scan, remove_if_empty, rename_issue
+from lazylibrarian.magazinescan import (
+    get_dateparts,
+    magazine_scan,
+    remove_if_empty,
+    rename_issue,
+    update_latest,
+)
 from lazylibrarian.searchmag import download_maglist, search_magazines
 from lazylibrarian.services import InvalidRequestError, NotFoundError
 from lazylibrarian.services.files import (
@@ -377,11 +383,11 @@ def new_issue_cover(db, issue: dict, title: str, coverfile: str) -> str:
     setperm(hashname)
     newcover = f'cache/magazine/{myhash}.jpg'
     db.upsert("Issues", {"Cover": newcover}, {"IssueFile": issue['IssueFile']})
-    latest = db.match("select Title,LatestCover,IssueDate from magazines where title=? COLLATE NOCASE", (title,))
+    latest = db.match("select Title from magazines where title=? COLLATE NOCASE", (title,))
     if latest:
         title = latest['Title']
-        if latest['IssueDate'] == issue['IssueDate'] and latest['LatestCover'] != newcover:
-            db.action("UPDATE magazines SET LatestCover=? WHERE Title=? COLLATE NOCASE", (newcover, title))
+        # the magazine's cover is its newest issue's, whatever the latest date it had says
+        update_latest(db, title)
     issue['Cover'] = newcover
     issue['CoverFile'] = coverfile  # for updating calibre cover
     if CONFIG['IMP_CALIBREDB'] and CONFIG.get_bool('IMP_CALIBRE_MAGAZINE'):
