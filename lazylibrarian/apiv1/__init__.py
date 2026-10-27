@@ -24,6 +24,7 @@ from lazylibrarian.apiv1 import (
     history,
     log,
     manualimport,
+    profiles,
     queue,
     remotepathmapping,
     system,
@@ -39,6 +40,7 @@ router.include_router(history.router)
 router.include_router(wanted.router)
 router.include_router(manualimport.router)
 router.include_router(command.router)
+router.include_router(profiles.router)
 router.include_router(events.router)
 router.include_router(remotepathmapping.router)
 

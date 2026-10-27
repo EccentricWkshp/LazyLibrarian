@@ -7,7 +7,7 @@ import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
 import Icon from 'Components/Icon';
 import IconButton from 'Components/Link/IconButton';
-import { Alert, LoadingIndicator, Popover } from 'Components/Misc';
+import { Alert, Label, LoadingIndicator, Popover } from 'Components/Misc';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
 import Button from 'Components/Link/Button';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
@@ -24,6 +24,7 @@ const COLUMNS: Column[] = [
   { name: 'indexer', label: 'Indexer' },
   { name: 'size', label: 'Size' },
   { name: 'peers', label: 'Peers' },
+  { name: 'quality', label: 'Quality' },
   { name: 'score', label: 'Score' },
   { name: 'rejections', label: 'Rejections', isVisuallyHidden: true },
   { name: 'download', label: 'Download', isVisuallyHidden: true },
@@ -59,6 +60,9 @@ function ReleaseRow({ release }: { release: Release }) {
       <TableRowCell>{release.indexer}</TableRowCell>
       <TableRowCell className={styles.nowrap}>{formatBytes(release.size)}</TableRowCell>
       <TableRowCell>{release.seeders >= 0 ? release.seeders : ''}</TableRowCell>
+      <TableRowCell>
+        <Label>{release.quality}</Label>
+      </TableRowCell>
       <TableRowCell className={release.approved ? styles.good : styles.poor}>{release.score}</TableRowCell>
       <TableRowCell className={styles.rejections}>
         {release.rejections.length ? (

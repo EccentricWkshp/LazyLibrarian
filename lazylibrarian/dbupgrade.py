@@ -135,8 +135,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 101 single owner account instead of user accounts, add sessions table
 # 102 add remotepathmappings table, from the download clients' remote and local path settings
 # 103 add blocklist table, filled by triggers when a download fails, from the failed downloads
+# 104 add qualityprofiles table, with the default profiles
 
-db_current_version = 103
+db_current_version = 104
 
 # A failed download goes on the blocklist, as in Sonarr, however it was marked failed. Removing it
 # from the blocklist leaves its history, and clearing history leaves the blocklist
@@ -1759,6 +1760,16 @@ def update_schema(db, upgradelog):
                   'NZBsize TEXT, NZBmode TEXT, Source TEXT, Date TEXT, Message TEXT, UNIQUE (NZBurl, NZBtitle))')
         db.action(f"INSERT OR IGNORE INTO blocklist ({BLOCKLIST_COLUMNS}) SELECT BookID,AuxInfo,NZBtitle,NZBurl,"
                   f"NZBprov,NZBsize,NZBmode,Source,NZBdate,DLResult FROM wanted WHERE Status='Failed'")
+    if not has_column(db, "qualityprofiles", "Name"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating qualityprofiles table, with the default profiles'
+        upgradelog.write(f"{time.ctime()} v104: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('CREATE TABLE qualityprofiles (ProfileID INTEGER PRIMARY KEY, Name TEXT UNIQUE NOT NULL, '
+                  'MediaType TEXT NOT NULL, Items TEXT NOT NULL, Cutoff TEXT, UpgradeAllowed INTEGER DEFAULT 0)')
+        # the defaults follow the eBook and audiobook types settings
+        from lazylibrarian.services import profiles
+        profiles.ensure_defaults(db)
+
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'blocklist_%'")) \
             < len(BLOCKLIST_TRIGGERS):
         changes += 1

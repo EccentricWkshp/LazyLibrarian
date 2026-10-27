@@ -19,7 +19,7 @@ import traceback
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.common import only_punctuation
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.downloadmethods import (
@@ -32,7 +32,7 @@ from lazylibrarian.formatter import check_int, get_list, now, plural, replace_al
 from lazylibrarian.notifiers import custom_notify_snatch, notify_snatch
 from lazylibrarian.providers import get_searchterm
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.services import blocklist
+from lazylibrarian.services import blocklist, profiles
 from lazylibrarian.services.history import indexer_name
 from lazylibrarian.webshare import valid_ident
 
@@ -163,6 +163,12 @@ def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
         preflang_lower = {v.strip().lower() for v in get_list(CONFIG['IMP_PREFLANG'], ',') if v.strip()}
         check_lang = preflang_lower and 'all' not in preflang_lower
 
+        # the quality profile: which formats are wanted, best first, and the file there is already
+        media_type = 'audiobook' if auxinfo == 'AudioBook' else 'ebook'
+        profile = profiles.for_library(auxinfo, db)
+        current = book.get('current_quality') or ''
+        upgrade = bool(book.get('upgrade'))
+
         if source == 'nzb':
             prefix = 'nzb'
         else:  # rss and direct providers return same names as torrents
@@ -274,6 +280,24 @@ def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
                 elif auxinfo == 'AudioBook' and format_tokens <= ebook_types:
                     rejections.append(f"An eBook ({', '.join(sorted(format_tokens))}), not an audiobook")
 
+            release_quality, quality_rank = quality.UNKNOWN, 0
+            if profile:
+                release_quality = profiles.release_quality(profile, quality.of_release(res[f"{prefix}title"],
+                                                                                       media_type))
+                quality_rank = profiles.rank(profile, release_quality)
+                shown = quality.name(release_quality)
+                if not quality.imported(media_type, release_quality):
+                    rejections.append(f"{shown} files aren't imported, add {release_quality} to the "
+                                      f"{'audiobook' if media_type == 'audiobook' else 'eBook'} types in Settings")
+                elif not quality_rank:
+                    rejections.append(f"{shown} isn't wanted by the {profile['name']} quality profile")
+                if current and quality_rank:
+                    current_rank = profiles.rank(profile, current)
+                    if upgrade and quality_rank <= current_rank:
+                        rejections.append(f"Not an upgrade for the {quality.name(current)} there is")
+                    elif quality_rank < current_rank:
+                        rejections.append(f"{shown} is worse than the {quality.name(current)} there is")
+
             size_temp = check_int(res[f"{prefix}size"], 1000)  # Need to cater for when this is NONE (Issue 35)
             size = round(float(size_temp) / 1048576, 2)
 
@@ -325,31 +349,21 @@ def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
                 wordlist = get_list(result_title.lower())
             words = [x for x in wordlist if x not in get_list(author.lower())]
             words = [x for x in words if x not in get_list(title.lower())]
-            typelist = ''
 
+            # a format word isn't noise
             if new_value_dict['AuxInfo'] == 'eBook':
                 words = [x for x in words if x not in get_list(CONFIG['EBOOK_TYPE'])]
-                typelist = get_list(CONFIG['EBOOK_TYPE'])
             elif new_value_dict['AuxInfo'] == 'AudioBook':
                 words = [x for x in words if x not in get_list(CONFIG['AUDIOBOOK_TYPE'])]
-                typelist = get_list(CONFIG['AUDIOBOOK_TYPE'])
 
             # Don't treat wanted language as noise, and ignore separator "words" (#3100)
             preferred_tags = {w for w, langs in _LANG_TO_PREFLANG.items() if langs & preflang_lower}
             words = [x for x in words if x not in preferred_tags and x not in ('by', '/', '-')]
 
             score -= len(words)
-            # prioritise titles that include the ebook types we want
-            # add more points for booktypes nearer the left in the list
-            # eg if epub, mobi, pdf  add 3 points if epub found, 2 for mobi, 1 for pdf
-            booktypes = [x for x in wordlist if x in typelist]
-            if booktypes:
-                typelist = list(reversed(typelist))
-                for item in booktypes:
-                    for i in [i for i, x in enumerate(typelist) if x == item]:
-                        score += i + 1
+            # the format is the quality profile's, which chooses between the releases before the score does
 
-            # now do the same for words in the "preferred words" list"
+            # add points for words in the "preferred words" list, more the nearer the left
             preferwords = get_list(CONFIG['PREFER_WORDS'])
             if preferwords:
                 preferwords = list(reversed(preferwords))
@@ -366,7 +380,8 @@ def evaluate_results(resultlist, book, searchtype, source) -> list[dict]:
 
             evaluated.append({'title': res[f"{prefix}title"], 'provider': new_value_dict['NZBprov'], 'url': url,
                               'mode': mode, 'size': size, 'seeders': seeders, 'priority': res['priority'],
-                              'score': score, 'rejections': rejections, 'new_value_dict': new_value_dict,
+                              'score': score, 'quality': release_quality, 'quality_rank': quality_rank,
+                              'rejections': rejections, 'new_value_dict': new_value_dict,
                               'control_value_dict': control_value_dict})
     finally:
         db.close()
@@ -385,12 +400,17 @@ def find_best_result(resultlist, book, searchtype, source):
     highest = None
     try:
         matches = [[result['score'], result['new_value_dict'], result['control_value_dict'], result['priority'],
-                    check_int(result['seeders'], 0) if result['seeders'] >= 0 else 0]
+                    check_int(result['seeders'], 0) if result['seeders'] >= 0 else 0, result['quality_rank']]
                    for result in evaluate_results(resultlist, book, searchtype, source) if not result['rejections']]
 
         if matches:
-            highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0),
-                                                   check_int(s[4], 0)))
+            # of the ones good enough to take, the best quality to the profile, then the best match.
+            # When none is good enough, the nearest, to say how near
+            good = [match for match in matches if match[0] >= CONFIG.get_int('MATCH_RATIO')]
+            if good:
+                highest = max(good, key=match_key)
+            else:
+                highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0), check_int(s[4], 0)))
             score = highest[0]
             new_value_dict = highest[1]
             # controlValueDict = highest[2]
@@ -410,6 +430,13 @@ def find_best_result(resultlist, book, searchtype, source):
         logger.error(f'Unhandled exception in find_best_result: {traceback.format_exc()}')
 
     return highest
+
+
+def match_key(s):
+    """ How a match ranks against another the search would take, as Sonarr's decision engine
+    prefers: the quality profile's order first, then the score with the provider's priority, then
+    the provider's priority and seeders """
+    return check_int(s[5], 0) if len(s) > 5 else 0, weighted_score(s), check_int(s[3], 0), check_int(s[4], 0)
 
 
 def weighted_score(s):

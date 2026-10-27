@@ -20,8 +20,9 @@ import logging
 import threading
 import time
 
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import plural
 from lazylibrarian.providers import (
     iterate_over_direct_sites,
@@ -31,7 +32,7 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.resultlist import download_result, evaluate_results
-from lazylibrarian.services import InvalidRequestError, NotFoundError, history
+from lazylibrarian.services import InvalidRequestError, NotFoundError, history, profiles
 
 LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
 PROTOCOLS = {**history.PROTOCOLS, 'direct': 'direct', 'irc': 'irc'}
@@ -45,8 +46,9 @@ def _search_book(book_id, library: str) -> dict:
     """ The book as the automatic search describes it """
     db = database.DBConnection()
     try:
-        row = db.match('SELECT BookID,AuthorName,BookName,BookSub FROM books,authors '
+        row = db.match('SELECT BookID,AuthorName,BookName,BookSub,BookFile,AudioFile FROM books,authors '
                        'WHERE books.AuthorID=authors.AuthorID AND BookID=?', (book_id,))
+        profile = profiles.for_library(library, db)
     finally:
         db.close()
     if not row:
@@ -54,8 +56,14 @@ def _search_book(book_id, library: str) -> dict:
     searchterm = f"{row['AuthorName']} {row['BookName']}"
     if row['BookSub']:
         searchterm += f": {row['BookSub']}"
+    # the file there is, a release worse than it is turned down
+    path = row['AudioFile' if library == 'AudioBook' else 'BookFile']
+    current = ''
+    if profile and path and path_isfile(path):
+        current = profiles.book_quality(profile, quality.of_book(path, profiles.LIBRARIES[library]))
     return {'bookid': row['BookID'], 'authorName': row['AuthorName'], 'bookName': row['BookName'],
-            'bookSub': row['BookSub'] or '', 'library': library, 'searchterm': searchterm}
+            'bookSub': row['BookSub'] or '', 'library': library, 'searchterm': searchterm,
+            'current_quality': current}
 
 
 def _provider_results(book: dict, searchtype: str) -> list[tuple[str, list]]:
@@ -101,15 +109,17 @@ def search(book_id, media_type: str) -> list[dict]:
             release_id = hashlib.sha1(f"{book_id}|{media_type}|{result['provider']}|{result['url']}".encode(),
                                       usedforsecurity=False).hexdigest()[:16]
             match = [result['score'], result['new_value_dict'], result['control_value_dict'], result['priority'],
-                     max(result['seeders'], 0)]
+                     max(result['seeders'], 0), result['quality_rank']]
             with _lock:
                 _releases[release_id] = (now, match, book)
             releases.append({'id': release_id, 'title': result['title'], 'indexer': CONFIG.disp_name(result['provider']),
                              'protocol': PROTOCOLS.get(result['mode'], result['mode'] or ''),
                              'size': round(result['size'] * 1048576), 'seeders': result['seeders'],
-                             'score': round(result['score'], 1), 'rejections': rejections,
+                             'score': round(result['score'], 1), 'quality': quality.name(result['quality']),
+                             'quality_rank': result['quality_rank'], 'rejections': rejections,
                              'approved': not rejections})
-    releases.sort(key=lambda release: (not release['approved'], -release['score']))
+    # as the automatic search would choose: what it would take, the best quality, then the best match
+    releases.sort(key=lambda release: (not release['approved'], -release['quality_rank'], -release['score']))
     logging.getLogger(__name__).info(f"Interactive search for {book['searchterm']} found {len(releases)} "
                                      f"{plural(len(releases), 'release')}, "
                                      f"{sum(release['approved'] for release in releases)} the automatic search "

@@ -13,7 +13,7 @@ from lazylibrarian import searchbook
 from unittests.unittesthelpers import LLTestCase
 
 BOOK_WANTED_IN_BOTH = {'BookID': '1', 'AuthorName': 'Jane Austen', 'BookName': 'Emma', 'BookSub': '',
-                       'Status': 'Wanted', 'AudioStatus': 'Wanted'}
+                       'Status': 'Wanted', 'AudioStatus': 'Wanted', 'BookFile': '', 'AudioFile': ''}
 
 
 class FakeDB:
@@ -46,6 +46,7 @@ class SearchBookLibraryTest(LLTestCase):
 
         config = searchbook.CONFIG
         with mock.patch.object(searchbook.database, 'DBConnection', return_value=FakeDB()), \
+                mock.patch.object(searchbook.profiles, 'for_library', return_value=None), \
                 mock.patch.object(config, 'total_active_providers', return_value=1), \
                 mock.patch.object(config, 'use_nzb', return_value=1), \
                 mock.patch.object(config, 'use_tor', return_value=0), \

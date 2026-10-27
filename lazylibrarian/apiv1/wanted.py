@@ -51,6 +51,7 @@ class Release(ApiModel):
     size: int
     seeders: int
     score: float
+    quality: str
     rejections: list[str]
     approved: bool
 
@@ -72,6 +73,34 @@ def missing(page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSi
     the magazines and comics that are active, each with its latest issue """
     found = wanted.list_missing(media_type, search, sort_key, sort_direction == 'descending',
                                 (page - 1) * page_size, page_size)
+    return {'page': page, 'page_size': page_size, 'sort_key': sort_key, 'sort_direction': sort_direction,
+            'total_records': found.matched, 'records': found.items}
+
+
+class CutoffBook(MissingBook):
+    quality: str
+    cutoff: str
+    profile: str
+
+
+class CutoffPage(ApiModel):
+    page: int
+    page_size: int
+    sort_key: str
+    sort_direction: str
+    total_records: int
+    records: list[CutoffBook]
+
+
+@router.get('/wanted/cutoff', response_model=CutoffPage)
+def cutoff_unmet(page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSize', ge=1, le=1000),
+                 sort_key: str = Query('title', alias='sortKey'),
+                 sort_direction: Literal['ascending', 'descending'] = Query('ascending', alias='sortDirection'),
+                 media_type: str = Query('', alias='mediaType'), search: str = ''):
+    """ Like Sonarr's Wanted, Cutoff Unmet: books and audiobooks whose file is below their quality
+    profile's cutoff, when it allows upgrades. The CutoffUnmetSearch command looks for upgrades """
+    found = wanted.list_cutoff_unmet(media_type, search, sort_key, sort_direction == 'descending',
+                                     (page - 1) * page_size, page_size)
     return {'page': page, 'page_size': page_size, 'sort_key': sort_key, 'sort_direction': sort_direction,
             'total_records': found.matched, 'records': found.items}
 

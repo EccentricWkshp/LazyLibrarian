@@ -56,7 +56,10 @@ function groups(): SidebarGroup[] {
           iconName: TriangleAlert,
           title: 'Wanted',
           to: '/wanted/missing',
-          children: [{ title: 'Missing', to: '/wanted/missing' }],
+          children: [
+            { title: 'Missing', to: '/wanted/missing' },
+            { title: 'Cutoff Unmet', to: '/wanted/cutoffunmet' },
+          ],
         },
       ],
     },
@@ -70,7 +73,15 @@ function groups(): SidebarGroup[] {
     },
     {
       items: [
-        { iconName: Settings, title: 'Settings', to: '/config' },
+        {
+          iconName: Settings,
+          title: 'Settings',
+          to: '/config',
+          children: [
+            { title: 'General', to: '/config' },
+            { title: 'Profiles', to: '/settings/profiles' },
+          ],
+        },
         {
           iconName: Monitor,
           title: 'System',

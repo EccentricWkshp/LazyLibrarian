@@ -18,7 +18,7 @@ export default defineConfig({
     // imports from the top of src, like Sonarr's: 'Components/Page/Page'
     alias: [
       {
-        find: /^(Activity|App|Components|InteractiveImport|InteractiveSearch|Styles|System|Utilities|Wanted|typings)\//,
+        find: /^(Activity|App|Components|InteractiveImport|InteractiveSearch|Settings|Styles|System|Utilities|Wanted|typings)\//,
         replacement: `${src}/$1/`,
       },
     ],

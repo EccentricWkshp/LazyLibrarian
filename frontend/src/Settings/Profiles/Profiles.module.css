@@ -1,0 +1,111 @@
+/* From Sonarr's QualityProfiles, QualityProfile card and QualityProfileItems styles */
+
+.legend {
+  margin: 0 0 15px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+}
+
+section + section .legend {
+  margin-top: 30px;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.card,
+.addCard {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: 100%;
+  min-height: 110px;
+  padding: 12px 15px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--cardBackgroundColor, var(--inputBackgroundColor));
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--inputFocusBorderColor);
+  }
+}
+
+.addCard {
+  align-items: center;
+  justify-content: center;
+  color: var(--inkMuted);
+}
+
+.cardName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  font-size: 18px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cardNote {
+  margin-top: auto;
+  padding-top: 8px;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize);
+}
+
+.note {
+  margin-top: 25px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.qualities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+}
+
+.qualityRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+
+  & + & {
+    border-top: 1px solid var(--borderColor);
+  }
+}
+
+.qualityName {
+  font-weight: 500;
+}
+
+.qualityOff {
+  color: var(--inkMuted);
+}
+
+.notImported {
+  color: var(--warningColor, var(--inkMuted));
+  font-size: var(--extraSmallFontSize);
+}
+
+.moves {
+  margin-left: auto;
+  white-space: nowrap;
+}

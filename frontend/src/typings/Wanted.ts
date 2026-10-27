@@ -12,6 +12,13 @@ export interface MissingBook {
   published: string;
 }
 
+export interface CutoffBook extends MissingBook {
+  // the quality of the file there is, and the one to upgrade until, as names
+  quality: string;
+  cutoff: string;
+  profile: string;
+}
+
 export interface PagedResult<T> {
   page: number;
   pageSize: number;
@@ -29,6 +36,7 @@ export interface Release {
   size: number;
   seeders: number;
   score: number;
+  quality: string;
   rejections: string[];
   approved: boolean;
 }

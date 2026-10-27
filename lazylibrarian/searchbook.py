@@ -17,9 +17,10 @@ import time
 import traceback
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import check_int, get_list, plural, thread_name
 from lazylibrarian.providers import (
     iterate_over_direct_sites,
@@ -28,7 +29,8 @@ from lazylibrarian.providers import (
     iterate_over_torrent_sites,
     iterate_over_znab_sites,
 )
-from lazylibrarian.resultlist import download_result, find_best_result
+from lazylibrarian.resultlist import download_result, find_best_result, match_key
+from lazylibrarian.services import profiles
 
 
 def cron_search_book():
@@ -37,6 +39,15 @@ def cron_search_book():
         search_book()
     else:
         logger.debug("SEARCHALLBOOKS is already running")
+
+
+def _current_quality(path, library: str, profile_for: dict) -> str:
+    """ The quality of the book's file there is for eBook or AudioBook to its profile, '' when there
+    is none """
+    profile = profile_for.get(library)
+    if not path or not profile or not path_isfile(path):
+        return ''
+    return profiles.book_quality(profile, quality.of_book(path, profiles.LIBRARIES[library]))
 
 
 def good_enough(match):
@@ -97,10 +108,12 @@ def warn_mode(mode):
     logger.warning(f'No {mode} providers are available. Check config and blocklist')
 
 
-def search_book(books=None, library=None):
+def search_book(books=None, library=None, upgrade=False):
     """
     books is a list of new books to add, or None for backlog search
     library is "eBook" or "AudioBook" or None to search all book types
+    upgrade searches for these books though they aren't wanted, when their file is below their
+    quality profile's cutoff, taking only a release that is better than it (Wanted, Cutoff Unmet)
     """
     # Only search the requested format. Previously `library` was only used in log messages, so every
     # per-format caller (web UI, API type=, GoodReads/HardCover sync, wishlist) searched both formats
@@ -136,7 +149,7 @@ def search_book(books=None, library=None):
         if not books:
             # We are performing a backlog search
             cmd = ("SELECT BookID, AuthorName, Bookname, BookSub, BookAdded, books.Status, AudioStatus, "
-                   "BookGenre from books,authors WHERE (books.Status='Wanted' OR AudioStatus='Wanted') "
+                   "BookGenre, BookFile, AudioFile from books,authors WHERE (books.Status='Wanted' OR AudioStatus='Wanted') "
                    "and books.AuthorID = authors.AuthorID order by BookAdded desc")
             results = db.select(cmd)
             for terms in results:
@@ -149,7 +162,7 @@ def search_book(books=None, library=None):
             for book in books:
                 if book['bookid'] not in ['booklang', 'library', 'ignored']:
                     cmd = ("SELECT BookID, AuthorName, BookName, BookSub, books.Status, AudioStatus, "
-                           "BookGenre from books,authors WHERE BookID=? AND books.AuthorID = authors.AuthorID")
+                           "BookGenre, BookFile, AudioFile from books,authors WHERE BookID=? AND books.AuthorID = authors.AuthorID")
                     results = db.select(cmd, (book['bookid'],))
                     if results:
                         for terms in results:
@@ -196,6 +209,8 @@ def search_book(books=None, library=None):
             f"Provider Blocklist contains {BLOCKHANDLER.number_blocked()} "
             f"{plural(BLOCKHANDLER.number_blocked(), 'entry')}")
 
+        profile_for = {library_name: profiles.for_library(library_name, db) for library_name in
+                       ('eBook', 'AudioBook')}
         for searchbook in searchbooks:
             if lazylibrarian.STOPTHREADS and thread_name() == "SEARCHALLBOOKS":
                 logger.debug("STOPTHREADS Aborting SEARCHALLBOOKS")
@@ -220,7 +235,10 @@ def search_book(books=None, library=None):
                     searchterm += ': '
                 searchterm += searchbook['BookSub']
 
-            if search_ebook and searchbook['Status'] == "Wanted":
+            current = _current_quality(searchbook['BookFile'], 'eBook', profile_for)
+            upgrading = upgrade and searchbook['Status'] != 'Wanted' and bool(current) and \
+                profiles.wants_upgrade(profile_for['eBook'], current)
+            if search_ebook and (searchbook['Status'] == "Wanted" or upgrading):
                 cmd = "SELECT BookID from wanted WHERE BookID=? and AuxInfo='eBook' and Status='Snatched'"
                 snatched = db.match(cmd, (searchbook["BookID"],))
                 if snatched:
@@ -235,9 +253,14 @@ def search_book(books=None, library=None):
                          "authorName": searchbook['AuthorName'],
                          "library": "eBook",
                          "searchterm": searchterm,
+                         "current_quality": current,
+                         "upgrade": upgrading,
                          "genre": (searchbook['BookGenre'] if 'BookGenre' in searchbook.keys() else '')})
 
-            if search_audio and searchbook['AudioStatus'] == "Wanted":
+            current = _current_quality(searchbook['AudioFile'], 'AudioBook', profile_for)
+            upgrading = upgrade and searchbook['AudioStatus'] != 'Wanted' and bool(current) and \
+                profiles.wants_upgrade(profile_for['AudioBook'], current)
+            if search_audio and (searchbook['AudioStatus'] == "Wanted" or upgrading):
                 cmd = "SELECT BookID from wanted WHERE BookID=? and AuxInfo='AudioBook' and Status='Snatched'"
                 snatched = db.match(cmd, (searchbook["BookID"],))
                 if snatched:
@@ -252,6 +275,8 @@ def search_book(books=None, library=None):
                          "authorName": searchbook['AuthorName'],
                          "library": "AudioBook",
                          "searchterm": searchterm,
+                         "current_quality": current,
+                         "upgrade": upgrading,
                          "genre": (searchbook['BookGenre'] if 'BookGenre' in searchbook.keys() else '')})
 
         # only get rss results once per run, as they are not search specific
@@ -590,7 +615,8 @@ def search_book(books=None, library=None):
                 snatched = False
                 while matches:
                     try:
-                        highest = max(matches, key=lambda s: (weighted_score(s), check_int(s[3], 0)))
+                        # the best quality to the profile first, as find_best_result chose each
+                        highest = max(matches, key=match_key)
                     except TypeError:
                         highest = max(matches, key=lambda s: (str(s[0]), str(s[3])))
 

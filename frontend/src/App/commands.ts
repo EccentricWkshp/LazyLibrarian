@@ -17,6 +17,7 @@ const CHANGES: Record<string, string[][]> = {
   ClearBlocklist: [['blocklist']],
   RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update']],
   Backup: [['backups']],
+  CutoffUnmetSearch: [['queue'], ['wanted']],
 };
 
 function isDone(command: Command) {

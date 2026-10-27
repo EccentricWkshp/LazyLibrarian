@@ -15,8 +15,9 @@ or interactively, or to stop looking for (unmonitor). Books and audiobooks are w
 A magazine or comic that is active is looked for issue by issue, its next one, so it is one
 record with its latest issue. The searches run as commands, so how they ended shows """
 
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import plural, thread_name
 from lazylibrarian.services import InvalidRequestError
 from lazylibrarian.services.paging import Page, page_of
@@ -76,6 +77,86 @@ def list_missing(media_type: str = '', search: str = '', sort: str = 'added', de
         db.close()
     return page_of(records, search=search, search_fields=('title', 'author', 'subtitle'), sort=sort,
                    descending=descending, natural=sort == 'title', offset=offset, limit=limit)
+
+
+CUTOFF_SORTS = ('title', 'author', 'added', 'media_type', 'quality')
+# for each library: its status, file and import date columns
+BOOK_COLUMNS = {'ebook': ('Status', 'BookFile', 'BookLibrary'), 'audiobook': ('AudioStatus', 'AudioFile',
+                                                                             'AudioLibrary')}
+
+
+def _cutoff_unmet(kinds: list[str]) -> list[dict]:
+    """ The books whose file is below their quality profile's cutoff, when it allows upgrades """
+    from lazylibrarian.services import profiles  # it reads the settings
+    records = []
+    db = database.DBConnection()
+    try:
+        for kind in kinds:
+            profile = profiles.for_media(kind, db)
+            if not profile or not profile['upgrade_allowed']:
+                continue
+            status, file_column, imported = BOOK_COLUMNS[kind]
+            rows = db.select(f"SELECT BookID,BookName,AuthorName,books.AuthorID,{file_column} AS Path,{imported} AS "
+                             f"Imported,BookDate FROM books,authors WHERE books.AuthorID=authors.AuthorID AND "
+                             f"books.{status} IN ('Open','Have') AND IFNULL({file_column},'')!=''")
+            for row in rows:
+                # the file's own format first, the others beside it only when that isn't good enough
+                if profiles.cutoff_met(profile, quality.of_file(row['Path'], kind)):
+                    continue
+                if not path_isfile(row['Path']):
+                    continue
+                current = profiles.book_quality(profile, quality.of_book(row['Path'], kind))
+                if profiles.cutoff_met(profile, current):
+                    continue
+                records.append(_record(row['BookID'], kind, row['BookName'], author=row['AuthorName'],
+                                       author_id=row['AuthorID'], added=row['Imported'] or '',
+                                       published=row['BookDate'] or '', quality=quality.name(current),
+                                       cutoff=quality.name(profile['cutoff']), profile=profile['name']))
+    finally:
+        db.close()
+    return records
+
+
+def list_cutoff_unmet(media_type: str = '', search: str = '', sort: str = 'title', descending: bool = False,
+                      offset: int = 0, limit: int | None = None) -> Page:
+    """ Sonarr's Wanted, Cutoff Unmet: the books and audiobooks to upgrade, each with the quality of
+    its file and the cutoff it's to be upgraded until """
+    kinds = [media_type] if media_type else [kind for kind in media_types() if kind in LIBRARIES]
+    if any(kind not in LIBRARIES for kind in kinds):
+        raise InvalidRequestError('The type is ebook or audiobook')
+    if sort not in CUTOFF_SORTS:
+        raise InvalidRequestError(f"Sort by one of {', '.join(CUTOFF_SORTS)}")
+    return page_of(_cutoff_unmet(kinds), search=search, search_fields=('title', 'author'), sort=sort,
+                   descending=descending, natural=sort == 'title', offset=offset, limit=limit)
+
+
+def search_upgrades(books: list[dict], progress=None) -> tuple[int, str]:
+    """ Search for better releases of these books, [{'book_id', 'media_type'}], or of every book in
+    Cutoff Unmet when there are none. Only a release better than the file there is is taken """
+    from lazylibrarian.searchbook import search_book  # it imports most of LazyLibrarian
+
+    if not CONFIG.total_active_providers():
+        raise InvalidRequestError('No search providers are enabled, add one in Settings, Providers')
+    if any(book.get('media_type') not in LIBRARIES for book in books):
+        raise InvalidRequestError('Upgrades are for books and audiobooks')
+    wanted = books or [{'book_id': record['book_id'], 'media_type': record['media_type']}
+                       for record in _cutoff_unmet([kind for kind in media_types() if kind in LIBRARIES])]
+    if not wanted:
+        return 0, 'Nothing is below its cutoff'
+    last = _last_download()
+    for kind, library in LIBRARIES.items():
+        ids = [{'bookid': book['book_id']} for book in wanted if book['media_type'] == kind]
+        if ids:
+            if progress:
+                progress(f"Searching for upgrades of {len(ids)} {plural(len(ids), library)}")
+            thread_name('FORCE-SEARCHBOOK')
+            search_book(ids, library, upgrade=True)
+    found = _snatched_since(last)
+    if len(wanted) == 1:
+        name = _name(wanted[0])
+        return found, (f'Search for an upgrade of {name} completed, found and sent to the download client' if found
+                       else f'Search for an upgrade of {name} completed, nothing better found')
+    return found, f"Search for upgrades of {len(wanted)} books completed, {found} {plural(found, 'upgrade')} found"
 
 
 def _name(item: dict) -> str:

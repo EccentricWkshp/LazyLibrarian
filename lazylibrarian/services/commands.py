@@ -83,6 +83,15 @@ def _missing_book_search(command: dict, body: dict) -> str:
     return message
 
 
+def _cutoff_unmet_search(command: dict, body: dict) -> str:
+    def progress(message):
+        _update(command, message=message)
+
+    found, message = wanted.search_upgrades(body.get('books') or [], progress=progress)
+    command['result'] = {'found': found}
+    return message
+
+
 def _clear_blocklist(command: dict, body: dict) -> str:
     cleared = blocklist.clear()
     command['result'] = {'cleared': cleared}
@@ -108,10 +117,12 @@ def _application_update(command: dict, body: dict) -> str:
 
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
                                                     'MissingBookSearch': _missing_book_search,
+                                                    'CutoffUnmetSearch': _cutoff_unmet_search,
                                                     'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task,
                                                     'Backup': _backup, 'ApplicationUpdate': _application_update}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
+          'CutoffUnmetSearch': 'Upgrade Search',
           'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update'}
 
 
