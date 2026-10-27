@@ -4,6 +4,8 @@ interface LazyLibrarianSettings {
   theme: 'dark' | 'light';
   // which libraries are shown
   tabs: { ebook: boolean; audio: boolean; series: boolean; mag: boolean; comic: boolean };
+  // the libraries' RSS feeds are there
+  rss?: boolean;
 }
 
 interface Window {

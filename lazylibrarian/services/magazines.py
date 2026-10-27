@@ -23,7 +23,8 @@ import uuid
 from shutil import copyfile
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, pages, wikidata
+from lazylibrarian.cache import ImageType, cache_img
 from lazylibrarian.calibre import calibredb, get_calibre_id
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
 from lazylibrarian.config2 import CONFIG
@@ -37,7 +38,13 @@ from lazylibrarian.formatter import (
     replace_all,
     today,
 )
-from lazylibrarian.images import coverswap, create_mag_cover, read_pdf_tags, write_pdf_tags
+from lazylibrarian.images import (
+    coverswap,
+    create_mag_cover,
+    extract_image_from_page,
+    read_pdf_tags,
+    write_pdf_tags,
+)
 from lazylibrarian.magazinescan import get_dateparts, magazine_scan, remove_if_empty, rename_issue
 from lazylibrarian.searchmag import download_maglist, search_magazines
 from lazylibrarian.services import InvalidRequestError, NotFoundError
@@ -188,7 +195,9 @@ def issue_for_edit(issueid) -> tuple[dict, dict]:
         db.close()
     if not issue:
         raise NotFoundError(f"Missing issue {issueid}")
-    return dict(issue), read_pdf_tags(issue['IssueFile'])
+    # only a PDF has tags, pypdf can't read the other formats
+    is_pdf = str(issue['IssueFile'] or '').lower().endswith('.pdf')
+    return dict(issue), read_pdf_tags(issue['IssueFile']) if is_pdf else {}
 
 
 def date_matches_type(dateparts: dict, datetype: str) -> bool:
@@ -295,7 +304,7 @@ def list_past_issues(status: str, magazine: str | None = None, search: str = '',
                      descending: bool = False, offset: int = 0, limit: int | None = None) -> Page:
     """ A page of past issues, the search results not wanted for a magazine at the time, with a status,
         and for one magazine if given """
-    cmd = f"SELECT {', '.join(PAST_ISSUE_FIELDS)} from pastissues WHERE Status=?"
+    cmd = f"SELECT {', '.join(PAST_ISSUE_FIELDS)}, BookID from pastissues WHERE Status=?"
     args = [status]
     if magazine:
         cmd += " AND BookID=?"
@@ -395,10 +404,40 @@ def tag_issue(issuefile: str, title: str, issuedate: str, issueid, language, gen
     return bool(res)
 
 
-def mark_issues(action: str, issueids) -> tuple[int, int, str]:
-    """ Make a new cover from a page (reCover then the page number), use page 2 as the cover (coverswap),
-        tag the file (tag), delete the file and forget the issue (Delete) or just forget it (Remove).
-        Stops early after abort_marking. Returns (passed, failed, the magazine title) """
+def cover_page(title: str = '', issueid: str = '') -> int:
+    """ The page a magazine's covers are made from, by its title or one of its issues """
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT CoverPage FROM magazines WHERE Title=? COLLATE NOCASE OR Title=(SELECT Title '
+                       'FROM issues WHERE IssueID=?)', (title, issueid))
+    finally:
+        db.close()
+    return check_int(row['CoverPage'], 1) if row else 1
+
+
+def page_cover(issuefile: str, page: int) -> str:
+    """ A cover drawn from a page of an issue's file, made even when the settings don't make covers,
+        as it was asked for. Returns the picture's path, empty if there's no such page """
+    if pages.is_paged(issuefile) and page > pages.page_count(issuefile):
+        return ''
+    return extract_image_from_page(issuefile, refresh=True, pagenum=page, cover=True)
+
+
+def set_issue_cover(issueid, page: int) -> str:
+    """ Make an issue's cover from one of its pages. Returns what happened """
+    passed, _failed, title = mark_issues(f'reCover{page}', [issueid])
+    if not title:
+        raise NotFoundError(f"Missing issue {issueid}")
+    if not passed:
+        raise InvalidRequestError(f"There's no page {page} to make a cover from")
+    return f"The cover is page {page} now"
+
+
+def mark_issues(action: str, issueids, swap_page: int = 2) -> tuple[int, int, str]:
+    """ Make a new cover from a page (reCover then the page number), make a page the first one and the
+        cover (coverswap, swap_page), tag the file (tag), delete the file and forget the issue (Delete) or
+        just forget it (Remove). Stops early after abort_marking. Returns (passed, failed, the magazine
+        title) """
     logger = logging.getLogger(__name__)
     passed = failed = 0
     title = ''
@@ -425,7 +464,7 @@ def mark_issues(action: str, issueids) -> tuple[int, int, str]:
             if ('reCover' in action or action == 'coverswap') and issuefile:
                 coverfile = None
                 if 'reCover' in action:
-                    coverfile = create_mag_cover(issuefile, refresh=True, pagenum=check_int(action[-1], 1))
+                    coverfile = page_cover(issuefile, check_int(action[len('reCover'):], 1))
                 elif CONFIG['MAG_COVERSWAP']:
                     params = [CONFIG['MAG_COVERSWAP'], issuefile]
                     logger.debug(f"Coverswap {params}")
@@ -434,7 +473,7 @@ def mark_issues(action: str, issueids) -> tuple[int, int, str]:
                         coverfile = create_mag_cover(issuefile, refresh=True, pagenum=1)
                     except subprocess.CalledProcessError as e:
                         logger.warning(e.output)
-                elif coverswap(issuefile, 2):  # cover from page 2 (counted from 1)
+                elif coverswap(issuefile, swap_page):  # cover from that page (counted from 1)
                     coverfile = create_mag_cover(issuefile, refresh=True, pagenum=1)
                 if coverfile:
                     title = new_issue_cover(db, issue, title, coverfile)
@@ -625,6 +664,131 @@ def search_for_magazine(title):
         logging.getLogger(__name__).warning(f"Magazine {title} was not found in the library")
         raise
     start_search([{"bookid": magazine['Title']}])
+
+
+# --- missing and expected issues
+
+MAX_MISSING = 60
+
+
+def _issue_day(text: str) -> datetime.date | None:
+    """ An issue date as a day: YYYY-MM-DD, or YYYY-MM as its first day """
+    text = str(text or '')
+    try:
+        if len(text) >= 10:
+            return datetime.date.fromisoformat(text[:10])
+        if len(text) == 7:
+            return datetime.date.fromisoformat(f"{text}-01")
+    except ValueError:
+        pass
+    return None
+
+
+def _step(day: datetime.date, frequency: int, times: int = 1) -> datetime.date:
+    """ The day so many issues after another: calendar months for a magazine that comes out every
+    month or few, days otherwise """
+    months = round(frequency / 30.44)
+    if frequency >= 28 and abs(months * 30.44 - frequency) <= 4:
+        total = day.month - 1 + months * times
+        year, month = day.year + total // 12, total % 12 + 1
+        return day.replace(year=year, month=month, day=min(day.day, 28))
+    return day + datetime.timedelta(days=frequency * times)
+
+
+def issue_schedule(issue_dates: list[str], frequency: int = 0, today: datetime.date | None = None) -> dict:
+    """ What a magazine's issues say about the ones it hasn't got: for issues known by number, the
+    numbers missing between the first and last and the next one; for issues known by date, the
+    issues missing between them and when the next is due, every frequency days (taken from the gaps
+    between the issues when it isn't known). Returns frequency (0 when it can't be told), inferred
+    (it was taken from the issues), missing, next and overdue """
+    today = today or datetime.date.today()
+    found = {'frequency': frequency, 'inferred': False, 'missing': [], 'next': '', 'overdue': False}
+    dates = sorted({str(d).strip() for d in issue_dates if str(d or '').strip()})
+    if dates and all(d.isdigit() for d in dates):
+        numbers = sorted({int(d) for d in dates})
+        have = set(numbers)
+        found['missing'] = [str(n) for n in range(numbers[0], numbers[-1]) if n not in have][:MAX_MISSING]
+        found['next'] = str(numbers[-1] + 1)
+        return found
+    days = sorted({day for day in (_issue_day(d) for d in dates) if day})
+    if not days:
+        return found
+    if not frequency and len(days) >= 3:
+        gaps = sorted((b - a).days for a, b in zip(days, days[1:], strict=False))
+        frequency = gaps[len(gaps) // 2]
+        found.update({'frequency': frequency, 'inferred': True})
+    if frequency <= 0:
+        return found
+    for before, after in zip(days, days[1:], strict=False):
+        expected = _step(before, frequency)
+        # an issue more than half a step late is a gap
+        while len(found['missing']) < MAX_MISSING and (after - expected).days > frequency / 2:
+            found['missing'].append(expected.isoformat())
+            expected = _step(expected, frequency)
+    upcoming = _step(days[-1], frequency)
+    found['next'] = upcoming.isoformat()
+    found['overdue'] = (today - upcoming).days > frequency / 2
+    return found
+
+
+# --- what Wikidata says about a magazine
+
+# the magazines columns Wikidata's details fill, by the details' names
+WIKIDATA_COLUMNS = {'id': 'WikidataID', 'description': 'Description', 'publisher': 'Publisher', 'issn': 'ISSN',
+                    'country': 'Country', 'frequency': 'Frequency', 'website': 'Website', 'logo': 'Logo',
+                    'started': 'Started'}
+
+
+def _language(magazine: dict) -> str:
+    return (magazine.get('Language') or CONFIG['PREF_MAGLANG'] or 'en')[:2].lower()
+
+
+def wikidata_matches(title: str) -> list[dict]:
+    """ The periodicals on Wikidata a magazine's title finds, best first """
+    magazine = get_magazine(title)
+    return wikidata.search(magazine['Title'], _language(magazine))
+
+
+def set_wikidata(title: str, item_id: str) -> str:
+    """ Link a magazine to its Wikidata item and take its details from it: description, publisher,
+    ISSN, country, how often it comes out, website, logo, when it started, and its subjects as its
+    genres when it has none. An empty item_id unlinks it and clears them. Returns what happened """
+    magazine = get_magazine(title)
+    title = magazine['Title']
+    if not item_id:
+        found = {column: 0 if column == 'Frequency' else '' for column in WIKIDATA_COLUMNS.values()}
+    else:
+        details = wikidata.details(item_id, _language(magazine))
+        if not details:
+            raise InvalidRequestError(f"Wikidata has no item {item_id}, or couldn't be reached")
+        found = {column: details[key] for key, column in WIKIDATA_COLUMNS.items()}
+        if details['logo']:
+            link, ok, _ = cache_img(ImageType.MAG, f"wikidata_{item_id}", details['logo'], refresh=True)
+            found['Logo'] = link if ok else ''
+        if not magazine.get('Genre') and details['subjects']:
+            found['Genre'] = ', '.join(details['subjects'][:3])
+    db = database.DBConnection()
+    try:
+        db.upsert('magazines', found, {'Title': title})
+    finally:
+        db.close()
+    if not item_id:
+        return f"{title} isn't linked to Wikidata now"
+    return f"{title} is {details['label']} on Wikidata ({item_id})"
+
+
+def refresh_magazine(title: str) -> str:
+    """ Take a magazine's details from Wikidata again, or link it to the periodical called exactly
+    its title when it isn't linked yet. Returns what happened """
+    magazine = get_magazine(title)
+    if magazine.get('WikidataID'):
+        return set_wikidata(magazine['Title'], magazine['WikidataID'])
+    matches = wikidata_matches(magazine['Title'])
+    exact = [item for item in matches if item['label'].casefold() == magazine['Title'].casefold()]
+    if len(exact) != 1:
+        hint = f"{len(exact)} are called that" if exact else f"{len(matches)} close ones"
+        return f"{magazine['Title']} wasn't linked to Wikidata, {hint}, choose one in Edit"
+    return set_wikidata(magazine['Title'], exact[0]['id'])
 
 
 def clean_title(title: str) -> tuple[str, str | None]:

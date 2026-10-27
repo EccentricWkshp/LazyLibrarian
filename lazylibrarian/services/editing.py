@@ -16,7 +16,7 @@ use. Each save returns what to tell the user """
 
 import logging
 
-from lazylibrarian import database
+from lazylibrarian import database, wikidata
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int
 from lazylibrarian.services import (
@@ -220,7 +220,16 @@ def magazine_for_edit(title) -> dict:
     return {'title': magazine['Title'], 'reject': _text(magazine['Reject']), 'regex': _text(magazine['Regex']),
             'genre': _text(magazine['Genre']), 'date_type': _text(magazine['DateType']),
             'cover_page': check_int(magazine['CoverPage'], 1),
-            'language': _text(magazine['Language']) or CONFIG['PREF_MAGLANG']}
+            'language': _text(magazine['Language']) or CONFIG['PREF_MAGLANG'],
+            'wikidata_id': _text(magazine.get('WikidataID'))}
+
+
+def magazine_wikidata(title: str, term: str = '') -> list[dict]:
+    """ The periodicals on Wikidata a magazine's title, or term, finds """
+    if term.strip():
+        magazine = magazines.get_magazine(title)
+        return wikidata.search(term, (_text(magazine.get('Language')) or CONFIG['PREF_MAGLANG'] or 'en')[:2])
+    return magazines.wikidata_matches(title)
 
 
 def save_magazine(title, values: dict) -> dict:
@@ -235,6 +244,9 @@ def save_magazine(title, values: dict) -> dict:
         settings.update_magazine_filters({title: {column: value if column == 'CoverPage' else _text(value).strip()
                                                   for column, value in filters.items()}})
     message = f"{title} saved"
+    if 'wikidata_id' in values and _text(values['wikidata_id']).strip() != current['wikidata_id']:
+        message = magazines.set_wikidata(title, _text(values['wikidata_id']).strip())
+    cover_page = check_int(values.get('cover_page', current['cover_page']), 1)
     new_title = _text(values.get('title', title)).strip()
     if new_title and new_title != title:
         _check_name('title', new_title)
@@ -243,6 +255,11 @@ def save_magazine(title, values: dict) -> dict:
         if failed:
             message += f", {failed} couldn't be, see the log"
         title = new_title
+    # the covers of the issues there are follow a new cover page, 0 makes none
+    if cover_page and cover_page != current['cover_page']:
+        from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
+        commands.start('IssueCovers', {'title': title, 'page': cover_page})
+        message += f", its covers are being made from page {cover_page}"
     return {'title': title, 'message': message}
 
 

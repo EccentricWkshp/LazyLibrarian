@@ -47,6 +47,10 @@ export interface MagazineLookup {
   rejectWords: string;
   inLibrary: boolean;
   issues: number;
+  // the periodical on Wikidata, empty for the title as it was typed
+  wikidataId: string;
+  description: string;
+  started: string;
 }
 
 export interface ComicLookup {

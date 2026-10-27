@@ -69,12 +69,18 @@ class MagazineLookup(ApiModel):
     reject_words: str
     in_library: bool
     issues: int
+    # the periodical on Wikidata, empty for the title as it was typed
+    wikidata_id: str = ''
+    description: str = ''
+    started: str = ''
 
 
 class MagazineIn(ApiModel):
     title: str
     reject_words: str = ''
     search: bool = False
+    # the periodical on Wikidata it is, else the one called exactly its title
+    wikidata_id: str = ''
 
 
 class Magazine(ApiModel):
@@ -114,14 +120,15 @@ def lookup(term: str):
 
 @router.get('/magazine/lookup', response_model=list[MagazineLookup])
 def lookup_magazine(term: str):
-    """ The magazine a title would add, first unless it's there, and the ones in the library with
-    the title in theirs. After a ~ come words that rule a release out """
+    """ The magazine a title would add, first unless it's there, the ones in the library with the
+    title in theirs, and the periodicals Wikidata finds. After a ~ come words that rule a release out """
     return addnew.lookup_magazine(term)
 
 
 @router.post('/magazine', response_model=Magazine, status_code=201)
 def add_magazine(magazine: MagazineIn):
-    return addnew.add_magazine(magazine.title, magazine.reject_words, magazine.search)
+    """ Add a magazine; its details come from Wikidata in the background (RefreshMagazine) """
+    return addnew.add_magazine(magazine.title, magazine.reject_words, magazine.search, magazine.wikidata_id)
 
 
 @router.get('/comic/lookup', response_model=list[ComicLookup])

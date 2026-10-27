@@ -152,3 +152,31 @@ class MagazineServiceTest(LLTestCaseWithDB):
         self.assertFalse(magazines.start_search([]))
         with self.assertRaises(NotFoundError):
             magazines.search_for_magazine('nosuch')
+
+    def test_wikidata(self):
+        details = {'id': 'Q520154', 'label': 'Wired', 'description': 'A magazine', 'publisher': 'Conde Nast',
+                   'issn': '1059-1028', 'country': 'United States', 'frequency': 30, 'website': 'https://wired.com',
+                   'logo': '', 'started': '1993', 'subjects': ['technology', 'culture', 'business', 'science']}
+        found = [{'id': 'Q520154', 'label': 'Wired', 'description': '', 'started': ''},
+                 {'id': 'Q8026784', 'label': 'Wired UK', 'description': '', 'started': ''}]
+        with mock.patch.object(magazines.wikidata, 'search', return_value=found), \
+                mock.patch.object(magazines.wikidata, 'details', return_value=details) as get:
+            self.assertEqual(magazines.refresh_magazine('wired'), 'Wired is Wired on Wikidata (Q520154)',
+                             'Linked to the one called exactly its title')
+            self.assertEqual(magazines.refresh_magazine('Zine'),
+                             "Zine wasn't linked to Wikidata, 2 close ones, choose one in Edit")
+        get.assert_called_once_with('Q520154', 'en')
+        row = self.sql("SELECT * FROM magazines WHERE Title='Wired'")[0]
+        self.assertEqual((row['WikidataID'], row['Publisher'], row['Frequency'], row['Started'], row['Genre']),
+                         ('Q520154', 'Conde Nast', 30, '1993', 'Tech'), 'Its own genres stay')
+        self.assertEqual(self.sql("SELECT Genre FROM magazines WHERE Title='another'")[0]['Genre'], '')
+        with mock.patch.object(magazines.wikidata, 'details', return_value=details):
+            magazines.set_wikidata('another', 'Q520154')
+        self.assertEqual(self.sql("SELECT Genre FROM magazines WHERE Title='another'")[0]['Genre'],
+                         'technology, culture, business', 'The subjects are the genres of one without')
+        self.assertEqual(magazines.set_wikidata('Wired', ''), "Wired isn't linked to Wikidata now")
+        self.assertEqual(self.sql("SELECT WikidataID,Frequency FROM magazines WHERE Title='Wired'")[0],
+                         {'WikidataID': '', 'Frequency': 0})
+        with mock.patch.object(magazines.wikidata, 'details', return_value={}), \
+                self.assertRaisesRegex(InvalidRequestError, 'no item Q1'):
+            magazines.set_wikidata('Wired', 'Q1')

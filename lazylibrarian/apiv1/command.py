@@ -50,6 +50,9 @@ class CommandIn(ApiModel):
     title: str = ''
     comic_id: str = ''
     search: bool = False
+    ids: list[str] = []
+    page: int = 0
+    wikidata_id: str = ''
 
 
 class Command(ApiModel):
@@ -77,7 +80,13 @@ def start(command: CommandIn):
     (bookId, source, authorId, and title to show while it's added) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
     (bookId) fetch their details again. AuthorSearch searches for an author's (authorId) wanted books.
     LibraryScan scans a library (mediaType ebook, audiobook, magazine or comic), one magazine (title)
-    or comic (comicId) """
+    or comic (comicId).
+
+    IssueCovers makes issues' covers again (ids, or every issue of a magazine by title) from page,
+    or the magazine's cover page; a comic's (mediaType comic) ids are comicid_issueid. SwapCover
+    moves page (2 unless given) of magazine issues' PDFs to the front, TagIssues writes the
+    magazine's details into them. RefreshMagazine takes a magazine's (title) details from Wikidata:
+    the item wikidataId, the one it's linked to, or the one called exactly its title """
     return commands.start(command.name, command.model_dump())
 
 

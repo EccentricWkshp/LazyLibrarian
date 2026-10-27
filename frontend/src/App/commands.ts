@@ -25,6 +25,10 @@ const CHANGES: Record<string, string[][]> = {
   RefreshBook: [['lookup'], ['wanted'], ['author'], ['library']],
   LibraryScan: [['library'], ['author'], ['wanted']],
   RefreshLanguages: [['tasks'], ['library'], ['author'], ['wanted']],
+  IssueCovers: [['library']],
+  SwapCover: [['library']],
+  TagIssues: [['library']],
+  RefreshMagazine: [['library'], ['lookup']],
 };
 
 function isDone(command: Command) {

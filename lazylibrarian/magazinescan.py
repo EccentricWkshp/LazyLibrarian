@@ -21,7 +21,7 @@ from hashlib import sha1
 from shutil import copyfile
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, filemeta
 from lazylibrarian.bookrename import stripspaces
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
@@ -50,7 +50,7 @@ from lazylibrarian.formatter import (
     sanitize,
     two_months,
 )
-from lazylibrarian.images import create_mag_cover, read_pdf_tags, write_pdf_tags
+from lazylibrarian.images import create_mag_cover, write_pdf_tags
 from lazylibrarian.librarysync import get_book_info
 
 
@@ -203,6 +203,7 @@ def magazine_scan(title=None):
                     # maybe not all magazines will be pdf?
                     if CONFIG.is_valid_booktype(fname, booktype='mag'):
                         issuedate = ''
+                        meta = None
                         issuefile = os.path.join(rootdir, fname)  # full path to issue.pdf
                         current_item += 1
                         current_percent = int(current_item * 100 / total_items)
@@ -232,13 +233,12 @@ def magazine_scan(title=None):
                                     match = True
                                     logger.debug(f"Using {title}:{issuedate} from opf file")
 
-                            if not match:  # try our custom tags in the pdf
-                                metadata = read_pdf_tags(issuefile)
-                                if metadata:
-                                    issuedate = metadata.get('/LL_Issue')
-                                    title = metadata.get('/LL_Title')
-                                if title and issuedate:
-                                    logger.debug(f"Using {title}:{issuedate} from pdf tags")
+                            if not match:  # what the file says: our own pdf tags, an epub's or cbz's series
+                                meta = filemeta.read_metadata(issuefile)
+                                if meta['series'] and (meta['date'] or meta['number']):
+                                    title = meta['series']
+                                    issuedate = meta['date'] or meta['number']
+                                    logger.debug(f"Using {title}:{issuedate} from the file's metadata")
                                     match = True
 
                             if not match:  # last resort
@@ -249,7 +249,7 @@ def magazine_scan(title=None):
                                     matchinglogger.debug(f"Title pattern [{title}][{issuedate}] {fname}")
                                     if title and issuedate:
                                         match = True
-                                        if title.rsplit('(', 1)[1].split(')').isdigit():
+                                        if '(' in title and title.rsplit('(', 1)[1].split(')')[0].isdigit():
                                             # it's a calibre folder, title is probably parent folder
                                             issuefolder = os.path.dirname(issuefile)
                                             parent = os.path.dirname(issuefolder)
@@ -318,6 +318,13 @@ def magazine_scan(title=None):
                             issuedate = dateparts['dbdate']
                             matchinglogger.debug(f"Filename date style [{issuenum_type}][{issuedate}]")
 
+                        if not issuedate:  # the date or number the file gives itself
+                            meta = meta or filemeta.read_metadata(issuefile)
+                            if meta['date'] or meta['number']:
+                                dateparts = get_dateparts(meta['date'] or meta['number'], datetype=datetype)
+                                issuedate = dateparts['dbdate']
+                                matchinglogger.debug(f"Metadata date style [{dateparts['style']}][{issuedate}]")
+
                         if not issuedate:
                             logger.warning(f"Invalid name format for [{fname}]")
                             continue
@@ -363,7 +370,7 @@ def magazine_scan(title=None):
 
                         # is this issue already in the database?
                         issue_id = create_id(f"{title} {issuedate}")
-                        iss_entry = db.match('SELECT IssueFile,Cover from issues WHERE IssueID=?', (issue_id, ))
+                        iss_entry = db.match('SELECT IssueFile,Cover,Pages from issues WHERE IssueID=?', (issue_id, ))
 
                         if iss_entry and CONFIG['MAG_RENAME']:
                             new_issuefile, msg = rename_issue(issue_id)
@@ -397,6 +404,10 @@ def magazine_scan(title=None):
                         else:
                             logger.debug(f"Issue {title} {issuedate} already exists")
                             cover = iss_entry['Cover']
+                        if new_entry or not iss_entry['Pages']:  # what the file says, once
+                            meta = meta or filemeta.read_metadata(issuefile)
+                            db.action('UPDATE issues SET Description=?, Pages=?, IssueNumber=? WHERE IssueID=?',
+                                      (*filemeta.issue_details(meta, issuedate), issue_id))
 
                         ignorefile = os.path.join(os.path.dirname(issuefile), '.ll_ignore')
                         try:

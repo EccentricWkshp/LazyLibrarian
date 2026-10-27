@@ -19,13 +19,11 @@
 import datetime
 import logging
 import os
-import zipfile
 from urllib.parse import quote_plus
 
 import cherrypy
 from cherrypy.lib.static import serve_file
 
-import lazylibrarian
 from lazylibrarian import database
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.cache import ImageType, cache_img
@@ -33,7 +31,7 @@ from lazylibrarian.common import get_readinglist, mime_type, zip_audio
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import any_file, listdir, path_isfile, splitext
 from lazylibrarian.formatter import check_int, get_list, make_unicode, plural
-from lazylibrarian.images import extract_image_from_page, pdf_pagecount
+from lazylibrarian.pages import page_count, page_image
 
 searchable = ['EAuthors', 'AAuthors', 'Magazines', 'Series', 'EAuthor', 'AAuthor', 'RecentBooks',
               'RecentAudio', 'RecentMags', 'RatedBooks', 'RatedAudio', 'ReadBooks', 'ToReadBooks',
@@ -47,6 +45,7 @@ class OPDS:
     def __init__(self):
         self.cmd = None
         self.img = None
+        self.page = b''
         self.filepath = None
         self.filename = None
         self.kwargs = None
@@ -123,6 +122,9 @@ class OPDS:
                 _ = method_to_call(**self.kwargs)
                 if self.img:
                     return serve_file(self.img, content_type='image/jpeg')
+                if self.page:
+                    cherrypy.response.headers['Content-Type'] = 'image/jpeg'
+                    return self.page
                 if self.filepath and self.filename:
                     self.logger.debug(f"Downloading {self.filename}: {self.filepath}")
                     return serve_file(self.filepath, mime_type(self.filename), 'attachment', name=self.filename)
@@ -154,60 +156,12 @@ class OPDS:
                 multi += '" rel="http://opds-spec.org/acquisition" type="' + mime_type('.' + fmt) + '"/>'
         return multi
 
-    def _number_of_pages(self, bookfile):
-        basename, extn = splitext(bookfile)
-
-        if extn.lower() == '.pdf':
-            return pdf_pagecount(bookfile)
-
-        # Valid image extensions commonly found inside CBR/CB7 files
-        image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
-
-        if extn.lower() == '.cbz':
-            with zipfile.ZipFile(bookfile, 'r') as z:
-                all_files = z.namelist()
-                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
-
-        if extn.lower() == '.cbr':
-            if lazylibrarian.UNRARLIB == 1 and lazylibrarian.RARFILE.is_rarfile(bookfile):
-                try:
-                    z = lazylibrarian.RARFILE.RarFile(bookfile)
-                except Exception as e:
-                    self.logger.error(f"Failed to unrar lib_1 {bookfile}: {e}")
-                    return 0
-                all_files = z.namelist()
-                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
-
-            if lazylibrarian.UNRARLIB == 2:
-                try:
-                    z = lazylibrarian.RARFILE(bookfile)
-                except Exception as e:
-                    self.logger.error(f"Failed to unrar lib_2 {bookfile}: {e}")
-                    return 0
-                all_files = []
-                for member in z.infoiter():
-                    all_files.append(member.filename)
-                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
-
-            return 0
-
-        if extn.lower() == '.cb7':
-            try:
-                import py7zr
-            except Exception:
-                return 0
-            with py7zr.SevenZipFile(bookfile, mode='r') as archive:
-                all_files = archive.getnames()
-                return sum(1 for file in all_files if file.lower().endswith(image_extensions))
-
-        return 0
-
     def _streamable_links(self, bookfile, bookid, userid, idtype):
         multi = ''
         basename, extn = splitext(bookfile)
         if not isinstance(basename, str):
             basename = basename.decode('utf-8')
-        pagecount = self._number_of_pages(bookfile)
+        pagecount = page_count(bookfile)
         if not pagecount:
             return ''
         multi += '<link href="'
@@ -1897,13 +1851,9 @@ class OPDS:
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
             if 'page' in kwargs:
-                # page number must be positive integer or zero
-                pagenum = check_int(kwargs['page'], -1, True)
-                if pagenum >= 0:
-                    pagefile = extract_image_from_page(res['IssueFile'], pagenum=pagenum, cover=False)
-                    if pagefile:
-                        self.filepath = pagefile
-                        self.filename = os.path.split(pagefile)[1]
+                # OPDS-PSE counts pages from 0
+                self.page = page_image(res['IssueFile'], check_int(kwargs['page'], -1, True) + 1,
+                                       check_int(kwargs.get('width'), 0, True))
             return
         if 'comicissueid' in kwargs:
             myid = kwargs['comicissueid']
@@ -1920,12 +1870,9 @@ class OPDS:
             self.filepath = res['IssueFile']
             self.filename = os.path.split(res['IssueFile'])[1]
             if 'page' in kwargs:
-                pagenum = check_int(kwargs['page'], -1, True)
-                if pagenum >= 0:
-                    pagefile = extract_image_from_page(res['IssueFile'], pagenum=pagenum, cover=False)
-                    if pagefile:
-                        self.filepath = pagefile
-                        self.filename = os.path.split(pagefile)[1]
+                # OPDS-PSE counts pages from 0
+                self.page = page_image(res['IssueFile'], check_int(kwargs['page'], -1, True) + 1,
+                                       check_int(kwargs.get('width'), 0, True))
             return
         if 'audioid' in kwargs:
             myid = kwargs['audioid']

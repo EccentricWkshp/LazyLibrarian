@@ -1,9 +1,12 @@
 // Sonarr's edit modal for a magazine: its title, and how its releases are searched for and its
 // issues read, which were the old Settings page's per-magazine filters
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { SelectInput, TextInput } from 'Components/Form/Form';
+import Button from 'Components/Link/Button';
 import { Alert } from 'Components/Misc';
 import { EditColumns, EditField, EditModal, useEdit } from 'Library/Edit/edit';
+import styles from 'Library/Edit/Edit.module.css';
 import { ConfigChoices } from 'Settings/Sections/fields';
 import { api } from 'Utilities/api';
 
@@ -15,6 +18,56 @@ interface MagazineEdit {
   dateType: string;
   coverPage: number;
   language: string;
+  wikidataId: string;
+}
+
+interface WikidataMatch {
+  id: string;
+  label: string;
+  description: string;
+  started: string;
+}
+
+// the periodical on Wikidata its description, publisher and how often it comes out are taken from,
+// found by its title or other words
+function WikidataField({ title, value, onChange }: { title: string; value: string; onChange: (id: string) => void }) {
+  const [term, setTerm] = useState('');
+  const [asked, setAsked] = useState<string | null>(null);
+  const found = useQuery({
+    queryKey: ['library', 'wikidata', title, asked],
+    queryFn: () => api<WikidataMatch[]>('/library/magazine/wikidata', { query: { title, term: asked ?? '' } }),
+    enabled: asked !== null,
+    retry: false,
+  });
+  const matches = found.data ?? [];
+  const options = [
+    { key: '', value: 'Not linked' },
+    ...(value && !matches.some((match) => match.id === value) ? [{ key: value, value: `${value}, as it is` }] : []),
+    ...matches.map((match) => ({
+      key: match.id,
+      value: [match.label, match.started ? `(${match.started})` : '', match.description ? `- ${match.description}` : '']
+        .filter(Boolean)
+        .join(' '),
+    })),
+  ];
+
+  return (
+    <EditField
+      id="magWikidata"
+      label="Wikidata"
+      help="The periodical its description, publisher and how often it comes out are taken from. Saving takes them again"
+    >
+      <SelectInput id="magWikidata" value={value} values={options} onChange={onChange} />
+      <div className={styles.wikidataSearch}>
+        <TextInput value={term} placeholder={title} onChange={setTerm} aria-label="Look up on Wikidata" />
+        <Button isSpinning={found.isFetching} onPress={() => setAsked(term.trim())}>
+          Find on Wikidata
+        </Button>
+      </div>
+      {found.error ? <Alert kind="danger">{(found.error as Error).message}</Alert> : null}
+      {found.data && !matches.length ? <Alert kind="info">Wikidata has no periodical called that.</Alert> : null}
+    </EditField>
+  );
 }
 
 function EditMagazineModal({
@@ -94,7 +147,11 @@ function EditMagazineModal({
                 onChange={(dateType) => edit.set('dateType', dateType.toUpperCase())}
               />
             </EditField>
-            <EditField id="magCover" label="Cover Page" help="The page its covers are made from">
+            <EditField
+              id="magCover"
+              label="Cover Page"
+              help="The page its covers are made from. Changing it makes its issues' covers again"
+            >
               <TextInput
                 id="magCover"
                 type="number"
@@ -116,6 +173,11 @@ function EditMagazineModal({
               onChange={(language) => edit.set('language', language)}
             />
           </EditField>
+          <WikidataField
+            title={title}
+            value={magazine.wikidataId}
+            onChange={(wikidataId) => edit.set('wikidataId', wikidataId)}
+          />
         </>
       ) : null}
     </EditModal>

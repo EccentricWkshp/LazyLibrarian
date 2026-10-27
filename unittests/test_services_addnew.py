@@ -139,17 +139,34 @@ class MagazineTest(AddNewTestCase):
 
     def test_lookup_and_add(self):
         magazines.add_magazine('Wired Magazine', search=False)
-        found = addnew.lookup_magazine('Wired')
-        self.assertEqual([(m['title'], m['in_library']) for m in found],
-                         [('Wired', False), ('Wired Magazine', True)])
-        self.assertEqual(addnew.lookup_magazine('wired magazine'),
-                         [{'title': 'Wired Magazine', 'reject_words': '', 'in_library': True, 'issues': 0}])
-        self.assertEqual(addnew.lookup_magazine('Wired ~ uk, kids')[0]['reject_words'], 'uk, kids')
-        self.assertEqual(addnew.add_magazine('Wired', 'uk, kids'), {'title': 'Wired'})
+        with mock.patch.object(addnew.wikidata, 'search', return_value=[]):
+            found = addnew.lookup_magazine('Wired')
+            self.assertEqual([(m['title'], m['in_library']) for m in found],
+                             [('Wired', False), ('Wired Magazine', True)])
+            self.assertEqual(addnew.lookup_magazine('wired magazine'),
+                             [{'title': 'Wired Magazine', 'reject_words': '', 'in_library': True, 'issues': 0,
+                               'wikidata_id': '', 'description': '', 'started': ''}])
+            self.assertEqual(addnew.lookup_magazine('Wired ~ uk, kids')[0]['reject_words'], 'uk, kids')
+        with mock.patch('lazylibrarian.services.commands.start') as start:
+            self.assertEqual(addnew.add_magazine('Wired', 'uk, kids', wikidata_id='Q520154'), {'title': 'Wired'})
+        start.assert_called_once_with('RefreshMagazine', {'title': 'Wired', 'wikidata_id': 'Q520154'})
         with DBConnection() as db:
             self.assertEqual(db.match("SELECT Reject FROM magazines WHERE Title='Wired'")['Reject'], 'uk, kids')
         with self.assertRaisesRegex(InvalidRequestError, 'in the library already'):
             addnew.add_magazine('wired')
+
+    def test_wikidata_matches(self):
+        magazines.add_magazine('Wired', search=False)
+        with DBConnection() as db:
+            db.action("UPDATE magazines SET WikidataID='Q520154' WHERE Title='Wired'")
+        matches = [{'id': 'Q520154', 'label': 'Wired', 'description': 'American magazine', 'started': '1993'},
+                   {'id': 'Q8026784', 'label': 'Wired UK', 'description': 'British edition', 'started': '2009'}]
+        with mock.patch.object(addnew.wikidata, 'search', return_value=matches):
+            found = addnew.lookup_magazine('wired')
+        self.assertEqual([(m['title'], m['in_library'], m['wikidata_id']) for m in found],
+                         [('Wired', True, 'Q520154'), ('Wired UK', False, 'Q8026784')],
+                         'One linked already is the library one, the others can be added')
+        self.assertEqual(found[1]['description'], 'British edition')
 
 
 class ComicTest(AddNewTestCase):

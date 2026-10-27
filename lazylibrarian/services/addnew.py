@@ -18,7 +18,7 @@ while, so it runs as a command, as do refreshing an author's or a book's details
 import logging
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, wikidata
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_float, check_int, plural
 from lazylibrarian.importer import add_author_to_db, update_totals
@@ -241,26 +241,46 @@ def _book_name(book_id: str) -> str:
 
 
 def lookup_magazine(term: str) -> list[dict]:
-    """ The magazine a title would add, and the ones in the library whose title has it in. A title
-    can end with ~ and words that rule out a release """
+    """ The magazine a title would add, the ones in the library whose title has it in, and the
+    periodicals Wikidata finds for it, each with its Wikidata id and description. A title can end
+    with ~ and words that rule out a release """
     term = (term or '').strip()
     if not term:
         raise InvalidRequestError('Type a magazine title')
     title, reject = magazines.clean_title(term)
     db = database.DBConnection()
     try:
-        rows = db.select("SELECT Title, (SELECT COUNT(*) FROM issues WHERE issues.Title=magazines.Title) AS "
-                         "Issues FROM magazines WHERE Title LIKE ? ORDER BY Title", (f'%{title}%',))
+        rows = db.select("SELECT Title, WikidataID, Description, Started, (SELECT COUNT(*) FROM issues WHERE "
+                         "issues.Title=magazines.Title) AS Issues FROM magazines WHERE Title LIKE ? ORDER BY Title",
+                         (f'%{title}%',))
+        linked = {row['WikidataID']: row['Title'] for row in db.select(
+            "SELECT Title, WikidataID FROM magazines WHERE IFNULL(WikidataID, '') != ''")}
     finally:
         db.close()
-    found = [{'title': row['Title'], 'reject_words': '', 'in_library': True, 'issues': row['Issues']}
-             for row in rows]
-    if not any(row['title'].lower() == title.lower() for row in found):
-        found.insert(0, {'title': title, 'reject_words': reject or '', 'in_library': False, 'issues': 0})
+    found = [{'title': row['Title'], 'reject_words': '', 'in_library': True, 'issues': row['Issues'],
+              'wikidata_id': row['WikidataID'] or '', 'description': row['Description'] or '',
+              'started': row['Started'] or ''} for row in rows]
+    try:
+        matches = wikidata.search(title, (CONFIG['PREF_MAGLANG'] or 'en')[:2])
+    except Exception as why:
+        logging.getLogger(__name__).warning(f"Wikidata couldn't be searched: {type(why).__name__} {why}")
+        matches = []
+    titles = {row['title'].casefold() for row in found}
+    for match in matches:
+        if match['id'] in linked or match['label'].casefold() in titles:
+            continue
+        found.append({'title': match['label'], 'reject_words': reject or '', 'in_library': False, 'issues': 0,
+                      'wikidata_id': match['id'], 'description': match['description'], 'started': match['started']})
+    if title.casefold() not in {row['title'].casefold() for row in found}:
+        # the title as it was typed, without Wikidata's details
+        found.insert(0, {'title': title, 'reject_words': reject or '', 'in_library': False, 'issues': 0,
+                         'wikidata_id': '', 'description': '', 'started': ''})
     return found
 
 
-def add_magazine(title: str, reject_words: str = '', search: bool = False) -> dict:
+def add_magazine(title: str, reject_words: str = '', search: bool = False, wikidata_id: str = '') -> dict:
+    """ Add a magazine, and take its details from Wikidata in the background: from the item asked
+    for, or the one called exactly its title """
     title = (title or '').strip()
     if not title:
         raise InvalidRequestError('A magazine needs a title')
@@ -270,6 +290,8 @@ def add_magazine(title: str, reject_words: str = '', search: bool = False) -> di
                                          search=search)
     if not new:
         raise InvalidRequestError(f"{stored} is in the library already")
+    from lazylibrarian.services import commands  # noqa: PLC0415, its commands import this
+    commands.start('RefreshMagazine', {'title': stored, 'wikidata_id': wikidata_id})
     return {'title': stored}
 
 

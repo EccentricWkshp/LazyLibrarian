@@ -16,7 +16,7 @@ import {
   PageToolbarSeparator,
 } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
-import { change, DeleteModal, plural, PosterCard, remember, remembered } from 'Library/library';
+import { change, DeleteModal, plural, PosterCard, remember, remembered, RssButton } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { Comic } from 'typings/Library';
 import { api } from 'Utilities/api';
@@ -92,7 +92,7 @@ function ComicIndex() {
     <PageContent title="Comics">
       <PageToolbar>
         <PageToolbarSection>
-          <PageToolbarButton label="Add New" iconName={Plus} to="/add/new?kind=comic" />
+          <PageToolbarButton label="Add New" iconName={Plus} to="/comics/add" />
           <PageToolbarButton
             label="Search All"
             iconName={Search}
@@ -139,6 +139,7 @@ function ComicIndex() {
           ) : null}
         </PageToolbarSection>
         <PageToolbarSection alignContent="right">
+          <RssButton type="Comic" label="RSS Feed" />
           <PageToolbarButton
             label={view === 'posters' ? 'Table' : 'Covers'}
             iconName={view === 'posters' ? TableIcon : LayoutGrid}
@@ -166,7 +167,7 @@ function ComicIndex() {
         {error ? <Alert kind="danger">Failed to load the comics: {(error as Error).message}</Alert> : null}
         {data && !data.length ? (
           <Alert kind="info">
-            There are no comics yet. <Link to="/add/new?kind=comic">Add New</Link> finds them at ComicVine and
+            There are no comics yet. <Link to="/comics/add">Add New</Link> finds them at ComicVine and
             Comixology.
           </Alert>
         ) : null}

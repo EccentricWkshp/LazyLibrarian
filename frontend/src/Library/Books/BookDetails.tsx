@@ -1,7 +1,7 @@
 // A book, as Sonarr's episode details: who wrote it and what it is, each format with its status,
 // its file to open or delete and searches for it, and its downloads
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, Download, ExternalLink, RefreshCw, SquarePen, Star, Trash2 } from 'lucide-react';
+import { BookOpen, Download, ExternalLink, RefreshCw, Send, SquarePen, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { runCommand } from 'App/commands';
@@ -18,6 +18,7 @@ import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import { BookSearchButtons, FormatInfo, FormatStatus, shownFormats } from 'Library/BookFormats';
 import { Cover } from 'Library/library';
 import styles from 'Library/Library.module.css';
+import { canRead, readerPath, sendToDevice } from 'Library/Reader/reading';
 import { BookDetail } from 'typings/Library';
 import { api, urlBase } from 'Utilities/api';
 import { formatBytes, formatDateTime, relativeDate } from 'Utilities/format';
@@ -76,6 +77,11 @@ function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo })
           <span className={styles.muted}>
             {file.exists ? formatBytes(file.size) : "the file isn't there"}
           </span>
+          {file.exists && format.format === 'ebook' && canRead(book.ebookFormat) ? (
+            <Link to={readerPath('book', book.id)} title="Read">
+              <Icon name={BookOpen} size={15} />
+            </Link>
+          ) : null}
           {file.exists ? (
             <a
               href={`${urlBase()}/open_book?bookid=${encodeURIComponent(book.id)}&library=${LIBRARIES[format.format]}`}
@@ -83,6 +89,16 @@ function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo })
             >
               <Icon name={Download} size={15} />
             </a>
+          ) : null}
+          {file.exists && format.format === 'ebook' ? (
+            <button
+              type="button"
+              className={styles.iconLink}
+              title="Send to Device"
+              onClick={() => sendToDevice('book', book.id, book.title)}
+            >
+              <Icon name={Send} size={15} />
+            </button>
           ) : null}
           <button type="button" className={styles.iconLink} title="Delete the file" onClick={() => setIsDeleteOpen(true)}>
             <Icon name={Trash2} size={15} />

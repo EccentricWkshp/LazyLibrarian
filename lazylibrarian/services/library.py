@@ -19,6 +19,7 @@ import os
 
 import lazylibrarian
 from lazylibrarian import database, quality
+from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_float, check_int
 from lazylibrarian.services import (
     InvalidRequestError,
@@ -307,12 +308,18 @@ def get_book(book_id: str) -> dict:
 
 # --- magazines
 
+# a past issue's status, and what one can be changed to
+PAST_ISSUE_STATUSES = ('Skipped', 'Have', 'Ignored', 'Wanted', 'Snatched')
+PAST_ISSUE_ACTIONS = ('Skipped', 'Wanted', 'Ignored', 'Remove')
+
 
 def _magazine(row: dict) -> dict:
     return {'title': row['Title'], 'status': row['Status'] or '', 'issues': check_int(row.get('Iss_Cnt'), 0),
             'latest_issue': row['IssueDate'] or '', 'last_acquired': row['LastAcquired'] or '',
-            'cover': row['LatestCover'] or '', 'added': row['MagazineAdded'] or '',
-            'reject_words': row['Reject'] or '', 'language': row.get('Language') or '', 'genre': row.get('Genre') or ''}
+            # the latest issue's cover, its logo from Wikidata until it has one
+            'cover': row['LatestCover'] or row.get('Logo') or '', 'added': row['MagazineAdded'] or '',
+            'reject_words': row['Reject'] or '', 'language': row.get('Language') or '', 'genre': row.get('Genre') or '',
+            'publisher': row.get('Publisher') or '', 'frequency': check_int(row.get('Frequency'), 0)}
 
 
 def list_magazines() -> list[dict]:
@@ -320,13 +327,22 @@ def list_magazines() -> list[dict]:
 
 
 def get_magazine(title: str) -> dict:
-    """ A magazine with its issues, newest first """
+    """ A magazine with its details from Wikidata, its issues newest first, and the issues it's
+    missing and when the next is due """
     magazine = magazines.get_magazine(title)
     issues = magazines.list_issues(magazine['Title'], limit=None).items
     found = _magazine({**magazine, 'Iss_Cnt': len(issues)})
+    found.update({'description': magazine.get('Description') or '', 'issn': magazine.get('ISSN') or '',
+                  'country': magazine.get('Country') or '', 'website': magazine.get('Website') or '',
+                  'logo': magazine.get('Logo') or '', 'started': magazine.get('Started') or '',
+                  'wikidata_id': magazine.get('WikidataID') or '', 'cover_page': check_int(magazine['CoverPage'], 1),
+                  'schedule': magazines.issue_schedule([issue['IssueDate'] for issue in issues],
+                                                       check_int(magazine.get('Frequency'), 0))})
     found['issue_list'] = [{'id': issue['IssueID'], 'date': issue['IssueDate'] or '',
                             'acquired': issue['IssueAcquired'] or '', 'cover': issue['Cover'] or '',
-                            'format': _file_format(issue['IssueFile'], 'magazine')} for issue in issues]
+                            'format': _file_format(issue['IssueFile'], 'magazine'),
+                            'description': issue.get('Description') or '', 'pages': check_int(issue.get('Pages'), 0),
+                            'number': issue.get('IssueNumber') or ''} for issue in issues]
     return found
 
 
@@ -346,6 +362,54 @@ def delete_magazines(titles: list[str], delete_files: bool = False) -> int:
 def delete_issues(issue_ids: list[str], delete_files: bool = False) -> int:
     passed, _failed, _title = magazines.mark_issues('Delete' if delete_files else 'Remove', issue_ids)
     return passed
+
+
+def recent_issues(media_type: str = 'magazine', limit: int = 0) -> list[dict]:
+    """ The magazine or comic issues acquired most recently, as the old Recent Issues wall shows
+    them: MAX_WALL of them unless limit is given """
+    limit = limit or CONFIG.get_int('MAX_WALL') or 100
+    db = database.DBConnection()
+    try:
+        if media_type == 'comic':
+            rows = db.select("SELECT comics.ComicID, Title, IssueID, IssueAcquired, IssueFile, Cover FROM comicissues "
+                             "JOIN comics ON comics.ComicID=comicissues.ComicID ORDER BY IssueAcquired DESC LIMIT ?",
+                             (limit,))
+            return [{'id': f"{row['ComicID']}_{row['IssueID']}", 'title': row['Title'] or '',
+                     'issue': str(row['IssueID']), 'parent_id': row['ComicID'], 'acquired': row['IssueAcquired'] or '',
+                     'cover': row['Cover'] or '', 'format': _file_format(row['IssueFile'], 'comic')} for row in rows]
+        rows = db.select("SELECT Title, IssueID, IssueDate, IssueAcquired, IssueFile, Cover FROM issues "
+                         "ORDER BY IssueAcquired DESC LIMIT ?", (limit,))
+    finally:
+        db.close()
+    return [{'id': row['IssueID'], 'title': row['Title'] or '', 'issue': row['IssueDate'] or '',
+             'parent_id': row['Title'] or '', 'acquired': row['IssueAcquired'] or '', 'cover': row['Cover'] or '',
+             'format': _file_format(row['IssueFile'], 'magazine')} for row in rows]
+
+
+def list_past_issues(status: str = 'Skipped', title: str = '') -> list[dict]:
+    """ The past issues, search results for a magazine's issues that weren't wanted when they were
+    found, with a status, and of one magazine when title is given """
+    if status not in PAST_ISSUE_STATUSES:
+        raise InvalidRequestError(f"The status is one of {', '.join(PAST_ISSUE_STATUSES)}")
+    return [{'url': row['NZBurl'] or '', 'release_title': (row['NZBtitle'] or '').replace('.', ' '),
+             'date': row['NZBdate'] or '', 'issue': row['AuxInfo'] or '', 'indexer': row['NZBprov'] or '',
+             'title': row['BookID'] or ''}
+            for row in magazines.list_past_issues(status, title or None, sort='NZBdate', descending=True).items]
+
+
+def mark_past_issues(urls: list[str], action: str) -> int:
+    """ Want past issues (they're downloaded), skip or ignore them, or forget them (Remove) """
+    if action not in PAST_ISSUE_ACTIONS:
+        raise InvalidRequestError(f"The action is one of {', '.join(PAST_ISSUE_ACTIONS)}")
+    return magazines.mark_past_issues(action, urls)
+
+
+def set_issue_cover(media_type: str, item_id: str, page: int) -> str:
+    """ Make a magazine issue's (by its id) or comic issue's (comicid_issueid) cover from a page """
+    if media_type == 'comic':
+        comic_id, _, issue_id = item_id.partition('_')
+        return comics.set_issue_cover(comic_id, issue_id, page)
+    return magazines.set_issue_cover(item_id, page)
 
 
 # --- comics
@@ -371,7 +435,8 @@ def get_comic(comic_id: str) -> dict:
     found = _comic({**comic, 'Iss_Cnt': len(issues)})
     found['issue_list'] = [{'id': str(issue['IssueID']), 'acquired': issue['IssueAcquired'] or '',
                             'cover': issue['Cover'] or '', 'overview': issue.get('Description') or '',
-                            'format': _file_format(issue['IssueFile'], 'comic')} for issue in issues]
+                            'format': _file_format(issue['IssueFile'], 'comic'),
+                            'pages': check_int(issue.get('Pages'), 0)} for issue in issues]
     return found
 
 

@@ -1,0 +1,35 @@
+.pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.page,
+.chosen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--smallFontSize);
+
+  & img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: contain;
+    background: var(--borderColor);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--inputFocusBorderColor);
+  }
+}
+
+.chosen {
+  border-color: var(--successColor);
+}

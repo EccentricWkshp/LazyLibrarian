@@ -86,6 +86,9 @@ export interface Magazine {
   rejectWords: string;
   language: string;
   genre: string;
+  publisher: string;
+  // days between issues, 0 when it isn't known
+  frequency: number;
 }
 
 export interface MagazineIssue {
@@ -94,10 +97,52 @@ export interface MagazineIssue {
   acquired: string;
   cover: string;
   format: string;
+  // what its file says
+  description: string;
+  pages: number;
+  number: string;
+}
+
+export interface IssueSchedule {
+  frequency: number;
+  inferred: boolean;
+  missing: string[];
+  next: string;
+  overdue: boolean;
 }
 
 export interface MagazineDetail extends Magazine {
+  description: string;
+  issn: string;
+  country: string;
+  website: string;
+  logo: string;
+  started: string;
+  wikidataId: string;
+  coverPage: number;
+  schedule: IssueSchedule;
   issueList: MagazineIssue[];
+}
+
+export interface RecentIssue {
+  // an issue's id, a comic issue's comicid_issueid
+  id: string;
+  title: string;
+  issue: string;
+  // the magazine's title or the comic's id
+  parentId: string;
+  acquired: string;
+  cover: string;
+  format: string;
+}
+
+export interface PastIssue {
+  url: string;
+  releaseTitle: string;
+  date: string;
+  issue: string;
+  indexer: string;
+  title: string;
 }
 
 export interface Comic {
@@ -123,6 +168,7 @@ export interface ComicIssue {
   cover: string;
   overview: string;
   format: string;
+  pages: number;
 }
 
 export interface ComicDetail extends Comic {

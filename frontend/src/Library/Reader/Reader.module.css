@@ -1,0 +1,100 @@
+/* The reader takes the page below the toolbar */
+
+.body {
+  display: flex;
+  flex: 1 0 1px;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.message {
+  padding: 24px var(--pageContentBodyPadding, 20px);
+}
+
+.frame {
+  flex: 1 0 1px;
+  width: 100%;
+  border: 0;
+}
+
+.formatSelect {
+  width: auto;
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+
+.viewer {
+  display: flex;
+  flex: 1 0 1px;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.turn {
+  padding: 4px 8px;
+}
+
+.pageSelect,
+.fitSelect {
+  width: auto;
+  min-height: 30px;
+  padding: 2px 8px;
+  font-size: 13px;
+}
+
+.pageSelect {
+  max-width: 50%;
+}
+
+.pagesHeight,
+.pagesWidth {
+  display: flex;
+  flex: 1 0 1px;
+  justify-content: center;
+  overflow: auto;
+  min-height: 0;
+  padding: 8px;
+  cursor: pointer;
+  gap: 4px;
+}
+
+.pagesHeight .page {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pagesHeight:has(.page + .page) .page {
+  max-width: 50%;
+}
+
+.pagesWidth {
+  align-items: flex-start;
+}
+
+.pagesWidth .page {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+}
+
+.pagesWidth:has(.page + .page) .page {
+  width: 50%;
+}
+
+.epub {
+  flex: 1 0 1px;
+  min-height: 0;
+  margin: 8px;
+}

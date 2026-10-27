@@ -46,7 +46,7 @@ API_KEY_QUERY = APIKeyQuery(name='apikey', auto_error=False, description='The AP
 
 # The single page front end, built from frontend/ into data/ui. Its pages are below these paths
 UI_PAGES = ('activity', 'wanted', 'system', 'settings', 'add', 'authors', 'author', 'books', 'audio', 'magazines',
-            'magazine', 'comics', 'comic', 'series', 'book', 'manage')
+            'magazine', 'comics', 'comic', 'series', 'book', 'manage', 'read')
 # Bootswatch themes the old pages can have that are dark, the new pages follow them
 DARK_THEMES = frozenset(('slate', 'darkly', 'cyborg', 'superhero', 'solar', 'vapor', 'quartz'))
 
@@ -58,7 +58,9 @@ def ui_page(ui_dir: str, root: str) -> str:
         page = f.read()
     settings = {'urlBase': root, 'theme': 'dark' if CONFIG['BOOKSTRAP_THEME'] in DARK_THEMES else 'light',
                 'tabs': {tab.lower(): CONFIG.get_bool(f'{tab}_TAB') for tab in ('EBOOK', 'AUDIO', 'SERIES', 'MAG',
-                                                                                 'COMIC')}}
+                                                                                 'COMIC')},
+                # the libraries' RSS feeds are there
+                'rss': CONFIG.get_bool('RSS_ENABLED')}
     # </ can't end the script early, json.dumps leaves / alone
     script = json.dumps(settings).replace('</', '<\\/')
     return page.replace('<head>', f'<head>\n    <base href="{root}/ui/">\n'

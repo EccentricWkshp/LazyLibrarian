@@ -22,7 +22,7 @@ import {
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import TablePager from 'Components/Table/TablePager';
 import { BookSearchButtons, FORMATS, Format, FormatStatus, shownFormats } from 'Library/BookFormats';
-import { Cover, remember, remembered } from 'Library/library';
+import { Cover, remember, remembered, RssButton } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { LibraryBook } from 'typings/Library';
 import { PagedResult } from 'typings/Wanted';
@@ -226,6 +226,9 @@ function BookIndex({ mediaType: fixedType, manage = false }: { mediaType?: Forma
           />
         </PageToolbarSection>
         <PageToolbarSection alignContent="right">
+          {manage ? null : (
+            <RssButton type={mediaType === 'audiobook' ? 'AudioBook' : 'eBook'} label="RSS Feed" />
+          )}
           {manage && formats.length > 1 ? (
             <SelectInput
               className={styles.filter}

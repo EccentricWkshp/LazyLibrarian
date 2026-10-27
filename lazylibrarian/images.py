@@ -27,7 +27,7 @@ from urllib.parse import quote_plus
 from curl_cffi import requests
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, pages
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.cache import ImageType, cache_img, fetch_url
 from lazylibrarian.config2 import CONFIG
@@ -985,6 +985,22 @@ def shrink_mag(issuefile, dpi=0):
     return ''
 
 
+def save_jpeg(data: bytes, imagefile: str) -> bool:
+    """ Write a picture as a JPEG file, converting it if it's another kind """
+    logger = logging.getLogger(__name__)
+    try:
+        if data[:3] == b'\xff\xd8\xff' or not PIL:
+            with open(syspath(imagefile), 'wb') as f:
+                f.write(data)
+        else:
+            PILImage.open(io.BytesIO(data)).convert('RGB').save(syspath(imagefile), 'jpeg')
+    except Exception as why:
+        logger.warning(f"Can't write {imagefile}: {type(why).__name__} {why}")
+        return False
+    setperm(imagefile)
+    return True
+
+
 def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
     logger = logging.getLogger(__name__)
     if is_valid_type(issuefile, extensions=get_list(CONFIG['MAG_TYPE'])) and (not CONFIG.get_bool('IMP_MAGCOVER')
@@ -1019,8 +1035,20 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
             return imagefile
 
     logger.debug(f'Extracting image for {issuefile} from page {pagenum}')
-    data = ''  # result from unzip or unrar
+    pagenum = check_int(pagenum, 1)
     extn = extn.lower()
+    # pdfium draws PDFs unless an external converter is set; a comic's cover from page 1 is looked for
+    # by name below, any other page is the one in page order
+    img = b''
+    if cover and extn == '.epub':
+        img = pages.epub_cover(issuefile)
+    elif extn == '.pdf' and not CONFIG['IMP_CONVERT'] or extn in pages.ARCHIVES and (not cover or pagenum > 1):
+        img = pages.page_image(issuefile, pagenum)
+    if img and save_jpeg(img, imagefile):
+        logger.debug(f"Extracted image (page {pagenum}) for {issuefile}")
+        return imagefile
+
+    data = ''  # result from unzip or unrar
     if extn in ['.cbz', '.epub']:
         try:
             data = zipfile.ZipFile(issuefile)
@@ -1078,6 +1106,10 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
             logger.debug(f"Failed to find page in {issuefile}")
         except Exception as why:
             logger.error(f"Failed to extract image from {issuefile}, {type(why).__name__} {str(why)}")
+        # no page named as a cover, the first one is
+        img = pages.page_image(issuefile, pagenum) if extn in pages.ARCHIVES else b''
+        if img and save_jpeg(img, imagefile):
+            return imagefile
 
     elif extn == '.pdf':
         if len(CONFIG['IMP_CONVERT']):  # allow external convert to override libraries
@@ -1091,8 +1123,8 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
             # if not path_isfile(converter):  # full path given, or just program_name?
             #     converter = os.path.join(os.getcwd(), lazylibrarian.CONFIG['IMP_CONVERT'])
             if 'convert' in converter and 'gs' not in converter:
-                # tell imagemagick to only convert first page
-                postfix = '[0]'
+                # tell imagemagick to only convert that page, counted from 0
+                postfix = f'[{pagenum - 1}]'
             params = []
             try:
                 params = [converter, f'{issuefile}{postfix}', imagefile]

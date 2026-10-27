@@ -84,7 +84,7 @@ SAFE_PAGES = frozenset((
     'series', 'series_members', 'edit_series',
     'magazines', 'issue_page', 'past_issues', 'edit_mag', 'edit_issue', 'mag_wall',
     'comics', 'comicissue_page', 'edit_comic', 'comic_wall',
-    'activity', 'wanted', 'system', 'settings', 'add', 'author', 'magazine', 'comic', 'book',  # the single page front end's, which only show things, its actions are API calls
+    'activity', 'wanted', 'system', 'settings', 'add', 'author', 'magazine', 'comic', 'book', 'read',  # the single page front end's, which only show things, its actions are API calls
 ))
 
 # failed logins allowed from one address within FAILED_LOGIN_WINDOW seconds

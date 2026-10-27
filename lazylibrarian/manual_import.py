@@ -41,7 +41,7 @@ import traceback
 import uuid
 
 import lazylibrarian
-from lazylibrarian import database, searchmag
+from lazylibrarian import database, filemeta, searchmag
 from lazylibrarian.archive_utils import unpack_archive as _unpack_archive
 from lazylibrarian.bookrename import id3read, stripspaces
 from lazylibrarian.common import multibook, remove_file, setperm
@@ -201,6 +201,8 @@ def process_mag_from_file(source_file, title, issuenum):
             "Cover": coverfile,
         }
         db.upsert("issues", new_value_dict, control_value_dict)
+        db.action('UPDATE issues SET Description=?, Pages=?, IssueNumber=? WHERE IssueID=?',
+                  (*filemeta.issue_details(filemeta.read_metadata(dest_file), issuenum), issueid))
 
         control_value_dict = {"Title": title}
         if older:  # check this in case processing issues arriving out of order

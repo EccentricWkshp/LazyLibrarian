@@ -16,6 +16,7 @@ series, as the library pages show them. Scans and searches are commands """
 from typing import Literal
 
 from fastapi import APIRouter, Query
+from pydantic import Field
 
 from lazylibrarian.apiv1.author import Changed, SeriesRef
 from lazylibrarian.apiv1.models import ApiModel
@@ -134,6 +135,9 @@ class Magazine(ApiModel):
     reject_words: str
     language: str
     genre: str
+    publisher: str = ''
+    # days between issues, from Wikidata, 0 when it isn't known
+    frequency: int = 0
 
 
 class Issue(ApiModel):
@@ -142,9 +146,33 @@ class Issue(ApiModel):
     acquired: str
     cover: str
     format: str
+    # what its file says
+    description: str = ''
+    pages: int = 0
+    number: str = ''
+
+
+class IssueSchedule(ApiModel):
+    # days between issues, taken from the issues when inferred, 0 when it can't be told
+    frequency: int
+    inferred: bool
+    # the issue dates or numbers missing between the first and the latest
+    missing: list[str]
+    # the next issue's date, or number
+    next: str
+    overdue: bool
 
 
 class MagazineDetail(Magazine):
+    description: str = ''
+    issn: str = ''
+    country: str = ''
+    website: str = ''
+    logo: str = ''
+    started: str = ''
+    wikidata_id: str = ''
+    cover_page: int = 1
+    schedule: IssueSchedule
     issue_list: list[Issue]
 
 
@@ -171,6 +199,7 @@ class ComicIssue(ApiModel):
     cover: str
     overview: str
     format: str
+    pages: int = 0
 
 
 class ComicDetail(Comic):
@@ -217,6 +246,45 @@ class Editor(ApiModel):
 class IssueEditor(ApiModel):
     ids: list[str]
     delete_files: bool = False
+
+
+class RecentIssue(ApiModel):
+    # an issue's id, a comic issue's comicid_issueid
+    id: str
+    # the magazine's or comic's title
+    title: str
+    # its date or number
+    issue: str
+    # the magazine's title or the comic's id, for its page
+    parent_id: str
+    acquired: str
+    cover: str
+    format: str
+
+
+class PastIssue(ApiModel):
+    # the release's link, which identifies it
+    url: str
+    release_title: str
+    date: str
+    issue: str
+    indexer: str
+    # the magazine
+    title: str
+
+
+class PastIssueMark(ApiModel):
+    urls: list[str]
+    # Skipped, Wanted, Ignored or Remove
+    action: str
+
+
+class CoverPage(ApiModel):
+    page: int = Field(ge=1)
+
+
+class Message(ApiModel):
+    message: str
 
 
 @router.get('/books', response_model=BookPage)
@@ -274,6 +342,37 @@ def delete_magazines(editor: Editor):
 @router.delete('/magazine/issues', response_model=Changed)
 def delete_issues(editor: IssueEditor):
     return {'changed': library.delete_issues(editor.ids, editor.delete_files)}
+
+
+@router.get('/issues/recent', response_model=list[RecentIssue])
+def recent_issues(media_type: Literal['magazine', 'comic'] = Query('magazine', alias='mediaType'), limit: int = 0):
+    """ The magazine or comic issues acquired most recently, as many as the cover wall shows unless
+    limit is given """
+    return library.recent_issues(media_type, limit)
+
+
+@router.get('/magazine/pastissues', response_model=list[PastIssue])
+def list_past_issues(status: str = 'Skipped', title: str = ''):
+    """ Search results for magazines' issues that weren't wanted when they were found (Skipped,
+    Have, Ignored, Wanted or Snatched), one magazine's when title is given """
+    return library.list_past_issues(status, title)
+
+
+@router.put('/magazine/pastissues', response_model=Changed)
+def mark_past_issues(mark: PastIssueMark):
+    """ Want past issues (they're downloaded), skip or ignore them, or forget them (Remove) """
+    return {'changed': library.mark_past_issues(mark.urls, mark.action)}
+
+
+@router.put('/magazine/issue/{issue_id}/cover', response_model=Message)
+def set_issue_cover(issue_id: str, cover: CoverPage):
+    """ Make an issue's cover from one of its pages, counted from 1 """
+    return {'message': library.set_issue_cover('magazine', issue_id, cover.page)}
+
+
+@router.put('/comic/{comic_id}/issue/{issue_id}/cover', response_model=Message)
+def set_comic_issue_cover(comic_id: str, issue_id: str, cover: CoverPage):
+    return {'message': library.set_issue_cover('comic', f"{comic_id}_{issue_id}", cover.page)}
 
 
 @router.get('/comics', response_model=list[Comic])

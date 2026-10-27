@@ -33,6 +33,7 @@ dependencies = [
     'Pillow',
     'apprise',
     'pypdf',
+    'pypdfium2',
     'python_magic',
     'rapidfuzz',
     'deluge_client',

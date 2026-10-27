@@ -1,6 +1,6 @@
 // What the library pages share: changing magazines, comics and series, their cover cards, a
 // delete that can take the files too, and the choices kept in the browser for next time
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Rss } from 'lucide-react';
 import React, { useState } from 'react';
 import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
@@ -9,6 +9,7 @@ import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import Link from 'Components/Link/Link';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
+import { PageToolbarButton } from 'Components/Page/Toolbar/PageToolbar';
 import { api } from 'Utilities/api';
 import { imageUrl } from 'Utilities/images';
 import styles from 'Library/Library.module.css';
@@ -61,6 +62,24 @@ export function Cover({ src, size = 48, icon = BookOpen }: { src: string; size?:
     <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
   ) : (
     <Icon name={icon} size={size} />
+  );
+}
+
+// the RSS feed of a library's recent downloads, one magazine's or comic's when only is given, as
+// the old pages link it; nothing when Settings has the feeds off
+export function RssButton({ type, only, label }: { type: 'eBook' | 'AudioBook' | 'Magazine' | 'Comic'; only?: string; label: string }) {
+  if (!window.LazyLibrarian?.rss) {
+    return null;
+  }
+  const onetitle = only ? `&onetitle=${encodeURIComponent(only)}` : '';
+
+  return (
+    <PageToolbarButton
+      label={label}
+      iconName={Rss}
+      to={`/rss_feed?type=${type}${onetitle}&limit=10.xml`}
+      noRouter={true}
+    />
   );
 }
 

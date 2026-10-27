@@ -90,6 +90,21 @@ class ConfigValuesTest(LLTestCaseWithStartup):
             settings.save_values({'SEASON_2': 'late winter'})
             update.assert_called_once_with({'winter': 1, 'late winter': 2, 'xmas': 12, 'christmas': 12})
 
+    def test_send_to_addresses(self):
+        from lazylibrarian.database import DBConnection
+        with DBConnection() as db:
+            saved = db.match('SELECT SendTo FROM users ORDER BY rowid LIMIT 1')['SendTo']
+            db.action("UPDATE users SET SendTo='a@k.com'")
+        def put_back():
+            with DBConnection() as db:
+                db.action('UPDATE users SET SendTo=?', (saved,))
+        self.addCleanup(put_back)
+        self.assertEqual(self.values('OWNER_SENDTO')['OWNER_SENDTO']['value'], 'a@k.com')
+        self.assertEqual(settings.save_values({'OWNER_SENDTO': 'a@k.com, b@kindle.com'}), [])
+        self.assertEqual(self.values('OWNER_SENDTO')['OWNER_SENDTO']['value'], 'a@k.com,b@kindle.com')
+        messages = settings.save_values({'OWNER_SENDTO': 'a@k.com, kindle'})
+        self.assertEqual(messages, ["The send to addresses weren't changed, kindle isn't an email address"])
+
     def test_month_names(self):
         table = [['en_GB.UTF-8'], *[[f'month{n}'] for n in range(1, 13)]]
         with mock.patch.object(lazylibrarian, 'MONTHNAMES', [table, table]), \

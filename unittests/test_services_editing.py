@@ -93,7 +93,7 @@ class EditingTest(LLTestCaseWithStartup):
     def test_an_issue(self):
         with DBConnection() as db:
             db.action("INSERT INTO issues (Title, IssueID, IssueDate, IssueFile) VALUES "
-                      "('Wired', 'i1', '2025-01', '')")
+                      "('Wired', 'i1', '2025-01', 'wired.pdf')")
         with mock.patch.object(magazines, 'read_pdf_tags', return_value={'/Title': 'Wired January'}):
             issue = editing.issue_for_edit('i1')
             self.assertEqual(issue['tags'], [{'name': '/Title', 'value': 'Wired January'}])

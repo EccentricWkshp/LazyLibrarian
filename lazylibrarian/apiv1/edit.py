@@ -222,6 +222,8 @@ class MagazineEdit(ApiModel):
     date_type: str
     cover_page: int
     language: str
+    # the periodical on Wikidata its details come from, empty when it isn't linked
+    wikidata_id: str = ''
 
 
 class MagazineChange(ApiModel):
@@ -232,6 +234,14 @@ class MagazineChange(ApiModel):
     date_type: str | None = None
     cover_page: int | None = None
     language: str | None = None
+    wikidata_id: str | None = None
+
+
+class WikidataMatch(ApiModel):
+    id: str
+    label: str
+    description: str
+    started: str
 
 
 class TitleSaved(ApiModel):
@@ -262,8 +272,15 @@ def get_magazine(title: str):
 
 @router.put('/library/magazine/edit', response_model=TitleSaved)
 def save_magazine(title: str, change: MagazineChange):
-    """ Change a magazine's filters, or rename it, which moves its issue files """
+    """ Change a magazine's filters, link it to another Wikidata item (empty unlinks it), or rename
+    it, which moves its issue files """
     return editing.save_magazine(title, change.model_dump(exclude_unset=True))
+
+
+@router.get('/library/magazine/wikidata', response_model=list[WikidataMatch])
+def magazine_wikidata(title: str, term: str = ''):
+    """ The periodicals on Wikidata the magazine's title, or term, finds """
+    return editing.magazine_wikidata(title, term)
 
 
 @router.get('/library/magazine/issue/{issue_id}/edit', response_model=IssueEdit)

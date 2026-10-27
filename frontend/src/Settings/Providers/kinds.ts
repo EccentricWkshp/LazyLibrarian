@@ -516,6 +516,11 @@ export const NOTIFIERS: Kind[] = [
         advanced: true,
       },
       { key: 'EMAIL_CONVERT_FROM', label: 'Convert from', help: 'The formats that are converted, separated by commas', advanced: true },
+      {
+        key: 'OWNER_SENDTO',
+        label: 'Send to Device',
+        help: "Where Send to Device emails a book or issue, like your Kindle's address. Separated by commas",
+      },
     ],
     'An email, the book attached if wanted'
   ),

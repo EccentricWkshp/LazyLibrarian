@@ -162,6 +162,80 @@ def _refresh_book(command: dict, body: dict) -> str:
     return addnew.refresh_book(body.get('book_id') or '', progress=lambda text: _update(command, message=text))
 
 
+def _issues(body: dict) -> list[str]:
+    """ The magazine issues a command is for: those asked for, else every issue of the magazine """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    if body.get('ids'):
+        return list(body['ids'])
+    if body.get('title'):
+        return [issue['IssueID'] for issue in magazines.list_issues(body['title'], limit=None).items]
+    raise InvalidRequestError('Which issues?')
+
+
+def _done(what: str, passed: int, failed: int) -> str:
+    message = f"{what} {passed} {plural(passed, 'issue')}"
+    if failed:
+        message += f", {failed} failed, see the log"
+    if not passed and failed:
+        raise InvalidRequestError(message)
+    return message
+
+
+def _issue_covers(command: dict, body: dict) -> str:
+    """ Make issues' covers again, from page (or the magazine's cover page). A comic's are
+    comicid_issueid """
+    from lazylibrarian.services import comics, magazines  # they import most of LazyLibrarian
+    page = int(body.get('page') or 0)
+    if body.get('media_type') == 'comic':
+        passed = failed = 0
+        ids = body.get('ids') or []
+        for number, item in enumerate(ids, start=1):
+            _update(command, message=f"Making cover {number} of {len(ids)}")
+            comic_id, _, issue_id = item.partition('_')
+            try:
+                comics.set_issue_cover(comic_id, issue_id, page or 1)
+                passed += 1
+            except ServiceError:
+                failed += 1
+        return _done('Made the covers of', passed, failed)
+    ids = _issues(body)
+    if not page:
+        page = magazines.cover_page(body.get('title') or '', ids[0] if ids else '')
+    _update(command, message=f"Making {len(ids)} {plural(len(ids), 'cover')} from page {page}")
+    passed, failed, _title = magazines.mark_issues(f'reCover{page}', ids)
+    return _done(f'Made covers from page {page} for', passed, failed)
+
+
+def _swap_cover(command: dict, body: dict) -> str:
+    """ Move a page of magazine issues' PDFs to the front, so it's the cover """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    ids = _issues(body)
+    page = int(body.get('page') or 2)
+    _update(command, message=f"Moving page {page} to the front of {len(ids)} {plural(len(ids), 'issue')}")
+    passed, failed, _title = magazines.mark_issues('coverswap', ids, swap_page=page)
+    return _done(f'Moved page {page} to the front of', passed, failed)
+
+
+def _tag_issues(command: dict, body: dict) -> str:
+    """ Write the magazine's title, issue date and genres into issues' PDFs """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    ids = _issues(body)
+    _update(command, message=f"Tagging {len(ids)} {plural(len(ids), 'issue')}")
+    passed, failed, _title = magazines.mark_issues('tag', ids)
+    return _done('Tagged', passed, failed)
+
+
+def _refresh_magazine(command: dict, body: dict) -> str:
+    """ Take a magazine's details from Wikidata: the item given, the one it's linked to, or the one
+    called exactly its title """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    title = body.get('title') or ''
+    _update(command, message=f"Looking {title} up on Wikidata")
+    if body.get('wikidata_id'):
+        return magazines.set_wikidata(title, body['wikidata_id'])
+    return magazines.refresh_magazine(title)
+
+
 def _refresh_languages(command: dict, body: dict) -> str:
     from lazylibrarian.services import books  # it imports most of LazyLibrarian
     return books.refresh_languages_now(progress=lambda text: _update(command, message=text))
@@ -175,14 +249,17 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'AddAuthor': _add_author, 'AddBook': _add_book,
                                                     'RefreshAuthor': _refresh_author, 'RefreshBook': _refresh_book,
                                                     'AuthorSearch': _author_search, 'LibraryScan': _library_scan,
-                                                    'RefreshLanguages': _refresh_languages}
+                                                    'RefreshLanguages': _refresh_languages,
+                                                    'IssueCovers': _issue_covers, 'SwapCover': _swap_cover,
+                                                    'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
           'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update',
           'AddAuthor': 'Add Author', 'AddBook': 'Add Book', 'RefreshAuthor': 'Refresh Author',
           'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search', 'LibraryScan': 'Library Scan',
-          'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0]}
+          'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0], 'IssueCovers': 'Make Covers',
+          'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine'}
 
 
 def _run(command: dict, body: dict):

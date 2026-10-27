@@ -161,6 +161,8 @@ pyparsing==3.3.3
     #   httplib2
 pypdf==6.19.0
     # via lazylibrarian (pyproject.toml)
+pypdfium2==5.14.0
+    # via lazylibrarian (pyproject.toml)
 pysocks==1.7.1
     # via requests
 python-dateutil==2.9.0.post0

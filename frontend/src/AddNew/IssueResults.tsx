@@ -12,19 +12,28 @@ export function MagazineResults({ found, onAdd }: { found: MagazineLookup[]; onA
   return (
     <ul className={styles.books}>
       {found.map((magazine) => (
-        <li key={magazine.title} className={styles.book}>
+        <li key={`${magazine.title}-${magazine.wikidataId}`} className={styles.book}>
           <div className={styles.noCover}>
             <Icon name={Newspaper} size={28} />
           </div>
           <div className={styles.bookText}>
-            <div className={styles.bookTitle}>{magazine.title}</div>
-            <div className={styles.meta}>
-              {magazine.inLibrary
-                ? `${magazine.issues} ${magazine.issues === 1 ? 'issue' : 'issues'}`
-                : magazine.rejectWords
-                  ? `Releases with ${magazine.rejectWords} are ruled out`
-                  : 'Not in the library'}
+            <div className={styles.bookTitle}>
+              {magazine.title}
+              {magazine.started ? <span className={styles.year}> ({magazine.started})</span> : null}
             </div>
+            <div className={styles.meta}>
+              {[
+                magazine.inLibrary
+                  ? `${magazine.issues} ${magazine.issues === 1 ? 'issue' : 'issues'}`
+                  : magazine.wikidataId
+                    ? 'Wikidata'
+                    : 'As typed, without details from Wikidata unless it has one called that',
+                magazine.rejectWords && !magazine.inLibrary ? `Releases with ${magazine.rejectWords} are ruled out` : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+            {magazine.description ? <p className={styles.overview}>{magazine.description}</p> : null}
           </div>
           <div className={styles.bookActions}>
             {magazine.inLibrary ? (
@@ -35,7 +44,13 @@ export function MagazineResults({ found, onAdd }: { found: MagazineLookup[]; onA
               <Button
                 aria-label={`Add ${magazine.title}`}
                 onPress={() =>
-                  onAdd({ kind: 'magazine', id: magazine.title, name: magazine.title, rejectWords: magazine.rejectWords })
+                  onAdd({
+                    kind: 'magazine',
+                    id: magazine.wikidataId || magazine.title,
+                    name: magazine.title,
+                    rejectWords: magazine.rejectWords,
+                    wikidataId: magazine.wikidataId,
+                  })
                 }
               >
                 <Icon name={Plus} /> Add

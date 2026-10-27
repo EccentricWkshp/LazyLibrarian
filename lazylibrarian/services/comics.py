@@ -15,6 +15,8 @@
 import logging
 import os
 import threading
+import uuid
+from shutil import copyfile
 
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
@@ -23,12 +25,12 @@ from lazylibrarian import comicscan, database
 from lazylibrarian.comicid import cv_identify, cx_identify, name_words, title_words
 from lazylibrarian.comicsearch import search_comics
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.filesystem import path_exists, splitext
+from lazylibrarian.filesystem import DIRS, path_exists, setperm
 from lazylibrarian.formatter import check_int, now, strip_quotes
 from lazylibrarian.magazinescan import remove_if_empty
 from lazylibrarian.services import InvalidRequestError, NotFoundError
 from lazylibrarian.services.files import delete_issue_file
-from lazylibrarian.services.magazines import file_date
+from lazylibrarian.services.magazines import file_date, page_cover
 from lazylibrarian.services.paging import Page, page_of
 from lazylibrarian.services.system import start_task
 
@@ -304,16 +306,41 @@ def mark_comics(action: str, comicids, userid=None) -> int:
 def set_latest(db, comicid):
     """ Set the comic's latest issue and cover from its newest issue, when it was last acquired from that
         issue's file and when it was added from its oldest issue's file """
-    cmd = "select IssueID,IssueAcquired,IssueFile from comicissues where ComicID=? order by IssueID "
+    cmd = "select IssueID,IssueAcquired,IssueFile,Cover from comicissues where ComicID=? order by IssueID "
     newest = db.match(cmd + 'DESC', (comicid,))
     oldest = db.match(cmd + 'ASC', (comicid,))
     if newest and oldest:
-        cover = splitext(newest['IssueFile'])[0] + '.jpg' if path_exists(newest['IssueFile']) else ''
-        new_value_dict = {'LatestIssue': newest['IssueID'], 'LatestCover': cover,
+        # the newest issue's cover in the cache, as a scan sets it; the picture next to its file
+        # isn't one the pages can show
+        new_value_dict = {'LatestIssue': newest['IssueID'], 'LatestCover': newest['Cover'] or '',
                           'LastAcquired': file_date(newest['IssueFile']), 'Added': file_date(oldest['IssueFile'])}
     else:
         new_value_dict = {'LatestIssue': '', 'LastAcquired': '', 'LatestCover': '', 'Added': ''}
     db.upsert("comics", new_value_dict, {'ComicID': comicid})
+
+
+def set_issue_cover(comicid, issueid, page: int) -> str:
+    """ Make a comic issue's cover from one of its pages, the comic's too if it's the latest. Returns
+    what happened """
+    db = database.DBConnection()
+    try:
+        issue = db.match('SELECT IssueFile FROM comicissues WHERE ComicID=? AND IssueID=?', (comicid, issueid))
+        if not issue:
+            raise NotFoundError(f"No issue {issueid} of comic {comicid}")
+        if not issue['IssueFile'] or not path_exists(issue['IssueFile']):
+            raise InvalidRequestError(f"Issue {issueid} has no file to make a cover from")
+        coverfile = page_cover(issue['IssueFile'], page)
+        if not coverfile:
+            raise InvalidRequestError(f"There's no page {page} to make a cover from")
+        myhash = uuid.uuid4().hex
+        copyfile(coverfile, os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg'))
+        setperm(os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg'))
+        db.action('UPDATE comicissues SET Cover=? WHERE ComicID=? AND IssueID=?',
+                  (f'cache/comic/{myhash}.jpg', comicid, issueid))
+        set_latest(db, comicid)
+    finally:
+        db.close()
+    return f"The cover is page {page} now"
 
 
 def mark_issues(action: str, issues) -> str | None:

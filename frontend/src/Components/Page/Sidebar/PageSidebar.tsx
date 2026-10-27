@@ -43,8 +43,13 @@ interface SidebarChild {
   under?: string;
 }
 
+// under is a page, or the pages below a path that ends in /
 function isChildActive(child: SidebarChild, pathname: string) {
-  return pathname === child.to || (!!child.under && pathname.startsWith(child.under));
+  const under = child.under ?? '';
+  return (
+    pathname === child.to ||
+    (!!under && (pathname === under || pathname.startsWith(under.endsWith('/') ? under : `${under}/`)))
+  );
 }
 
 interface SidebarGroup {
@@ -71,8 +76,29 @@ function groups(): SidebarGroup[] {
         { iconName: BookOpen, title: 'eBooks', to: '/books', isHidden: !tabs.ebook },
         { iconName: Headphones, title: 'Audiobooks', to: '/audio', isHidden: !tabs.audio },
         { iconName: Library, title: 'Series', to: '/series', under: '/series/', isHidden: !tabs.series },
-        { iconName: Newspaper, title: 'Magazines', to: '/magazines', under: '/magazine', isHidden: !tabs.mag },
-        { iconName: Layers, title: 'Comics', to: '/comics', under: '/comic/', isHidden: !tabs.comic },
+        {
+          iconName: Newspaper,
+          title: 'Magazines',
+          to: '/magazines',
+          isHidden: !tabs.mag,
+          children: [
+            { title: 'Magazines', to: '/magazines', under: '/magazine' },
+            { title: 'Add New', to: '/magazines/add' },
+            { title: 'Recent Issues', to: '/magazines/recent' },
+            { title: 'Past Issues', to: '/magazines/pastissues' },
+          ],
+        },
+        {
+          iconName: Layers,
+          title: 'Comics',
+          to: '/comics',
+          isHidden: !tabs.comic,
+          children: [
+            { title: 'Comics', to: '/comics', under: '/comic/' },
+            { title: 'Add New', to: '/comics/add' },
+            { title: 'Recent Issues', to: '/comics/recent' },
+          ],
+        },
         { iconName: ListChecks, title: 'Manage', to: '/manage' },
         {
           iconName: TriangleAlert,

@@ -543,7 +543,9 @@ GENRE_SETTINGS = {'GENRE_LIMIT': ('genreLimit', 'int'), 'GENRE_USERS': ('genreUs
 MONTH_SETTINGS = tuple(f'MONTH_{n}' for n in range(13))
 # the season names in each month, SEASON_1 to SEASON_12
 SEASON_SETTINGS = tuple(f'SEASON_{n}' for n in range(1, 13))
-OTHER_SETTINGS = (*GENRE_SETTINGS, *MONTH_SETTINGS, *SEASON_SETTINGS)
+# the owner's addresses Send to Device emails to, in the users table
+SEND_TO = 'OWNER_SENDTO'
+OTHER_SETTINGS = (*GENRE_SETTINGS, *MONTH_SETTINGS, *SEASON_SETTINGS, SEND_TO)
 INFO_SOURCES_CHANGED = 'The info source searched first was off, {} is searched first now'
 # the special debug logs, by their logger's name
 SPECIAL_LOGS = {'matching': 'Name matching', 'searching': 'Search results', 'dlcomms': 'Download clients',
@@ -593,6 +595,14 @@ def _other_value(key: str) -> dict:
         months = lazylibrarian.MONTHNAMES[0] if lazylibrarian.MONTHNAMES else []
         number = int(key.split('_')[1])
         value = ', '.join(months[number]) if number < len(months) else ''
+    elif key == SEND_TO:
+        kind = 'csv'
+        db = database.DBConnection()
+        try:
+            owner = get_owner(db)
+        finally:
+            db.close()
+        value = owner['SendTo'] or '' if owner else ''
     else:
         kind = 'csv'
         number = int(key.split('_')[1])
@@ -627,6 +637,19 @@ def _save_other_settings(values: dict) -> list[str]:
             for name in get_list(sent.get(key, _other_value(key)['value']), ','):
                 seasons[name] = int(key.split('_')[1])
         update_seasons(seasons)
+    if SEND_TO in sent:
+        addresses = get_list(sent[SEND_TO], ',')
+        wrong = [address for address in addresses if not is_valid_email(address)]
+        if wrong:
+            messages.append(f"The send to addresses weren't changed, {', '.join(wrong)} isn't an email address")
+        else:
+            db = database.DBConnection()
+            try:
+                owner = get_owner(db)
+                if owner:
+                    db.action('UPDATE users SET SendTo=? WHERE UserID=?', (','.join(addresses), owner['UserID']))
+            finally:
+                db.close()
     return messages
 
 

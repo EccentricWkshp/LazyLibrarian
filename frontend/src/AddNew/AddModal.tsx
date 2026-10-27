@@ -20,6 +20,7 @@ export interface Adding {
   source?: string;
   authorId?: string;
   rejectWords?: string;
+  wikidataId?: string;
   status?: string;
   audioStatus?: string;
 }
@@ -62,7 +63,7 @@ function AddModal({ adding, mediaTypes, onModalClose }: AddModalProps) {
   const addNow = useMutation({
     mutationFn: (item: Adding) =>
       item.kind === 'magazine'
-        ? api('/magazine', { method: 'POST', body: { title: item.name, rejectWords, search } })
+        ? api('/magazine', { method: 'POST', body: { title: item.name, rejectWords, search, wikidataId: item.wikidataId } })
         : api('/comic', { method: 'POST', body: { id: item.id, search } }),
     onSuccess: () => {
       changed();

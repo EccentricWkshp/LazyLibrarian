@@ -20,7 +20,7 @@ import uuid
 from shutil import copyfile
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, filemeta
 from lazylibrarian.comicid import comic_metadata, cv_identify, cv_issue, cx_identify, cx_issue
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
@@ -215,7 +215,7 @@ def comic_scan(comicid=None):
                             added = mag_entry['Added']
 
                         # is this issue already in the database?
-                        iss_entry = db.match('SELECT IssueFile from comicissues WHERE ComicID=? and IssueID=?',
+                        iss_entry = db.match('SELECT IssueFile,Pages from comicissues WHERE ComicID=? and IssueID=?',
                                              (comicid, issue))
                         issuefile = os.path.join(rootdir, fname)  # full path to issue.cbr
                         mtime = os.path.getmtime(issuefile)
@@ -268,6 +268,12 @@ def comic_scan(comicid=None):
                                     logger.debug('create_comic_opf is disabled')
                                 else:
                                     _ = create_comic_opf(dest_path, data, global_name, overwrite=True)
+                        if not iss_entry or iss_entry['IssueFile'] != issuefile or not iss_entry['Pages']:
+                            # what the file says, a description only when the comic's source had none
+                            meta = filemeta.read_metadata(issuefile)
+                            db.action("UPDATE comicissues SET Pages=?, Description=IFNULL(NULLIF(Description, ''), ?) "
+                                      "WHERE ComicID=? AND IssueID=?", (meta['pages'], meta['description'], comicid,
+                                                                        issue))
 
                         ignorefile = os.path.join(os.path.dirname(issuefile), '.ll_ignore')
                         try:

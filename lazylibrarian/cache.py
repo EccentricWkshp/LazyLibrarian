@@ -149,8 +149,9 @@ def fetch_url(url: str, headers: dict | None = None, retry=True, timeout=True,
         # higher requests per second if identified
         headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]}) ({CONFIG['ADMIN_EMAIL']})"
 
-    elif 'comicvine.gamespot.com' in url_lower:
-        # comicvine api asks for a descriptive user agent
+    elif any(site in url_lower for site in ('comicvine.gamespot.com', 'wikidata.org', 'wikipedia.org',
+                                            'wikimedia.org')):
+        # comicvine and wikimedia ask for a descriptive user agent
         headers['User-Agent'] = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]})"
 
     proxies = proxy_list()

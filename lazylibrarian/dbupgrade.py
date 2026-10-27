@@ -137,8 +137,18 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 103 add blocklist table, filled by triggers when a download fails, from the failed downloads
 # 104 add qualityprofiles table, with the default profiles
 # 105 add notifications, notificationevents and appstate tables, the webhooks and what they're sent
+# 106 add a magazine's details from Wikidata to magazines, and what an issue's file says to issues and comicissues
 
-db_current_version = 105
+db_current_version = 106
+# v106: a magazine's Wikidata item and what it says (Frequency is days between issues), and what an
+# issue's file says about it
+MAGAZINE_INFO_COLUMNS = {
+    'magazines': [('WikidataID', 'TEXT'), ('Description', 'TEXT'), ('Publisher', 'TEXT'), ('ISSN', 'TEXT'),
+                  ('Country', 'TEXT'), ('Frequency', 'INTEGER DEFAULT 0'), ('Website', 'TEXT'), ('Logo', 'TEXT'),
+                  ('Started', 'TEXT')],
+    'issues': [('Description', 'TEXT'), ('Pages', 'INTEGER DEFAULT 0'), ('IssueNumber', 'TEXT')],
+    'comicissues': [('Pages', 'INTEGER DEFAULT 0')],
+}
 
 # A failed download goes on the blocklist, as in Sonarr, however it was marked failed. Removing it
 # from the blocklist leaves its history, and clearing history leaves the blocklist
@@ -1835,6 +1845,14 @@ def update_schema(db, upgradelog):
                   'Message TEXT, Data TEXT, Created TEXT, Sent TEXT)')
         db.action('CREATE INDEX notificationevents_sent ON notificationevents (Sent)')
         db.action('CREATE TABLE appstate (Key TEXT PRIMARY KEY, Value TEXT)')
+    for table, columns in MAGAZINE_INFO_COLUMNS.items():
+        for column, kind in columns:
+            if not has_column(db, table, column):
+                changes += 1
+                lazylibrarian.UPDATE_MSG = f'Adding {column} column to {table} table'
+                upgradelog.write(f"{time.ctime()} v106: {lazylibrarian.UPDATE_MSG}\n")
+                db.action(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'notify_%'")) \
             < len(NOTIFY_TRIGGERS):
         changes += 1

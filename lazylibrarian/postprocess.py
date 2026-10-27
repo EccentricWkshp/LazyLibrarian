@@ -32,7 +32,7 @@ from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, filemeta
 from lazylibrarian.archive_utils import unpack_archive, unpack_multipart
 from lazylibrarian.bookrename import audio_rename, name_vars, stripspaces
 from lazylibrarian.cache import ImageType, cache_img
@@ -1350,6 +1350,9 @@ def _update_issue_database(
             "Cover": coverfile,
         }
         db.upsert("comicissues", new_value_dict, control_value_dict)
+        meta = filemeta.read_metadata(dest_file)
+        db.action("UPDATE comicissues SET Pages=?, Description=IFNULL(NULLIF(Description, ''), ?) "
+                  "WHERE ComicID=? AND IssueID=?", (meta['pages'], meta['description'], book_id, issue_id))
 
     elif media_type == BookType.MAGAZINE:
         _replace_issue_file(db.match("SELECT IssueFile FROM issues WHERE Title=? AND IssueDate=?",
@@ -1366,6 +1369,8 @@ def _update_issue_database(
             "Cover": coverfile,
         }
         db.upsert("issues", new_value_dict, control_value_dict)
+        db.action('UPDATE issues SET Description=?, Pages=?, IssueNumber=? WHERE IssueID=?',
+                  (*filemeta.issue_details(filemeta.read_metadata(dest_file), aux_info), issueid))
 
         # Update magazines table
         control_value_dict = {"Title": book_id}

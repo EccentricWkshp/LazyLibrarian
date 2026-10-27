@@ -16,7 +16,7 @@ import {
   PageToolbarSeparator,
 } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
-import { change, DeleteModal, plural, PosterCard, remember, remembered } from 'Library/library';
+import { change, DeleteModal, plural, PosterCard, remember, remembered, RssButton } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { Magazine } from 'typings/Library';
 import { api } from 'Utilities/api';
@@ -92,7 +92,7 @@ function MagazineIndex() {
     <PageContent title="Magazines">
       <PageToolbar>
         <PageToolbarSection>
-          <PageToolbarButton label="Add New" iconName={Plus} to="/add/new?kind=magazine" />
+          <PageToolbarButton label="Add New" iconName={Plus} to="/magazines/add" />
           <PageToolbarButton
             label="Search All"
             iconName={Search}
@@ -139,6 +139,7 @@ function MagazineIndex() {
           ) : null}
         </PageToolbarSection>
         <PageToolbarSection alignContent="right">
+          <RssButton type="Magazine" label="RSS Feed" />
           <PageToolbarButton
             label={view === 'posters' ? 'Table' : 'Covers'}
             iconName={view === 'posters' ? TableIcon : LayoutGrid}
@@ -166,7 +167,7 @@ function MagazineIndex() {
         {error ? <Alert kind="danger">Failed to load the magazines: {(error as Error).message}</Alert> : null}
         {data && !data.length ? (
           <Alert kind="info">
-            There are no magazines yet. <Link to="/add/new?kind=magazine">Add New</Link> adds one by its title.
+            There are no magazines yet. <Link to="/magazines/add">Add New</Link> adds one by its title.
           </Alert>
         ) : null}
 

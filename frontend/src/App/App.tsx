@@ -18,6 +18,9 @@ import ComicDetails from 'Library/Comics/ComicDetails';
 import ComicIndex from 'Library/Comics/ComicIndex';
 import MagazineDetails from 'Library/Magazines/MagazineDetails';
 import MagazineIndex from 'Library/Magazines/MagazineIndex';
+import PastIssues from 'Library/Magazines/PastIssues';
+import RecentIssues from 'Library/Magazines/RecentIssues';
+import Reader from 'Library/Reader/Reader';
 import SeriesDetails from 'Library/Series/SeriesDetails';
 import SeriesIndex from 'Library/Series/SeriesIndex';
 import Backups from 'System/Backup/Backups';
@@ -87,7 +90,7 @@ function App() {
               <Route path="/settings/languages" element={<Languages />} />
               <Route path="/settings/tools" element={<Tools />} />
               <Route path="/add" element={<Navigate to="/add/new" replace={true} />} />
-              <Route path="/add/new" element={<AddNew />} />
+              <Route path="/add/new" element={<AddNew key="book" />} />
               <Route path="/authors" element={<AuthorIndex />} />
               <Route path="/author/:authorId" element={<AuthorDetails />} />
               <Route path="/books" element={<BookIndex key="ebook" mediaType="ebook" />} />
@@ -95,9 +98,15 @@ function App() {
               <Route path="/book/:bookId" element={<BookDetails />} />
               <Route path="/manage" element={<BookIndex key="manage" manage={true} />} />
               <Route path="/magazines" element={<MagazineIndex />} />
+              <Route path="/magazines/add" element={<AddNew key="magazine" kind="magazine" />} />
+              <Route path="/magazines/recent" element={<RecentIssues key="magazine" mediaType="magazine" />} />
+              <Route path="/magazines/pastissues" element={<PastIssues />} />
               <Route path="/magazine" element={<MagazineDetails />} />
               <Route path="/comics" element={<ComicIndex />} />
+              <Route path="/comics/add" element={<AddNew key="comic" kind="comic" />} />
+              <Route path="/comics/recent" element={<RecentIssues key="comic" mediaType="comic" />} />
               <Route path="/comic/:comicId" element={<ComicDetails />} />
+              <Route path="/read/:kind/:itemId" element={<Reader />} />
               <Route path="/series" element={<SeriesIndex />} />
               <Route path="/series/:seriesId" element={<SeriesDetails />} />
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />

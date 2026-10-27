@@ -1,7 +1,19 @@
 // Sonarr's series details for a comic: its cover, publisher and status, and its issues, each to
-// open or delete, with the comic searched for or its folder scanned
+// read, download, send to a device, give another cover or delete, with the comic searched for or
+// its folder scanned
 import { useQuery } from '@tanstack/react-query';
-import { Download, ExternalLink, FolderSearch, Layers, Search, SquarePen, Trash2 } from 'lucide-react';
+import {
+  BookOpen,
+  Download,
+  ExternalLink,
+  FolderSearch,
+  Image,
+  Layers,
+  Search,
+  Send,
+  SquarePen,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { runCommand } from 'App/commands';
@@ -17,10 +29,12 @@ import {
   PageToolbarSection,
   PageToolbarSeparator,
 } from 'Components/Page/Toolbar/PageToolbar';
-import { change, Cover, DeleteModal, plural } from 'Library/library';
+import { change, Cover, DeleteModal, plural, RssButton } from 'Library/library';
 import styles from 'Library/Library.module.css';
+import CoverPickerModal from 'Library/Reader/CoverPickerModal';
+import { canRead, filePath, readerPath, sendToDevice } from 'Library/Reader/reading';
 import { ComicDetail } from 'typings/Library';
-import { api, urlBase } from 'Utilities/api';
+import { api } from 'Utilities/api';
 import { deleteComics, setComicStatus } from './ComicIndex';
 import EditComicModal from './EditComicModal';
 
@@ -31,6 +45,7 @@ function ComicDetails() {
   const [deleting, setDeleting] = useState<'comic' | 'issues' | null>(null);
   const [running, setRunning] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [coverIssue, setCoverIssue] = useState('');
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'comic', comicId],
@@ -46,8 +61,9 @@ function ComicDetails() {
     runCommand(name, body, label).finally(() => setRunning(''));
   }
 
-  function openUrl(issueId: string) {
-    return `${urlBase()}/open_comic?comicid=${encodeURIComponent(comicId)}&issueid=${encodeURIComponent(issueId)}`;
+  // a comic issue is read, downloaded and sent by comicid_issueid
+  function itemId(issueId: string) {
+    return `${comicId}_${issueId}`;
   }
 
   return (
@@ -86,6 +102,22 @@ function ComicDetails() {
           <PageToolbarButton label="Delete" iconName={Trash2} isDisabled={!data} onPress={() => setDeleting('comic')} />
         </PageToolbarSection>
         <PageToolbarSection alignContent="right">
+          <RssButton type="Comic" only={comicId} label="RSS Feed" />
+          <PageToolbarButton
+            label="Make Covers"
+            iconName={Image}
+            isDisabled={!selectedIds.length}
+            isSpinning={running === 'covers'}
+            onPress={() => {
+              run(
+                'covers',
+                'IssueCovers',
+                { mediaType: 'comic', ids: selectedIds.map(itemId), page: 1 },
+                `Make the covers of ${plural(selectedIds.length, 'issue')}`
+              );
+              setSelected(new Set());
+            }}
+          />
           <PageToolbarButton
             label="Delete Selected Issues"
             iconName={Trash2}
@@ -148,9 +180,14 @@ function ComicDetails() {
           <div className={styles.issues}>
             {issues.map((issue) => (
               <div key={issue.id} className={styles.issue}>
-                <a className={styles.issueCover} href={openUrl(issue.id)}>
+                <Link
+                  className={styles.issueCover}
+                  to={canRead(issue.format) ? readerPath('comic', itemId(issue.id)) : filePath('comic', itemId(issue.id), '', true)}
+                  noRouter={!canRead(issue.format)}
+                  title={canRead(issue.format) ? 'Read' : 'Download'}
+                >
                   <Cover src={issue.cover} icon={Layers} />
-                </a>
+                </Link>
                 <div className={styles.issueInfo}>
                   <label className={styles.check}>
                     <CheckInput
@@ -170,11 +207,30 @@ function ComicDetails() {
                     />
                     <span className={styles.issueDate}>#{issue.id}</span>
                   </label>
+                  {issue.pages ? <div className={styles.muted}>{plural(issue.pages, 'page')}</div> : null}
                   <div className={styles.issueMeta}>
                     {issue.format ? <Label kind="success">{issue.format}</Label> : <Label>No file</Label>}
-                    <a href={openUrl(issue.id)} title="Open">
-                      <Icon name={Download} size={14} />
-                    </a>
+                    {canRead(issue.format) ? (
+                      <Link to={readerPath('comic', itemId(issue.id))} title="Read">
+                        <Icon name={BookOpen} size={14} />
+                      </Link>
+                    ) : null}
+                    {issue.format ? (
+                      <>
+                        <Link to={filePath('comic', itemId(issue.id), '', true)} noRouter={true} title="Download">
+                          <Icon name={Download} size={14} />
+                        </Link>
+                        <Link
+                          title="Send to Device"
+                          onPress={() => sendToDevice('comic', itemId(issue.id), `${data?.title ?? ''} #${issue.id}`)}
+                        >
+                          <Icon name={Send} size={14} />
+                        </Link>
+                        <Link title="Choose the cover" onPress={() => setCoverIssue(issue.id)}>
+                          <Icon name={Image} size={14} />
+                        </Link>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -217,6 +273,14 @@ function ComicDetails() {
           comicId={comicId}
           onSaved={(saved) => (saved !== comicId ? navigate(`/comic/${encodeURIComponent(saved)}`) : null)}
           onModalClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
+      {coverIssue ? (
+        <CoverPickerModal
+          kind="comic"
+          id={itemId(coverIssue)}
+          name={`${data?.title ?? ''} #${coverIssue}`}
+          onModalClose={() => setCoverIssue('')}
         />
       ) : null}
     </PageContent>
