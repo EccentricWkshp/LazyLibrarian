@@ -18,6 +18,10 @@ const CHANGES: Record<string, string[][]> = {
   RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update']],
   Backup: [['backups']],
   CutoffUnmetSearch: [['queue'], ['wanted']],
+  AddAuthor: [['lookup'], ['wanted']],
+  AddBook: [['lookup'], ['wanted']],
+  RefreshAuthor: [['lookup'], ['wanted']],
+  RefreshBook: [['lookup'], ['wanted']],
 };
 
 function isDone(command: Command) {

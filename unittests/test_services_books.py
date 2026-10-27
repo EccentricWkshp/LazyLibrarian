@@ -147,7 +147,8 @@ class BookServiceTest(LLTestCaseWithDB):
 
     def test_add_book_already_known(self):
         self.assertEqual(books.add_book('B4', library='AudioBook'), ('A2', 'Skipped', 'Wanted'))
-        self.assertEqual((self.book('B4')['Status'], self.book('B4')['AudioStatus']), ('Skipped', 'Wanted'))
+        self.assertEqual((self.book('B4')['Status'], self.book('B4')['AudioStatus']), ('Ignored', 'Wanted'),
+                         'The eBook is left as it was')
         CONFIG.set_bool('AUDIO_TAB', False)
         self.assertEqual(books.add_book('B4')[1:], ('Wanted', 'Skipped'))
 

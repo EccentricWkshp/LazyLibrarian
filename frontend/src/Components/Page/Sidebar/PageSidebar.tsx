@@ -45,7 +45,15 @@ function groups(): SidebarGroup[] {
     {
       label: 'Library',
       items: [
-        { iconName: Users, title: 'Authors', to: '/home' },
+        {
+          iconName: Users,
+          title: 'Authors',
+          to: '/home',
+          children: [
+            { title: 'Authors', to: '/home' },
+            { title: 'Add New', to: '/add/new' },
+          ],
+        },
         { iconName: BookOpen, title: 'eBooks', to: '/books', isHidden: !tabs.ebook },
         { iconName: Headphones, title: 'Audiobooks', to: '/audio', isHidden: !tabs.audio },
         { iconName: Library, title: 'Series', to: '/series', isHidden: !tabs.series },

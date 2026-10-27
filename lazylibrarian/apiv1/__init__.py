@@ -18,6 +18,7 @@
 from fastapi import APIRouter, HTTPException
 
 from lazylibrarian.apiv1 import (
+    addnew,
     command,
     events,
     health,
@@ -45,6 +46,7 @@ router.include_router(profiles.router)
 router.include_router(events.router)
 router.include_router(remotepathmapping.router)
 router.include_router(notification.router)
+router.include_router(addnew.router)
 
 
 @router.api_route('/{path:path}', methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], include_in_schema=False)

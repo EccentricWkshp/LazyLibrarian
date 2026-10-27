@@ -204,7 +204,7 @@ def comic_ids() -> list:
         db.close()
 
 
-def add_comic(comicid) -> bool:
+def add_comic(comicid, search: bool | None = None) -> bool:
     """ Add one of the comics the last find_comics found. Returns False if we already have it.
         InvalidRequestError if a ComicVine comic is asked for without an api key, NotFoundError if it
         wasn't among the results """
@@ -235,7 +235,7 @@ def add_comic(comicid) -> bool:
                    itm['start'], itm['first'], itm['last'], itm['publisher'], itm['link'], aka))
     finally:
         db.close()
-    if CONFIG.get_bool('IMP_AUTOSEARCH'):
+    if CONFIG.get_bool('IMP_AUTOSEARCH') if search is None else search:
         start_search(comicid)
     return True
 

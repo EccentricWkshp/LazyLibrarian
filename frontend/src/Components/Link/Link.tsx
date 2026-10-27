@@ -5,7 +5,7 @@ import { urlBase } from 'Utilities/api';
 import styles from './Link.module.css';
 
 // the paths the front end has, anything else is one of the old pages
-const UI_PATHS = ['/activity', '/wanted', '/system', '/settings'];
+const UI_PATHS = ['/activity', '/wanted', '/system', '/settings', '/add'];
 
 export function isUiPath(to: string) {
   return UI_PATHS.some((path) => to === path || to.startsWith(`${path}/`));

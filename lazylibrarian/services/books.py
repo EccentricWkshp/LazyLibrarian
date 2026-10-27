@@ -243,9 +243,9 @@ def refresh_source_priority() -> list:
     return author_linkable + book_only
 
 
-def refresh_book(bookid) -> str:
-    """ Fetch the book's details again from one source it's linked to, in the background.
-        Returns the source, or empty if the book is locked against changes or isn't linked to any """
+def refresh_book(bookid, wait: bool = False) -> str:
+    """ Fetch the book's details again from one source it's linked to, in the background unless
+        wait. Returns the source, or empty if the book is locked against changes or isn't linked to any """
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
     try:
@@ -269,9 +269,12 @@ def refresh_book(bookid) -> str:
         source_id = book[id_col]
         if source_id:
             api = lazylibrarian.INFOSOURCES[source_name]['api']()
-            threading.Thread(target=api.add_bookid_to_db, name=f"REFRESHBOOK_{bookid}",
-                             kwargs={'bookid': source_id,
-                                     'reason': f"WebServer refresh_book {bookid} via {source_name}"}).start()
+            refresh = threading.Thread(target=api.add_bookid_to_db, name=f"REFRESHBOOK_{bookid}",
+                                       kwargs={'bookid': source_id,
+                                               'reason': f"WebServer refresh_book {bookid} via {source_name}"})
+            refresh.start()
+            if wait:
+                refresh.join()
             return source_name
     logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - no linked source id")
     return ''
@@ -480,10 +483,14 @@ def list_books(view: str, library: str | None = None, status: str = 'All', autho
     return page
 
 
-def add_book(bookid, authorid=None, library: str | None = None, source: str | None = None) -> tuple:
+def add_book(bookid, authorid=None, library: str | None = None, source: str | None = None,
+             search: bool | None = None, wait: float | None = 10) -> tuple:
     """ Want a book: eBook, AudioBook, Both, or whichever libraries are switched on. A book we don't
         have yet is added from its author (authorid) or from an info source, the configured one by
-        default. Returns (its authorid if it's in the database now, ebook status, audio status) """
+        default, waiting for it up to wait seconds, None for as long as it takes. A format we have
+        stays as it is, the other isn't changed. Searches for it if search, or if IMP_AUTOSEARCH is
+        on when search is None. Returns (its authorid if it's in the database now, ebook status,
+        audio status) """
     logger = logging.getLogger(__name__)
     if library == 'eBook':
         ebook_status, audio_status = "Wanted", "Skipped"
@@ -503,7 +510,10 @@ def add_book(bookid, authorid=None, library: str | None = None, source: str | No
             _ = add_author_to_db(None, False, authorid, False, f'WebServer add_book {bookid}')
             match = db.match('SELECT AuthorID from books WHERE BookID=?', (bookid,))
         if match:
-            db.upsert("books", {'Status': ebook_status, 'AudioStatus': audio_status}, {'BookID': bookid})
+            for column, status in (('Status', ebook_status), ('AudioStatus', audio_status)):
+                if status == 'Wanted':
+                    db.action(f"UPDATE books SET {column}='Wanted' WHERE BookID=? AND "
+                              f"IFNULL({column},'') NOT IN ('Open','Have')", (bookid,))
             author_id = match['AuthorID']
             update_totals(author_id)
         else:
@@ -515,11 +525,14 @@ def add_book(bookid, authorid=None, library: str | None = None, source: str | No
             t = threading.Thread(target=api.add_bookid_to_db, name=f"{this_source['src']}-BOOK",
                                  args=[bookid, ebook_status, audio_status, "Added by user"])
             t.start()
-            t.join(timeout=10)  # 10 s to add book before redirect
+            t.join(timeout=wait)
+            match = db.match('SELECT AuthorID from books WHERE BookID=?', (bookid,))
+            if match:
+                author_id = match['AuthorID']
     finally:
         db.close()
 
-    if CONFIG.get_bool('IMP_AUTOSEARCH'):
+    if CONFIG.get_bool('IMP_AUTOSEARCH') if search is None else search:
         start_search([{"bookid": bookid}])
     return author_id, ebook_status, audio_status
 

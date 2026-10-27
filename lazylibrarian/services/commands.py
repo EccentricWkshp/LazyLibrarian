@@ -115,15 +115,45 @@ def _application_update(command: dict, body: dict) -> str:
     return updates.install()
 
 
+def _add_author(command: dict, body: dict) -> str:
+    from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
+    message, command['result'] = addnew.add_author(
+        body.get('author_id') or '', body.get('author_name') or '', body.get('monitor') or 'new',
+        body.get('media_types'), bool(body.get('search')), progress=lambda text: _update(command, message=text))
+    return message
+
+
+def _add_book(command: dict, body: dict) -> str:
+    from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
+    message, command['result'] = addnew.add_book(
+        body.get('book_id') or '', body.get('source') or '', body.get('author_id') or '', body.get('media_types'),
+        bool(body.get('search')), progress=lambda text: _update(command, message=text))
+    return message
+
+
+def _refresh_author(command: dict, body: dict) -> str:
+    from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
+    return addnew.refresh_author(body.get('author_id') or '', progress=lambda text: _update(command, message=text))
+
+
+def _refresh_book(command: dict, body: dict) -> str:
+    from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
+    return addnew.refresh_book(body.get('book_id') or '', progress=lambda text: _update(command, message=text))
+
+
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
                                                     'MissingBookSearch': _missing_book_search,
                                                     'CutoffUnmetSearch': _cutoff_unmet_search,
                                                     'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task,
-                                                    'Backup': _backup, 'ApplicationUpdate': _application_update}
+                                                    'Backup': _backup, 'ApplicationUpdate': _application_update,
+                                                    'AddAuthor': _add_author, 'AddBook': _add_book,
+                                                    'RefreshAuthor': _refresh_author, 'RefreshBook': _refresh_book}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
-          'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update'}
+          'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update',
+          'AddAuthor': 'Add Author', 'AddBook': 'Add Book', 'RefreshAuthor': 'Refresh Author',
+          'RefreshBook': 'Refresh Book'}
 
 
 def _run(command: dict, body: dict):

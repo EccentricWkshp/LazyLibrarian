@@ -40,6 +40,13 @@ class CommandIn(ApiModel):
     files: list[ManualImportFile] = []
     books: list[BookRef] = []
     task: str = ''
+    author_id: str = ''
+    author_name: str = ''
+    book_id: str = ''
+    source: str = ''
+    monitor: str = 'new'
+    media_types: list[str] = []
+    search: bool = False
 
 
 class Command(ApiModel):
@@ -59,7 +66,13 @@ def start(command: CommandIn):
     """ Start a command. ManualImport imports files, each with the book it is for (bookId and
     mediaType) and, when it came from the queue, its queueId. BookSearch searches for books
     (bookId and mediaType), MissingBookSearch for every wanted book, ClearBlocklist empties the
-    blocklist, RunTask runs a scheduled task (task, its name from /system/task) now """
+    blocklist, RunTask runs a scheduled task (task, its name from /system/task) now.
+
+    AddAuthor adds an author from /lookup (authorId, authorName) with all their books: monitor
+    new wants them as the settings say, all wants every one as mediaTypes (ebook, audiobook), none
+    pauses the author; search searches for the ones wanted. AddBook adds a book from /lookup
+    (bookId, source, authorId) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
+    (bookId) fetch their details again """
     return commands.start(command.name, command.model_dump())
 
 

@@ -1,0 +1,231 @@
+/* From Sonarr's AddNewSeries and AddNewSeriesSearchResult styles */
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.kind {
+  margin-bottom: -1px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+  background: none;
+  color: var(--inkMuted);
+  font-size: 15px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--ink);
+  }
+}
+
+.selectedKind {
+  border-color: var(--borderColor);
+  border-bottom-color: var(--pageBackground);
+  color: var(--ink);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 0 0 0 12px;
+  border: 1px solid var(--inputBorderColor);
+  border-radius: 8px;
+  background-color: var(--inputBackgroundColor);
+
+  &:focus-within {
+    border-color: var(--inputFocusBorderColor);
+    box-shadow: 0 0 0 3px var(--inputFocusBoxShadowColor);
+  }
+}
+
+.searchIcon {
+  flex: none;
+  color: var(--inkMuted);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 18px;
+  outline: none;
+}
+
+.help {
+  margin: 20px 0;
+  color: var(--helpTextColor);
+  text-align: center;
+}
+
+.legend {
+  margin: 25px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+}
+
+.authors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.more {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--cardBackgroundColor, var(--inputBackgroundColor));
+}
+
+.authorIcon {
+  flex: none;
+  color: var(--inkMuted);
+}
+
+.authorText {
+  flex: 1;
+  min-width: 0;
+}
+
+.authorName {
+  overflow: hidden;
+  font-weight: 500;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--inkMuted);
+  font-size: var(--smallFontSize);
+}
+
+.books {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--cardBackgroundColor, var(--inputBackgroundColor));
+}
+
+.cover,
+.noCover {
+  flex: none;
+  width: 70px;
+  height: 105px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.noCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--borderColor);
+  color: var(--inkMuted);
+}
+
+.bookText {
+  flex: 1;
+  min-width: 0;
+}
+
+.bookTitle {
+  font-weight: 500;
+  font-size: 17px;
+}
+
+.subtitle {
+  font-weight: 400;
+}
+
+.year {
+  color: var(--inkMuted);
+  font-weight: 400;
+}
+
+.rating {
+  white-space: nowrap;
+}
+
+.overview {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: var(--smallFontSize);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.bookActions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inLibrary {
+  text-decoration: none;
+}
+
+.formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.format {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+@media (--breakpointSmall) {
+  .book {
+    flex-wrap: wrap;
+  }
+
+  .bookActions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

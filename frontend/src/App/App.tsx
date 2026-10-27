@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import Blocklist from 'Activity/Blocklist/Blocklist';
 import History from 'Activity/History/History';
 import Queue from 'Activity/Queue/Queue';
+import AddNew from 'AddNew/AddNew';
 import ErrorBoundary from 'Components/ErrorBoundary';
 import Link from 'Components/Link/Link';
 import { Alert } from 'Components/Misc';
@@ -56,6 +57,8 @@ function App() {
               <Route path="/settings" element={<Navigate to="/settings/profiles" replace={true} />} />
               <Route path="/settings/profiles" element={<Profiles />} />
               <Route path="/settings/connect" element={<Connect />} />
+              <Route path="/add" element={<Navigate to="/add/new" replace={true} />} />
+              <Route path="/add/new" element={<AddNew />} />
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
               <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />
