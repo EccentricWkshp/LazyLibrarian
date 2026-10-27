@@ -191,9 +191,16 @@ class LibraryTest(LLTestCaseWithStartup):
         CONFIG.set_bool('AUDIO_TAB', False)
         with self.assertRaisesRegex(InvalidRequestError, 'switched off'):
             system.scan_now('audiobook')
+        told = []
         with mock.patch.object(system.magazinescan, 'magazine_scan') as scan:
-            self.assertEqual(system.scan_now('magazine', title='Wired'), 'Wired scan finished')
-        scan.assert_called_once_with('Wired')
+            self.assertEqual(system.scan_now('magazine', title='Wired', progress=told.append), 'Wired scan finished')
+            system.scan_now('magazine', progress=told.append)
+        scan.assert_any_call('Wired')
+        with mock.patch('lazylibrarian.comicscan.comic_scan'):
+            self.assertEqual(system.scan_now('comic', comic_id='CV999', progress=told.append),
+                             'comic CV999 scan finished')
+        self.assertEqual(told, ['Scanning Wired', 'Scanning the Magazine library', 'Scanning comic CV999'],
+                         'What is being scanned is said as it starts')
 
     def test_author_status_and_removing(self):
         self.assertEqual(library.set_author_status(['a1', 'a2'], 'Paused'), 2)

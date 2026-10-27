@@ -177,3 +177,26 @@ class CommandTest(AddNewTestCase):
             time.sleep(0.1)
         self.assertEqual((command['status'], command['title']), ('failed', 'Refresh Book'))
         self.assertIn('nothere', command['message'])
+
+    def test_progress_names_what_it_is_for(self):
+        self.author_loads()
+        with DBConnection() as db:
+            db.action("UPDATE books SET Status='Wanted' WHERE BookID='b1'")
+        told = []
+
+        def search(books, progress):
+            progress('Searching for 1 eBook')
+            return 0, 'Search for Killing Floor completed, nothing found'
+
+        with mock.patch.object(commands, '_update', side_effect=lambda command, **changes: told.append(
+                changes['message'])):
+            with mock.patch.object(addnew.books, 'refresh_book', return_value='OpenLibrary'):
+                self.assertEqual(commands._refresh_book({}, {'book_id': 'b1'}),
+                                 'Refreshed Killing Floor from OpenLibrary')
+            with mock.patch.object(addnew.books, 'add_book', return_value=('ol1', False, False)):
+                commands._add_book({}, {'book_id': 'b2', 'title': 'Die Trying', 'media_types': ['ebook']})
+            with mock.patch.object(commands.wanted, 'search_books', side_effect=search):
+                message = commands._author_search({}, {'author_id': 'ol1'})
+        self.assertEqual(told, ['Refreshing Killing Floor', 'Adding Die Trying', "Finding Lee Child's wanted books",
+                                'Searching for 1 eBook by Lee Child'])
+        self.assertEqual(message, 'Lee Child: Search for Killing Floor completed, nothing found')

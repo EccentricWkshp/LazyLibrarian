@@ -128,7 +128,7 @@ def _add_book(command: dict, body: dict) -> str:
     from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
     message, command['result'] = addnew.add_book(
         body.get('book_id') or '', body.get('source') or '', body.get('author_id') or '', body.get('media_types'),
-        bool(body.get('search')), progress=lambda text: _update(command, message=text))
+        bool(body.get('search')), progress=lambda text: _update(command, message=text), title=body.get('title') or '')
     return message
 
 
@@ -138,20 +138,23 @@ def _refresh_author(command: dict, body: dict) -> str:
 
 
 def _author_search(command: dict, body: dict) -> str:
-    from lazylibrarian.services import library  # it imports most of LazyLibrarian
-    found = library.wanted_books(body.get('author_id') or '')
+    from lazylibrarian.services import authors, library  # they import most of LazyLibrarian
+    author_id = body.get('author_id') or ''
+    name = authors.get_author(author_id)['AuthorName']
+    _update(command, message=f"Finding {name}'s wanted books")
+    found = library.wanted_books(author_id)
     if not found:
         command['result'] = {'found': 0}
-        return 'None of their books are wanted'
-    count, message = wanted.search_books(found, progress=lambda text: _update(command, message=text))
+        return f"None of {name}'s books are wanted"
+    count, message = wanted.search_books(found, progress=lambda text: _update(command, message=f"{text} by {name}"))
     command['result'] = {'found': count}
-    return message
+    return f"{name}: {message}"
 
 
 def _library_scan(command: dict, body: dict) -> str:
     from lazylibrarian.services import system  # it imports most of LazyLibrarian
-    _update(command, message='Scanning')
-    return system.scan_now(body.get('media_type') or '', body.get('title') or '', body.get('comic_id') or '')
+    return system.scan_now(body.get('media_type') or '', body.get('title') or '', body.get('comic_id') or '',
+                           progress=lambda text: _update(command, message=text))
 
 
 def _refresh_book(command: dict, body: dict) -> str:

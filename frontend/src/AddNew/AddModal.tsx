@@ -89,7 +89,7 @@ function AddModal({ adding, mediaTypes, onModalClose }: AddModalProps) {
     } else if (item.kind === 'book') {
       runCommand(
         'AddBook',
-        { bookId: item.id, source: item.source, authorId: item.authorId, mediaTypes: formats, search },
+        { bookId: item.id, source: item.source, authorId: item.authorId, title: item.name, mediaTypes: formats, search },
         `Adding ${item.name}`,
       ).then(changed);
       onModalClose();

@@ -74,7 +74,7 @@ def start(command: CommandIn):
     AddAuthor adds an author from /lookup (authorId, authorName) with all their books: monitor
     new wants them as the settings say, all wants every one as mediaTypes (ebook, audiobook), none
     pauses the author; search searches for the ones wanted. AddBook adds a book from /lookup
-    (bookId, source, authorId) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
+    (bookId, source, authorId, and title to show while it's added) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
     (bookId) fetch their details again. AuthorSearch searches for an author's (authorId) wanted books.
     LibraryScan scans a library (mediaType ebook, audiobook, magazine or comic), one magazine (title)
     or comic (comicId) """

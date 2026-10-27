@@ -171,9 +171,10 @@ def add_author(author_id: str, name: str = '', monitor: str = 'new', kinds=None,
 
 
 def add_book(book_id: str, source: str = '', author_id: str = '', kinds=None, search: bool = False,
-             progress=None) -> tuple[str, dict]:
+             progress=None, title: str = '') -> tuple[str, dict]:
     """ Add a book from an info source and want it, as an eBook, audiobook or both, a format the
-    library has staying as it is. Its author is added too, without their other books """
+    library has staying as it is. Its author is added too, without their other books. title is
+    what progress calls it until it is added """
     if not book_id:
         raise InvalidRequestError('Which book?')
     kinds = _media_types(kinds)
@@ -181,7 +182,7 @@ def add_book(book_id: str, source: str = '', author_id: str = '', kinds=None, se
         raise InvalidRequestError(f"The source is one of {', '.join(_sources())}")
     library = 'Both' if len(kinds) == 2 else LIBRARIES[kinds[0]]
     if progress:
-        progress(f"Adding {book_id}")
+        progress(f"Adding {title or book_id}")
     found_author, _ebook, _audio = books.add_book(book_id, author_id or None, library, source or None,
                                                   search=False, wait=None)
     db = database.DBConnection()
@@ -220,16 +221,20 @@ def refresh_author(author_id: str, progress=None) -> str:
 def refresh_book(book_id: str, progress=None) -> str:
     """ Fetch a book's details again, now, from the first source it's linked to """
     if progress:
-        progress(f"Refreshing {book_id}")
+        progress(f"Refreshing {_book_name(book_id)}")
     source = books.refresh_book(book_id, wait=True)
     if not source:
         raise InvalidRequestError("The book is locked against changes, or its id isn't from an info source")
+    return f"Refreshed {_book_name(book_id)} from {source}"
+
+
+def _book_name(book_id: str) -> str:
     db = database.DBConnection()
     try:
         row = db.match('SELECT BookName FROM books WHERE BookID=?', (book_id,))
     finally:
         db.close()
-    return f"Refreshed {row['BookName'] if row else book_id} from {source}"
+    return row['BookName'] if row and row['BookName'] else book_id
 
 
 # --- magazines and comics
