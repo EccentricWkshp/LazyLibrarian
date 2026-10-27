@@ -26,7 +26,8 @@ export function itemLink(item: DownloadTarget) {
   return `/book_detail?bookid=${encodeURIComponent(item.bookId)}`;
 }
 
-function ItemTitleCell({ item }: { item: DownloadTarget }) {
+// subtitle is a line under the title, a magazine's latest issue
+function ItemTitleCell({ item, subtitle }: { item: DownloadTarget; subtitle?: string }) {
   const title = item.issue ? `${item.title} - ${item.issue}` : item.title;
 
   return (
@@ -43,6 +44,7 @@ function ItemTitleCell({ item }: { item: DownloadTarget }) {
           )}
         </div>
       ) : null}
+      {subtitle ? <div className={styles.author}>{subtitle}</div> : null}
     </TableRowCell>
   );
 }

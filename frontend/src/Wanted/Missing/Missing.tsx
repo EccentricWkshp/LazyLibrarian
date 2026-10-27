@@ -1,12 +1,15 @@
-// Sonarr's Wanted, Missing: what's wanted and not downloaded, to search for automatically or
-// interactively. Searches run as commands, so how each ended shows in the sidebar
+// Sonarr's Wanted, Missing: what's wanted and not downloaded, books and audiobooks, and the
+// magazines and comics looked for issue by issue, to search for automatically or interactively, or
+// to stop looking for. Searches run as commands, so how each ended shows in the sidebar
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { FolderInput, Search, User } from 'lucide-react';
+import { BookmarkX, FolderInput, Search, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import ItemTitleCell from 'Activity/ItemTitleCell';
 import { runCommand } from 'App/commands';
+import { showMessage } from 'App/messagesStore';
+import queryClient from 'App/queryClient';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import IconButton from 'Components/Link/IconButton';
-import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator } from 'Components/Misc';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
@@ -36,14 +39,46 @@ const COLUMNS: Column[] = [
   { name: 'actions', label: 'Actions', isVisuallyHidden: true },
 ];
 
+const BOOK_TYPES = ['ebook', 'audiobook'];
+
 function searchFor(books: MissingBook[]) {
-  const label = books.length === 1 ? `Search for ${books[0].title}` : `Search for ${books.length} books`;
+  const label = books.length === 1 ? `Search for ${books[0].title}` : `Search for ${books.length} items`;
 
   return runCommand(
     'BookSearch',
     { books: books.map((book) => ({ bookId: book.bookId, mediaType: book.mediaType })) },
     label
   );
+}
+
+// as Sonarr's Unmonitor: books and audiobooks are Skipped, magazines and comics Paused
+async function unmonitor(books: MissingBook[]) {
+  const id = `unmonitor-${Date.now()}`;
+
+  try {
+    const { message } = await api<{ message: string }>('/wanted/missing/monitor', {
+      method: 'PUT',
+      body: { items: books.map((book) => ({ bookId: book.bookId, mediaType: book.mediaType })), monitored: false },
+    });
+    showMessage({ id, text: message, kind: 'success', isWorking: false });
+  } catch (error) {
+    showMessage({ id, text: `Unmonitor failed: ${(error as Error).message}`, kind: 'danger', isWorking: false });
+  } finally {
+    queryClient.invalidateQueries({ queryKey: ['wanted'] });
+  }
+}
+
+// the types the library tabs show, to filter by
+function typeFilters() {
+  const tabs = window.LazyLibrarian?.tabs ?? { ebook: true, audio: true, series: true, mag: true, comic: false };
+
+  return [
+    { key: '', value: 'All' },
+    ...(tabs.ebook ? [{ key: 'ebook', value: 'eBooks' }] : []),
+    ...(tabs.audio ? [{ key: 'audiobook', value: 'Audiobooks' }] : []),
+    ...(tabs.mag ? [{ key: 'magazine', value: 'Magazines' }] : []),
+    ...(tabs.comic ? [{ key: 'comic', value: 'Comics' }] : []),
+  ];
 }
 
 function MissingRow({
@@ -63,18 +98,10 @@ function MissingRow({
       <TableRowCell className={styles.select}>
         <CheckInput checked={isSelected} label={`Select ${book.title}`} onChange={onSelectedChange} />
       </TableRowCell>
-      <TableRowCell className={styles.title}>
-        <Link className={styles.titleLink} to={`/book_detail?bookid=${encodeURIComponent(book.bookId)}`}>
-          {book.title}
-        </Link>
-        <div className={styles.author}>
-          {book.authorId ? (
-            <Link to={`/author_page?authorid=${encodeURIComponent(book.authorId)}`}>{book.author}</Link>
-          ) : (
-            book.author
-          )}
-        </div>
-      </TableRowCell>
+      <ItemTitleCell
+        item={{ ...book, issue: '' }}
+        subtitle={BOOK_TYPES.includes(book.mediaType) ? '' : book.subtitle}
+      />
       <TableRowCell>{MEDIA_TYPE_NAMES[book.mediaType]}</TableRowCell>
       <TableRowCell className={styles.date}>{book.published}</TableRowCell>
       <TableRowCell className={styles.date} title={formatDateTime(book.added)}>
@@ -90,15 +117,19 @@ function MissingRow({
             searchFor([book]).finally(() => setIsSearching(false));
           }}
         />
-        <IconButton name={User} title="Interactive Search" onPress={() => setIsInteractiveOpen(true)} />
+        {BOOK_TYPES.includes(book.mediaType) ? (
+          <IconButton name={User} title="Interactive Search" onPress={() => setIsInteractiveOpen(true)} />
+        ) : null}
       </TableRowCell>
-      <InteractiveSearchModal
-        isOpen={isInteractiveOpen}
-        bookId={book.bookId}
-        mediaType={book.mediaType}
-        title={book.title}
-        onModalClose={() => setIsInteractiveOpen(false)}
-      />
+      {BOOK_TYPES.includes(book.mediaType) ? (
+        <InteractiveSearchModal
+          isOpen={isInteractiveOpen}
+          bookId={book.bookId}
+          mediaType={book.mediaType}
+          title={book.title}
+          onModalClose={() => setIsInteractiveOpen(false)}
+        />
+      ) : null}
     </TableRow>
   );
 }
@@ -112,6 +143,7 @@ function Missing() {
   const [isSearchingSelected, setIsSearchingSelected] = useState(false);
   const [isSearchingAll, setIsSearchingAll] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUnmonitoring, setIsUnmonitoring] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -151,10 +183,21 @@ function Missing() {
                 setSelected(new Set());
               } else {
                 setIsSearchingAll(true);
-                runCommand('MissingBookSearch', {}, 'Search for every wanted book').finally(() =>
+                runCommand('MissingBookSearch', {}, 'Search for everything wanted').finally(() =>
                   setIsSearchingAll(false)
                 );
               }
+            }}
+          />
+          <PageToolbarButton
+            label="Unmonitor Selected"
+            iconName={BookmarkX}
+            isDisabled={!selectedBooks.length}
+            isSpinning={isUnmonitoring}
+            onPress={() => {
+              setIsUnmonitoring(true);
+              unmonitor(selectedBooks).finally(() => setIsUnmonitoring(false));
+              setSelected(new Set());
             }}
           />
           <PageToolbarSeparator />
@@ -164,11 +207,7 @@ function Missing() {
           <SelectInput
             className={styles.filter}
             value={mediaType}
-            values={[
-              { key: '', value: 'All' },
-              { key: 'ebook', value: 'eBooks' },
-              { key: 'audiobook', value: 'Audiobooks' },
-            ]}
+            values={typeFilters()}
             onChange={(value) => {
               setMediaType(value);
               setPage(1);
@@ -180,8 +219,8 @@ function Missing() {
 
       <PageContentBody>
         {isLoading ? <LoadingIndicator /> : null}
-        {error ? <Alert kind="danger">Failed to load the wanted books: {error.message}</Alert> : null}
-        {data && !records.length ? <Alert kind="success">No missing books</Alert> : null}
+        {error ? <Alert kind="danger">Failed to load what's wanted: {error.message}</Alert> : null}
+        {data && !records.length ? <Alert kind="success">Nothing is missing</Alert> : null}
 
         {records.length ? (
           <>

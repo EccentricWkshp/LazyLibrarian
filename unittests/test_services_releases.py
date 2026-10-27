@@ -16,7 +16,8 @@ from unittests.unittesthelpers import LLTestCaseWithStartup
 
 
 class SettingsMixin:
-    SETTINGS = ('IMP_PREFLANG', 'REJECT_WORDS', 'MATCH_RATIO', 'MIN_SEEDERS', 'EBOOK_TAB', 'AUDIO_TAB')
+    SETTINGS = ('IMP_PREFLANG', 'REJECT_WORDS', 'MATCH_RATIO', 'MIN_SEEDERS', 'EBOOK_TAB', 'AUDIO_TAB', 'MAG_TAB',
+                'COMIC_TAB')
 
     def keep_settings(self):
         saved = {key: CONFIG[key] for key in self.SETTINGS}
@@ -110,8 +111,12 @@ class WantedTest(SettingsMixin, LLTestCaseWithStartup):
         self.keep_settings()
         CONFIG.set_bool('EBOOK_TAB', True)
         CONFIG.set_bool('AUDIO_TAB', True)
+        CONFIG.set_bool('MAG_TAB', False)
+        CONFIG.set_bool('COMIC_TAB', False)
         with DBConnection() as db:
             db.action("DELETE FROM books")
+            db.action("DELETE FROM magazines")
+            db.action("DELETE FROM comics")
             db.action("INSERT OR REPLACE INTO authors (AuthorID, AuthorName, Status) VALUES ('wa1', 'Lee Child', 'Active')")
             for book_id, name, status, audio, added in (('w1', 'Without Fail', 'Wanted', 'Wanted', '2026-10-01'),
                                                         ('w2', 'Persuader', 'Open', 'Wanted', '2026-10-02'),
@@ -130,6 +135,52 @@ class WantedTest(SettingsMixin, LLTestCaseWithStartup):
         with self.assertRaises(InvalidRequestError):
             wanted.list_missing(sort='nosuch')
 
+    def add_magazine_and_comic(self):
+        CONFIG.set_bool('MAG_TAB', True)
+        CONFIG.set_bool('COMIC_TAB', True)
+        with DBConnection() as db:
+            db.action("INSERT INTO magazines (Title, Status, IssueDate, MagazineAdded) VALUES "
+                      "('The Economist', 'Active', '2026-10-24', '2026-10-04')")
+            db.action("INSERT INTO magazines (Title, Status, IssueDate) VALUES ('Paused Weekly', 'Paused', '')")
+            db.action("INSERT INTO comics (ComicID, Title, Status, Publisher, LatestIssue, Added) VALUES "
+                      "('CV1', 'Saga', 'Active', 'Image', '66', '2026-10-05')")
+
+    def test_magazines_and_comics(self):
+        self.add_magazine_and_comic()
+        items = {r['id']: r for r in wanted.list_missing().items}
+        self.assertEqual(set(items), {'w1:ebook', 'w1:audiobook', 'w2:audiobook', 'The Economist:magazine', 'CV1:comic'},
+                         'Active ones, each looked for issue by issue')
+        self.assertEqual(items['The Economist:magazine']['subtitle'], 'Latest issue 2026-10-24')
+        self.assertEqual((items['CV1:comic']['title'], items['CV1:comic']['author']), ('Saga', 'Image'))
+        self.assertEqual(wanted.list_missing('comic').matched, 1)
+
+    def test_searching_for_a_magazine_or_comic(self):
+        self.add_magazine_and_comic()
+        with mock.patch.object(CONFIG, 'total_active_providers', return_value=1), \
+                mock.patch('lazylibrarian.searchmag.search_magazines',
+                           side_effect=lambda mags: self.snatch('The Economist')) as mags, \
+                mock.patch('lazylibrarian.comicsearch.search_comics') as comics:
+            found, message = wanted.search_books([{'book_id': 'The Economist', 'media_type': 'magazine'},
+                                                  {'book_id': 'CV1', 'media_type': 'comic'}])
+        mags.assert_called_once_with([{'bookid': 'The Economist'}])
+        comics.assert_called_once_with('CV1')
+        self.assertEqual((found, message), (1, 'Search for 2 items completed, 1 download found'))
+
+    def test_unmonitor(self):
+        self.add_magazine_and_comic()
+        message = wanted.set_monitored([{'book_id': 'w1', 'media_type': 'audiobook'},
+                                        {'book_id': 'The Economist', 'media_type': 'magazine'},
+                                        {'book_id': 'CV1', 'media_type': 'comic'}], False)
+        self.assertEqual(message, 'No longer looking for 3 items')
+        with DBConnection() as db:
+            book = db.match("SELECT Status, AudioStatus FROM books WHERE BookID='w1'")
+            self.assertEqual((book['Status'], book['AudioStatus']), ('Wanted', 'Skipped'), 'Only the audiobook')
+            self.assertEqual(db.match("SELECT Status FROM magazines WHERE Title='The Economist'")['Status'], 'Paused')
+            self.assertEqual(db.match("SELECT Status FROM comics WHERE ComicID='CV1'")['Status'], 'Paused')
+        self.assertEqual({r['id'] for r in wanted.list_missing().items}, {'w1:ebook', 'w2:audiobook'})
+        with self.assertRaises(InvalidRequestError):
+            wanted.set_monitored([], False)
+
     def wait(self, command):
         for _ in range(200):
             command = commands.get(command['id'])
@@ -138,7 +189,17 @@ class WantedTest(SettingsMixin, LLTestCaseWithStartup):
             time.sleep(0.05)
         raise AssertionError(f'{command} did not finish')
 
+    @staticmethod
+    def snatch(*books):
+        """ What a search does when it finds something: a download in the wanted table """
+        with DBConnection() as db:
+            for book_id in books:
+                db.action("INSERT INTO wanted (BookID,NZBurl,NZBtitle,Status,AuxInfo) VALUES (?,?,?,'Snatched','eBook')",
+                          (book_id, f"http://x/{book_id}", book_id))
+
     def test_search_commands(self):
+        with DBConnection() as db:
+            db.action("DELETE FROM wanted")
         with mock.patch.object(CONFIG, 'total_active_providers', return_value=1), \
                 mock.patch('lazylibrarian.searchbook.search_book', return_value=0) as search:
             command = self.wait(commands.start('BookSearch', {'books': [{'book_id': 'w1', 'media_type': 'audiobook'}]}))
@@ -146,10 +207,10 @@ class WantedTest(SettingsMixin, LLTestCaseWithStartup):
             self.assertIn('nothing found', command['message'], 'Not only in the log')
             self.assertEqual(command['result'], {'found': 0})
             search.assert_called_once_with([{'bookid': 'w1'}], 'AudioBook')
-            search.reset_mock(return_value=True)
-            search.return_value = 2
+            search.reset_mock()
+            search.side_effect = lambda *args: self.snatch('w1', 'w2')
             command = self.wait(commands.start('MissingBookSearch', {}))
-            self.assertEqual(command['message'], 'Search for wanted books completed, 2 books found')
+            self.assertEqual(command['message'], 'Search for wanted items completed, 2 downloads found')
             search.assert_called_once_with(None, None)
         with mock.patch.object(CONFIG, 'total_active_providers', return_value=0):
             command = self.wait(commands.start('BookSearch', {'books': [{'book_id': 'w1', 'media_type': 'ebook'}]}))

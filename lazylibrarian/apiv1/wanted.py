@@ -68,11 +68,29 @@ def missing(page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSi
             sort_key: str = Query('added', alias='sortKey'),
             sort_direction: Literal['ascending', 'descending'] = Query('descending', alias='sortDirection'),
             media_type: str = Query('', alias='mediaType'), search: str = ''):
-    """ The wanted books and audiobooks, a page at a time, like Sonarr's Wanted, Missing """
+    """ What is wanted, a page at a time, like Sonarr's Wanted, Missing: books and audiobooks, and
+    the magazines and comics that are active, each with its latest issue """
     found = wanted.list_missing(media_type, search, sort_key, sort_direction == 'descending',
                                 (page - 1) * page_size, page_size)
     return {'page': page, 'page_size': page_size, 'sort_key': sort_key, 'sort_direction': sort_direction,
             'total_records': found.matched, 'records': found.items}
+
+
+class WantedItem(ApiModel):
+    book_id: str
+    media_type: str
+
+
+class Monitor(ApiModel):
+    items: list[WantedItem]
+    monitored: bool
+
+
+@router.put('/wanted/missing/monitor', response_model=Message)
+def monitor(body: Monitor):
+    """ Stop looking for these (monitored false), as Sonarr's Unmonitor: books and audiobooks are
+    Skipped, magazines and comics Paused. Or look for them again """
+    return {'message': wanted.set_monitored([item.model_dump() for item in body.items], body.monitored)}
 
 
 @router.get('/release', response_model=list[Release], tags=['Release'])

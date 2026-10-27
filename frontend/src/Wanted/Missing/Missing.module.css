@@ -2,30 +2,6 @@
   width: 36px;
 }
 
-.title {
-  min-width: 220px;
-}
-
-.titleLink {
-  color: var(--ink);
-  font-weight: 500;
-
-  &:hover {
-    color: var(--linkHoverColor);
-    text-decoration: underline;
-  }
-}
-
-.author {
-  margin-top: 2px;
-  color: var(--inkMuted);
-  font-size: var(--extraSmallFontSize);
-
-  & a {
-    color: inherit;
-  }
-}
-
 .date {
   white-space: nowrap;
 }
