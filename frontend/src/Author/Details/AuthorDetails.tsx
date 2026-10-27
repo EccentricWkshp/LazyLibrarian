@@ -26,6 +26,7 @@ import { formatDateTime } from 'Utilities/format';
 import { imageUrl } from 'Utilities/images';
 import { AUTHOR_STATUSES, setAuthorStatus, setBookStatus } from '../authors';
 import DeleteAuthorModal from '../DeleteAuthorModal';
+import EditAuthorModal from './EditAuthorModal';
 
 const BOOK_FILTERS = [
   { key: 'shown', value: 'All but ignored' },
@@ -179,6 +180,7 @@ function AuthorDetails() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const author = useQuery({
     queryKey: ['author', 'detail', authorId],
@@ -243,7 +245,7 @@ function AuthorDetails() {
             label="Edit"
             iconName={SquarePen}
             isDisabled={!data}
-            to={`/edit_author?authorid=${encodeURIComponent(authorId)}`}
+            onPress={() => setIsEditOpen(true)}
           />
           <PageToolbarButton
             label="Old Page"
@@ -334,6 +336,7 @@ function AuthorDetails() {
           onDeleted={() => navigate('/authors')}
         />
       ) : null}
+      {isEditOpen ? <EditAuthorModal authorId={authorId} onModalClose={() => setIsEditOpen(false)} /> : null}
     </PageContent>
   );
 }

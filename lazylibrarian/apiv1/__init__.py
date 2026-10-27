@@ -22,6 +22,7 @@ from lazylibrarian.apiv1 import (
     author,
     command,
     config,
+    edit,
     events,
     health,
     history,
@@ -53,6 +54,7 @@ router.include_router(addnew.router)
 router.include_router(author.router)
 router.include_router(library.router)
 router.include_router(config.router)
+router.include_router(edit.router)
 
 
 @router.api_route('/{path:path}', methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], include_in_schema=False)

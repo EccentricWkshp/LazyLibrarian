@@ -1,0 +1,124 @@
+/* From Sonarr's edit modals: fields side by side where they fit, and the pictures to choose from */
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: 20px;
+}
+
+.footer {
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.muted {
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.pictures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.picture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  color: var(--helpTextColor);
+  font-size: var(--extraSmallFontSize);
+
+  & img {
+    max-width: 90px;
+    max-height: 130px;
+    object-fit: contain;
+  }
+}
+
+.choice {
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--inputFocusBorderColor);
+  }
+}
+
+.selected {
+  border-color: var(--accentDeep, var(--primaryColor));
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  & > input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.number {
+  flex: 0 0 90px !important;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.sources {
+  width: 100%;
+  border-collapse: collapse;
+
+  & th,
+  & td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--borderColor);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  & th {
+    color: var(--inkMuted);
+    font-weight: 500;
+  }
+}
+
+.sourceActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+  & input {
+    width: 140px;
+  }
+}
+
+.readonly {
+  color: var(--helpTextColor);
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--helpTextColor);
+}

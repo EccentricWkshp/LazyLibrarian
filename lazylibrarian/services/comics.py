@@ -92,6 +92,16 @@ def update_comic(comicid, title: str, new_id: str, aka: str, description: str) -
     return comicid
 
 
+def set_genre(comicid, genre: str):
+    """ Change a comic's genres, separated by commas """
+    db = database.DBConnection()
+    try:
+        db.action("UPDATE comics SET Genre=? WHERE ComicID=?", (genre, comicid))
+    finally:
+        db.close()
+    logging.getLogger(__name__).info(f"Genres of comic {comicid} are now {genre}")
+
+
 def start_search(comicid) -> bool:
     """ Search for a comic's issues, in the background """
     logger = logging.getLogger(__name__)

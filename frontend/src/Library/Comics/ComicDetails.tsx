@@ -22,6 +22,7 @@ import styles from 'Library/Library.module.css';
 import { ComicDetail } from 'typings/Library';
 import { api, urlBase } from 'Utilities/api';
 import { deleteComics, setComicStatus } from './ComicIndex';
+import EditComicModal from './EditComicModal';
 
 function ComicDetails() {
   const { comicId = '' } = useParams();
@@ -29,6 +30,7 @@ function ComicDetails() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<'comic' | 'issues' | null>(null);
   const [running, setRunning] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'comic', comicId],
@@ -73,7 +75,7 @@ function ComicDetails() {
             label="Edit"
             iconName={SquarePen}
             isDisabled={!data}
-            to={`/edit_comic?comicid=${encodeURIComponent(comicId)}`}
+            onPress={() => setIsEditOpen(true)}
           />
           <PageToolbarButton
             label="Old Page"
@@ -210,6 +212,13 @@ function ComicDetails() {
         }
         onModalClose={() => setDeleting(null)}
       />
+      {isEditOpen ? (
+        <EditComicModal
+          comicId={comicId}
+          onSaved={(saved) => (saved !== comicId ? navigate(`/comic/${encodeURIComponent(saved)}`) : null)}
+          onModalClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
     </PageContent>
   );
 }

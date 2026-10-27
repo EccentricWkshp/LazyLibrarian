@@ -1,9 +1,9 @@
 // A series: its books in order, with what's wanted of each as an eBook and an audiobook, and
 // whether the series is watched for new books
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, SquarePen } from 'lucide-react';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { setBookStatus } from 'Author/authors';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
@@ -17,10 +17,13 @@ import { Cover } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { SeriesDetail } from 'typings/Library';
 import { api } from 'Utilities/api';
+import EditSeriesModal from './EditSeriesModal';
 import { SERIES_STATUSES, setSeriesStatus } from './SeriesIndex';
 
 function SeriesDetails() {
   const { seriesId = '' } = useParams();
+  const navigate = useNavigate();
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const formats = shownFormats();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -47,6 +50,7 @@ function SeriesDetails() {
     <PageContent title={data?.name ?? 'Series'}>
       <PageToolbar>
         <PageToolbarSection>
+          <PageToolbarButton label="Edit" iconName={SquarePen} onPress={() => setIsEditOpen(true)} />
           <PageToolbarButton
             label="Old Page"
             iconName={ExternalLink}
@@ -169,6 +173,13 @@ function SeriesDetails() {
         ) : null}
         {data && !books.length ? <Alert kind="info">The library has none of its books yet</Alert> : null}
       </PageContentBody>
+      {isEditOpen ? (
+        <EditSeriesModal
+          seriesId={seriesId}
+          onSaved={(saved) => (saved !== seriesId ? navigate(`/series/${encodeURIComponent(saved)}`) : null)}
+          onModalClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
     </PageContent>
   );
 }

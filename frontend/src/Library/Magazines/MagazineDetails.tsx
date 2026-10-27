@@ -1,12 +1,13 @@
 // Sonarr's series details for a magazine: its cover and status, and its issues, each to open or
 // delete, with the magazine searched for or its folder scanned
 import { useQuery } from '@tanstack/react-query';
-import { Download, ExternalLink, FolderSearch, Newspaper, Search, SquarePen, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, FolderSearch, Newspaper, Pencil, Search, SquarePen, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { runCommand } from 'App/commands';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
+import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
@@ -20,6 +21,8 @@ import { change, Cover, DeleteModal, plural } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { MagazineDetail } from 'typings/Library';
 import { api, urlBase } from 'Utilities/api';
+import EditIssueModal from './EditIssueModal';
+import EditMagazineModal from './EditMagazineModal';
 import { deleteMagazines, setMagazineStatus } from './MagazineIndex';
 
 function MagazineDetails() {
@@ -29,6 +32,8 @@ function MagazineDetails() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<'magazine' | 'issues' | null>(null);
   const [running, setRunning] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState('');
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'magazine', title],
@@ -69,7 +74,7 @@ function MagazineDetails() {
             label="Edit"
             iconName={SquarePen}
             isDisabled={!data}
-            to={`/edit_mag?mag=${encodeURIComponent(title)}`}
+            onPress={() => setIsEditOpen(true)}
           />
           <PageToolbarButton
             label="Old Page"
@@ -154,6 +159,9 @@ function MagazineDetails() {
                     <a href={`${urlBase()}/open_mag?bookid=${encodeURIComponent(issue.id)}`} title="Open">
                       <Icon name={Download} size={14} />
                     </a>
+                    <Link title="Edit the issue" onPress={() => setEditingIssue(issue.id)}>
+                      <Icon name={Pencil} size={14} />
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -191,6 +199,20 @@ function MagazineDetails() {
         }
         onModalClose={() => setDeleting(null)}
       />
+      {isEditOpen ? (
+        <EditMagazineModal
+          title={title}
+          onSaved={(saved) => (saved !== title ? navigate(`/magazine?title=${encodeURIComponent(saved)}`) : null)}
+          onModalClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
+      {editingIssue ? (
+        <EditIssueModal
+          issueId={editingIssue}
+          onSaved={(saved) => (saved !== title ? navigate(`/magazine?title=${encodeURIComponent(saved)}`) : null)}
+          onModalClose={() => setEditingIssue('')}
+        />
+      ) : null}
     </PageContent>
   );
 }

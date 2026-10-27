@@ -21,6 +21,7 @@ import styles from 'Library/Library.module.css';
 import { BookDetail } from 'typings/Library';
 import { api, urlBase } from 'Utilities/api';
 import { formatBytes, formatDateTime, relativeDate } from 'Utilities/format';
+import EditBookModal from './EditBookModal';
 
 const LIBRARIES = { ebook: 'eBook', audiobook: 'AudioBook' };
 
@@ -110,6 +111,7 @@ function BookDetails() {
   const formats = shownFormats();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'book', bookId],
@@ -147,7 +149,7 @@ function BookDetails() {
             label="Edit"
             iconName={SquarePen}
             isDisabled={!data}
-            to={`/edit_book?bookid=${encodeURIComponent(bookId)}`}
+            onPress={() => setIsEditOpen(true)}
           />
           <PageToolbarButton
             label="Old Page"
@@ -266,6 +268,13 @@ function BookDetails() {
           </>
         ) : null}
       </PageContentBody>
+      {isEditOpen ? (
+        <EditBookModal
+          bookId={bookId}
+          showNarrator={formats.some((format) => format.format === 'audiobook')}
+          onModalClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
     </PageContent>
   );
 }

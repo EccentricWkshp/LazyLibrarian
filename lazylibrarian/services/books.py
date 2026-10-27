@@ -916,6 +916,16 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
         db.close()
 
 
+def set_narrator(bookid, narrator: str):
+    """ Change an audiobook's narrator """
+    db = database.DBConnection()
+    try:
+        db.action("UPDATE books SET Narrator=? WHERE BookID=?", (narrator, bookid))
+    finally:
+        db.close()
+    logging.getLogger(__name__).info(f"Narrator of {bookid} is now {narrator}")
+
+
 def add_search_results(action: str, ids) -> tuple[int, int]:
     """ Add books (AddBook, AddAudio or AddBoth to want the ebook, audiobook or both) or authors
         (AddAuthor) from the info source search results. Returns (passed, failed) """
