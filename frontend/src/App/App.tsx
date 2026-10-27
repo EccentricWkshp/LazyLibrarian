@@ -4,6 +4,8 @@ import Blocklist from 'Activity/Blocklist/Blocklist';
 import History from 'Activity/History/History';
 import Queue from 'Activity/Queue/Queue';
 import AddNew from 'AddNew/AddNew';
+import AuthorDetails from 'Author/Details/AuthorDetails';
+import AuthorIndex from 'Author/Index/AuthorIndex';
 import ErrorBoundary from 'Components/ErrorBoundary';
 import Link from 'Components/Link/Link';
 import { Alert } from 'Components/Misc';
@@ -59,6 +61,8 @@ function App() {
               <Route path="/settings/connect" element={<Connect />} />
               <Route path="/add" element={<Navigate to="/add/new" replace={true} />} />
               <Route path="/add/new" element={<AddNew />} />
+              <Route path="/authors" element={<AuthorIndex />} />
+              <Route path="/author/:authorId" element={<AuthorDetails />} />
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
               <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />

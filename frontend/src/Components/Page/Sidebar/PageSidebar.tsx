@@ -30,7 +30,18 @@ interface SidebarItem {
   to: string;
   isHidden?: boolean;
   statusComponent?: React.ElementType;
-  children?: { title: string; to: string }[];
+  children?: SidebarChild[];
+}
+
+interface SidebarChild {
+  title: string;
+  to: string;
+  // other pages it's the one for, by how their path starts, like an author's for Authors
+  under?: string;
+}
+
+function isChildActive(child: SidebarChild, pathname: string) {
+  return pathname === child.to || (!!child.under && pathname.startsWith(child.under));
 }
 
 interface SidebarGroup {
@@ -48,9 +59,9 @@ function groups(): SidebarGroup[] {
         {
           iconName: Users,
           title: 'Authors',
-          to: '/home',
+          to: '/authors',
           children: [
-            { title: 'Authors', to: '/home' },
+            { title: 'Authors', to: '/authors', under: '/author/' },
             { title: 'Add New', to: '/add/new' },
           ],
         },
@@ -130,7 +141,7 @@ function PageSidebar() {
             {group.items
               .filter((item) => !item.isHidden)
               .map((item) => {
-                const isActiveParent = !!item.children?.some((child) => child.to === pathname);
+                const isActiveParent = !!item.children?.some((child) => isChildActive(child, pathname));
                 // like Sonarr, a section's pages show while you're in it
 
                 return (
@@ -148,7 +159,7 @@ function PageSidebar() {
                         key={child.to}
                         title={child.title}
                         to={child.to}
-                        isActive={pathname === child.to}
+                        isActive={isChildActive(child, pathname)}
                         isChildItem={true}
                       />
                     ))}

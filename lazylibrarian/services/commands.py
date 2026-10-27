@@ -136,6 +136,17 @@ def _refresh_author(command: dict, body: dict) -> str:
     return addnew.refresh_author(body.get('author_id') or '', progress=lambda text: _update(command, message=text))
 
 
+def _author_search(command: dict, body: dict) -> str:
+    from lazylibrarian.services import library  # it imports most of LazyLibrarian
+    found = library.wanted_books(body.get('author_id') or '')
+    if not found:
+        command['result'] = {'found': 0}
+        return 'None of their books are wanted'
+    count, message = wanted.search_books(found, progress=lambda text: _update(command, message=text))
+    command['result'] = {'found': count}
+    return message
+
+
 def _refresh_book(command: dict, body: dict) -> str:
     from lazylibrarian.services import addnew  # it imports most of LazyLibrarian
     return addnew.refresh_book(body.get('book_id') or '', progress=lambda text: _update(command, message=text))
@@ -147,13 +158,14 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task,
                                                     'Backup': _backup, 'ApplicationUpdate': _application_update,
                                                     'AddAuthor': _add_author, 'AddBook': _add_book,
-                                                    'RefreshAuthor': _refresh_author, 'RefreshBook': _refresh_book}
+                                                    'RefreshAuthor': _refresh_author, 'RefreshBook': _refresh_book,
+                                                    'AuthorSearch': _author_search}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
           'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update',
           'AddAuthor': 'Add Author', 'AddBook': 'Add Book', 'RefreshAuthor': 'Refresh Author',
-          'RefreshBook': 'Refresh Book'}
+          'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search'}
 
 
 def _run(command: dict, body: dict):

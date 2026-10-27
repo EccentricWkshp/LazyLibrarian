@@ -75,7 +75,7 @@ function BookResults({ lookup, onAdd }: { lookup: Lookup; onAdd: (adding: Adding
                   </div>
                 </div>
                 {author.inLibrary ? (
-                  <Link className={styles.inLibrary} to={`/author_page?authorid=${encodeURIComponent(author.id)}`}>
+                  <Link className={styles.inLibrary} to={`/author/${encodeURIComponent(author.id)}`}>
                     <Label kind="success">In Library</Label>
                   </Link>
                 ) : author.loading ? (

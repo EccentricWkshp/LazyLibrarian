@@ -12,16 +12,17 @@ const POLL = 5000;
 // what to ask for again when a command is done, as it changes them
 const CHANGES: Record<string, string[][]> = {
   ManualImport: [['queue'], ['manualimport'], ['wanted']],
-  BookSearch: [['queue'], ['wanted']],
+  BookSearch: [['queue'], ['wanted'], ['author']],
   MissingBookSearch: [['queue'], ['wanted']],
   ClearBlocklist: [['blocklist']],
   RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update']],
   Backup: [['backups']],
   CutoffUnmetSearch: [['queue'], ['wanted']],
-  AddAuthor: [['lookup'], ['wanted']],
-  AddBook: [['lookup'], ['wanted']],
-  RefreshAuthor: [['lookup'], ['wanted']],
-  RefreshBook: [['lookup'], ['wanted']],
+  AddAuthor: [['lookup'], ['wanted'], ['author']],
+  AddBook: [['lookup'], ['wanted'], ['author']],
+  RefreshAuthor: [['lookup'], ['wanted'], ['author']],
+  AuthorSearch: [['queue'], ['wanted'], ['author']],
+  RefreshBook: [['lookup'], ['wanted'], ['author']],
 };
 
 function isDone(command: Command) {

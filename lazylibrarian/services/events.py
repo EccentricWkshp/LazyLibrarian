@@ -37,6 +37,11 @@ SIGNATURES = {
     'blocklist': "SELECT COUNT(*),MAX(rowid) FROM blocklist",
     'wanted': "SELECT COUNT(*),TOTAL(LENGTH(BookID)) FROM books WHERE Status='Wanted' OR AudioStatus='Wanted'",
     'tasks': "SELECT TOTAL(Start),TOTAL(Finish) FROM jobs",
+    # the authors and their books: how many of each are in each state
+    'author': "SELECT (SELECT COUNT(*)||'/'||TOTAL(HaveBooks)||'/'||TOTAL(UnignoredBooks) FROM authors),"
+              "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||COUNT(*) AS c FROM authors GROUP BY Status)),"
+              "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||'/'||AudioStatus||COUNT(*) AS c FROM books "
+              "GROUP BY Status, AudioStatus))",
 }
 
 _subscribers: set[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = set()

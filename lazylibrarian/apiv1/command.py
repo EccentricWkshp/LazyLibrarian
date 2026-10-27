@@ -72,7 +72,7 @@ def start(command: CommandIn):
     new wants them as the settings say, all wants every one as mediaTypes (ebook, audiobook), none
     pauses the author; search searches for the ones wanted. AddBook adds a book from /lookup
     (bookId, source, authorId) and wants it as mediaTypes. RefreshAuthor (authorId) and RefreshBook
-    (bookId) fetch their details again """
+    (bookId) fetch their details again. AuthorSearch searches for an author's (authorId) wanted books """
     return commands.start(command.name, command.model_dump())
 
 
