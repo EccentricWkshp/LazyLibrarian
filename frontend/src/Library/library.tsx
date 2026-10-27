@@ -11,7 +11,7 @@ import Link from 'Components/Link/Link';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
 import { api } from 'Utilities/api';
 import { imageUrl } from 'Utilities/images';
-import styles from './Library.module.css';
+import styles from 'Library/Library.module.css';
 
 export function remembered(key: string, fallback: string): string {
   try {

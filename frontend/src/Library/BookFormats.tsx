@@ -8,7 +8,7 @@ import IconButton from 'Components/Link/IconButton';
 import { Label } from 'Components/Misc';
 import { TableRowCell } from 'Components/Table/Table';
 import { InteractiveSearchModal } from 'InteractiveSearch/InteractiveSearch';
-import styles from './Library.module.css';
+import styles from 'Library/Library.module.css';
 
 export type Format = 'ebook' | 'audiobook';
 
