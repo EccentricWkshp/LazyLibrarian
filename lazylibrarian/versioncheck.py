@@ -290,8 +290,6 @@ def get_latest_version():
     CONFIG.set_str('LATEST_VERSION', latest_version)
     if created_at:
         try:
-            # python 3.10 fromisoformat doesn't accept a trailing Z
-            created_at = created_at.replace('Z', '+00:00')
             updated = int(time.mktime(datetime.datetime.fromisoformat(created_at).timetuple()))
             CONFIG.set_int('GIT_UPDATED', updated)
         except ValueError:

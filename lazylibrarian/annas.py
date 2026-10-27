@@ -16,7 +16,6 @@ import json
 import logging
 import os
 import re
-import sys
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -36,18 +35,16 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, get_directory, path_isfile, remove_file
 from lazylibrarian.formatter import check_int, get_list, md5_utf8, plural, sanitize, size_in_bytes
 
-py310 = sys.version_info >= (3, 10)
-
 WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Anna%27s_Archive"
 
-@dataclass(**({"slots": True} if py310 else {}))
+@dataclass(slots=True)
 class FileInfo:
     extension: str
     size: str
     language: str
 
 
-@dataclass(**({"slots": True} if py310 else {}))
+@dataclass(slots=True)
 class SearchResult:
     id: str
     title: str
