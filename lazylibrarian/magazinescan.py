@@ -567,19 +567,24 @@ def format_issue_filename(base, mag_title, dateparts):
         # or volume and issuenum
         # or title and issuenum
         valid_format = False
-        if '$IssueDate' in base:
+        # the parts the issue has: one known by its date has no number, which zero filled would be 0000
+        # and every issue of the year the same name, each one's file put over the last
+        has = {'Title': bool(mag_title), 'IssueYear': check_int(dateparts['year'], 0) > 0,
+               'IssueNum': check_int(dateparts['issue'], 0) > 0, 'IssueVol': check_int(dateparts['volume'], 0) > 0,
+               'IssueMNum': bool(issuemonthnum), 'IssueMonth': bool(issuemonth)}
+        if '$IssueDate' in base and mydict['IssueDate']:
             valid_format = True
-        if '$IssueYear' in base and '$IssueNum' in base and mydict['IssueYear'] and mydict['IssueNum']:
+        if '$IssueYear' in base and '$IssueNum' in base and has['IssueYear'] and has['IssueNum']:
             valid_format = True
             if mydict['IssueDay'] and mydict['IssueDay'] != '01' and '$IssueDay' not in base:
                 valid_format = False
-        if '$Title' in base and '$IssueNum' in base and mydict['Title'] and mydict['IssueNum']:
+        if '$Title' in base and '$IssueNum' in base and has['Title'] and has['IssueNum']:
             valid_format = True
-        if '$IssueVol' in base and '$IssueNum' in base and mydict['IssueVol'] and mydict['IssueNum']:
+        if '$IssueVol' in base and '$IssueNum' in base and has['IssueVol'] and has['IssueNum']:
             valid_format = True
-        if '$IssueYear' in base and '$IssueMNum' in base and mydict['IssueYear'] and mydict['IssueMNum']:
+        if '$IssueYear' in base and '$IssueMNum' in base and has['IssueYear'] and has['IssueMNum']:
             valid_format = True
-        if '$IssueYear' in base and '$IssueMonth' in base and mydict['IssueYear'] and mydict['IssueMonth']:
+        if '$IssueYear' in base and '$IssueMonth' in base and has['IssueYear'] and has['IssueMonth']:
             valid_format = True
             if mydict['IssueDay'] and mydict['IssueDay'] != '01' and '$IssueDay' not in base:
                 valid_format = False

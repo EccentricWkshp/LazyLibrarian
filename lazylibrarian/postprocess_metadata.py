@@ -402,6 +402,11 @@ def prepare_magazine_metadata(title, aux_info, db) -> MagazineMetadata | None:
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))
     global_name = format_issue_filename(CONFIG["MAG_DEST_FILE"], title, dateparts)
+    # never another issue's file: a name that doesn't tell the issues apart would put this one over it
+    taken = db.select("SELECT IssueFile FROM issues WHERE Title=? AND IssueDate!=? AND IssueFile LIKE ?",
+                      (title, aux_info, f"%{global_name}.%"))
+    if any(os.path.splitext(row['IssueFile'])[0] == os.path.join(dest_path, global_name) for row in taken):
+        global_name = f"{global_name} {aux_info}"
 
     return MagazineMetadata(
         book_id=title,

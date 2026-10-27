@@ -615,6 +615,42 @@ class PostprocessMetadataTest(LLTestCaseWithStartup):
         self.assertEqual(magazine.dest_path, os.path.join(library, 'mags', 'Folder Test Mag', '2025-01-01'))
         self.assertEqual(comic.dest_path, os.path.join(library, 'comics', 'Folder Test Comic', '12'))
 
+    def test_issues_of_a_year_have_names_of_their_own(self):
+        """The reported one: with '$Title - $IssueNum', every issue known by its date was named
+        'Popular Mechanics - 0000' and each one's file put over the last"""
+        from lazylibrarian.magazinescan import format_issue_filename, get_dateparts
+        for key in ('MAG_DIR', 'MAG_DEST_FOLDER', 'MAG_DEST_FILE'):
+            self.addCleanup(setattr, CONFIG.config[key], 'value', CONFIG.config[key].value)
+        library = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, library, True)
+        CONFIG.set_str('MAG_DIR', library)
+        CONFIG.set_str('MAG_DEST_FOLDER', '$Title/$IssueYear')
+        CONFIG.set_str('MAG_DEST_FILE', '$Title - $IssueNum')
+        self.assertEqual(format_issue_filename('$Title - $IssueNum', 'Popular Mechanics', get_dateparts('May June 2026')),
+                         'Popular Mechanics - 2026-05-01', 'No number, so its date')
+        self.assertEqual(format_issue_filename('$Title - $IssueNum', 'ShopNotes', get_dateparts('Issue 135')),
+                         'ShopNotes - 0135')
+        db = DBConnection()
+        try:
+            db.action("INSERT INTO magazines (Title) VALUES ('Name Test Mag')")
+            may = prepare_magazine_metadata('Name Test Mag', '2026-05-01', db)
+            july = prepare_magazine_metadata('Name Test Mag', '2026-07-01', db)
+            self.assertNotEqual(may.global_name, july.global_name)
+            # a file another issue has already is never this one's: by year and month, two issues of a
+            # month have the same name
+            CONFIG.set_str('MAG_DEST_FILE', '$Title $IssueYear $IssueMNum')
+            first = prepare_magazine_metadata('Name Test Mag', '2026-05-01', db)
+            db.action("INSERT INTO issues (Title, IssueID, IssueDate, IssueFile) VALUES ('Name Test Mag', 'n1', "
+                      "'2026-05-01', ?)", (os.path.join(first.dest_path, f"{first.global_name}.pdf"),))
+            second = prepare_magazine_metadata('Name Test Mag', '2026-05-15', db)
+            self.assertEqual(second.global_name, f"{first.global_name} 2026-05-15")
+            self.assertEqual(prepare_magazine_metadata('Name Test Mag', '2026-05-01', db).global_name, first.global_name,
+                             'Its own file is its own')
+            db.action("DELETE FROM issues WHERE Title='Name Test Mag'")
+            db.action("DELETE FROM magazines WHERE Title='Name Test Mag'")
+        finally:
+            db.close()
+
 
 class PostprocessFileOperationsTest(LLTestCaseWithStartup):
     """Test file operation helper functions"""
