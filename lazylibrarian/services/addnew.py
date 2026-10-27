@@ -97,7 +97,8 @@ def lookup(term: str, max_pages: int = 0) -> dict:
             'link': _text(result, 'booklink'), 'rating': check_float(result.get('bookrate'), 0),
             'ratings': check_int(result.get('bookrate_count'), 0), 'source': _text(result, 'source'),
             'score': check_float(result.get('highest_fuzz'), 0), 'in_library': row is not None,
-            'status': row['Status'] if row else '', 'audio_status': row['AudioStatus'] if row else ''})
+            # a book in the library can have no status for a format yet
+            'status': row['Status'] or '' if row else '', 'audio_status': row['AudioStatus'] or '' if row else ''})
     return {'authors': sorted(found_authors.values(), key=lambda a: (-a['score'], -a['books'])),
             'books': found_books}
 

@@ -72,6 +72,14 @@ class LookupTest(AddNewTestCase):
         with self.assertRaises(InvalidRequestError):
             addnew.lookup('  ')
 
+    def test_a_book_with_no_status_yet(self):
+        found = {'results': [_result('b1', 'Killing Floor')], 'authorlist': [], 'loadlist': [], 'booklist': ['b1'],
+                 'booksearch': [{'BookID': 'b1', 'Status': 'Open', 'AudioStatus': None}]}
+        with mock.patch.object(addnew.authors, 'search_sources', return_value=found):
+            book = addnew.lookup('killing floor')['books'][0]
+        self.assertEqual((book['in_library'], book['status'], book['audio_status']), (True, 'Open', ''),
+                         'No status is empty, as the API gives text')
+
 
 class AddAuthorTest(AddNewTestCase):
 
