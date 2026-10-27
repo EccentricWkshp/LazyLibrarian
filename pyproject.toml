@@ -45,7 +45,6 @@ dependencies = [
     'iso639-lang',
     'xmltodict',
     'googletrans',
-    'langid',
     'curl_cffi',
 ]
 

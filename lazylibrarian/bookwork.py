@@ -41,6 +41,7 @@ from lazylibrarian.formatter import (
     thread_name,
     unaccented,
 )
+from lazylibrarian.langident import LanguageIdentifier
 
 if CONFIG.get_bool('GOOGLE_TRANS_ID'):
     try:
@@ -67,14 +68,13 @@ DEFAULT_LANGID_LANGUAGES = [
 ]
 
 try:
-    from langid.langid import LanguageIdentifier
-    from langid.langid import model as _langid_model
-    LANGID = LanguageIdentifier.from_modelstring(_langid_model, norm_probs=True)
+    # langid's classifier and model without numpy, see langident.py
+    LANGID = LanguageIdentifier.load()
     # Restrict langid's candidate languages to common library languages to reduce
     # false positives on short titles where compound words can otherwise match
     # rare or low-precedence languages. Can be overridden via LANGID_LANGUAGES in config.ini.
     LANGID.set_languages(DEFAULT_LANGID_LANGUAGES)
-except (ModuleNotFoundError, ImportError):
+except (OSError, ValueError):
     LANGID = None
 
 _current_langid_languages = None

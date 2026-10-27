@@ -117,8 +117,6 @@ jaraco-text==4.3.0
     # via
     #   irc
     #   jaraco-collections
-langid==1.1.6
-    # via lazylibrarian (pyproject.toml)
 lxml==6.1.3
     # via lazylibrarian (pyproject.toml)
 mako==1.4.3
@@ -139,10 +137,6 @@ more-itertools==11.1.0
     #   jaraco-functools
     #   jaraco-stream
     #   jaraco-text
-numpy==2.4.6 ; python_full_version < '3.12'
-    # via langid
-numpy==2.5.3 ; python_full_version >= '3.12'
-    # via langid
 oauthlib==4.0.0
     # via requests-oauthlib
 opentelemetry-api==1.45.1
