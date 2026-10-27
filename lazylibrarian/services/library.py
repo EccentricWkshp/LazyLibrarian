@@ -16,11 +16,12 @@ series, and changing what's wanted of them. The old pages' services do the work,
 for /api/v1 """
 
 import os
+import re
 
 import lazylibrarian
 from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import check_float, check_int
+from lazylibrarian.formatter import check_float, check_int, fold
 from lazylibrarian.services import (
     InvalidRequestError,
     NotFoundError,
@@ -105,6 +106,40 @@ def author_books(author_id) -> list[dict]:
               'is_primary': row['AuthorID'] == author_id, 'series': series.get(row['BookID'], [])}
              for row in rows]
     return sorted(found, key=lambda b: (b['release_date'] or '0000', b['title'].lower()), reverse=True)
+
+
+AUTHOR_LOOKUP_PAGES = 5
+
+
+def _title_key(title: str) -> str:
+    return ' '.join(re.sub(r'[^\w\s]', ' ', fold(title or '')).split())
+
+
+def author_lookup(author_id) -> list[dict]:
+    """ The author's books the info sources find, as Readarr's author page lists them: the books
+    looked up by their name that are theirs, by id or by name, each saying whether the library has
+    it (by id, or a book of theirs with the same title from another source), the ones it hasn't
+    first. Any of them can be added with the AddBook command """
+    from lazylibrarian.services import addnew  # noqa: PLC0415, it imports this
+    name = authors.get_author(author_id)['AuthorName']
+    have = {_title_key(book['title']): book for book in author_books(author_id)}
+    found, seen = [], set()
+    # a name finds hundreds of pages at OpenLibrary, the first few have their best known books
+    for book in addnew.lookup(name, max_pages=AUTHOR_LOOKUP_PAGES)['books']:
+        if book['author_id'] != author_id and _title_key(book['author_name']) != _title_key(name):
+            continue
+        key = _title_key(book['title'])
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        if not book['in_library'] and key in have:
+            # the library's own copy, from another source, so it isn't added twice
+            mine = have[key]
+            book = {**book, 'id': mine['id'], 'in_library': True, 'status': mine['status'],
+                    'audio_status': mine['audio_status']}
+        found.append(book)
+    # newest first, those without a date last
+    return sorted(found, key=lambda book: (book['in_library'], -check_int((book['release_date'] or '')[:4], 0)))
 
 
 def wanted_books(author_id) -> list[dict]:

@@ -1,12 +1,13 @@
 // A book, as Sonarr's episode details: who wrote it and what it is, each format with its status,
 // its file to open or delete and searches for it, and its downloads
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, Download, ExternalLink, RefreshCw, Send, SquarePen, Star, Trash2 } from 'lucide-react';
+import { BookOpen, Download, ExternalLink, RefreshCw, Send, SquarePen, Star, Trash2, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { runCommand } from 'App/commands';
 import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
+import FormattedDate from 'Components/FormattedDate';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
@@ -23,6 +24,7 @@ import { BookDetail } from 'typings/Library';
 import { api, urlBase } from 'Utilities/api';
 import { formatBytes, formatDateTime, relativeDate } from 'Utilities/format';
 import EditBookModal from './EditBookModal';
+import FixMatchModal from './FixMatchModal';
 
 const LIBRARIES = { ebook: 'eBook', audiobook: 'AudioBook' };
 
@@ -128,6 +130,7 @@ function BookDetails() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isMatchOpen, setIsMatchOpen] = useState(false);
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'book', bookId],
@@ -160,6 +163,12 @@ function BookDetails() {
                 queryClient.invalidateQueries({ queryKey: ['library', 'book', bookId] });
               });
             }}
+          />
+          <PageToolbarButton
+            label="Fix Match"
+            iconName={Wand2}
+            isDisabled={!data}
+            onPress={() => setIsMatchOpen(true)}
           />
           <PageToolbarButton
             label="Edit"
@@ -204,9 +213,15 @@ function BookDetails() {
                   ))}
                 </div>
                 <div className={styles.headerLabels}>
-                  {data.releaseDate ? <Label>Released {data.releaseDate}</Label> : null}
+                  {data.releaseDate ? (
+                    <Label>
+                      Released <FormattedDate value={data.releaseDate} />
+                    </Label>
+                  ) : null}
                   {data.originalDate && data.originalDate !== data.releaseDate ? (
-                    <Label>First published {data.originalDate}</Label>
+                    <Label>
+                      First published <FormattedDate value={data.originalDate} />
+                    </Label>
                   ) : null}
                   {data.publisher ? <Label>{data.publisher}</Label> : null}
                   {data.pages ? <Label>{data.pages} pages</Label> : null}
@@ -223,7 +238,11 @@ function BookDetails() {
                       Locked
                     </Label>
                   ) : null}
-                  {data.added ? <Label>Added {data.added}</Label> : null}
+                  {data.added ? (
+                    <Label>
+                      Added <FormattedDate value={data.added} />
+                    </Label>
+                  ) : null}
                 </div>
                 {data.genres ? <p className={styles.muted}>{data.genres}</p> : null}
                 {data.links.length ? (
@@ -291,6 +310,7 @@ function BookDetails() {
           onModalClose={() => setIsEditOpen(false)}
         />
       ) : null}
+      {isMatchOpen ? <FixMatchModal bookId={bookId} onModalClose={() => setIsMatchOpen(false)} /> : null}
     </PageContent>
   );
 }

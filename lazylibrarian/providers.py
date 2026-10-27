@@ -16,6 +16,7 @@ import os
 import re
 import threading
 import time
+import traceback
 from copy import deepcopy
 from urllib.parse import urlencode, urlparse
 from xml.etree import ElementTree
@@ -741,18 +742,23 @@ def iterate_over_torrent_sites(book=None, search_type=None):
                 ignored = True
             if not ignored:
                 logger.debug(f'[iterate_over_torrent_sites] - {CONFIG[prov + "_HOST"]}')
-                if prov == 'TPB':
-                    results, error = torrent_tpb(book)
-                elif prov == 'TDL':
-                    results, error = torrent_tdl(book)
-                elif prov == 'LIME':
-                    results, error = torrent_lime(book)
-                elif prov == 'ABB':
-                    results, error = torrent_abb(book)
-                else:
-                    results = ''
-                    error = ''
-                    logger.error(f'iterate_over_torrent_sites called with unknown provider [{prov}]')
+                # one site's page changing isn't the end of the search, as for the other kinds of provider
+                try:
+                    if prov == 'TPB':
+                        results, error = torrent_tpb(book)
+                    elif prov == 'TDL':
+                        results, error = torrent_tdl(book)
+                    elif prov == 'LIME':
+                        results, error = torrent_lime(book)
+                    elif prov == 'ABB':
+                        results, error = torrent_abb(book)
+                    else:
+                        results = ''
+                        error = ''
+                        logger.error(f'iterate_over_torrent_sites called with unknown provider [{prov}]')
+                except Exception as e:
+                    logger.error(f"Searching {prov} failed: {traceback.format_exc()}")
+                    results, error = [], f"{type(e).__name__}: {e}"
 
                 if error:
                     BLOCKHANDLER.block_provider(prov, error)

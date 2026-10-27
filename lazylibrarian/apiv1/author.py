@@ -15,6 +15,7 @@ library, one with their books, and changing what's wanted. Adding and refreshing
 
 from fastapi import APIRouter
 
+from lazylibrarian.apiv1.addnew import BookLookup
 from lazylibrarian.apiv1.models import ApiModel
 from lazylibrarian.services import library
 
@@ -151,6 +152,13 @@ def delete_author(author_id: str, delete_files: bool = False):
 def list_books(author_id: str):
     """ An author's books, newest first """
     return library.author_books(author_id)
+
+
+@router.get('/author/{author_id}/lookup', response_model=list[BookLookup])
+def lookup_books(author_id: str):
+    """ The author's books the info sources find, by their name, the ones the library hasn't got
+    first; add one with the AddBook command. It takes a while """
+    return library.author_lookup(author_id)
 
 
 @router.put('/book/status', response_model=Changed)

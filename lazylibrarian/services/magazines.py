@@ -42,6 +42,7 @@ from lazylibrarian.images import (
     coverswap,
     create_mag_cover,
     extract_image_from_page,
+    placeholder_cover,
     read_pdf_tags,
     write_pdf_tags,
 )
@@ -424,7 +425,21 @@ def page_cover(issuefile: str, page: int) -> str:
 
 
 def set_issue_cover(issueid, page: int) -> str:
-    """ Make an issue's cover from one of its pages. Returns what happened """
+    """ Make an issue's cover from one of its pages, page 0 for none. Returns what happened """
+    if not page:
+        db = database.DBConnection()
+        try:
+            issue = db.match('SELECT IssueFile,Title,IssueDate,Cover from issues WHERE IssueID=?', (issueid,))
+            if not issue:
+                raise NotFoundError(f"Missing issue {issueid}")
+            placeholder = os.path.join(DIRS.CACHEDIR, f'nocover_{issueid}.jpg')
+            if not placeholder_cover(placeholder):
+                raise InvalidRequestError("The no cover picture couldn't be made, see the log")
+            new_issue_cover(db, dict(issue), issue['Title'], placeholder)
+        finally:
+            db.close()
+        os.remove(syspath(placeholder))
+        return "It has no cover now"
     passed, _failed, title = mark_issues(f'reCover{page}', [issueid])
     if not title:
         raise NotFoundError(f"Missing issue {issueid}")

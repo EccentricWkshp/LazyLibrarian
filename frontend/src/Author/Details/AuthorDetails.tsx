@@ -5,6 +5,7 @@ import { ExternalLink, RefreshCw, Search, SquarePen, Trash2, User } from 'lucide
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { runCommand } from 'App/commands';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
@@ -27,6 +28,7 @@ import { imageUrl } from 'Utilities/images';
 import { AUTHOR_STATUSES, setAuthorStatus, setBookStatus } from '../authors';
 import DeleteAuthorModal from '../DeleteAuthorModal';
 import EditAuthorModal from './EditAuthorModal';
+import SourceBooks from './SourceBooks';
 
 const BOOK_FILTERS = [
   { key: 'shown', value: 'All but ignored' },
@@ -89,7 +91,9 @@ function BookRow({
           </div>
         ) : null}
       </TableRowCell>
-      <TableRowCell className={styles.date}>{book.releaseDate}</TableRowCell>
+      <TableRowCell className={styles.date}>
+        <FormattedDate value={book.releaseDate} />
+      </TableRowCell>
       {formats.map((format) => (
         <FormatCell key={format.format} book={book} format={format} />
       ))}
@@ -104,7 +108,6 @@ function AuthorHeader({ author }: { author: AuthorDetail }) {
   const [failed, setFailed] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const src = imageUrl(author.image);
-  const lived = [author.born, author.died].filter(Boolean).join(' – ');
   // the sources give About as HTML, shown as its text
   const about = useMemo(
     () => (author.about ? new DOMParser().parseFromString(author.about, 'text/html').body.textContent?.trim() : ''),
@@ -129,16 +132,20 @@ function AuthorHeader({ author }: { author: AuthorDetail }) {
             values={AUTHOR_STATUSES}
             onChange={(status) => setAuthorStatus([author.id], status)}
           />
-          {lived ? (
+          {author.born || author.died ? (
             <Label>
-              {lived}
+              {author.born ? <FormattedDate value={author.born} kind="author" /> : null}
+              {author.born && author.died ? ' – ' : ''}
+              {author.died ? <FormattedDate value={author.died} kind="author" /> : null}
               {author.age ? ` (${author.age})` : ''}
             </Label>
           ) : null}
           {author.aka ? <Label title="Also known as">{author.aka}</Label> : null}
           {author.locked ? <Label kind="warning" title="Its details aren't changed by a refresh">Locked</Label> : null}
           <span title={formatDateTime(author.added)}>
-            <Label>Added {author.added}</Label>
+            <Label>
+              Added <FormattedDate value={author.added} />
+            </Label>
           </span>
         </div>
         <div className={styles.headerProgress}>
@@ -326,6 +333,7 @@ function AuthorDetails() {
             {shown.length} of {books.data.length} {books.data.length === 1 ? 'book' : 'books'}
           </div>
         ) : null}
+        {data ? <SourceBooks authorId={authorId} name={data.name} /> : null}
       </PageContentBody>
 
       {data ? (

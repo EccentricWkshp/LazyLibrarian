@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Cog, FolderSearch, Layers, LayoutGrid, Plus, Search, Table as TableIcon, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { runCommand } from 'App/commands';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
@@ -232,7 +233,9 @@ function ComicIndex() {
                 </TableRowCell>
                 <TableRowCell>{comic.publisher}</TableRowCell>
                 <TableRowCell className={styles.date}>{comic.latestIssue}</TableRowCell>
-                <TableRowCell className={styles.date}>{comic.lastAcquired}</TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={comic.lastAcquired} />
+                </TableRowCell>
                 <TableRowCell>{comic.issues}</TableRowCell>
               </TableRow>
             ))}

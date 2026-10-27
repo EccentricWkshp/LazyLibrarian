@@ -280,7 +280,8 @@ class PastIssueMark(ApiModel):
 
 
 class CoverPage(ApiModel):
-    page: int = Field(ge=1)
+    # counted from 1, 0 for no cover
+    page: int = Field(ge=0)
 
 
 class Message(ApiModel):
@@ -366,7 +367,7 @@ def mark_past_issues(mark: PastIssueMark):
 
 @router.put('/magazine/issue/{issue_id}/cover', response_model=Message)
 def set_issue_cover(issue_id: str, cover: CoverPage):
-    """ Make an issue's cover from one of its pages, counted from 1 """
+    """ Make an issue's cover from one of its pages, counted from 1, or none (page 0) """
     return {'message': library.set_issue_cover('magazine', issue_id, cover.page)}
 
 

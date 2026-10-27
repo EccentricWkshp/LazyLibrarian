@@ -71,6 +71,9 @@ function CoverPickerModal({ kind, id, name, current, onModalClose }: CoverPicker
           </div>
         </ModalBody>
         <ModalFooter>
+          <Button kind="danger" isDisabled={choose.isPending} onPress={() => choose.mutate(0)}>
+            No Cover
+          </Button>
           {shown < pages ? <Button onPress={() => setShown(shown + BATCH)}>More Pages</Button> : null}
           <Button onPress={onModalClose}>Cancel</Button>
         </ModalFooter>

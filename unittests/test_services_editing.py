@@ -77,6 +77,56 @@ class EditingTest(LLTestCaseWithStartup):
         with self.assertRaises(InvalidRequestError):
             editing.save_book('b1', {'cover': 'somewhere'})
 
+    def test_fix_match(self):
+        from lazylibrarian.config2 import CONFIG
+        for key in ('OL_API', 'HC_API', 'BOOK_API'):
+            self.addCleanup(CONFIG.set_from_ui, key, CONFIG[key])
+        CONFIG.set_from_ui('OL_API', True)
+        CONFIG.set_from_ui('HC_API', True)
+        CONFIG.set_from_ui('BOOK_API', 'HardCover')
+        with DBConnection() as db:
+            db.action("UPDATE books SET hc_id='b1', ol_id='OL9W' WHERE BookID='b1'")
+            db.action("INSERT INTO books (BookID, AuthorID, BookName, ol_id) VALUES ('b2', 'a1', 'Die Trying', 'OL2W')")
+        book = editing.book_for_edit('b1')
+        self.assertEqual((book['own_source'], book['source_ids']['OpenLibrary']), ('HardCover', 'OL9W'))
+        self.assertEqual(book['match_sources'][:2], ['HardCover', 'OpenLibrary'], 'The one searched first first')
+        found = [{'bookid': 'OL1W', 'bookname': 'Killing Floor', 'booksub': 'Jack Reacher 1', 'authorname': 'Lee Child',
+                  'bookdate': '1997-03-17', 'bookpub': 'Putnam', 'bookisbn': '0399142509', 'booklang': 'en',
+                  'bookpages': 524, 'bookgenre': 'Thriller', 'bookdesc': 'Reacher is arrested', 'bookimg':
+                  'http://covers/1.jpg', 'booklink': 'http://ol/OL1W'},
+                 {'bookid': 'OL2W', 'bookname': 'Die Trying', 'authorname': 'Lee Child'}]
+        with mock.patch('lazylibrarian.importer.search_for', return_value=found) as search:
+            matches = editing.book_source_search('b1', 'OpenLibrary')
+        search.assert_called_once_with('Lee Child Killing Floor', 'OpenLibrary', max_pages=2)
+        self.assertEqual([(m['id'], m['publisher'], m['pages']) for m in matches], [('OL1W', 'Putnam', 524),
+                                                                                    ('OL2W', '', 0)])
+        with mock.patch('lazylibrarian.cache.cache_img', return_value=('cache/book/' + 'a' * 32 + '.jpg', True, False)):
+            message = editing.match_book('b1', 'OpenLibrary', 'OL1W')
+        self.assertIn('is OL1W at OpenLibrary now', message)
+        with DBConnection() as db:
+            row = db.match("SELECT ol_id, BookSub, BookPub, BookPages, BookImg, Manual FROM books WHERE BookID='b1'")
+        self.assertEqual((row['ol_id'], row['BookSub'], row['BookPub'], row['BookPages'], row['BookImg']),
+                         ('OL1W', 'Jack Reacher 1', 'Putnam', 524, 'cache/book/' + 'a' * 32 + '.jpg'))
+        self.assertNotEqual(row['Manual'], '1', "Another source's match leaves it unlocked")
+        with self.assertRaisesRegex(InvalidRequestError, "Die Trying is OL2W"):
+            editing.match_book('b1', 'OpenLibrary', 'OL2W')
+        with self.assertRaisesRegex(NotFoundError, 'search again'):
+            editing.match_book('b1', 'OpenLibrary', 'OL3W')
+        with mock.patch('lazylibrarian.importer.search_for', return_value=[{'bookid': '777', 'bookname': 'Killing Floor'}]):
+            editing.book_source_search('b1', 'HardCover', 'killing floor')
+        message = editing.match_book('b1', 'HardCover', '777', details=False, cover=False)
+        self.assertIn('locked so a refresh keeps it', message)
+        with DBConnection() as db:
+            self.assertEqual(db.match("SELECT hc_id, Manual FROM books WHERE BookID='b1'")['hc_id'], '777')
+        self.assertTrue(editing.book_for_edit('b1')['locked'], "A match at its own source locks it")
+
+    def test_no_cover(self):
+        message = editing.save_book('b1', {'cover': 'none'})
+        self.assertIn('Cover (none)', message)
+        image = editing.book_for_edit('b1')['image']
+        from lazylibrarian.images import chosen_cover
+        self.assertTrue(chosen_cover(image), 'A cover chosen, so a refresh keeps it')
+
     def test_a_magazine(self):
         magazine = editing.magazine_for_edit('wired')
         self.assertEqual((magazine['title'], magazine['reject'], magazine['date_type']), ('Wired', 'uk', 'YM'))

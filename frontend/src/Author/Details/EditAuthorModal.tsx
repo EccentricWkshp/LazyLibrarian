@@ -210,7 +210,17 @@ function EditAuthorModal({ authorId, onModalClose }: { authorId: string; onModal
               current={author.image}
               selected={author.found ? author.found.split('/').pop() ?? '' : ''}
               name={(choice) => choice.name}
-              onSelect={(choice) => edit.set('found', choice ? choice.path : '')}
+              onSelect={(choice) => {
+                edit.set('found', choice ? choice.path : '');
+                if (choice) {
+                  edit.set('image', '');
+                }
+              }}
+              isNone={(edit.edited as { image?: string }).image === 'none'}
+              onNone={(isNone) => {
+                edit.set('image', isNone ? 'none' : '');
+                edit.set('found', '');
+              }}
             />
           </EditField>
           <EditField

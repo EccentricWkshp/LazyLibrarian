@@ -63,6 +63,7 @@ from lazylibrarian.formatter import (
     DISPLAY_DATE_FORMATS,
     ISSUE_DATE_FORMATS,
     check_int,
+    date_format,
     date_format_picker,
     get_list,
     make_unicode,
@@ -720,6 +721,16 @@ def config_choices() -> dict:
                                     (LOGCONFIG.get_short_special_logger_name(logger.name)
                                      for logger in LOGCONFIG.get_special_logger_list())),
                                    key=lambda log: log['label'])}
+
+
+def date_formats() -> dict:
+    """ The date formats the pages use, and each month's name and short name in DATE_LANG, as the
+    old pages' date_format gives them """
+    lang = CONFIG['DATE_LANG']
+    months = [[date_format(f'2026-{month:02d}-15', name, datelang=lang) for name in ('$B', '$b')]
+              for month in range(1, 13)]
+    return {'date_format': CONFIG['DATE_FORMAT'], 'author_date_format': CONFIG['AUTHOR_DATE_FORMAT'],
+            'issue_date_format': CONFIG['ISS_FORMAT'], 'months': months}
 
 
 def save_values(values: dict, keep_token=None) -> list[str]:

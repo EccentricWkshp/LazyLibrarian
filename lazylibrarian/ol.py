@@ -201,7 +201,8 @@ class OpenLibrary:
                         resultcount += 1
 
                 loop_count += 1
-                if 0 < CONFIG.get_int('MAX_PAGES') < loop_count:
+                # a search_for can read fewer pages than MAX_PAGES
+                if 0 < (getattr(self, 'max_pages', 0) or CONFIG.get_int('MAX_PAGES')) < loop_count:
                     self.logger.warning('Maximum results page search reached, still more results available')
                     next_page = False
 

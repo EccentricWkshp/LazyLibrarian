@@ -17,6 +17,7 @@ import {
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { runCommand } from 'App/commands';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
@@ -157,7 +158,11 @@ function ComicDetails() {
                     Issues {data.first} – {data.last}
                   </Label>
                 ) : null}
-                {data.added ? <Label>Added {data.added}</Label> : null}
+                {data.added ? (
+                  <Label>
+                    Added <FormattedDate value={data.added} />
+                  </Label>
+                ) : null}
               </div>
               {data.link ? (
                 <div className={styles.links}>

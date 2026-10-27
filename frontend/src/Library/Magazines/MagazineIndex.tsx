@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Cog, FolderSearch, LayoutGrid, Newspaper, Plus, Search, Table as TableIcon, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { runCommand } from 'App/commands';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
@@ -184,7 +185,12 @@ function MagazineIndex() {
               >
                 <div className={styles.posterFooter}>
                   {plural(magazine.issues, 'issue')}
-                  {magazine.latestIssue ? ` · ${magazine.latestIssue}` : ''}
+                  {magazine.latestIssue ? (
+                    <>
+                      {' · '}
+                      <FormattedDate value={magazine.latestIssue} kind="issue" />
+                    </>
+                  ) : null}
                 </div>
               </PosterCard>
             ))}
@@ -228,8 +234,12 @@ function MagazineIndex() {
                 <TableRowCell>
                   <Link to={magazinePath(magazine.title)}>{magazine.title}</Link>
                 </TableRowCell>
-                <TableRowCell className={styles.date}>{magazine.latestIssue}</TableRowCell>
-                <TableRowCell className={styles.date}>{magazine.lastAcquired}</TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={magazine.latestIssue} kind="issue" />
+                </TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={magazine.lastAcquired} />
+                </TableRowCell>
                 <TableRowCell>{magazine.issues}</TableRowCell>
               </TableRow>
             ))}

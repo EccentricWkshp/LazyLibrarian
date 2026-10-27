@@ -15,12 +15,16 @@ as Sonarr's Edit Series: what each can change, and saving it through the service
 use. Each save returns what to tell the user """
 
 import logging
+import re
+import uuid
 
+import lazylibrarian
 from lazylibrarian import database, wikidata
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int
 from lazylibrarian.services import (
     InvalidRequestError,
+    NotFoundError,
     authors,
     books,
     comics,
@@ -142,12 +146,130 @@ def book_for_edit(bookid) -> dict:
             'narrator': _text(book.get('Narrator')), 'description': _text(book['BookDesc']),
             'locked': bool(check_int(book['Manual'], 0)),
             'added_by': f"{_text(book['BookAdded'])} {_text(book['ScanResult'])}".strip(),
-            'source_ids': {'GoodReads': _text(book['gr_id']), 'OpenLibrary': _text(book['ol_id']),
-                           'GoogleBooks': _text(book['gb_id']), 'HardCover': _text(book['hc_id'])},
+            'source_ids': {name: _text(book.get(column)) for name, column in book_source_columns().items()},
+            'own_source': next((name for name, column in book_source_columns().items()
+                                if _text(book.get(column)) == _text(book['BookID'])), ''),
+            'match_sources': match_sources(),
             'series': _book_series(bookid), 'image': _book_image(bookid),
             'author_series': [row['SeriesName'] for row in edit['series']],
             'authors': [row['AuthorName'] for row in edit['authors']],
             'opf_fields': [{'name': name, 'value': _text(value)} for name, value in edit['replaces']]}
+
+
+def book_source_columns() -> dict[str, str]:
+    """ Each info source's column of a book's id there, by the source's name """
+    return {name: src['book_key'] for name, src in lazylibrarian.INFOSOURCES.items() if src.get('book_key')}
+
+
+def match_sources() -> list[str]:
+    """ The info sources switched on, the one searched first first """
+    on = [name for name in book_source_columns() if CONFIG[lazylibrarian.INFOSOURCES[name]['enabled']]]
+    return sorted(on, key=lambda name: name != CONFIG['BOOK_API'])
+
+
+# the last Fix Match search's books, by (book, source, id), to apply the one chosen
+_matches: dict[tuple, dict] = {}
+
+
+def book_source_search(bookid, source: str, term: str = '') -> list[dict]:
+    """ Fix Match, as Plex's Fix Match, Jellyfin's Identify or Audiobookshelf's Match: the books an info
+    source finds for the book's author and title, or term (an ISBN too), each with what it would
+    give the book. Apply one with match_book """
+    from lazylibrarian.importer import search_for  # noqa: PLC0415, it imports most of LazyLibrarian
+    if source not in book_source_columns():
+        raise InvalidRequestError(f"The source is one of {', '.join(book_source_columns())}")
+    current = book_for_edit(bookid)
+    if not CONFIG[lazylibrarian.INFOSOURCES[source]['enabled']]:
+        raise InvalidRequestError(f"{source} is switched off in Settings, Metadata")
+    found = []
+    # the best matches are on the first pages, a paged source has hundreds more
+    for result in (search_for(term.strip() or f"{current['author']} {current['title']}", source,
+                              max_pages=2) or [])[:25]:
+        if not result.get('bookid'):
+            continue
+        publisher, date = _text(result.get('bookpub')), _text(result.get('bookdate'))
+        if publisher.isdigit():  # OpenLibrary gives the year first published as the publisher
+            publisher, date = '', date or publisher
+        match = {'source': source, 'id': _text(result['bookid']), 'title': _text(result.get('bookname')),
+                 'subtitle': _text(result.get('booksub')), 'author': _text(result.get('authorname')),
+                 'date': date[:10], 'publisher': publisher, 'isbn': _text(result.get('bookisbn')),
+                 'language': _text(result.get('booklang')), 'pages': check_int(result.get('bookpages'), 0),
+                 'genres': _text(result.get('bookgenre')), 'description': _text(result.get('bookdesc')),
+                 # OpenLibrary's search gives a thumbnail, its large size is the cover to take
+                 'cover': re.sub(r'(covers\.openlibrary\.org/.*)-S\.jpg$', r'\1-L.jpg', _text(result.get('bookimg'))),
+                 'link': _text(result.get('booklink'))}
+        _matches[(bookid, source, match['id'])] = match
+        found.append(match)
+    return found
+
+
+def match_book(bookid, source: str, match_id: str, details: bool = True, cover: bool = True) -> str:
+    """ Apply the book a Fix Match search found: link the book to it at that source, and take its
+    details (title, subtitle, description, date, publisher, ISBN, language, pages, genres) and its
+    cover when asked. The cover is kept through refreshes, as one chosen in Edit is. A match at the
+    source the book comes from can't be its own id, so the book is locked instead, and a refresh
+    doesn't put the old match back. Returns what happened """
+    from lazylibrarian.cache import ImageType, cache_img  # noqa: PLC0415, it imports most of LazyLibrarian
+    found = _matches.get((bookid, source, match_id))
+    if not found:
+        raise NotFoundError('That match is no longer known, search again')
+    current = book_for_edit(bookid)
+    own = source == current['own_source']
+    values: dict = {'locked': True} if own else {}
+    if details:
+        values.update({key: found[match] for key, match in (
+            ('title', 'title'), ('subtitle', 'subtitle'), ('description', 'description'), ('isbn', 'isbn'),
+            ('language', 'language'), ('genre', 'genres')) if found[match]})
+        if found['date'] and books.valid_book_date(found['date']):
+            values['release_date'] = found['date']
+    message = save_book(bookid, values) if values else ''
+    db = database.DBConnection()
+    try:
+        column = book_source_columns()[source]
+        other = db.match(f"SELECT BookName FROM books WHERE ({column}=? OR BookID=?) AND BookID!=?",
+                         (match_id, match_id, bookid))
+        if other:
+            raise InvalidRequestError(f"{other['BookName']} is {match_id} at {source} already, it's in the library")
+        db.action(f"UPDATE books SET {column}=? WHERE BookID=?", (match_id, bookid))
+        if details:
+            if found['publisher']:
+                db.action("UPDATE books SET BookPub=? WHERE BookID=?", (found['publisher'], bookid))
+            if found['pages']:
+                db.action("UPDATE books SET BookPages=? WHERE BookID=?", (found['pages'], bookid))
+        if cover and found['cover'].startswith('http'):
+            link, ok, _ = cache_img(ImageType.BOOK, uuid.uuid4().hex, found['cover'], refresh=True)
+            if ok:
+                db.action("UPDATE books SET BookImg=? WHERE BookID=?", (link, bookid))
+    finally:
+        db.close()
+    said = f"{found['title'] or current['title']} is {match_id} at {source} now"
+    if own:
+        said += ", and locked so a refresh keeps it"
+    return f"{said}. {message}" if message else said
+
+
+def _save_source_ids(bookid, current: dict, asked: dict) -> str:
+    """ Link a book to other books at the info sources, by their ids there, an empty one unlinks it.
+    The id of the source it comes from is its own and stays. Returns what changed """
+    columns = book_source_columns()
+    changed = {name: _text(value).strip() for name, value in asked.items()
+               if name in columns and _text(value).strip() != current['source_ids'].get(name, '')}
+    if not changed:
+        return ''
+    if current['own_source'] in changed:
+        raise InvalidRequestError(f"Its {current['own_source']} id is the book's own, Add New adds a different one")
+    db = database.DBConnection()
+    try:
+        for name, value in changed.items():
+            other = db.match(f"SELECT BookName FROM books WHERE {columns[name]}=? AND BookID!=?", (value, bookid)) \
+                if value else None
+            if other:
+                raise InvalidRequestError(f"{other['BookName']} is {value} at {name} already")
+        for name, value in changed.items():
+            db.action(f"UPDATE books SET {columns[name]}=? WHERE BookID=?", (value or None, bookid))
+    finally:
+        db.close()
+    return ' '.join(f"{name}ID" for name in changed)
 
 
 def book_covers(bookid) -> list[dict]:
@@ -169,7 +291,7 @@ def save_book(bookid, values: dict) -> str:
     if author not in current['authors'] and author != current['author']:
         raise InvalidRequestError(f"There's no author {author}, add them first")
     cover = _text(values.get('cover'))
-    if cover and cover not in COVER_SOURCES and cover != 'hardcover':
+    if cover and cover not in COVER_SOURCES and cover not in ('hardcover', 'none'):
         raise InvalidRequestError(f"There's no cover {cover}")
     series_list = values.get('series')
     if series_list is None:
@@ -198,6 +320,8 @@ def save_book(bookid, values: dict) -> str:
     if 'narrator' in values and _text(values['narrator']) != current['narrator']:
         books.set_narrator(bookid, _text(values['narrator']))
         edited += ' Narrator'
+    if values.get('source_ids'):
+        edited += ' ' + _save_source_ids(bookid, current, values['source_ids'])
     if author != current['author']:
         edited += ' Author'
     # update_book also counts an empty field it stored over a missing one

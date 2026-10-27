@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator } from 'Components/Misc';
@@ -143,10 +144,14 @@ function PastIssues() {
                 <TableRowCell>
                   <Link to={`/magazine?title=${encodeURIComponent(issue.title)}`}>{issue.title}</Link>
                 </TableRowCell>
-                <TableRowCell className={styles.date}>{issue.issue}</TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={issue.issue} kind="issue" />
+                </TableRowCell>
                 <TableRowCell>{issue.releaseTitle}</TableRowCell>
                 <TableRowCell>{issue.indexer}</TableRowCell>
-                <TableRowCell className={styles.date}>{issue.date}</TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={issue.date} />
+                </TableRowCell>
               </TableRow>
             ))}
           </Table>

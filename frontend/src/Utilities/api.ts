@@ -68,7 +68,15 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   }
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // a proxy's or server's own error page isn't JSON, say what it was
+    const status = `${response.status} ${response.statusText}`.trim();
+    throw new ApiError(response.status, `The request failed (${status}), the log may say why`);
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, errorMessage(response.status, data));

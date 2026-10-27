@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { runCommand } from 'App/commands';
 import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
@@ -337,7 +338,9 @@ function BookIndex({ mediaType: fixedType, manage = false }: { mediaType?: Forma
                     <TableRowCell>
                       <Link to={`/author/${encodeURIComponent(book.authorId)}`}>{book.authorName}</Link>
                     </TableRowCell>
-                    <TableRowCell className={styles.date}>{book.releaseDate}</TableRowCell>
+                    <TableRowCell className={styles.date}>
+                      <FormattedDate value={book.releaseDate} />
+                    </TableRowCell>
                     <TableRowCell className={styles.date} title={formatDateTime(book.added)}>
                       {book.added ? relativeDate(book.added) : ''}
                     </TableRowCell>

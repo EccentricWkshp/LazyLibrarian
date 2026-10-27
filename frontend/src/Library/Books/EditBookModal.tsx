@@ -5,9 +5,9 @@ import { CheckInput, SelectInput, TextArea, TextInput } from 'Components/Form/Fo
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
-import { Label } from 'Components/Misc';
 import { EditColumns, EditField, EditModal, PictureChoices, useEdit } from 'Library/Edit/edit';
 import styles from 'Library/Edit/Edit.module.css';
+import BookSources from './BookSources';
 
 interface NamedValue {
   name: string;
@@ -35,6 +35,8 @@ interface BookEdit {
   addedBy: string;
   image: string;
   sourceIds: Record<string, string>;
+  // the source its own id is from
+  ownSource: string;
   series: SeriesEntry[];
   authorSeries: string[];
   authors: string[];
@@ -164,7 +166,7 @@ function EditBookModal({
             />
           </EditField>
 
-          <EditField label="Cover" help="Choose one found online, or keep it">
+          <EditField label="Cover" help="Choose one found online, none, or keep it. A refresh keeps the one chosen">
             <PictureChoices<{ source: string; path: string }>
               url={`/library/book/${encodeURIComponent(bookId)}/covers`}
               label="cover"
@@ -172,6 +174,8 @@ function EditBookModal({
               selected={book.cover ?? ''}
               name={(choice) => choice.source}
               onSelect={(choice) => edit.set('cover', choice && choice.source !== 'current' ? choice.source : '')}
+              isNone={book.cover === 'none'}
+              onNone={(isNone) => edit.set('cover', isNone ? 'none' : '')}
             />
           </EditField>
 
@@ -212,15 +216,7 @@ function EditBookModal({
             <CheckInput checked={book.locked} label="Lock" onChange={(locked) => edit.set('locked', locked)} />
             <span>Lock: a refresh doesn't change what's set here</span>
           </label>
-          <p className={styles.readonly}>
-            {Object.entries(book.sourceIds)
-              .filter(([, id]) => id)
-              .map(([source, id]) => (
-                <span key={source}>
-                  <Label>{source}</Label> {id}{' '}
-                </span>
-              ))}
-          </p>
+          <BookSources ids={book.sourceIds} own={book.ownSource} />
           {book.addedBy ? <p className={styles.readonly}>Added {book.addedBy}</p> : null}
         </>
       ) : null}

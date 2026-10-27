@@ -147,6 +147,10 @@ def magazine_scan(title=None):
 
         while '$' in mag_path:
             mag_path = os.path.dirname(mag_path)
+        # where the folder pattern's $ parts start, a title folder is found by its place below it
+        scan_root = issue_folder('magazine', CONFIG['MAG_DEST_FOLDER'])
+        while '$' in scan_root:
+            scan_root = os.path.dirname(scan_root)
 
         if CONFIG.get_bool('FULL_SCAN') and not onetitle:
             clean_maglibrary()
@@ -274,27 +278,27 @@ def magazine_scan(title=None):
                             except IndexError:
                                 calibreid = ''
 
+                            folder_title = title_folder(rootdir, scan_root, CONFIG['MAG_DEST_FOLDER'])
                             if calibreid:
                                 # it's a calibre folder, title is probably parent folder
                                 parent = os.path.dirname(rootdir)
                                 title = os.path.basename(parent)
                                 logger.debug(f"Using {title} from calibre folder {rootdir}")
+                            elif onetitle:
+                                # a scan of one magazine's folder only finds its issues
+                                title = onetitle
+                                logger.debug(f"Using {title}, the magazine scanned, for {rootdir}")
+                            elif folder_title:
+                                title = folder_title
+                                logger.debug(f"Using {title}, the $Title folder below {scan_root}, for {rootdir}")
                             else:
-                                try:
-                                    parts = CONFIG['MAG_DEST_FOLDER'].split(os.sep)
-                                    parts.reverse()
-                                    title_part = parts.index('$Title')
-                                    title_part = title_part * -1 - 1
-                                    title = rootdir.split(os.sep)[title_part]
-                                    logger.debug(f"Using {title} as part {title_part} from {rootdir}")
-                                except (ValueError, IndexError):
-                                    dateparts = get_dateparts(title)
-                                    if dateparts['style']:
-                                        parent = os.path.dirname(rootdir)
-                                        title = os.path.basename(parent)
-                                        logger.debug(f"Using {title} from parent folder {rootdir}")
-                                    else:
-                                        logger.debug(f"Using {title} from basename {rootdir}")
+                                dateparts = get_dateparts(title)
+                                if dateparts['style']:
+                                    parent = os.path.dirname(rootdir)
+                                    title = os.path.basename(parent)
+                                    logger.debug(f"Using {title} from parent folder {rootdir}")
+                                else:
+                                    logger.debug(f"Using {title} from basename {rootdir}")
 
                         datetype = ''
                         # is this magazine already in the database?
@@ -468,6 +472,27 @@ def magazine_scan(title=None):
         if 'MAGAZINE_SCAN' in threading.current_thread().name:
             threading.current_thread().name = 'WEBSERVER'
         db.close()
+
+
+def title_folder(folder: str, scan_root: str, pattern: str) -> str:
+    """ The magazine title a folder of issues gives, when a file's name and metadata don't: the
+    folder at $Title's place in the folder pattern, counted from the library folder the pattern's
+    $ parts start below, so an issue kept less deep than the pattern still gets its title folder
+    and not the one above it. Empty when the pattern has no $Title folder or the folder is above it """
+    parts = [part for part in pattern.replace('\\', '/').split('/') if part]
+    while parts and '$' not in parts[0]:  # the fixed folders are part of scan_root
+        parts.pop(0)
+    if '$Title' not in parts:
+        return ''
+    place = parts.index('$Title')
+    try:
+        below = os.path.relpath(folder, scan_root)
+    except ValueError:  # another drive
+        return ''
+    if below == '.' or below.startswith('..'):
+        return ''
+    folders = below.split(os.sep)
+    return folders[place].strip() if len(folders) > place else ''
 
 
 def format_issue_filename(base, mag_title, dateparts):

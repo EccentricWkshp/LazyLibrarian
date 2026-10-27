@@ -135,6 +135,33 @@ class AddBookTest(AddNewTestCase):
         self.assertEqual(search.call_args.args[0], [{'book_id': 'b2', 'media_type': 'audiobook'}])
 
 
+class AuthorLookupTest(AddNewTestCase):
+
+    def test_their_books_at_the_sources(self):
+        from lazylibrarian.services import library
+        self.author_loads()
+
+        def book(book_id, title, author_id='ol1', author='Lee Child', date='', in_library=False):
+            return {'id': book_id, 'title': title, 'author_id': author_id, 'author_name': author,
+                    'release_date': date, 'in_library': in_library, 'status': '', 'audio_status': ''}
+
+        found = {'authors': [], 'books': [
+            book('b1', 'Killing Floor', date='1997', in_library=True),
+            book('x1', 'Killing Floor!', 'hc9', date='1997'),
+            book('x2', 'Die Trying', 'hc9', 'lee child', '1998'),
+            book('x3', 'Persuader', 'hc9', 'Lee Child', '2003'),
+            book('x4', 'Make Me', 'ol1', 'Lee Child'),
+            book('x5', 'Gone Tomorrow', 'ol5', 'Someone Else', '2009')]}
+        with mock.patch.object(addnew, 'lookup', return_value=found) as lookup:
+            books = library.author_lookup('ol1')
+        lookup.assert_called_once_with('Lee Child', max_pages=library.AUTHOR_LOOKUP_PAGES)
+        self.assertEqual([(b['id'], b['title'], b['in_library']) for b in books],
+                         [('x3', 'Persuader', False), ('x4', 'Make Me', False), ('b2', 'Die Trying', True),
+                          ('b1', 'Killing Floor', True)],
+                         "Theirs by id or name, once per title, the ones the library hasn't got first, newest first")
+        self.assertEqual(books[2]['status'], 'Skipped', "Another source's copy is the library's own")
+
+
 class MagazineTest(AddNewTestCase):
 
     def test_lookup_and_add(self):

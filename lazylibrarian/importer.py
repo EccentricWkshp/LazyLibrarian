@@ -1193,9 +1193,10 @@ def import_book(bookid, ebook=None, audio=None, wait=False, reason='importer.imp
         _ = api.add_bookid_to_db(bookid, ebook, audio, reason)
 
 
-def search_for(searchterm, source=None):
+def search_for(searchterm, source=None, max_pages: int = 0):
     """
-        search openlibrary/goodreads/googlebooks for a searchterm, return a list of results
+        search openlibrary/goodreads/googlebooks for a searchterm, return a list of results.
+        max_pages limits the pages of results a paged source reads, instead of MAX_PAGES
     """
     searchinglogger = logging.getLogger('special.searching')
     if not source:
@@ -1204,6 +1205,7 @@ def search_for(searchterm, source=None):
     this_source = lazylibrarian.INFOSOURCES[source]
     api = this_source['api']
     api = api()  #api.__init__()
+    api.max_pages = max_pages
     if CONFIG[this_source['enabled']]:
         myqueue = Queue()
         search_api = threading.Thread(target=api.find_results,

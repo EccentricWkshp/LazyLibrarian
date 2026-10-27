@@ -61,13 +61,13 @@ def _text(result: dict, key: str) -> str:
     return '' if value is None else str(value)
 
 
-def lookup(term: str) -> dict:
+def lookup(term: str, max_pages: int = 0) -> dict:
     """ Authors and books matching a name, title or ISBN, best match first, each saying whether
-    it's in the library already """
+    it's in the library already. max_pages limits the pages of a paged source's results """
     term = (term or '').strip()
     if not term:
         raise InvalidRequestError('Type an author, a title or an ISBN to look for')
-    found = authors.search_sources(term)
+    found = authors.search_sources(term, max_pages)
     have = set(found['authorlist'])
     loading = set(found['loadlist'])
     statuses = {row['BookID']: row for row in found['booksearch']}

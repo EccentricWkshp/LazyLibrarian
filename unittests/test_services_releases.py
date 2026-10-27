@@ -94,6 +94,33 @@ class InteractiveSearchTest(SettingsMixin, LLTestCaseWithStartup):
         with self.assertRaises(NotFoundError):
             releases.download('nosuchrelease')
 
+    def test_a_provider_or_result_that_fails_leaves_the_rest(self):
+        good = _make_tor_result("Lee Child - Without Fail mp3", url="http://x/good")
+        odd = {**_make_tor_result("Lee Child - Without Fail m4b", url="http://x/odd"), 'tor_title': None}
+        with mock.patch.object(CONFIG, 'use_nzb', return_value=True), \
+                mock.patch.object(CONFIG, 'use_tor', return_value=True), \
+                mock.patch.object(CONFIG, 'use_direct', return_value=False), \
+                mock.patch.object(CONFIG, 'use_irc', return_value=False), \
+                mock.patch.object(CONFIG, 'use_rss', return_value=False), \
+                mock.patch.object(releases, 'iterate_over_znab_sites', side_effect=ValueError('bad page')), \
+                mock.patch.object(releases, 'iterate_over_torrent_sites', return_value=([good, odd], 1)):
+            found = releases.search('rb1', 'audiobook')
+        self.assertEqual([release['title'] for release in found], ['Lee Child - Without Fail mp3'])
+
+    def test_a_torrent_site_that_fails_is_blocked_not_the_search(self):
+        from lazylibrarian import providers
+        with mock.patch.object(providers, 'torrent_abb', side_effect=AttributeError('no post')), \
+                mock.patch.object(providers.BLOCKHANDLER, 'block_provider') as block:
+            saved = {key: CONFIG[key] for key in ('ABB', 'ABB_DLTYPES', 'TPB', 'TDL', 'LIME')}
+            self.addCleanup(lambda: [CONFIG.set_from_ui(key, value) for key, value in saved.items()])
+            for key in ('TPB', 'TDL', 'LIME'):
+                CONFIG.set_from_ui(key, False)
+            CONFIG.set_from_ui('ABB', True)
+            CONFIG.set_from_ui('ABB_DLTYPES', 'A')
+            results, count = providers.iterate_over_torrent_sites(_make_book('Lee Child', 'Without Fail'), 'audio')
+        self.assertEqual((results, count), ([], 0))
+        block.assert_called_once_with('ABB', 'AttributeError: no post')
+
     def test_needs_a_book_and_providers(self):
         with self.assertRaises(NotFoundError):
             releases.search('nosuchbook', 'ebook')

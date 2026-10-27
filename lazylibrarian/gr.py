@@ -325,7 +325,7 @@ class GoodReads:
 
                     loop_count += 1
 
-                    if 0 < CONFIG.get_int('MAX_PAGES') < loop_count:
+                    if 0 < (getattr(self, 'max_pages', 0) or CONFIG.get_int('MAX_PAGES')) < loop_count:
                         resultxml = None
                         self.logger.warning('Maximum results page search reached, still more results available')
                     elif totalresults and resultcount >= totalresults:

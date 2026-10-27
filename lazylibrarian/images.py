@@ -311,6 +311,19 @@ def chosen_cover(cover) -> bool:
         name.endswith('.jpg') and all(c in string.hexdigits for c in name[:32])
 
 
+def placeholder_cover(dest: str) -> bool:
+    """ Write the "no cover" picture to dest as a JPEG, for a cover chosen to be none """
+    # beside the code, which is where PROG_DIR is when LazyLibrarian runs
+    source = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'images', 'nocover.png')
+    try:
+        os.makedirs(syspath(os.path.dirname(dest)), exist_ok=True)
+        with open(syspath(source), 'rb') as f:
+            return save_jpeg(f.read(), dest)
+    except OSError as why:
+        logging.getLogger(__name__).warning(f"Can't read {source}: {why}")
+        return False
+
+
 def chosen_author_image(image) -> bool:
     """ Is this an author picture chosen when the author was edited? Those are cached as
     cache/author/chosen_<id>.jpg (authors.cache_author_image), and a refresh keeps them """

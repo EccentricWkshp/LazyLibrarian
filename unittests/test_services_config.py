@@ -105,6 +105,12 @@ class ConfigValuesTest(LLTestCaseWithStartup):
         messages = settings.save_values({'OWNER_SENDTO': 'a@k.com, kindle'})
         self.assertEqual(messages, ["The send to addresses weren't changed, kindle isn't an email address"])
 
+    def test_date_formats(self):
+        found = settings.date_formats()
+        self.assertEqual((found['date_format'], found['issue_date_format']), (CONFIG['DATE_FORMAT'], CONFIG['ISS_FORMAT']))
+        self.assertEqual(len(found['months']), 12)
+        self.assertTrue(all(len(month) == 2 and month[0] for month in found['months']), found['months'])
+
     def test_month_names(self):
         table = [['en_GB.UTF-8'], *[[f'month{n}'] for n in range(1, 13)]]
         with mock.patch.object(lazylibrarian, 'MONTHNAMES', [table, table]), \

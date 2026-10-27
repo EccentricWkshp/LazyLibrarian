@@ -19,6 +19,7 @@ import hashlib
 import logging
 import threading
 import time
+import traceback
 
 from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
@@ -67,21 +68,46 @@ def _search_book(book_id, library: str) -> dict:
 
 
 def _provider_results(book: dict, searchtype: str) -> list[tuple[str, list]]:
-    """ What each kind of provider found, as the automatic search's first try asks them """
+    """ What each kind of provider found, as the automatic search's first try asks them. One kind
+    failing is logged and the others are still asked """
+    logger = logging.getLogger(__name__)
     found = []
     for source, used, iterate in (('nzb', CONFIG.use_nzb, iterate_over_znab_sites),
                                   ('tor', CONFIG.use_tor, iterate_over_torrent_sites),
                                   ('direct', CONFIG.use_direct, iterate_over_direct_sites),
-                                  ('irc', CONFIG.use_irc, iterate_over_irc_sites)):
-        if used():
-            results, nprov = iterate(book, searchtype)
-            if nprov and results:
-                found.append((source, results))
-    if CONFIG.use_rss():
-        results, nprov, _dltypes = iterate_over_rss_sites()
+                                  ('irc', CONFIG.use_irc, iterate_over_irc_sites),
+                                  ('rss', CONFIG.use_rss, None)):
+        if not used():
+            continue
+        try:
+            if iterate:
+                results, nprov = iterate(book, searchtype)
+            else:
+                results, nprov, _dltypes = iterate_over_rss_sites()
+        except Exception:
+            logger.error(f"Interactive search of the {source} providers failed: {traceback.format_exc()}")
+            continue
         if nprov and results:
-            found.append(('rss', results))
+            found.append((source, results))
     return found
+
+
+def _evaluated(results: list, book: dict, searchtype: str, source: str) -> list[dict]:
+    """ The results scored and checked; when that fails, each on its own, leaving out any that can't
+    be, so one odd result doesn't lose the rest """
+    logger = logging.getLogger(__name__)
+    try:
+        return evaluate_results(results, book, searchtype, source)
+    except Exception:
+        logger.error(f"Evaluating the {source} results failed: {traceback.format_exc()}")
+    evaluated = []
+    for result in results:
+        try:
+            evaluated += evaluate_results([result], book, searchtype, source)
+        except Exception as why:
+            logger.warning(f"Leaving out {result.get('tor_title') or result.get('nzbtitle')}: "
+                           f"{type(why).__name__} {why}")
+    return evaluated
 
 
 def search(book_id, media_type: str) -> list[dict]:
@@ -101,7 +127,7 @@ def search(book_id, media_type: str) -> list[dict]:
         for key in [key for key, (when, _, _) in _releases.items() if now - when > KEEP]:
             del _releases[key]
     for source, results in _provider_results(book, searchtype):
-        for result in evaluate_results(results, book, searchtype, source):
+        for result in _evaluated(results, book, searchtype, source):
             rejections = list(result['rejections'])
             if result['score'] < ratio:
                 rejections.append(f"Scores {round(result['score'])}, under the {ratio} the automatic search "

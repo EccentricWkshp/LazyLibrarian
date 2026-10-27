@@ -52,6 +52,12 @@
   }
 }
 
+.none {
+  justify-content: center;
+  min-width: 70px;
+  min-height: 100px;
+}
+
 .selected {
   border-color: var(--accentDeep, var(--primaryColor));
 }

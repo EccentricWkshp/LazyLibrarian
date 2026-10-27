@@ -4,13 +4,16 @@
 #   Test services/magazines.py
 
 import logging
+import os
+import shutil
 from unittest import mock
 
 import lazylibrarian
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.filesystem import DIRS
 from lazylibrarian.services import InvalidRequestError, NotFoundError, magazines
 from lazylibrarian.startup import StartupLazyLibrarian
-from unittests.unittesthelpers import LLTestCaseWithDB
+from unittests.unittesthelpers import TESTDIR, LLTestCaseWithDB
 
 
 class MagazineServiceTest(LLTestCaseWithDB):
@@ -180,3 +183,32 @@ class MagazineServiceTest(LLTestCaseWithDB):
         with mock.patch.object(magazines.wikidata, 'details', return_value={}), \
                 self.assertRaisesRegex(InvalidRequestError, 'no item Q1'):
             magazines.set_wikidata('Wired', 'Q1')
+
+    def test_scan_takes_the_title_folder_below_the_library(self):
+        from lazylibrarian import magazinescan
+        self.assertEqual(magazinescan.title_folder(os.path.join('/m', 'Wood Magazine'), '/m', '$Title/$IssueDate'),
+                         'Wood Magazine', "An issue kept less deep than the pattern")
+        self.assertEqual(magazinescan.title_folder(os.path.join('/m', 'Wood', '2011'), '/m', '_Mags/$Title/$IssueDate'),
+                         'Wood', 'The fixed folders are the library')
+        self.assertEqual(magazinescan.title_folder('/m', '/m', '$Title'), '')
+        self.assertEqual(magazinescan.title_folder(os.path.join('/m', '2011'), '/m', '$IssueDate/$Title'), '')
+        root = os.path.join(TESTDIR, 'magscan')
+        shutil.rmtree(root, ignore_errors=True)
+        os.makedirs(os.path.join(root, 'Wood Magazine'))
+        with open(os.path.join(root, 'Wood Magazine', 'Wood 20110206.pdf'), 'wb') as f:
+            f.write(b'%PDF-1.4 not really')
+        saved = {key: CONFIG[key] for key in ('MAG_DIR', 'MAG_DEST_FOLDER', 'MAG_DEST_FILE', 'IMP_MAGCOVER',
+                                              'IMP_MAGOPF', 'MAG_RENAME', 'FULL_SCAN')}
+        self.addCleanup(lambda: [CONFIG.set_from_ui(key, value) for key, value in saved.items()])
+        for key, value in (('MAG_DIR', root), ('MAG_DEST_FOLDER', '$Title/$IssueDate'),
+                           ('MAG_DEST_FILE', '$IssueDate - $Title'), ('IMP_MAGCOVER', False), ('IMP_MAGOPF', False),
+                           ('MAG_RENAME', False), ('FULL_SCAN', False)):
+            CONFIG.set_from_ui(key, value)
+        if DIRS.config is not CONFIG:  # where the library folders are looked up
+            saved_dir = DIRS.config['MAG_DIR']
+            self.addCleanup(DIRS.config.set_from_ui, 'MAG_DIR', saved_dir)
+            DIRS.config.set_from_ui('MAG_DIR', root)
+        magazinescan.magazine_scan()
+        self.assertEqual(self.sql("SELECT Title, IssueDate FROM issues WHERE IssueFile LIKE '%Wood%'"),
+                         [{'Title': 'Wood Magazine', 'IssueDate': '20110206'}],
+                         'The title folder, not the library folder above it')

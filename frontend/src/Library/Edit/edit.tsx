@@ -2,10 +2,12 @@
 // changed sent back when it's saved, and pictures to choose one of
 import { useQuery } from '@tanstack/react-query';
 import classNames from 'classnames';
+import { ImageOff } from 'lucide-react';
 import { ReactNode, useState } from 'react';
 import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
 import { FormInputHelpText, FormLabel, FormRow } from 'Components/Form/Form';
+import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator } from 'Components/Misc';
@@ -137,6 +139,8 @@ export function PictureChoices<C extends { path: string }>({
   selected,
   name,
   onSelect,
+  isNone = false,
+  onNone,
 }: {
   url: string;
   label: string;
@@ -144,6 +148,9 @@ export function PictureChoices<C extends { path: string }>({
   selected: string;
   name: (choice: C) => string;
   onSelect: (choice: C | null) => void;
+  // none chosen, and choosing it: no picture at all, which a refresh keeps
+  isNone?: boolean;
+  onNone?: (isNone: boolean) => void;
 }) {
   const [isLooking, setIsLooking] = useState(false);
   const found = useQuery({
@@ -172,6 +179,16 @@ export function PictureChoices<C extends { path: string }>({
           <span>{name(choice)}</span>
         </Link>
       ))}
+      {onNone ? (
+        <Link
+          className={classNames(styles.picture, styles.choice, styles.none, isNone && styles.selected)}
+          title={`No ${label}`}
+          onPress={() => onNone(!isNone)}
+        >
+          <Icon name={ImageOff} size={32} />
+          <span>None</span>
+        </Link>
+      ) : null}
       {!found.data ? (
         <Button isSpinning={found.isFetching} onPress={() => setIsLooking(true)}>
           Find {label}s

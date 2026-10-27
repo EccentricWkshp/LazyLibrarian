@@ -129,6 +129,11 @@ class ReaderTest(LLTestCaseWithDB):
         self.assertEqual(self.sql("SELECT LatestCover FROM comics")[0]['LatestCover'], cover,
                          'The cached cover, not a picture next to the file')
 
+        self.assertEqual(magazines.set_issue_cover('I1', 0), 'It has no cover now')
+        self.assertEqual(comics.set_issue_cover('CV1', '54', 0), 'It has no cover now')
+        cover = self.sql("SELECT Cover FROM comicissues")[0]['Cover']
+        self.assertTrue(os.path.exists(os.path.join(DIRS.DATADIR, cover)), 'The no cover picture, cached')
+
     def test_cover_commands(self):
         command = {'id': 0}
         with mock.patch.object(commands, '_update'):

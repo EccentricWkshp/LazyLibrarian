@@ -5,6 +5,7 @@ import { ExternalLink, SquarePen } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { setBookStatus } from 'Author/authors';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator, ProgressBar } from 'Components/Misc';
@@ -160,7 +161,9 @@ function SeriesDetails() {
                 <TableRowCell>
                   <Link to={`/author/${encodeURIComponent(book.authorId)}`}>{book.authorName}</Link>
                 </TableRowCell>
-                <TableRowCell className={styles.date}>{book.releaseDate}</TableRowCell>
+                <TableRowCell className={styles.date}>
+                  <FormattedDate value={book.releaseDate} />
+                </TableRowCell>
                 {formats.map((format) => (
                   <FormatCell key={format.format} book={book} format={format} />
                 ))}

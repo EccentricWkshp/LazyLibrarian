@@ -105,6 +105,15 @@ class ApiKey(ApiModel):
     key: str
 
 
+class DateFormats(ApiModel):
+    # $Y year, $y two digits, $m month, $d day, $D day unless the 1st, $B month name, $b short name
+    date_format: str
+    author_date_format: str
+    issue_date_format: str
+    # January to December, each [name, short name]
+    months: list[list[str]]
+
+
 @router.get('', response_model=list[ConfigValue])
 def get_values(keys: list[str] = Query(...)):
     """ Settings by name, with their kind and default """
@@ -115,6 +124,13 @@ def get_values(keys: list[str] = Query(...)):
 def get_choices():
     """ The choices of the settings chosen from a list """
     return settings.config_choices()
+
+
+@router.get('/dates', response_model=DateFormats)
+def get_date_formats():
+    """ How the pages show dates, as Settings, UI says: a book's and others, an author's born and
+    died, an issue's; and the months' names and short names in the date language """
+    return settings.date_formats()
 
 
 @router.put('', response_model=Saved)

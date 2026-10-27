@@ -824,10 +824,11 @@ def unlink_source(authorid, source: str):
     logger.info(f"Unlinked {source} from author {authorid}")
 
 
-def search_sources(searchfor: str) -> dict:
+def search_sources(searchfor: str, max_pages: int = 0) -> dict:
     """ Search the configured info source, and the others if MULTI_SOURCE is on, for an author,
-        book or isbn. Returns the results, best match first, and which of them we already have:
-        authors (and ones still loading) by their id in the configured source, and books """
+        book or isbn, reading max_pages of a paged source's results when given. Returns the results,
+        best match first, and which of them we already have: authors (and ones still loading) by
+        their id in the configured source, and books """
     logger = logging.getLogger('special.searching')
     lazylibrarian.SEARCHING = 1
     try:
@@ -844,12 +845,12 @@ def search_sources(searchfor: str) -> dict:
         # we don't know if searchfor is an author, book or isbn
         results = []
         try:
-            results = search_for(searchfor, CONFIG['BOOK_API'])
+            results = search_for(searchfor, CONFIG['BOOK_API'], max_pages)
             logger.debug(f"Found {len(results)} from {CONFIG['BOOK_API']}")
             if CONFIG.get_bool('MULTI_SOURCE'):
                 for info_src, itm in lazylibrarian.INFOSOURCES.items():
                     if CONFIG['BOOK_API'] != info_src and CONFIG[itm['enabled']]:
-                        more = search_for(searchfor, info_src)
+                        more = search_for(searchfor, info_src, max_pages)
                         logger.debug(f"Found {len(more)} from {info_src}")
                         # Prefer our configured book api if equal matches by downgrading all the others slightly.
                         for res in more:

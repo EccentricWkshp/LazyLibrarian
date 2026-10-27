@@ -18,7 +18,9 @@
 #   auth.py, and /api/v1 also takes the API keys.
 
 import json
+import logging
 import os
+import traceback
 from http import HTTPStatus
 
 from a2wsgi import WSGIMiddleware
@@ -117,6 +119,13 @@ def create_app(http_root: str, legacy_app, ui_dir: str = '') -> FastAPI:
     @app.exception_handler(ServiceError)
     async def bad_request(request: Request, exc: ServiceError):
         return JSONResponse({'detail': str(exc)}, status_code=400)
+
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception):
+        """ What went wrong, in the log with where, and to the page as a message it can show """
+        logging.getLogger(__name__).error(f"{request.method} {request.url.path} failed: "
+                                          f"{''.join(traceback.format_exception(exc))}")
+        return JSONResponse({'detail': f"{type(exc).__name__}: {exc}. The log has more"}, status_code=500)
 
     router = APIRouter(prefix=root)
 

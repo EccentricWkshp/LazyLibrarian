@@ -156,8 +156,12 @@ class BookEdit(ApiModel):
     added_by: str
     # its cover now
     image: str
-    # by source
+    # its id at each info source, by the source's name
     source_ids: dict[str, str]
+    # the source its own id is from, that id can't be changed
+    own_source: str = ''
+    # the sources Fix Match can search, the one searched first first
+    match_sources: list[str] = []
     series: list[SeriesEntry]
     # the series of its author, to add it to
     author_series: list[str]
@@ -182,15 +186,42 @@ class BookChange(ApiModel):
     # every series it's in, one without a number is taken out
     series: list[SeriesEntry] | None = None
     opf_fields: list[NamedValue] | None = None
-    # one of the covers found, by its source
+    # one of the covers found, by its source, or none for no cover
     cover: str | None = None
     # a folder or file to import its files from
     import_from: str | None = None
+    # its ids at the other info sources, by the source's name, empty to unlink it
+    source_ids: dict[str, str] | None = None
 
 
 class CoverChoice(ApiModel):
     source: str
     path: str
+
+
+class MatchBook(ApiModel):
+    source: str
+    id: str
+    title: str
+    subtitle: str
+    author: str
+    date: str
+    publisher: str
+    isbn: str
+    language: str
+    pages: int
+    genres: str
+    description: str
+    cover: str
+    link: str
+
+
+class MatchChoice(ApiModel):
+    source: str
+    id: str
+    # take its title, description, date and the rest, and its cover
+    details: bool = True
+    cover: bool = True
 
 
 @router.get('/library/book/{book_id}/edit', response_model=BookEdit)
@@ -207,6 +238,20 @@ def save_book(book_id: str, change: BookChange):
 def book_covers(book_id: str):
     """ Covers for the book found online, the current one first. It takes a while """
     return editing.book_covers(book_id)
+
+
+@router.get('/library/book/{book_id}/match', response_model=list[MatchBook])
+def book_matches(book_id: str, source: str, term: str = ''):
+    """ Fix Match, as Plex's and Jellyfin's Identify: the books an info source finds for the book's
+    author and title, or term (or an ISBN), to choose the right one from """
+    return editing.book_source_search(book_id, source, term)
+
+
+@router.post('/library/book/{book_id}/match', response_model=Message)
+def match_book(book_id: str, choice: MatchChoice):
+    """ Link the book to the one a Fix Match search found, and take its details and cover if asked.
+    One at the book's own source locks the book, so a refresh keeps the fix """
+    return {'message': editing.match_book(book_id, choice.source, choice.id, choice.details, choice.cover)}
 
 
 # --- magazines and their issues

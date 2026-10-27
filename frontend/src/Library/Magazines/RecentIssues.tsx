@@ -2,6 +2,7 @@
 // cover opens the issue in the reader, its name goes to the magazine or comic
 import { useQuery } from '@tanstack/react-query';
 import { Layers, Newspaper, RefreshCw } from 'lucide-react';
+import FormattedDate from 'Components/FormattedDate';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator } from 'Components/Misc';
 import PageContent from 'Components/Page/PageContent';
@@ -56,8 +57,13 @@ function RecentIssues({ mediaType }: { mediaType: 'magazine' | 'comic' }) {
                     {issue.title}
                   </Link>
                   <div className={styles.muted}>
-                    {isComic ? `#${issue.issue}` : issue.issue}
-                    {issue.acquired ? ` · ${issue.acquired}` : ''}
+                    {isComic ? `#${issue.issue}` : <FormattedDate value={issue.issue} kind="issue" />}
+                    {issue.acquired ? (
+                      <>
+                        {' · '}
+                        <FormattedDate value={issue.acquired} />
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </div>

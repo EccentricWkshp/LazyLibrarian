@@ -59,7 +59,7 @@ from lazylibrarian.formatter import (
     thread_name,
     unaccented,
 )
-from lazylibrarian.images import chosen_cover, get_book_cover
+from lazylibrarian.images import chosen_cover, get_book_cover, placeholder_cover
 from lazylibrarian.importer import add_author_to_db, update_totals
 from lazylibrarian.manual_import import process_book_from_dir
 from lazylibrarian.manualbook import search_item
@@ -723,9 +723,8 @@ def book_for_edit(bookid, library: str = 'eBook', images: bool = False) -> dict:
     db = database.DBConnection()
     try:
         authors = db.select("SELECT AuthorName from authors WHERE Status !='Ignored' ORDER by AuthorName COLLATE NOCASE")
-        bookdata = db.match("SELECT BookName,BookID,BookSub,BookGenre,BookLang,BookDesc,books.Manual,AuthorName,"
-                            "books.AuthorID,BookDate,ScanResult,BookAdded,BookIsbn,WorkID,LT_WorkID,Narrator,BookFile,"
-                            "books.gr_id,books.gb_id,books.ol_id, books.hc_id from books,authors WHERE "
+        # every source's id of it too
+        bookdata = db.match("SELECT books.*,AuthorName from books,authors WHERE "
                             "books.AuthorID = authors.AuthorID and BookID=?", (bookid,))
         seriesdict = db.select("SELECT SeriesName, SeriesNum from member,series where "
                                "series.SeriesID=member.SeriesID and BookID=?", (bookid,))
@@ -849,7 +848,13 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
 
         coverlink = bookdata['BookImg']
         covertype = COVER_SUFFIXES.get(cover, '')
-        if covertype:
+        if cover == 'none':
+            # the placeholder, chosen as its cover, so neither a refresh nor the cover check finds it another
+            coverid = uuid.uuid4().hex
+            if placeholder_cover(os.path.join(DIRS.CACHEDIR, "book", coverid + '.jpg')):
+                coverlink = 'cache/book/' + coverid + '.jpg'
+                edited += 'Cover (none) '
+        elif covertype:
             coverid = uuid.uuid4().hex
             coverlink = 'cache/book/' + coverid + '.jpg'
             coverfile = os.path.join(DIRS.CACHEDIR, "book", coverid + '.jpg')

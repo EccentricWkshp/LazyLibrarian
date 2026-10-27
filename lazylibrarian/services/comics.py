@@ -27,6 +27,7 @@ from lazylibrarian.comicsearch import search_comics
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS, path_exists, setperm
 from lazylibrarian.formatter import check_int, now, strip_quotes
+from lazylibrarian.images import placeholder_cover
 from lazylibrarian.magazinescan import remove_if_empty
 from lazylibrarian.services import InvalidRequestError, NotFoundError
 from lazylibrarian.services.files import delete_issue_file
@@ -327,20 +328,25 @@ def set_issue_cover(comicid, issueid, page: int) -> str:
         issue = db.match('SELECT IssueFile FROM comicissues WHERE ComicID=? AND IssueID=?', (comicid, issueid))
         if not issue:
             raise NotFoundError(f"No issue {issueid} of comic {comicid}")
-        if not issue['IssueFile'] or not path_exists(issue['IssueFile']):
-            raise InvalidRequestError(f"Issue {issueid} has no file to make a cover from")
-        coverfile = page_cover(issue['IssueFile'], page)
-        if not coverfile:
-            raise InvalidRequestError(f"There's no page {page} to make a cover from")
         myhash = uuid.uuid4().hex
-        copyfile(coverfile, os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg'))
-        setperm(os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg'))
+        cached = os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg')
+        if not page:  # none
+            if not placeholder_cover(cached):
+                raise InvalidRequestError("The no cover picture couldn't be made, see the log")
+        else:
+            if not issue['IssueFile'] or not path_exists(issue['IssueFile']):
+                raise InvalidRequestError(f"Issue {issueid} has no file to make a cover from")
+            coverfile = page_cover(issue['IssueFile'], page)
+            if not coverfile:
+                raise InvalidRequestError(f"There's no page {page} to make a cover from")
+            copyfile(coverfile, cached)
+        setperm(cached)
         db.action('UPDATE comicissues SET Cover=? WHERE ComicID=? AND IssueID=?',
                   (f'cache/comic/{myhash}.jpg', comicid, issueid))
         set_latest(db, comicid)
     finally:
         db.close()
-    return f"The cover is page {page} now"
+    return f"The cover is page {page} now" if page else "It has no cover now"
 
 
 def mark_issues(action: str, issues) -> str | None:

@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { runCommand } from 'App/commands';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
+import FormattedDate from 'Components/FormattedDate';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
@@ -39,6 +40,7 @@ import CoverPickerModal from 'Library/Reader/CoverPickerModal';
 import { canRead, filePath, readerPath, sendToDevice } from 'Library/Reader/reading';
 import { IssueSchedule, MagazineDetail, MagazineIssue } from 'typings/Library';
 import { api } from 'Utilities/api';
+import { useDates } from 'Utilities/dates';
 import EditIssueModal from './EditIssueModal';
 import EditMagazineModal from './EditMagazineModal';
 import { deleteMagazines, setMagazineStatus } from './MagazineIndex';
@@ -70,7 +72,8 @@ const ISSUE_ACTIONS = [
 
 function Schedule({ schedule, title }: { schedule: IssueSchedule; title: string }) {
   const [showAll, setShowAll] = useState(false);
-  const missing = schedule.missing;
+  const dates = useDates();
+  const missing = schedule.missing.map(dates.issue);
   const howOften = frequencyName(schedule.frequency);
 
   if (!schedule.next && !missing.length) {
@@ -82,7 +85,8 @@ function Schedule({ schedule, title }: { schedule: IssueSchedule; title: string 
       {schedule.next ? (
         <p className={schedule.overdue ? styles.overdue : styles.muted}>
           {howOften ? `${howOften}${schedule.inferred ? ', judging by its issues' : ''}. ` : ''}
-          The next issue{/^\d+$/.test(schedule.next) ? ` is number ${schedule.next}` : ` is due around ${schedule.next}`}
+          The next issue
+          {/^\d+$/.test(schedule.next) ? ` is number ${schedule.next}` : ` is due around ${dates.issue(schedule.next)}`}
           {schedule.overdue ? ', and it is overdue' : ''}.
         </p>
       ) : null}
@@ -118,6 +122,7 @@ function IssueCard({
   onCover: () => void;
 }) {
   const readable = !!issue.format && canRead(issue.format);
+  const date = useDates().issue(issue.date);
 
   return (
     <div className={styles.issue}>
@@ -132,7 +137,9 @@ function IssueCard({
       <div className={styles.issueInfo}>
         <label className={styles.check}>
           <CheckInput checked={isSelected} label={`Select ${issue.date}`} onChange={onSelectedChange} />
-          <span className={styles.issueDate}>{issue.date}</span>
+          <span className={styles.issueDate} title={issue.date}>
+            {date}
+          </span>
         </label>
         {issue.number || issue.pages ? (
           <div className={styles.muted}>
@@ -156,7 +163,7 @@ function IssueCard({
               <Link to={filePath('issue', issue.id, '', true)} noRouter={true} title="Download">
                 <Icon name={Download} size={14} />
               </Link>
-              <Link title="Send to Device" onPress={() => sendToDevice('issue', issue.id, issue.date)}>
+              <Link title="Send to Device" onPress={() => sendToDevice('issue', issue.id, date)}>
                 <Icon name={Send} size={14} />
               </Link>
               <Link title="Choose the cover" onPress={onCover}>
@@ -300,9 +307,17 @@ function MagazineDetails() {
                   onChange={(status) => setMagazineStatus([data.title], status)}
                 />
                 <Label>{plural(data.issues, 'issue')}</Label>
-                {data.latestIssue ? <Label>Latest {data.latestIssue}</Label> : null}
+                {data.latestIssue ? (
+                  <Label>
+                    Latest <FormattedDate value={data.latestIssue} kind="issue" />
+                  </Label>
+                ) : null}
                 {data.language ? <Label>{data.language}</Label> : null}
-                {data.added ? <Label>Added {data.added}</Label> : null}
+                {data.added ? (
+                  <Label>
+                    Added <FormattedDate value={data.added} />
+                  </Label>
+                ) : null}
               </div>
               {details.length ? <p className={styles.muted}>{details.join(' · ')}</p> : null}
               {data.description ? <p className={styles.overview}>{data.description}</p> : null}

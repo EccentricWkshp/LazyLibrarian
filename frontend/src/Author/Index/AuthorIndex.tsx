@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { LayoutGrid, Plus, Table as TableIcon, Trash2, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
@@ -301,7 +302,12 @@ function AuthorIndex() {
                   {author.lastBook ? (
                     <>
                       {author.lastBook.title}
-                      {author.lastBook.date ? <span className={styles.muted}> ({author.lastBook.date})</span> : null}
+                      {author.lastBook.date ? (
+                        <span className={styles.muted}>
+                          {' ('}
+                          <FormattedDate value={author.lastBook.date} />)
+                        </span>
+                      ) : null}
                     </>
                   ) : null}
                 </TableRowCell>
