@@ -34,12 +34,12 @@ function SelectFolderModalContent({ initialPath = '', onFolderSelect, onModalClo
     enabled: browsing !== null,
   });
 
-  // with nowhere to start from yet, start where downloads are
+  // with nowhere to start from yet, start where downloads are, keeping a folder typed meanwhile
   useEffect(() => {
     if (browsing === null && suggestions.data) {
       const first = suggestions.data[0]?.path ?? '';
       setBrowsing(first);
-      setPath(first);
+      setPath((typed) => typed || first);
     }
   }, [browsing, suggestions.data]);
 

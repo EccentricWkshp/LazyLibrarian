@@ -42,6 +42,8 @@ class ManualImportItem(ApiModel):
     book: Target | None
     queue_id: int | None
     rejections: list[str]
+    # the issue the name says, by magazine and comic, for when it's chosen as one
+    issues: dict[str, str] = {}
 
 
 class ManualImportFolder(ApiModel):
@@ -86,6 +88,16 @@ class SuggestedFolder(ApiModel):
 def suggested_folders():
     """ Where downloads are: the download directories and the remote path mappings' local paths """
     return manualimport.suggested_folders()
+
+
+class Periodical(Target):
+    date_type: str = ''
+
+
+@router.get('/manualimport/titles', response_model=list[Periodical])
+def titles(media_type: str = Query(alias='mediaType'), term: str = ''):
+    """ Magazines or comics (mediaType) in the library with every word of term in their title """
+    return manualimport.search_titles(media_type, term)
 
 
 @router.get('/book', response_model=list[Book], tags=['Book'])

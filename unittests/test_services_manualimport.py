@@ -7,12 +7,14 @@
 import logging
 import os
 import time
+import zipfile
 from unittest import mock
 
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.postprocess import replace_audiobook_files
 from lazylibrarian.services import InvalidRequestError, NotFoundError, commands, manualimport, queue
+from unittests.test_fulltext import text_pdf
 from unittests.test_postprocess import ProcessDirTestCase
 
 
@@ -351,6 +353,130 @@ class ReplaceAudiobookTest(ManualImportTestCase):
         replace_audiobook_files(self.library, self.library, logging.getLogger(__name__))
         replace_audiobook_files(os.path.dirname(self.library), self.library, logging.getLogger(__name__))
         self.assertEqual(len(os.listdir(self.library)), 3)
+
+
+class PeriodicalTest(ManualImportTestCase):
+    """ Magazine and comic issues, from a folder and as a queued download's, as books are """
+
+    def setUp(self):
+        super().setUp()
+        for key in ('MAG_DIR', 'COMIC_DIR', 'MAG_DEST_FOLDER', 'COMIC_DEST_FOLDER'):
+            self.addCleanup(setattr, CONFIG.config[key], 'value', CONFIG.config[key].value)
+        CONFIG.set_str('MAG_DIR', os.path.join(self.test_root, 'mags'))
+        CONFIG.set_str('COMIC_DIR', os.path.join(self.test_root, 'comics'))
+        CONFIG.set_str('MAG_DEST_FOLDER', '$Title/$IssueDate')
+        CONFIG.set_str('COMIC_DEST_FOLDER', '$Title/$Issue')
+        self.db.action("INSERT OR REPLACE INTO magazines (Title,DateType) VALUES ('Wood Magazine','')")
+        self.db.action("INSERT OR REPLACE INTO comics (ComicID,Title,Publisher) VALUES ('CV777','Saga','Image')")
+        # what an import starts afterwards, retention and the search index, isn't what's tested
+        patch = mock.patch('lazylibrarian.services.magazines.after_import')
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        # the database is shared by the class's tests
+        for table, column, value in (('magazines', 'Title', 'Wood Magazine'), ('issues', 'Title', 'Wood Magazine'),
+                                     ('comics', 'ComicID', 'CV777'), ('comicissues', 'ComicID', 'CV777')):
+            self.db.action(f"DELETE FROM {table} WHERE {column}=?", (value,))
+        super().tearDown()
+
+    def pdf(self, *names):
+        path = self.write(*names)
+        with open(path, 'wb') as f:
+            f.write(text_pdf(['Wood Magazine May 2024']))
+        return path
+
+    def cbz(self, *names):
+        path = self.write(*names)
+        with zipfile.ZipFile(path, 'w') as archive:
+            archive.writestr('001.jpg', b'not really a picture')
+        return path
+
+    def test_a_folder_of_issues(self):
+        self.pdf("Wood Magazine - May 2024.pdf")
+        self.cbz("Saga 012 (2013).cbz")
+        self.write("John Doe - Test Book One.epub")
+        items = {item['relative_path']: item for item in manualimport.candidates(self.incoming)['items']}
+        magazine = items["Wood Magazine - May 2024.pdf"]
+        self.assertEqual((magazine['media_type'], magazine['book']['id'], magazine['book']['issue'],
+                          magazine['rejections']), ('magazine', 'Wood Magazine', '2024-05-01', []),
+                         'A pdf that looks like an issue is one')
+        comic = items["Saga 012 (2013).cbz"]
+        self.assertEqual((comic['media_type'], comic['book']['id'], comic['book']['issue'], comic['rejections']),
+                         ('comic', 'CV777', '12', []))
+        book = items["John Doe - Test Book One.epub"]
+        self.assertEqual((book['media_type'], book['book']['id']), ('ebook', 'mi_001'), 'A book is still a book')
+        self.assertEqual(book['issues']['magazine'], '', 'What it would be as an issue, to start choosing from')
+
+    def test_an_issue_not_in_the_library_yet(self):
+        self.pdf("Wood Magazine - May 2024.pdf")
+        have = os.path.join(self.library_dir, "Wood Magazine 2024-05-01.pdf")
+        with open(have, 'w') as f:
+            f.write('an issue')
+        self.db.action("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Wood Magazine','x',"
+                       "'2024-05-01',?)", (have,))
+        item = manualimport.candidates(self.incoming)['items'][0]
+        self.assertTrue(item['rejections'][0].startswith(manualimport.ALREADY), item['rejections'])
+
+    def test_a_magazine_issue_from_a_folder(self):
+        pdf = self.pdf("Wood Magazine - May 2024.pdf")
+        manualimport.import_item({'path': pdf, 'files': [pdf], 'media_type': 'magazine',
+                                  'book_id': 'Wood Magazine', 'issue': 'May 2024'})
+        issue = self.db.match("SELECT IssueFile FROM issues WHERE Title='Wood Magazine' AND IssueDate='2024-05-01'")
+        self.assertTrue(issue and os.path.isfile(issue['IssueFile']), 'The issue as the library keeps it')
+        row = self.db.match("SELECT Status,AuxInfo FROM wanted WHERE BookID='Wood Magazine'")
+        self.assertEqual(tuple(row), ('Processed', '2024-05-01'), 'In the history')
+
+    def test_a_comic_issue_from_a_folder(self):
+        cbz = self.cbz("Saga 012.cbz")
+        manualimport.import_item({'path': cbz, 'files': [cbz], 'media_type': 'comic', 'book_id': 'CV777',
+                                  'issue': '#12'})
+        issue = self.db.match("SELECT IssueFile FROM comicissues WHERE ComicID='CV777' AND IssueID='12'")
+        self.assertTrue(issue and os.path.isfile(issue['IssueFile']))
+        self.assertEqual(self.db.match("SELECT AuxInfo FROM wanted WHERE BookID='CV777_12'")['AuxInfo'], 'comic')
+
+    def test_a_queued_download_that_was_another_issue(self):
+        # the reported one: a magazine's failed import could only be chosen as a book or audiobook
+        self.create_snatched_download('Wood Magazine', 'Wood.Magazine.April.2024', book_type='2024-04-01',
+                                      source='SABNZBD', download_id='nzo_mag')
+        item_id = self.db.match("SELECT rowid FROM wanted WHERE BookID='Wood Magazine'")['rowid']
+        folder = os.path.dirname(self.pdf("chosen", "Wood Magazine - May 2024.pdf"))
+        target = manualimport.candidates(folder, item_id)['items'][0]['book']
+        self.assertEqual((target['id'], target['issue']), ('Wood Magazine', '2024-04-01'), 'What it was for')
+        manualimport.import_item({'path': folder, 'media_type': 'magazine', 'book_id': 'Wood Magazine',
+                                  'issue': '2024-05-01', 'queue_id': item_id})
+        row = self.db.match("SELECT Status,AuxInfo FROM wanted WHERE rowid=?", (item_id,))
+        self.assertEqual(tuple(row), ('Processed', '2024-05-01'))
+        with self.assertRaises(InvalidRequestError) as cm:
+            manualimport.import_item({'path': folder, 'media_type': 'ebook', 'book_id': 'mi_001',
+                                      'queue_id': self.queued()})
+        self.assertNotIn('magazine', str(cm.exception))
+
+    def test_a_book_download_is_not_a_magazine(self):
+        folder = os.path.dirname(self.pdf("chosen", "Wood Magazine - May 2024.pdf"))
+        with self.assertRaises(InvalidRequestError) as cm:
+            manualimport.import_item({'path': folder, 'media_type': 'magazine', 'book_id': 'Wood Magazine',
+                                      'issue': '2024-05-01', 'queue_id': self.queued()})
+        self.assertEqual(str(cm.exception), 'Only a book or audiobook can be chosen instead')
+
+    def test_what_to_choose(self):
+        pdf = self.pdf("Wood Magazine - May 2024.pdf")
+        for item, reason in (({'book_id': 'Wood Magazine'}, 'Choose the issue'),
+                             ({'book_id': 'Nothing Like It', 'issue': '2024-05-01'}, 'Choose the magazine'),
+                             ({'book_id': 'Wood Magazine', 'issue': 'soon'}, "soon isn't an issue date or number "
+                                                                             "for Wood Magazine"),
+                             ({'media_type': 'comic', 'book_id': 'CV1', 'issue': '1'}, 'Choose the comic')):
+            with self.subTest(reason), self.assertRaises(InvalidRequestError) as cm:
+                manualimport.import_item({'path': pdf, 'media_type': 'magazine', **item})
+            self.assertEqual(str(cm.exception), reason)
+        self.assertFalse(self.db.match("SELECT * FROM wanted WHERE BookID='Wood Magazine'"), 'Nothing recorded')
+
+    def test_search_titles(self):
+        self.assertEqual([(t['id'], t['title']) for t in manualimport.search_titles('magazine', 'wood')],
+                         [('Wood Magazine', 'Wood Magazine')])
+        self.assertEqual([t['id'] for t in manualimport.search_titles('comic', 'sag')], ['CV777'])
+        with self.assertRaises(InvalidRequestError):
+            manualimport.search_titles('ebook', 'wood')
 
 
 class CommandTest(ManualImportTestCase):

@@ -10,15 +10,11 @@ import { MEDIA_TYPE_NAMES, MediaType } from 'typings/Queue';
 import { formatBytes } from 'Utilities/format';
 import styles from '../InteractiveImport.module.css';
 
-const BOOK_TYPES = [
-  { key: 'ebook', value: MEDIA_TYPE_NAMES.ebook },
-  { key: 'audiobook', value: MEDIA_TYPE_NAMES.audiobook },
-];
-
 interface InteractiveImportRowProps {
   item: InteractiveImportItem;
   isSelected: boolean;
-  canChangeType: boolean;
+  // the types it can be imported as, one when it can't be changed
+  types: MediaType[];
   onSelectedChange: (isSelected: boolean) => void;
   onMediaTypeChange: (mediaType: MediaType) => void;
   onChooseBookPress: () => void;
@@ -27,14 +23,16 @@ interface InteractiveImportRowProps {
 function InteractiveImportRow({
   item,
   isSelected,
-  canChangeType,
+  types,
   onSelectedChange,
   onMediaTypeChange,
   onChooseBookPress,
 }: InteractiveImportRowProps) {
   const { relativePath, files, mediaType, book, size, rejections } = item;
   const isBook = mediaType === 'ebook' || mediaType === 'audiobook';
-  const bookName = book ? [book.author, book.issue ? `${book.title} - ${book.issue}` : book.title].filter(Boolean).join(' - ') : '';
+  const issue = book && !isBook ? book.issue || 'which issue?' : '';
+  const bookName = book ? [book.author, issue ? `${book.title} - ${issue}` : book.title].filter(Boolean).join(' - ') : '';
+  const noun = isBook ? 'Book' : MEDIA_TYPE_NAMES[mediaType];
 
   return (
     <TableRow>
@@ -48,11 +46,11 @@ function InteractiveImportRow({
       </TableRowCell>
 
       <TableRowCell className={styles.mediaType}>
-        {canChangeType && isBook ? (
+        {types.length > 1 ? (
           <SelectInput
             className={styles.typeSelect}
             value={mediaType}
-            values={BOOK_TYPES}
+            values={types.map((type) => ({ key: type, value: MEDIA_TYPE_NAMES[type] }))}
             onChange={(value) => onMediaTypeChange(value as MediaType)}
           />
         ) : (
@@ -61,13 +59,9 @@ function InteractiveImportRow({
       </TableRowCell>
 
       <TableRowCell className={styles.book}>
-        {isBook ? (
-          <Link className={styles.chooseBook} onPress={onChooseBookPress} title="Choose the book">
-            {bookName || <span className={styles.placeholder}>Select Book</span>}
-          </Link>
-        ) : (
-          bookName
-        )}
+        <Link className={styles.chooseBook} onPress={onChooseBookPress} title={`Choose the ${noun.toLowerCase()}`}>
+          {bookName || <span className={styles.placeholder}>Select {noun}</span>}
+        </Link>
       </TableRowCell>
 
       <TableRowCell className={styles.size}>{formatBytes(size)}</TableRowCell>

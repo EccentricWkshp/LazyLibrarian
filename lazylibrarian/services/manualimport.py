@@ -16,7 +16,9 @@ right book is chosen. Importing goes through the same steps as the post processo
 import is checked, renamed and recorded exactly like an automatic one.
 
 An item is a folder, or the files of one book in a folder of several: an ebook's formats share
-a name, an audiobook's parts are all the audio files that are directly in one folder """
+a name, an audiobook's parts are all the audio files that are directly in one folder. A magazine or
+comic issue is its title and issue, as a search's download of it is: the magazine's title and the
+issue's date or number as the library keeps it, the comic's id and the issue's number """
 
 import contextlib
 import logging
@@ -30,14 +32,19 @@ from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 from lazylibrarian import database, postprocess
+from lazylibrarian.comicid import get_issue_num, name_words
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import is_archive_file
 from lazylibrarian.filesystem import DIRS, get_directory, path_isdir, path_isfile, safe_copy
 from lazylibrarian.formatter import get_list, make_unicode, now, thread_name
+from lazylibrarian.magazinescan import get_dateparts
 from lazylibrarian.services import InvalidRequestError, NotFoundError, queue, remotepaths
 from lazylibrarian.services.history import client_name, download_target, reset_snatched_books
+from lazylibrarian.services.history import media_type as download_kind
 
 BOOK_TYPES = ('ebook', 'audiobook')
+PERIODICALS = ('magazine', 'comic')
+MEDIA_TYPES = BOOK_TYPES + PERIODICALS
 LIBRARIES = {'ebook': 'eBook', 'audiobook': 'AudioBook'}
 # how sure a guess at an item's book has to be to fill it in
 MATCH_SCORE = 80
@@ -129,6 +136,96 @@ def _existing_file(book: dict | None, kind: str) -> str:
     return path if path and path_isfile(path) else ''
 
 
+def _existing_issue(db, kind: str, target: dict | None) -> str:
+    """ The library's file for a magazine or comic issue, when it has one """
+    if not target or not target.get('issue') or kind not in PERIODICALS:
+        return ''
+    if kind == 'magazine':
+        row = db.match('SELECT IssueFile FROM issues WHERE Title=? AND IssueDate=?', (target['id'], target['issue']))
+    else:
+        row = db.match('SELECT IssueFile FROM comicissues WHERE ComicID=? AND IssueID=?',
+                       (target['id'], target['issue']))
+    path = row['IssueFile'] if row else ''
+    return path if path and path_isfile(path) else ''
+
+
+def _periodicals(db) -> dict:
+    """ The magazines and comics in the library, to tell which one an item is """
+    return {'magazine': [dict(row) for row in db.select('SELECT Title,DateType FROM magazines')],
+            'comic': [dict(row) for row in db.select('SELECT ComicID,Title FROM comics')]}
+
+
+def issue_of(kind: str, label: str, title: str = '', datetype: str = '') -> str:
+    """ The issue a name says it is, without the title's words, which may have numbers of their own:
+    a magazine's date or number as the library keeps it, a comic's number. '' when it doesn't say """
+    words = [word for word in name_words(label) if word not in name_words(title)]
+    if kind == 'magazine':
+        return _dated(' '.join(words), datetype)
+    issue = get_issue_num(words, [])
+    return str(issue) if issue != '' else ''
+
+
+def _dated(text: str, datetype: str = '') -> str:
+    """ A magazine issue's date or number as the library keeps it, '' when text isn't one. Without
+    a style the parts weren't found, whatever date they make """
+    dateparts = get_dateparts(text, datetype=datetype)
+    return str(dateparts['dbdate']) if dateparts['style'] and dateparts['dbdate'] else ''
+
+
+def _periodical(kind: str, row: dict, issue: str = '') -> dict:
+    return {'id': row['ComicID'] if kind == 'comic' else row['Title'], 'title': row['Title'], 'author': '',
+            'issue': issue, 'media_type': kind}
+
+
+def _guess_periodical(kind: str, label: str, periodicals: dict) -> tuple[dict | None, int]:
+    """ The magazine or comic a name looks like, with its issue, and how sure the guess is """
+    best, best_score = None, 0
+    for row in periodicals[kind]:
+        score = fuzz.token_set_ratio(row['Title'], label, processor=default_process)
+        if score > best_score:
+            best, best_score = row, score
+    if best_score < MATCH_SCORE:
+        return None, 0
+    return _periodical(kind, best, issue_of(kind, label, best['Title'], best.get('DateType') or '')), best_score
+
+
+def _wanted_keys(media_type: str, target_id: str, issue: str = '') -> tuple[str, str]:
+    """ The BookID and AuxInfo of a download of this, as the searches record them """
+    if media_type == 'magazine':
+        return target_id, issue
+    if media_type == 'comic':
+        return f"{target_id}_{issue}", 'comic'
+    return target_id, LIBRARIES[media_type]
+
+
+def _checked_issue(db, media_type: str, target_id: str, issue: str) -> str:
+    """ The issue as the library keeps it, raising InvalidRequestError with what to choose when the
+    item's book, magazine or comic, or its issue, isn't one there is """
+    if media_type not in MEDIA_TYPES:
+        raise InvalidRequestError(f"Import as one of {', '.join(MEDIA_TYPES)}")
+    if media_type in BOOK_TYPES:
+        if not target_id or not db.match('SELECT BookID FROM books WHERE BookID=?', (target_id,)):
+            raise InvalidRequestError('Choose the book')
+        return ''
+    if media_type == 'magazine':
+        row = db.match('SELECT Title,DateType FROM magazines WHERE Title=?', (target_id,)) if target_id else None
+    else:
+        row = db.match('SELECT ComicID FROM comics WHERE ComicID=?', (target_id,)) if target_id else None
+    if not row:
+        raise InvalidRequestError(f'Choose the {media_type}')
+    issue = (issue or '').strip().lstrip('#').strip()
+    if not issue:
+        raise InvalidRequestError('Choose the issue')
+    if media_type == 'magazine':
+        datetype = row['DateType'] or ''
+        dated = _dated(issue, datetype)
+        if not dated:
+            raise InvalidRequestError(f"{issue} isn't an issue date or number for {target_id}"
+                                      + (f" [{datetype}]" if datetype else ''))
+        return dated
+    return issue
+
+
 def suggested_folders() -> list[dict]:
     """ Where downloads are, to start looking for something to import: the download directories and
     the local paths of the remote path mappings """
@@ -144,10 +241,10 @@ def suggested_folders() -> list[dict]:
 
 
 def _queued_downloads(db) -> list[dict]:
-    """ The queued downloads of books and audiobooks, the most recent first """
+    """ The queued downloads, the most recent first """
     return [dict(row) for row in db.select(
         "SELECT rowid,* FROM wanted WHERE Status='Snatched' AND IFNULL(Source,'')!='MANUAL' "
-        "AND AuxInfo IN (?,?) ORDER BY rowid DESC", tuple(LIBRARIES.values()))]
+        "AND IFNULL(AuxInfo,'')!='' ORDER BY rowid DESC")]
 
 
 def _download_of(path: str, downloads: list[dict]) -> dict | None:
@@ -161,11 +258,12 @@ def _download_of(path: str, downloads: list[dict]) -> dict | None:
     return None
 
 
-def _queued_for(db, book_id, media_type) -> dict | None:
-    """ The queued download of a book, the most recent if there are several. Importing the book
-    from a folder completes it, as Sonarr links a manual import to its download """
+def _queued_for(db, keys: tuple[str, str]) -> dict | None:
+    """ The queued download of a book or issue, by its BookID and AuxInfo, the most recent if there
+    are several. Importing it from a folder completes it, as Sonarr links a manual import to its
+    download """
     row = db.match("SELECT rowid,* FROM wanted WHERE Status='Snatched' AND BookID=? AND AuxInfo=? "
-                   "AND IFNULL(Source,'')!='MANUAL' ORDER BY rowid DESC", (book_id, LIBRARIES[media_type]))
+                   "AND IFNULL(Source,'')!='MANUAL' ORDER BY rowid DESC", keys)
     return dict(row) if row else None
 
 
@@ -191,9 +289,11 @@ def _book(book: dict | None) -> dict | None:
 
 
 def _queue_target(db, row) -> dict:
-    """ What a queued download was for, as an item's book, magazine or comic """
+    """ What a queued download was for, as an item's book, magazine or comic: a comic by its id, its
+    issue apart, as a comic is chosen """
     what = download_target(db, row)
-    return {'id': row['BookID'], 'title': what['title'], 'author': what['author'], 'issue': what['issue'],
+    target_id = row['BookID'].split('_', 1)[0] if what['media_type'] == 'comic' else row['BookID']
+    return {'id': target_id, 'title': what['title'], 'author': what['author'], 'issue': what['issue'],
             'media_type': what['media_type']}
 
 
@@ -223,53 +323,95 @@ def candidates(folder: str = '', queue_id=None) -> dict:
                 if target['media_type'] in BOOK_TYPES else None
             targets[download['rowid']] = (target, dict(book) if book else {})
         library = _library(db) if not row else []
+        periodicals = _periodicals(db) if not row else {'magazine': [], 'comic': []}
+        own_folder = False
+        if row and not folder:
+            folder = _client_folder(row)
+            if not folder:
+                return {'folder': '', 'items': [], 'error': f"{client_name(row['Source'])} did not say where "
+                                                            f"{row['NZBtitle']} is. Choose the folder it is in"}
+            if not path_isdir(folder):
+                hint = remotepaths.explain_missing(row['Source'], folder)
+                return {'folder': folder, 'items': [], 'error': f"[{folder}] was not found. {hint}".strip()}
+            own_folder = True
+        folder = (folder or '').strip()
+        if not folder or not os.path.isabs(folder):
+            raise InvalidRequestError('Choose a folder, as a full path')
+        if not path_isdir(folder):
+            raise NotFoundError(f'[{folder}] was not found')
+        if own_folder:
+            # a queued download's own folder is one item, the way the post processor takes it
+            units = [{'path': folder, 'files': [], 'kind': _folder_kind(folder)}]
+            base = os.path.dirname(folder.rstrip('/\\'))
+        else:
+            units, base = _items_in(folder), folder
+        found = [_candidate(db, unit, base, row, downloads, targets, library, periodicals) for unit in units]
     finally:
         db.close()
-    own_folder = False
-    if row and not folder:
-        folder = _client_folder(row)
-        if not folder:
-            return {'folder': '', 'items': [], 'error': f"{client_name(row['Source'])} did not say where "
-                                                        f"{row['NZBtitle']} is. Choose the folder it is in"}
-        if not path_isdir(folder):
-            hint = remotepaths.explain_missing(row['Source'], folder)
-            return {'folder': folder, 'items': [], 'error': f"[{folder}] was not found. {hint}".strip()}
-        own_folder = True
-    folder = (folder or '').strip()
-    if not folder or not os.path.isabs(folder):
-        raise InvalidRequestError('Choose a folder, as a full path')
-    if not path_isdir(folder):
-        raise NotFoundError(f'[{folder}] was not found')
-    if own_folder:
-        # a queued download's own folder is one item, the way the post processor takes it
-        units = [{'path': folder, 'files': [], 'kind': _folder_kind(folder)}]
-        base = os.path.dirname(folder.rstrip('/\\'))
-    else:
-        units, base = _items_in(folder), folder
-    found = []
-    for unit in units:
-        download = row or _download_of(unit['path'], downloads)
-        target, target_files = targets[download['rowid']] if download else (None, {})
-        kind = target['media_type'] if target else unit['kind']
-        if kind not in BOOK_TYPES + ('magazine', 'comic'):
-            kind = 'ebook'
-        guess = None if target or kind not in BOOK_TYPES else _guess(_label(unit['path']), library, kind)
-        book = target if target else _book(guess)
-        existing = _existing_file(target_files if target else guess, kind)
-        first = unit['files'][0] if unit['files'] else unit['path']
-        item = {'path': unit['path'], 'files': unit['files'], 'relative_path': os.path.relpath(first, base),
-                'size': sum(_size(name) for name in unit['files'] or [unit['path']]), 'media_type': kind,
-                'book': book, 'queue_id': download['rowid'] if download else None, 'rejections': []}
-        if unit['kind'] not in (kind, 'archive') and not (unit['kind'] == 'ebook' and kind == 'magazine'):
-            item['rejections'].append(f"No {kind} files found, only {unit['kind'] or 'other'} files")
-        if not book:
-            item['rejections'].append('Choose the book')
-        if existing:
-            # an audiobook's parts are all replaced, an ebook's other formats stay
-            replaces = 'importing replaces it' if kind == 'audiobook' else 'importing replaces the same format'
-            item['rejections'].append(f"{ALREADY} {existing}, {replaces}")
-        found.append(item)
     return {'folder': folder, 'items': found, 'error': ''}
+
+
+def _candidate(db, unit: dict, base: str, row, downloads, targets, library, periodicals) -> dict:
+    """ One item to import, with what it looks like and anything that would stop it importing """
+    label = _label(unit['path'])
+    download = row or _download_of(unit['path'], downloads)
+    target, target_files = targets[download['rowid']] if download else (None, {})
+    kind = target['media_type'] if target else unit['kind']
+    if kind not in MEDIA_TYPES:
+        kind = 'ebook'
+    guess = None if target or kind not in BOOK_TYPES else _guess(label, library, kind)
+    book = target if target else _book(guess)
+    if not target and kind in ('ebook', 'magazine', 'comic'):
+        # a pdf or epub may be a magazine issue, when it looks like one more than a book
+        for periodical in PERIODICALS:
+            if kind != periodical and not (kind == 'ebook' and periodical == 'magazine'):
+                continue
+            found, _score = _guess_periodical(periodical, label, periodicals)
+            if found and (kind == periodical or (not guess and found['issue'])):
+                kind, book = periodical, found
+                break
+    existing = _existing_file(target_files if target else guess, kind) or _existing_issue(db, kind, book)
+    first = unit['files'][0] if unit['files'] else unit['path']
+    item = {'path': unit['path'], 'files': unit['files'], 'relative_path': os.path.relpath(first, base),
+            'size': sum(_size(name) for name in unit['files'] or [unit['path']]), 'media_type': kind,
+            'book': book, 'queue_id': download['rowid'] if download else None, 'rejections': [],
+            # the issue the name says, to start from when it's chosen as a magazine or comic instead
+            'issues': {} if unit['kind'] == 'audiobook' else
+            {periodical: issue_of(periodical, label) for periodical in PERIODICALS}}
+    if unit['kind'] not in (kind, 'archive') and not (unit['kind'] == 'ebook' and kind == 'magazine'):
+        item['rejections'].append(f"No {kind} files found, only {unit['kind'] or 'other'} files")
+    if not book:
+        item['rejections'].append(f"Choose the {'book' if kind in BOOK_TYPES else kind}")
+    elif kind in PERIODICALS and not book.get('issue'):
+        item['rejections'].append('Choose the issue')
+    if existing:
+        # an audiobook's parts are all replaced, an ebook's other formats stay, an issue has one file
+        replaces = 'importing replaces the same format' if kind == 'ebook' else 'importing replaces it'
+        item['rejections'].append(f"{ALREADY} {existing}, {replaces}")
+    return item
+
+
+def search_titles(media_type: str, term: str, limit: int = 25) -> list[dict]:
+    """ Magazines or comics in the library with every word of term in their title, to choose an
+    item's, each with its date type, what a magazine's issues are known by """
+    if media_type not in PERIODICALS:
+        raise InvalidRequestError(f"Search magazines or comics, not {media_type}")
+    words = [word for word in (term or '').split() if word]
+    if not words:
+        return []
+    where = ' AND '.join(['Title LIKE ?'] * len(words))
+    args = [f'%{word}%' for word in words]
+    db = database.DBConnection()
+    try:
+        if media_type == 'magazine':
+            rows = db.select(f'SELECT Title,DateType FROM magazines WHERE {where} ORDER BY Title LIMIT ?',
+                             (*args, limit))
+        else:
+            rows = db.select(f'SELECT ComicID,Title FROM comics WHERE {where} ORDER BY Title LIMIT ?', (*args, limit))
+    finally:
+        db.close()
+    return [{**_periodical(media_type, dict(row)), 'date_type': row['DateType'] if media_type == 'magazine' else ''}
+            for row in rows]
 
 
 def search_books(term: str, limit: int = 25) -> list[dict]:
@@ -325,22 +467,26 @@ def _working_copy(files: list[str]) -> str:
     return work
 
 
-def _manual_row(db, book_id, media_type, name) -> dict:
-    """ A wanted row for a download that LazyLibrarian didn't ask for, as process_book makes """
+def _manual_row(db, keys: tuple[str, str], name) -> dict:
+    """ A wanted row, with its BookID and AuxInfo, for a download that LazyLibrarian didn't ask for,
+    as process_book makes """
     url = f"manual:{uuid.uuid4().hex}"
+    book_id, aux_info = keys
     db.action("INSERT INTO wanted (BookID,NZBurl,NZBtitle,NZBdate,NZBprov,Status,NZBsize,AuxInfo,NZBmode,Source,"
               "DownloadID,DLResult,Completed) VALUES (?,?,?,?,'Manual','Snatched',0,?,'','MANUAL','','',0)",
-              (book_id, url, name, now(), LIBRARIES[media_type]))
+              (book_id, url, name, now(), aux_info))
     return dict(db.match('SELECT rowid,* FROM wanted WHERE NZBurl=?', (url,)))
 
 
 def import_item(item: dict) -> str:
-    """ Import one item: {'path', 'files', 'media_type', 'book_id', 'queue_id'}. Returns what was
-    imported, raises InvalidRequestError with the reason when it can't be. A queued download that
-    doesn't import is blocked with the reason, as if the post processor had tried """
+    """ Import one item: {'path', 'files', 'media_type', 'book_id', 'issue', 'queue_id'}, book_id
+    a magazine's title or a comic's id for an issue of one. Returns what was imported, raises
+    InvalidRequestError with the reason when it can't be. A queued download that doesn't import is
+    blocked with the reason, as if the post processor had tried """
     logger = logging.getLogger(__name__)
     path, files = item.get('path') or '', item.get('files') or []
     media_type, book_id, queue_id = item.get('media_type') or '', item.get('book_id') or '', item.get('queue_id')
+    issue = item.get('issue') or ''
     if not path or not (path_isdir(path) or path_isfile(path)):
         raise InvalidRequestError(f'[{path}] was not found')
     if path_isfile(path) and not files:
@@ -349,28 +495,33 @@ def import_item(item: dict) -> str:
     work = ''
     linked = False
     try:
-        if not queue_id and media_type in BOOK_TYPES and book_id:
-            queued = _queued_for(db, book_id, media_type)
+        if not queue_id and book_id:
+            keys = _wanted_keys(media_type, book_id, _checked_issue(db, media_type, book_id, issue))
+            queued = _queued_for(db, keys)
             if queued:
                 queue_id, linked = queued['rowid'], True
                 logger.info(f"Importing {path} for the queued download {queued['NZBtitle']}")
         if queue_id:
             row = queue._row(db, queue_id)
-            if (book_id and book_id != row['BookID']) or \
-                    (media_type in BOOK_TYPES and LIBRARIES[media_type] != row['AuxInfo']):
-                if media_type not in BOOK_TYPES:
-                    raise InvalidRequestError('Only a book or audiobook can be chosen instead')
+            was = download_kind(row['AuxInfo'])
+            # an ebook or audiobook download is either, of any book. Unless something else is chosen, it's
+            # what it was for, a book's download as the type chosen
+            target = book_id or (row['BookID'] if media_type in BOOK_TYPES and was in BOOK_TYPES else '')
+            keys = (row['BookID'], row['AuxInfo'])
+            # the download's own book or issue is as its search recorded it, anything else is checked
+            if target and _wanted_keys(media_type, target, issue.strip()) != keys:
+                keys = _wanted_keys(media_type, target, _checked_issue(db, media_type, target, issue))
+            if keys != (row['BookID'], row['AuxInfo']):
+                if media_type != was and not (media_type in BOOK_TYPES and was in BOOK_TYPES):
+                    raise InvalidRequestError(f"A {was} download can only be imported as another {was}"
+                                              if was in PERIODICALS else 'Only a book or audiobook can be chosen instead')
                 # the download was something else, the book it was for is wanted again
                 reset_snatched_books(db, [row])
-                db.action('UPDATE wanted SET BookID=?,AuxInfo=? WHERE rowid=?',
-                          (book_id or row['BookID'], LIBRARIES[media_type], queue_id))
+                db.action('UPDATE wanted SET BookID=?,AuxInfo=? WHERE rowid=?', (*keys, queue_id))
                 row = queue._row(db, queue_id)
         else:
-            if media_type not in BOOK_TYPES:
-                raise InvalidRequestError('Only books and audiobooks can be imported from a folder yet')
-            if not book_id or not db.match('SELECT BookID FROM books WHERE BookID=?', (book_id,)):
-                raise InvalidRequestError('Choose the book')
-            row = _manual_row(db, book_id, media_type, _label(files[0] if files else path))
+            keys = _wanted_keys(media_type, book_id, _checked_issue(db, media_type, book_id, issue))
+            row = _manual_row(db, keys, _label(files[0] if files else path))
         folder = _working_copy(files) if files else path
         work = folder if files else ''
 

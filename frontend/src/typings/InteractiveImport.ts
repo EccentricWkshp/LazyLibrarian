@@ -17,6 +17,8 @@ export interface InteractiveImportItem {
   book: ImportTarget | null;
   queueId: number | null;
   rejections: string[];
+  // the issue the name says, by magazine and comic, for when it's chosen as one
+  issues: Partial<Record<MediaType, string>>;
 }
 
 export interface InteractiveImportFolder {

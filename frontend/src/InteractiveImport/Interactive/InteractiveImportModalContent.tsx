@@ -11,14 +11,40 @@ import { ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Mo
 import { Column, Table } from 'Components/Table/Table';
 import Icon from 'Components/Icon';
 import { ImportTarget, InteractiveImportFolder, InteractiveImportItem } from 'typings/InteractiveImport';
-import { MediaType, QueueItem } from 'typings/Queue';
+import { MEDIA_TYPE_NAMES, MediaType, QueueItem } from 'typings/Queue';
 import { api } from 'Utilities/api';
 import SelectBookModal from '../Book/SelectBookModal';
+import SelectIssueModal from '../Book/SelectIssueModal';
 import InteractiveImportRow from './InteractiveImportRow';
 import styles from '../InteractiveImport.module.css';
 
 // the start of the rejection for a book that already has its files, manualimport.ALREADY
 const ALREADY = 'Already in the library:';
+
+const BOOK_TYPES: MediaType[] = ['ebook', 'audiobook'];
+const ALL_TYPES: MediaType[] = ['ebook', 'audiobook', 'magazine', 'comic'];
+
+function isBookType(mediaType: MediaType) {
+  return BOOK_TYPES.includes(mediaType);
+}
+
+// what is chosen for an item stays when its type changes within its kind, a book as an ebook or
+// audiobook, not when a book becomes a magazine or a magazine a comic
+function kindOf(mediaType: MediaType) {
+  return isBookType(mediaType) ? 'book' : mediaType;
+}
+
+function nounOf(mediaType: MediaType) {
+  return isBookType(mediaType) ? 'book' : mediaType;
+}
+
+// a queued download's items are another of the same kind, the rest anything
+function typesFor(item: InteractiveImportItem): MediaType[] {
+  if (item.queueId === null) {
+    return ALL_TYPES;
+  }
+  return isBookType(item.mediaType) ? BOOK_TYPES : [item.mediaType];
+}
 
 const COLUMNS: Column[] = [
   { name: 'relativePath', label: 'Relative Path' },
@@ -55,25 +81,33 @@ function InteractiveImportModalContent({
   });
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [choosingBookFor, setChoosingBookFor] = useState<string[] | null>(null);
+  // the items a book, magazine or comic is being chosen for, all of one type
+  const [choosing, setChoosing] = useState<{ paths: string[]; mediaType: MediaType } | null>(null);
   const [importError, setImportError] = useState('');
 
   const items: InteractiveImportItem[] = useMemo(
     () =>
       (data?.items ?? []).map((item) => {
         const choice = choices[item.path] ?? {};
-        const book = choice.book === undefined ? item.book : choice.book;
         const mediaType = choice.mediaType ?? item.mediaType;
-        // the rejections that choosing has dealt with go. Another book or type may not have files yet
+        const sameKind = kindOf(mediaType) === kindOf(item.mediaType);
+        const book = choice.book !== undefined ? choice.book : sameKind ? item.book : null;
+        // the rejections that choosing has dealt with go, and what's still to choose is worked out
+        // again. Another book or type may not have files yet
         const changed = choice.book !== undefined || choice.mediaType !== undefined;
         const rejections = item.rejections.filter(
           (rejection) =>
-            !(book && rejection === 'Choose the book') &&
+            !rejection.startsWith('Choose the ') &&
             !(choice.mediaType && rejection.startsWith('No ')) &&
             !(changed && rejection.startsWith(ALREADY))
         );
+        const toChoose = !book
+          ? `Choose the ${nounOf(mediaType)}`
+          : !isBookType(mediaType) && !book.issue
+            ? 'Choose the issue'
+            : '';
 
-        return { ...item, book, mediaType, rejections: book ? rejections : [...new Set([...rejections, 'Choose the book'])] };
+        return { ...item, book, mediaType, rejections: toChoose ? [...rejections, toChoose] : rejections };
       }),
     [data, choices]
   );
@@ -86,7 +120,12 @@ function InteractiveImportModalContent({
 
   const selectedItems = items.filter((item) => selected.has(item.path));
   const allSelected = items.length > 0 && selectedItems.length === items.length;
-  const fromQueue = !!queueItem;
+  // several items get the same book, magazine or comic when they are all one kind
+  const selectedKind =
+    selectedItems.length && selectedItems.every((item) => kindOf(item.mediaType) === kindOf(selectedItems[0].mediaType))
+      ? selectedItems[0].mediaType
+      : null;
+  const choosingItem = choosing?.paths.length === 1 ? items.find((item) => item.path === choosing.paths[0]) : undefined;
 
   function choose(paths: string[], choice: Choice) {
     setChoices((current) => {
@@ -98,10 +137,10 @@ function InteractiveImportModalContent({
   }
 
   function handleImport() {
-    const missing = selectedItems.filter((item) => !item.book);
+    const missing = selectedItems.filter((item) => !item.book || (!isBookType(item.mediaType) && !item.book.issue));
 
     if (missing.length) {
-      setImportError('Choose the book for each selected item');
+      setImportError('Choose the book for each selected item, or the magazine or comic and its issue');
       return;
     }
 
@@ -114,6 +153,7 @@ function InteractiveImportModalContent({
           files: item.files,
           mediaType: item.mediaType,
           bookId: item.book?.id ?? '',
+          issue: isBookType(item.mediaType) ? '' : (item.book?.issue ?? ''),
           queueId: item.queueId,
         })),
       },
@@ -161,7 +201,7 @@ function InteractiveImportModalContent({
                 key={item.path}
                 item={item}
                 isSelected={selected.has(item.path)}
-                canChangeType={!fromQueue || item.mediaType === 'ebook' || item.mediaType === 'audiobook'}
+                types={typesFor(data?.items.find((original) => original.path === item.path) ?? item)}
                 onSelectedChange={(isSelected) =>
                   setSelected((current) => {
                     const next = new Set(current);
@@ -173,8 +213,14 @@ function InteractiveImportModalContent({
                     return next;
                   })
                 }
-                onMediaTypeChange={(mediaType) => choose([item.path], { mediaType })}
-                onChooseBookPress={() => setChoosingBookFor([item.path])}
+                onMediaTypeChange={(mediaType) =>
+                  // a book chosen isn't the magazine or comic, nor a magazine the comic
+                  choose(
+                    [item.path],
+                    kindOf(mediaType) === kindOf(item.mediaType) ? { mediaType } : { mediaType, book: undefined }
+                  )
+                }
+                onChooseBookPress={() => setChoosing({ paths: [item.path], mediaType: item.mediaType })}
               />
             ))}
           </Table>
@@ -185,8 +231,12 @@ function InteractiveImportModalContent({
 
       <ModalFooter className={styles.footer}>
         <div className={styles.leftButtons}>
-          {selectedItems.length > 1 ? (
-            <Button onPress={() => setChoosingBookFor(selectedItems.map((item) => item.path))}>Choose Book</Button>
+          {selectedItems.length > 1 && selectedKind ? (
+            <Button
+              onPress={() => setChoosing({ paths: selectedItems.map((item) => item.path), mediaType: selectedKind })}
+            >
+              Choose {isBookType(selectedKind) ? 'Book' : MEDIA_TYPE_NAMES[selectedKind]}
+            </Button>
           ) : null}
           {data && !data.error ? (
             <Button onPress={() => onChooseFolderPress(data.folder)}>
@@ -203,14 +253,31 @@ function InteractiveImportModalContent({
       </ModalFooter>
 
       <SelectBookModal
-        isOpen={!!choosingBookFor}
+        isOpen={!!choosing && isBookType(choosing.mediaType)}
         onBookSelect={(book) => {
-          if (choosingBookFor) {
-            choose(choosingBookFor, { book });
+          if (choosing) {
+            choose(choosing.paths, { book });
           }
-          setChoosingBookFor(null);
+          setChoosing(null);
         }}
-        onModalClose={() => setChoosingBookFor(null)}
+        onModalClose={() => setChoosing(null)}
+      />
+
+      <SelectIssueModal
+        isOpen={!!choosing && !isBookType(choosing.mediaType)}
+        mediaType={choosing?.mediaType === 'comic' ? 'comic' : 'magazine'}
+        initial={choosingItem?.book}
+        issue={choosingItem ? choosingItem.book?.issue || choosingItem.issues?.[choosingItem.mediaType] || '' : ''}
+        isMany={(choosing?.paths.length ?? 0) > 1}
+        onIssueSelect={(target, issue) => {
+          // several items each keep the issue their name says, unless one is given
+          choosing?.paths.forEach((path) => {
+            const item = items.find((one) => one.path === path);
+            choose([path], { book: { ...target, issue: issue || item?.issues?.[target.mediaType as MediaType] || '' } });
+          });
+          setChoosing(null);
+        }}
+        onModalClose={() => setChoosing(null)}
       />
     </ModalContent>
   );

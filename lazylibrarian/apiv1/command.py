@@ -26,7 +26,9 @@ class ManualImportFile(ApiModel):
     path: str
     files: list[str] = []
     media_type: str
+    # a magazine's title or a comic's id, with the issue, for an issue of one
     book_id: str = ''
+    issue: str = ''
     queue_id: int | None = None
 
 

@@ -145,7 +145,7 @@
 .books {
   display: flex;
   flex-direction: column;
-  margin-top: 12px;
+  margin: 12px 0 16px;
 }
 
 .bookResult {
@@ -157,6 +157,11 @@
   &:hover {
     background-color: var(--tableRowHoverBackgroundColor);
   }
+}
+
+.chosenResult {
+  background-color: var(--tableRowHoverBackgroundColor);
+  box-shadow: inset 3px 0 0 var(--inputFocusBorderColor);
 }
 
 .bookTitle {
