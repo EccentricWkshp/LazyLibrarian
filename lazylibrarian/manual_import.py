@@ -48,11 +48,11 @@ from lazylibrarian.common import multibook, remove_file, setperm
 from lazylibrarian.config2 import CONFIG, DIRS
 from lazylibrarian.filesystem import (
     book_file,
+    book_opf,
     get_directory,
     issue_folder,
     listdir,
     make_dirs,
-    opf_file,
     path_isdir,
     path_isfile,
     remove_dir,
@@ -511,7 +511,7 @@ def process_alternate(source_dir=None, library="eBook"):
                 # try book_name.opf first, or fall back to any filename.opf
                 metafile = f"{os.path.splitext(new_book)[0]}.opf"
                 if not path_isfile(metafile):
-                    metafile = opf_file(source_dir)
+                    metafile = book_opf(new_book)
                 if metafile and path_isfile(metafile):
                     try:
                         metadata = get_book_info(metafile)

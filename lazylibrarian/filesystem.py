@@ -503,17 +503,38 @@ def opf_file(search_dir: str, bookfile: str = '') -> str:
                     res = os.path.join(search_dir, fname)
                 cnt += 1
         if cnt > 2 or cnt == 2 and not meta:
+            # another book's opf is no use, and writing to it spoils that book's
             logger = logging.getLogger(__name__)
             program, method, lineno = get_info_on_caller(depth=1)
-            warn = f"{program}:{method}:{lineno} Found {cnt} conflicting opf in {search_dir}"
+            warn = f"{program}:{method}:{lineno} Found {cnt} conflicting opf in {search_dir}, using none"
             if warn != _OPFWARN:
                 logger.debug(warn)
                 _OPFWARN = warn
-        elif res:  # prefer bookname.opf over metadata.opf
+            return ''
+        if res:  # prefer bookname.opf over metadata.opf
             return res
-        elif meta:
+        if meta:
             return meta
     return res
+
+
+def book_opf(bookfile: str) -> str:
+    """ The opf file of the book a file is (an ebook, or an audiobook's part): the one named as the
+    file, or calibre's metadata.opf, or the only opf there is, when no other book shares the folder.
+    '' when there's none, or it can't be told which is the book's """
+    if not bookfile:
+        return ''
+    folder = os.path.dirname(bookfile)
+    found = opf_file(folder, bookfile=bookfile)
+    if found:
+        return found
+    if only_book_in_dir(folder, os.path.splitext(os.path.basename(bookfile))[0]):
+        return opf_file(folder)
+    # an audiobook's parts are named by part, its opf by the book
+    if DIRS.config.is_valid_booktype(bookfile, booktype='audiobook'):
+        others = [fname for fname in listdir(folder) if DIRS.config.is_valid_booktype(fname, booktype='ebook')]
+        return '' if others else opf_file(folder)
+    return ''
 
 
 def bts_file(search_dir: str) -> str:

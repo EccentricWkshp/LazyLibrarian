@@ -12,7 +12,6 @@
 
 import contextlib
 import logging
-import os
 import re
 import sqlite3
 import string
@@ -38,6 +37,7 @@ from lazylibrarian.formatter import (
     get_list,
     make_bytestr,
     plural,
+    surname_first,
     thread_name,
     today,
     unaccented,
@@ -1109,7 +1109,7 @@ def move_book_to_author(bookid, old_authorid, new_authorid):
 
 
 def _rewrite_opf_creator(bookid, logger):
-    from lazylibrarian.filesystem import opf_file, path_isfile, remove_file, safe_move
+    from lazylibrarian.filesystem import book_opf, path_isfile, remove_file, safe_move
     from lazylibrarian.opfedit import opf_read, opf_write
 
     db = database.DBConnection()
@@ -1124,17 +1124,14 @@ def _rewrite_opf_creator(bookid, logger):
         return
 
     new_author = row['AuthorName']
-    book_dir = None
+    # the book's own opf, not another book's in a shared folder, which this would spoil
+    opf = ''
     for field in ('BookFile', 'AudioFile'):
         fpath = row[field]
         if fpath and path_isfile(fpath):
-            book_dir = os.path.dirname(fpath)
-            break
-
-    if not book_dir:
-        return
-
-    opf = opf_file(book_dir)
+            opf = book_opf(fpath)
+            if opf:
+                break
     if not opf or not path_isfile(opf):
         return
 
@@ -1142,15 +1139,15 @@ def _rewrite_opf_creator(bookid, logger):
     if not opf_template:
         return
 
+    # only the author, the first creator, as the others may be illustrators, translators or narrators
+    fields = dict(replaces)
+    changed = 'creator_00' in fields and fields['creator_00'] != new_author
     subs = []
-    changed = False
     for itm in replaces:
-        if itm[0].startswith('creator'):
-            if itm[1] != new_author:
-                subs.append((itm[0], new_author))
-                changed = True
-            else:
-                subs.append(itm)
+        if changed and itm[0] == 'creator_00':
+            subs.append((itm[0], new_author))
+        elif changed and itm[0] == 'fileas':
+            subs.append((itm[0], surname_first(new_author, postfixes=get_list(CONFIG.get_csv('NAME_POSTFIX')))))
         else:
             subs.append(itm)
 
@@ -1164,6 +1161,8 @@ def _rewrite_opf_creator(bookid, logger):
                 logger.debug(f"Updated OPF creator to {new_author} in {opf}")
             except Exception as e:
                 logger.warning(f"Failed to update OPF: {e}")
+    else:
+        remove_file(opf_template)
 
 
 def import_book(bookid, ebook=None, audio=None, wait=False, reason='importer.import_book', source=None):

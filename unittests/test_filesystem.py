@@ -314,6 +314,37 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
             opf = filesystem.opf_file(folder, bookfile='Title - Author.epub')
             self.assertEqual(opf, os.path.join(folder, 'metadata.opf'))
 
+    def test_a_books_own_opf(self):
+        def make_files(folder, names):
+            for name in names:
+                with open(os.path.join(folder, name), 'w') as f:
+                    f.write('')
+
+        with tempfile.TemporaryDirectory() as folder:
+            # a series folder: each book's opf is its own, another's is never taken
+            make_files(folder, ['Book One - Author.epub', 'Book One - Author.opf', 'Book Two - Author.epub',
+                                'Book Two - Author.opf', 'Book Three - Author.epub'])
+            self.assertEqual(filesystem.book_opf(os.path.join(folder, 'Book Two - Author.epub')),
+                             os.path.join(folder, 'Book Two - Author.opf'))
+            self.assertEqual(filesystem.book_opf(os.path.join(folder, 'Book Three - Author.epub')), '',
+                             "Book Three has none, the others' are theirs")
+            self.assertEqual(filesystem.opf_file(folder), '', "Two books' opf, it can't be told which")
+
+        with tempfile.TemporaryDirectory() as folder:
+            # a download of one book, its opf named otherwise
+            make_files(folder, ['Title - Author.epub', 'Some Release Name.opf'])
+            self.assertEqual(filesystem.book_opf(os.path.join(folder, 'Title - Author.epub')),
+                             os.path.join(folder, 'Some Release Name.opf'))
+
+        with tempfile.TemporaryDirectory() as folder:
+            # an audiobook's parts are named by part, its opf by the book
+            make_files(folder, ['Title - 01.mp3', 'Title - 02.mp3', 'Title.opf'])
+            self.assertEqual(filesystem.book_opf(os.path.join(folder, 'Title - 02.mp3')),
+                             os.path.join(folder, 'Title.opf'))
+            make_files(folder, ['Another Book.epub'])
+            self.assertEqual(filesystem.book_opf(os.path.join(folder, 'Title - 02.mp3')), '',
+                             'An ebook shares the folder, the opf could be its')
+
     def test_book_file(self):
         book = filesystem.book_file(get_directory("Testdata"), '', config=self.cfg())
         self.assertEqual(book, '', 'Searching for type None should not find a book')

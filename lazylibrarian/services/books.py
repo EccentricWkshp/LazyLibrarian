@@ -38,7 +38,7 @@ from lazylibrarian.downloadmethods import (
 from lazylibrarian.filesystem import (
     DIRS,
     book_file,
-    opf_file,
+    book_opf,
     path_exists,
     path_isdir,
     path_isfile,
@@ -707,9 +707,14 @@ def lookup_asin(bookid) -> str:
         db.close()
 
 
+# the opf fields the edit page has fields of its own for, so two fields don't edit the same item
+OPF_EDITED_ON_PAGE = ['title', 'creator_00', 'ISBN', 'date', 'description']
+
+
 def opf_fields(bookfile) -> tuple:
-    """ The opf file next to a book file and its template and fields, ('', '', []) if there isn't one """
-    opffile = opf_file(os.path.dirname(bookfile)) if bookfile and path_isfile(bookfile) else ''
+    """ The book's own opf file next to its file and its template and fields, ('', '', []) if there
+    isn't one: not another book's that shares the folder """
+    opffile = book_opf(bookfile) if bookfile and path_isfile(bookfile) else ''
     if opffile and path_isfile(opffile):
         opf_template, replaces = opf_read(opffile)
         return opffile, opf_template, replaces
@@ -754,7 +759,7 @@ def book_for_edit(bookid, library: str = 'eBook', images: bool = False) -> dict:
     if opf_template:
         remove_file(opf_template)  # we don't need the template file yet
     # leave out the ones edited elsewhere on the page, two fields shouldn't edit the same item
-    subs = [itm for itm in replaces if itm[0] not in ['title', 'creator', 'ISBN', 'date', 'description']]
+    subs = [itm for itm in replaces if itm[0] not in OPF_EDITED_ON_PAGE]
     return {'book': bookdata, 'seriesdict': seriesdict, 'authors': authors, 'covers': covers, 'replaces': subs,
             'series': series}
 
@@ -900,8 +905,10 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
             for itm in replaces:
                 if itm[0] == 'title':
                     subs.append((itm[0], name))
-                elif itm[0] == 'creator':
+                elif itm[0] == 'creator_00':  # the first creator is the book's author
                     subs.append((itm[0], author_name))
+                elif itm[0] == 'fileas' and author_name != bookdata['AuthorName']:
+                    subs.append((itm[0], surname_first(author_name, postfixes=get_list(CONFIG.get_csv('NAME_POSTFIX')))))
                 elif itm[0] == 'ISBN':
                     subs.append((itm[0], isbn))
                 elif itm[0] == 'date':
@@ -913,7 +920,7 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
                     subs.append((itm[0], opf_values[itm[0]]))
                 else:
                     subs.append((itm[0], itm[1]))
-            if edited:
+            if edited or moved:
                 new_opf = opf_write(opf_template, subs)
                 remove_file(opf_template)
                 remove_file(opffile)
@@ -922,6 +929,8 @@ def update_book(bookid, name: str, subtitle: str, genre: str, lang: str, date: s
                 except Exception as e:
                     logger.warning(f"Failed to move file: {str(e)}")
                     moved = False
+            else:
+                remove_file(opf_template)
         if edited:
             logger.info(f'Updated [ {edited}] for {name}')
         else:

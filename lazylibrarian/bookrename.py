@@ -24,10 +24,10 @@ from lazylibrarian import database
 from lazylibrarian.common import multibook, only_punctuation
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
+    book_opf,
     copy_tree,
     get_directory,
     listdir,
-    opf_file,
     path_isdir,
     path_isfile,
     remove_file,
@@ -139,14 +139,14 @@ def id3read(filename):
                 narrator = composer
 
             # finally override with any opf values found
-            opffile = opf_file(os.path.dirname(filename))
-            if os.path.exists(opffile):
+            opffile = book_opf(filename)
+            if opffile and os.path.exists(opffile):
                 opf_template, replaces = opf_read(opffile)
                 remove_file(opf_template)
                 for item in replaces:
-                    if item[0] == 'author':
+                    if item[0] == 'creator_00' and item[1]:
                         author = item[1]
-                    elif item[0] == 'narrator':
+                    elif item[0] == 'lazylibrarian:narrator' and item[1]:
                         narrator = item[1]
 
             if not author:
