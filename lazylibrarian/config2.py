@@ -463,6 +463,7 @@ class LLConfigHandler(ConfigDict):
         self.ensure_valid_homepage()
         warnings += self.fixup_auth_settings()
         self.fixup_download_categories()
+        warnings += self.fixup_info_sources()
 
         if self.config['SSL_CERTS'].get_str() != '' and not path_exists(str(self.config['SSL_CERTS'])):
             self.logger.warning(f"SSL_CERTS [{str(self.config['SSL_CERTS'])}] not found")
@@ -470,6 +471,34 @@ class LLConfigHandler(ConfigDict):
             warnings += 1
 
         return warnings
+
+    def fixup_info_sources(self) -> int:
+        """ The info source searched first (BOOK_API) has to be on, or every search for an author or
+        book finds nothing: OpenLibrary, the default, was off by default. Another source that's on
+        takes its place, OpenLibrary is switched on when none is. The GoodReads key that comes with
+        LazyLibrarian doesn't count, GoodReads closed its API. Returns 1 if it changed anything """
+        switches = {'OpenLibrary': 'OL_API', 'HardCover': 'HC_API', 'DNB': 'DNB_API', 'BN': 'BN_API', 'DBK': 'DBK_API',
+                    'RanobeDB': 'RAN_API'}
+        keys = {'GoodReads': 'GR_API', 'GoogleBooks': 'GB_API'}
+
+        def is_on(source: str) -> bool:
+            if source in switches:
+                return self.get_bool(switches[source])
+            return bool(self.get_str(keys[source])) if source in keys else False
+
+        primary = self.get_str('BOOK_API')
+        if is_on(primary):
+            return 0
+        others = [source for source in switches if source != 'OpenLibrary' and is_on(source)]
+        if self.get_str('GB_API'):
+            others.append('GoogleBooks')
+        if others:
+            self.config['BOOK_API'].set_str(others[0])
+        else:
+            self.config['OL_API'].set_bool(True)
+            self.config['BOOK_API'].set_str('OpenLibrary')
+        self.logger.warning(f"The info source searched first, {primary}, is off. Using {self.get_str('BOOK_API')}")
+        return 1
 
     def fixup_auth_settings(self) -> int:
         """ Bring older authentication settings in line with the current ones.

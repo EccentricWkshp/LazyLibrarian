@@ -650,7 +650,9 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         with self.assertLogs(self.logger, level='WARN') as cm:
             warnings = cfg.post_load_fixup()
         # Do not test for specific messages as they depend on the OS
-        self.assertEqual(len(cm.output), 6, 'Unexpected # of log messages')
+        # the six above, and OpenLibrary, the default info source, switched on
+        self.assertEqual(len(cm.output), 7, 'Unexpected # of log messages')
+        self.assertTrue(cfg.get_bool('OL_API'))
         self.assertEqual(cfg.config['LOGDIR'].get_str()[-4:], 'Logs', 'LOGDIR not set')
         self.assertEqual(str(cfg.config['AUDIOBOOK_DEST_FOLDER']), str(cfg.config['EBOOK_DEST_FOLDER']))
         self.assertEqual(str(cfg.config['HTTP_LOOK']), 'bookstrap')
@@ -661,7 +663,7 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         self.assertTrue(cfg.config['COMIC_TAB'].get_bool())
 
         self.assertEqual(str(cfg.config['HOMEPAGE']), '', 'HOMEPAGE cannot be audio if that is disabled')
-        self.assertEqual(warnings, 6, 'Unexpected # of warnings from fixup')
+        self.assertEqual(warnings, 7, 'Unexpected # of warnings from fixup')
 
         # Second run with different inputs
         for fname in ['EBOOK_DEST_FILE', 'MAG_DEST_FILE', 'AUDIOBOOK_DEST_FILE', 'AUDIOBOOK_SINGLE_FILE']:
@@ -840,3 +842,36 @@ class Config2Test(LLTestCaseWithConfigandDIRS):
         ci = cfg.get_item('IMP_PREFLANG')
         ci.set_str('')
         self.assertEqual(ImportPrefs.LANG_LIST, [])
+
+
+class InfoSourceFixupTest(LLTestCaseWithConfigandDIRS):
+    """ A lookup only searches the info source that's first, which has to be on """
+
+    @staticmethod
+    def settings(**values):
+        cfg = LLConfigHandler(defaults=BASE_DEFAULTS)
+        for key, value in values.items():
+            if isinstance(value, bool):
+                cfg.set_bool(key, value)
+            else:
+                cfg.set_str(key, value)
+        return cfg
+
+    def test_a_new_install_gets_openlibrary(self):
+        cfg = self.settings()
+        self.assertEqual(cfg.fixup_info_sources(), 1)
+        self.assertEqual((cfg.get_bool('OL_API'), cfg.get_str('BOOK_API')), (True, 'OpenLibrary'))
+        self.assertEqual(cfg.fixup_info_sources(), 0, 'Once')
+
+    def test_another_source_that_is_on(self):
+        cfg = self.settings(HC_API=True)
+        self.assertEqual(cfg.fixup_info_sources(), 1)
+        self.assertEqual((cfg.get_bool('OL_API'), cfg.get_str('BOOK_API')), (False, 'HardCover'))
+
+    def test_one_that_is_on_is_left(self):
+        for values in ({'HC_API': True, 'BOOK_API': 'HardCover'}, {'OL_API': True},
+                       {'BOOK_API': 'GoodReads'}):
+            with self.subTest(values):
+                cfg = self.settings(**values)
+                self.assertEqual(cfg.fixup_info_sources(), 0)
+                self.assertEqual(cfg.get_str('BOOK_API'), values.get('BOOK_API', 'OpenLibrary'))
