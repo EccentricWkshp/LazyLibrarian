@@ -19,6 +19,7 @@ import React, { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import QueueStatus from 'Activity/Queue/Status/QueueStatus';
 import { setIsSidebarVisible, useAppValue } from 'App/appStore';
+import HealthStatus from 'System/Status/HealthStatus';
 import Messages from './Messages/Messages';
 import PageSidebarItem from './PageSidebarItem';
 import styles from './PageSidebar.module.css';
@@ -73,8 +74,10 @@ function groups(): SidebarGroup[] {
         {
           iconName: Monitor,
           title: 'System',
-          to: '/system/tasks',
+          to: '/system/status',
+          statusComponent: HealthStatus,
           children: [
+            { title: 'Status', to: '/system/status' },
             { title: 'Tasks', to: '/system/tasks' },
             { title: 'Logs', to: '/logs' },
           ],

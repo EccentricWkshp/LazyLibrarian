@@ -27,6 +27,11 @@ export function useServerEvents() {
       const { keys } = JSON.parse((event as MessageEvent).data) as { keys: string[] };
 
       keys.forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+
+      if (keys.includes('queue')) {
+        // health counts the downloads that can't be imported
+        queryClient.invalidateQueries({ queryKey: ['health'] });
+      }
     });
 
     source.addEventListener('command', (event) => {

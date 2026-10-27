@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from lazylibrarian.apiv1 import (
     command,
     events,
+    health,
     history,
     manualimport,
     queue,
@@ -30,6 +31,7 @@ from lazylibrarian.apiv1 import (
 
 router = APIRouter(prefix='/api/v1')
 router.include_router(system.router)
+router.include_router(health.router)
 router.include_router(queue.router)
 router.include_router(history.router)
 router.include_router(wanted.router)

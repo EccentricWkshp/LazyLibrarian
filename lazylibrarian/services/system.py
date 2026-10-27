@@ -16,6 +16,8 @@ import logging
 import os
 import platform
 import threading
+import time
+from datetime import datetime
 
 import lazylibrarian
 from lazylibrarian import database, grsync, hc, magazinescan, versioncheck
@@ -47,6 +49,8 @@ from lazylibrarian.services.paging import Page, page_of
 
 # the columns of the log the web interface keeps in memory
 LOG_FIELDS = ('Time', 'Level', 'Thread', 'File', 'Method', 'Line', 'Message')
+# when LazyLibrarian started, near enough: this is loaded as it starts serving pages
+STARTED = time.time()
 
 
 def is_running(name: str) -> bool:
@@ -169,7 +173,9 @@ def status() -> dict:
             'commits_behind': CONFIG.get_int('COMMITS_BEHIND'), 'database_version': schema,
             'url_base': url_root(CONFIG['HTTP_ROOT']), 'authentication': CONFIG.get_str('AUTH_TYPE'),
             'is_docker': docker(), 'os_name': platform.system(), 'os_version': platform.release(),
-            'python_version': platform.python_version(), 'app_data': DIRS.DATADIR, 'startup_path': DIRS.PROG_DIR}
+            'python_version': platform.python_version(), 'app_data': DIRS.DATADIR, 'startup_path': DIRS.PROG_DIR,
+            'database_path': DIRS.get_dbfile(),
+            'start_time': datetime.fromtimestamp(STARTED).astimezone().isoformat(timespec='seconds')}
 
 
 def update_status() -> dict:

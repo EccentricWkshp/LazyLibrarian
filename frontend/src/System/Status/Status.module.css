@@ -1,0 +1,77 @@
+/* From Sonarr's FieldSet, Health, DiskSpace and About styles */
+
+.legend {
+  margin: 0 0 15px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+
+  &:not(:first-child) {
+    margin-top: 30px;
+  }
+}
+
+.type {
+  width: 30px;
+}
+
+.message {
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  width: 80px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.label {
+  margin-top: 2px;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.progress {
+  width: 200px;
+}
+
+.about {
+  margin: 0;
+}
+
+.detail {
+  display: flex;
+  padding: 6px 0;
+
+  & dt {
+    flex: 0 0 180px;
+    color: var(--inkMuted);
+    font-weight: 500;
+  }
+
+  & dd {
+    flex: 1 1 auto;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (--breakpointSmall) {
+  .progress {
+    width: 80px;
+  }
+
+  .detail {
+    flex-direction: column;
+
+    & dt {
+      flex-basis: auto;
+    }
+  }
+}

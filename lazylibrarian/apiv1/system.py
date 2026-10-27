@@ -36,6 +36,8 @@ class SystemStatus(ApiModel):
     python_version: str
     app_data: str
     startup_path: str
+    database_path: str
+    start_time: str
 
 
 class Task(ApiModel):

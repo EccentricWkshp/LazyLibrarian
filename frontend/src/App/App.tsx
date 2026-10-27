@@ -9,6 +9,7 @@ import { Alert } from 'Components/Misc';
 import Page from 'Components/Page/Page';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import Status from 'System/Status/Status';
 import Tasks from 'System/Tasks/Tasks';
 import { urlBase } from 'Utilities/api';
 import Missing from 'Wanted/Missing/Missing';
@@ -44,7 +45,8 @@ function App() {
               <Route path="/wanted" element={<Navigate to="/wanted/missing" replace={true} />} />
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="/wanted/search" element={<BookSearch />} />
-              <Route path="/system" element={<Navigate to="/system/tasks" replace={true} />} />
+              <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
+              <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

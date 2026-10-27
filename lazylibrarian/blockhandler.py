@@ -196,6 +196,12 @@ class BlockHandler:
             self._save_persisted_blocks()
         return False
 
+    def blocked(self) -> list[dict]:
+        """ The providers blocked now: name, resume (seconds since the epoch) and reason """
+        timenow = int(time.time())
+        return [{'name': key, 'resume': int(line['resume']), 'reason': line['reason']}
+                for key, line in list(self._provider_list.items()) if int(line['resume']) > timenow]
+
     def get_text_list_of_blocks(self) -> str:
         result = ''
         for key, line in self._provider_list.items():
