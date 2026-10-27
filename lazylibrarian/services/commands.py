@@ -26,6 +26,7 @@ from lazylibrarian.formatter import plural
 from lazylibrarian.services import (
     InvalidRequestError,
     NotFoundError,
+    ServiceError,
     blocklist,
     events,
     manualimport,
@@ -187,7 +188,7 @@ def _run(command: dict, body: dict):
     try:
         message = HANDLERS[command['name']](command, body)
         _update(command, status='completed', message=message, ended=_now())
-    except (InvalidRequestError, NotFoundError) as why:
+    except ServiceError as why:
         _update(command, status='failed', message=str(why), ended=_now())
     except Exception as why:
         logger.error(f"{command['name']} failed: {traceback.format_exc()}")

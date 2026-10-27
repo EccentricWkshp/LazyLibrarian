@@ -43,7 +43,7 @@ from lazylibrarian.formatter import (
     unaccented,
 )
 from lazylibrarian.grsync import grfollow
-from lazylibrarian.images import get_author_image, img_id
+from lazylibrarian.images import chosen_author_image, get_author_image, img_id
 from lazylibrarian.processcontrol import get_info_on_caller
 
 
@@ -474,6 +474,8 @@ def add_author_to_db(authorname=None, refresh=False, authorid='', addbooks=True,
                 current_author['authorid'] = authorid  # keep entry authorid
             if authorname:
                 current_author['authorname'] = authorname  # and entry authorname
+            if dbauthor and chosen_author_image(dbauthor['AuthorImg']):
+                current_author['authorimg'] = dbauthor['AuthorImg']  # chosen when it was edited
         elif dbauthor:
             current_author = {}
             for item in dict(dbauthor):

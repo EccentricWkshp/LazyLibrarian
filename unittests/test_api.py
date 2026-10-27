@@ -24,7 +24,8 @@ import cherrypy
 
 from lazylibrarian.api import Api, key_matches, normalize_library_param
 from lazylibrarian.config2 import CONFIG
-from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
+from lazylibrarian.database import DBConnection
+from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS, LLTestCaseWithStartup
 
 FULL_KEY = '0123456789abcdef0123456789abcdef'
 RO_KEY = 'fedcba9876543210fedcba9876543210'
@@ -132,3 +133,20 @@ class NormalizeLibraryParamTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AddMagazineTest(LLTestCaseWithStartup):
+
+    def test_a_magazine_there_already_keeps_its_filters(self):
+        with DBConnection() as db:
+            db.action("DELETE FROM magazines")
+            db.action("INSERT INTO magazines (Title, Regex, Reject, Status, MagazineAdded) VALUES "
+                      "('Wired', 'wired mag', 'uk', 'Paused', '2020-01-01')")
+        api = Api()
+        api._addmagazine(name='wired')
+        api._addmagazine(name='New Scientist')
+        with DBConnection() as db:
+            wired = db.match("SELECT * FROM magazines WHERE Title='Wired'")
+            added = db.match("SELECT * FROM magazines WHERE Title='New Scientist'")
+        self.assertEqual((wired['Regex'], wired['Reject'], wired['Status'], wired['MagazineAdded']),
+                         ('wired mag', 'uk', 'Paused', '2020-01-01'))
+        self.assertEqual(added['Status'], 'Active')

@@ -7,7 +7,7 @@ from unittest import mock
 
 import lazylibrarian
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.services import InvalidRequestError, NotFoundError, books
+from lazylibrarian.services import InvalidRequestError, NotFoundError, ServiceError, books
 from lazylibrarian.startup import StartupLazyLibrarian
 from unittests.unittesthelpers import LLTestCaseWithDB
 
@@ -160,13 +160,45 @@ class BookServiceTest(LLTestCaseWithDB):
         api.return_value.add_bookid_to_db.assert_called_once_with('OL9W', 'Wanted', 'Wanted', 'Added by user')
 
     def test_refresh_book(self):
+        chosen = 'cache/book/0123456789abcdef0123456789abcdef.jpg'
+        self.sql("INSERT INTO books (BookID,AuthorID,BookName,Status,AudioStatus,Manual,ol_id,BookAdded,BookImg) "
+                 "VALUES ('OL5W','A1','Pandora','Open','Wanted','0','OL5W','2025-02-03',?)", (chosen,))
+
+        def add_again(bookid, bookstatus, audiostatus, reason):
+            # what a source does: its details over the book's, the statuses it's given
+            self.sql("UPDATE books SET Status=?, AudioStatus=?, BookAdded='2099-01-01', "
+                     "BookImg='cache/book/OL5W.jpg' WHERE BookID=?", (bookstatus, audiostatus, bookid))
+            return True
+
         api = mock.MagicMock()
+        api.return_value.add_bookid_to_db.side_effect = add_again
         with mock.patch.dict(lazylibrarian.INFOSOURCES['OpenLibrary'], {'api': api}):
-            self.assertEqual(books.refresh_book('B1'), 'OpenLibrary')
+            self.assertEqual(books.refresh_book('OL5W', wait=True), 'OpenLibrary')
+            self.assertEqual(books.refresh_book('B1'), '', "Its id isn't OpenLibrary's, it'd be another book")
             self.assertEqual(books.refresh_book('B2'), '', 'Locked against changes')
             self.assertEqual(books.refresh_book('B3'), '', 'Not linked to a source')
+            api.return_value.add_bookid_to_db.side_effect = None
+            api.return_value.add_bookid_to_db.return_value = False
+            with self.assertRaises(ServiceError):
+                books.refresh_book('OL5W', wait=True)
+        refreshed = self.book('OL5W')
+        self.assertEqual((refreshed['Status'], refreshed['AudioStatus']), ('Open', 'Wanted'), 'Its statuses stay')
+        self.assertEqual(refreshed['BookAdded'], '2025-02-03', 'So does when it was added')
+        self.assertEqual(refreshed['BookImg'], chosen, 'And a cover chosen for it')
         with self.assertRaises(NotFoundError):
             books.refresh_book('nosuch')
+
+    def test_kept_covers_and_statuses(self):
+        from lazylibrarian.bookdict import kept_status
+        from lazylibrarian.images import chosen_author_image, chosen_cover
+        self.assertTrue(chosen_author_image('cache/author/chosen_Ab12Cd34Ef.jpg'))
+        self.assertFalse(chosen_author_image('cache/author/Ab12Cd34Ef.jpg'), 'One a refresh cached')
+        self.assertTrue(chosen_cover('cache/book/0123456789abcdef0123456789abcdef.jpg'))
+        self.assertFalse(chosen_cover('cache/book/12605157.jpg'), "A source's cover, cached by the book's id")
+        self.assertFalse(chosen_cover('cache/book/0123456789abcdef0123456789abcdef_gr.jpg'))
+        self.assertEqual(kept_status('Open', 'Skipped'), 'Open', "Adding a book you have again doesn't skip it")
+        self.assertEqual(kept_status('Snatched', 'Skipped'), 'Snatched')
+        self.assertEqual(kept_status('Skipped', 'Wanted'), 'Wanted')
 
     def test_snatch(self):
         with mock.patch.object(books, 'nzb_dl_method', return_value=(False, 'no client')), \

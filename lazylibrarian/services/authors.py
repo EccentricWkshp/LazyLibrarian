@@ -51,7 +51,7 @@ from lazylibrarian.formatter import (
     surname_first,
     unaccented,
 )
-from lazylibrarian.images import get_author_image, img_id
+from lazylibrarian.images import CHOSEN_PREFIX, get_author_image, img_id
 from lazylibrarian.importer import (
     add_author_name_to_db,
     add_author_to_db,
@@ -580,10 +580,11 @@ def author_images(authorid) -> list:
 
 
 def cache_author_image(image: str) -> str | None:
-    """ Copy an author picture from a link or file into the cache, returns its cache path or None """
+    """ Copy an author picture from a link or file into the cache, returns its cache path or None. It's
+    named as chosen, so a refresh keeps it """
     logger = logging.getLogger(__name__)
     if image.startswith('http'):
-        cached, success, _ = cache_img(ImageType.AUTHOR, img_id(), image, refresh=True)
+        cached, success, _ = cache_img(ImageType.AUTHOR, CHOSEN_PREFIX + img_id(), image, refresh=True)
         return cached if success else None
     if not path_isfile(image):
         logger.warning(f"Failed to find file {image}")
@@ -592,7 +593,7 @@ def cache_author_image(image: str) -> str | None:
     if not extn or extn not in ['.jpg', '.jpeg', '.png', '.webp']:
         logger.warning(f"Invalid extension on [{image}]")
         return None
-    image_id = img_id()
+    image_id = CHOSEN_PREFIX + img_id()
     destfile = os.path.join(DIRS.CACHEDIR, 'author', image_id + '.jpg')
     try:
         copyfile(image, destfile)

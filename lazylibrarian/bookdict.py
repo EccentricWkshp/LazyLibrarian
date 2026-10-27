@@ -112,7 +112,7 @@ from lazylibrarian.formatter import (
     today,
     unaccented,
 )
-from lazylibrarian.images import cache_bookimg, get_book_cover
+from lazylibrarian.images import cache_bookimg, chosen_cover, get_book_cover
 
 id_key = {'DNB': 'dnb_id', 'BN': 'bn_id', 'DBK': 'dbk_id', 'RanobeDB': 'ran_id', 'HardCover': 'hc_id', 'GoodReads': 'gr_id',
           'GoogleBooks': 'gb_id', 'OpenLibrary': 'ol_id'}
@@ -309,6 +309,16 @@ def warn_about_bookdict(bookdict):
             logger.warning(msg)
 
 
+# a book's statuses when it has its file or is being downloaded: adding it again doesn't change them
+KEPT_STATUSES = ('Open', 'Have', 'Snatched')
+
+
+def kept_status(existing, new):
+    """ The status a book that's added again has: the one it has if it has its file or is being
+    downloaded, the new one if not """
+    return existing if existing in KEPT_STATUSES else new
+
+
 def add_bookdict_to_db(book):
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
@@ -339,7 +349,9 @@ def add_bookdict_to_db(book):
         logger.warning(f"AuthorID changed from bookdict {book['authorid']} to {auth_id}")
         book['authorid'] = auth_id
 
-    if book['bookimg'] and book['bookimg'].startswith('http'):
+    if exists and chosen_cover(exists['BookImg']):
+        book['bookimg'] = exists['BookImg']  # chosen when it was edited
+    elif book['bookimg'] and book['bookimg'].startswith('http'):
         book['bookimg'] = cache_bookimg(book['bookimg'], book['bookid'], book['source'].lower())
     if not book['bookimg']:  # no results or failed to cache it
         book['bookimg'] = 'images/nocover.png'
@@ -359,8 +371,8 @@ def add_bookdict_to_db(book):
         "BookPages": book['bookpages'],
         "BookDate": book['bookdate'],
         "BookLang": book['booklang'],
-        "Status": book['status'],
-        "AudioStatus": book['audiostatus'],
+        "Status": kept_status(exists['Status'], book['status']) if exists else book['status'],
+        "AudioStatus": kept_status(exists['AudioStatus'], book['audiostatus']) if exists else book['audiostatus'],
         "ScanResult": book['reason'],
     }
     if not exists:

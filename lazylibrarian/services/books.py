@@ -59,7 +59,7 @@ from lazylibrarian.formatter import (
     thread_name,
     unaccented,
 )
-from lazylibrarian.images import get_book_cover
+from lazylibrarian.images import chosen_cover, get_book_cover
 from lazylibrarian.importer import add_author_to_db, update_totals
 from lazylibrarian.manual_import import process_book_from_dir
 from lazylibrarian.manualbook import search_item
@@ -260,14 +260,49 @@ def refresh_source_priority() -> list:
     return author_linkable + book_only
 
 
+def _refresh_from(api, book, source_name: str, outcome: list):
+    """ Add the book from its source again, keeping what's the user's: its statuses, when it was
+    added, and a cover chosen when it was edited. The source's cover is fetched again, the one
+    cached for the book stays only if the source has none """
+    logger = logging.getLogger(__name__)
+    bookid = book['BookID']
+    cached = os.path.join(DIRS.CACHEDIR, 'book', f'{bookid}.jpg')
+    stale = f'{cached}.refreshing'
+    if path_isfile(cached):
+        with contextlib.suppress(OSError):
+            os.replace(cached, stale)
+    try:
+        outcome.append(api.add_bookid_to_db(bookid=bookid, bookstatus=book['Status'] or None,
+                                            audiostatus=book['AudioStatus'] or None,
+                                            reason=f"WebServer refresh_book {bookid} via {source_name}"))
+    finally:
+        if path_isfile(stale):
+            if path_isfile(cached):
+                remove_file(stale)
+            else:
+                os.replace(stale, cached)
+        db = database.DBConnection()
+        try:
+            restore = {'BookAdded': book['BookAdded']} if book['BookAdded'] else {}
+            if chosen_cover(book['BookImg']):
+                restore['BookImg'] = book['BookImg']
+            if restore:
+                db.upsert('books', restore, {'BookID': bookid})
+        finally:
+            db.close()
+    logger.debug(f"Refreshed {bookid} from {source_name}")
+
+
 def refresh_book(bookid, wait: bool = False) -> str:
-    """ Fetch the book's details again from one source it's linked to, in the background unless
-        wait. Returns the source, or empty if the book is locked against changes or isn't linked to any """
+    """ Fetch the book's details again from the source it was added from, the one its id is from, in
+        the background unless wait. Its statuses, when it was added and a cover chosen for it stay.
+        Returns the source, or empty if the book is locked against changes or isn't from a source.
+        ServiceError if waiting and the source didn't refresh it """
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
     try:
-        book = db.match("SELECT BookName,Manual,gr_id,ol_id,hc_id,ran_id,dnb_id,bn_id,dbk_id,gb_id FROM books "
-                        "WHERE BookID=?", (bookid,))
+        book = db.match("SELECT BookID,BookName,Manual,Status,AudioStatus,BookAdded,BookImg,gr_id,ol_id,hc_id,"
+                        "ran_id,dnb_id,bn_id,dbk_id,gb_id FROM books WHERE BookID=?", (bookid,))
     finally:
         db.close()
     if not book:
@@ -278,22 +313,21 @@ def refresh_book(bookid, wait: bool = False) -> str:
     if locked:
         logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - manually locked")
         return ''
-    # Deliberately only ever calls ONE source, not all of a book's linked sources -
-    # unlike get_all_author_details(), there's no merge-multiple-sources logic at
-    # the book level yet, so calling a second source after the first would just
-    # overwrite the first source's fields wholesale rather than filling gaps.
+    # Only the source the book's id is from: another source's id would be added as a book of its
+    # own (GoodReads, GoogleBooks) or turned down as a duplicate of this one (the others)
     for source_name, id_col in refresh_source_priority():
-        source_id = book[id_col]
-        if source_id:
+        if str(book[id_col] or '') == str(bookid):
             api = lazylibrarian.INFOSOURCES[source_name]['api']()
-            refresh = threading.Thread(target=api.add_bookid_to_db, name=f"REFRESHBOOK_{bookid}",
-                                       kwargs={'bookid': source_id,
-                                               'reason': f"WebServer refresh_book {bookid} via {source_name}"})
+            outcome = []
+            refresh = threading.Thread(target=_refresh_from, name=f"REFRESHBOOK_{bookid}",
+                                       args=(api, dict(book), source_name, outcome))
             refresh.start()
             if wait:
                 refresh.join()
+                if not outcome or not outcome[0]:
+                    raise ServiceError(f"{source_name} didn't refresh it, see the log")
             return source_name
-    logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - no linked source id")
+    logger.debug(f"Not refreshing {bookid} ({book['BookName']}) - its id isn't a source's")
     return ''
 
 

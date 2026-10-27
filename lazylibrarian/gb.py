@@ -25,6 +25,7 @@ from rapidfuzz.utils import default_process
 import lazylibrarian
 from lazylibrarian import ROLE, database
 from lazylibrarian.blockhandler import BLOCKHANDLER
+from lazylibrarian.bookdict import kept_status
 from lazylibrarian.bookwork import (
     delete_empty_series,
     get_status,
@@ -49,7 +50,7 @@ from lazylibrarian.formatter import (
     unaccented,
 )
 from lazylibrarian.hc import HardCover
-from lazylibrarian.images import cache_bookimg, get_book_cover
+from lazylibrarian.images import cache_bookimg, chosen_cover, get_book_cover
 from lazylibrarian.ol import OpenLibrary
 
 
@@ -469,8 +470,8 @@ class GoogleBooks:
                         if fatal:
                             self.logger.debug(f"Rejected {bookid} {reason}")
                         else:
-                            cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,ScanResult "
-                                   "FROM books WHERE BookID=?")
+                            cmd = ("SELECT Status,AudioStatus,BookFile,AudioFile,Manual,BookAdded,BookName,ScanResult,"
+                                   "BookImg FROM books WHERE BookID=?")
                             existing = db.match(cmd, (bookid,))
                             if existing:
                                 if reason.startswith('Ignored'):
@@ -569,6 +570,8 @@ class GoogleBooks:
                                     elif book['img'] and book['img'].startswith('http'):
                                         link = cache_bookimg(book['img'], bookid, 'gb')
                                         new_value_dict["BookImg"] = link
+                                if existing and chosen_cover(existing['BookImg']):
+                                    new_value_dict["BookImg"] = existing['BookImg']  # chosen when it was edited
 
                                 db.upsert("books", new_value_dict, control_value_dict)
                                 self.logger.debug(f"Book found: {bookname} {book['date']}")
@@ -823,6 +826,13 @@ class GoogleBooks:
                 "BookAdded": today(),
                 "gb_id": bookid
             }
+            existing = db.match("SELECT BookImg,Status,AudioStatus,BookAdded FROM books WHERE BookID=?", (bookid,))
+            if existing:
+                new_value_dict["Status"] = kept_status(existing['Status'], bookstatus)
+                new_value_dict["AudioStatus"] = kept_status(existing['AudioStatus'], audiostatus)
+                new_value_dict["BookAdded"] = existing['BookAdded'] or new_value_dict["BookAdded"]
+                if chosen_cover(existing['BookImg']):
+                    new_value_dict["BookImg"] = book['img'] = existing['BookImg']  # chosen when it was edited
             db.upsert("books", new_value_dict, control_value_dict)
             db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
                       (author_id, bookid, ROLE['PRIMARY']), suppress='UNIQUE')

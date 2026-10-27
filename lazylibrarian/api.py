@@ -80,7 +80,6 @@ from lazylibrarian.formatter import (
     plural,
     split_author_names,
     thread_name,
-    today,
 )
 from lazylibrarian.grsync import grfollow, grsync
 from lazylibrarian.hc import hc_sync
@@ -1929,19 +1928,9 @@ class Api:
         if not self.id:
             self.data = 'Missing parameter: name'
             return
-        control_value_dict = {"Title": self.id}
-        new_value_dict = {
-            "Regex": None,
-            "Status": "Active",
-            "MagazineAdded": today(),
-            "IssueStatus": "Wanted",
-            "Reject": None
-        }
-        db = database.DBConnection()
-        try:
-            db.upsert("magazines", new_value_dict, control_value_dict)
-        finally:
-            db.close()
+        # as Add New does: a magazine that's there already keeps its filters, status and when it was added
+        from lazylibrarian.services import magazines  # noqa: PLC0415, it imports most of LazyLibrarian
+        self.id, _ = magazines.add_magazine(self.id, search=False)
 
     def _removemagazine(self, **kwargs):
         self.id = kwargs.get('name')
@@ -2371,11 +2360,11 @@ class Api:
         api = this_source['api']
         api = api()
         if 'wait' in kwargs:
-            self.data = api.add_bookid_to_db(kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWBOOK_AUDIO'], "Added by API")
+            self.data = api.add_bookid_to_db(kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWAUDIO_STATUS'], "Added by API")
         else:
             threading.Thread(target=api.add_bookid_to_db,
                              name=f"API-{this_source['src']}RESULTS",
-                             args=[kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWBOOK_AUDIO'], "Added by API"]).start()
+                             args=[kwargs['id'], CONFIG['NEWBOOK_STATUS'], CONFIG['NEWAUDIO_STATUS'], "Added by API"]).start()
 
     def _movebook(self, **kwargs):
         for item in ['id', 'toid']:

@@ -303,6 +303,24 @@ def get_book_covers():
     return msg
 
 
+def chosen_cover(cover) -> bool:
+    """ Is this a cover chosen when the book was edited? Those are copied to a name of their own,
+    cache/book/<uuid>.jpg (books.update_book), and a refresh keeps them """
+    name = os.path.basename(str(cover or ''))
+    return str(cover or '').replace('\\', '/').startswith('cache/book/') and len(name) == 36 and \
+        name.endswith('.jpg') and all(c in string.hexdigits for c in name[:32])
+
+
+def chosen_author_image(image) -> bool:
+    """ Is this an author picture chosen when the author was edited? Those are cached as
+    cache/author/chosen_<id>.jpg (authors.cache_author_image), and a refresh keeps them """
+    return str(image or '').replace('\\', '/').startswith(f'cache/author/{CHOSEN_PREFIX}')
+
+
+# what an author picture chosen when the author was edited is cached as, before its id
+CHOSEN_PREFIX = 'chosen_'
+
+
 def cache_bookimg(img, bookid, src, suffix='', imgid=None):
     # img can be a file or a url, store image in our cache
     # return the filename in the cache, eg cache/book/12345.jpg

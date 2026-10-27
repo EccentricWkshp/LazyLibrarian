@@ -25,6 +25,7 @@ from rapidfuzz.utils import default_process
 
 import lazylibrarian
 from lazylibrarian import ROLE, database
+from lazylibrarian.bookdict import kept_status
 from lazylibrarian.bookwork import (
     delete_empty_series,
     genre_filter,
@@ -61,7 +62,7 @@ from lazylibrarian.formatter import (
     today,
     unaccented,
 )
-from lazylibrarian.images import cache_bookimg, get_book_cover
+from lazylibrarian.images import cache_bookimg, chosen_cover, get_book_cover
 
 
 class GoodReads:
@@ -670,6 +671,8 @@ class GoodReads:
                             if (existing['BookImg'] and 'nocover' not in existing['BookImg'] and 'nophoto' not in existing['BookImg']) and \
                                     (not bookimg or 'nocover' in bookimg or 'nophoto' in bookimg):
                                     bookimg = existing['BookImg']
+                            if chosen_cover(existing['BookImg']):
+                                bookimg = existing['BookImg']  # chosen when it was edited
 
                         if not bookname:
                             self.logger.debug(f'Rejecting bookid {bookid} for {author_name_result}, no bookname')
@@ -1259,6 +1262,8 @@ class GoodReads:
                                     elif bookimg and bookimg.startswith('http'):
                                         link = cache_bookimg(bookimg, bookid, 'gr')
                                         update_value_dict["BookImg"] = link
+                                if existing and chosen_cover(existing['BookImg']):
+                                    update_value_dict.pop("BookImg", None)  # chosen when it was edited
 
                                 if update_value_dict:
                                     db.upsert("books", update_value_dict, control_value_dict)
@@ -1791,8 +1796,15 @@ class GoodReads:
                 # book already has, in the window before the fallback search below runs
                 # (and if that search fails or is only intermittently reliable - confirmed
                 # live this session it can be - the wipe was never corrected).
-                existing_book = db.match("SELECT BookImg,BookDate,BookDesc,BookLang,ASIN,BookPub,BookPages FROM books WHERE BookID=?", (bookid,))
+                existing_book = db.match("SELECT BookImg,BookDate,BookDesc,BookLang,ASIN,BookPub,BookPages,Status,"
+                                         "AudioStatus,BookAdded FROM books WHERE BookID=?", (bookid,))
+                bookadded = today()
                 if existing_book:
+                    bookstatus = kept_status(existing_book['Status'], bookstatus)
+                    audiostatus = kept_status(existing_book['AudioStatus'], audiostatus)
+                    bookadded = existing_book['BookAdded'] or bookadded
+                    if chosen_cover(existing_book['BookImg']):
+                        bookimg = existing_book['BookImg']  # chosen when it was edited
                     if ('nocover' in bookimg or 'nophoto' in bookimg) and existing_book['BookImg'] \
                             and 'nocover' not in existing_book['BookImg'] \
                             and 'nophoto' not in existing_book['BookImg']:
@@ -1854,7 +1866,7 @@ class GoodReads:
                     "BookLang": book_language,
                     "Status": bookstatus,
                     "AudioStatus": audiostatus,
-                    "BookAdded": today(),
+                    "BookAdded": bookadded,
                     "WorkID": workid,
                     "gr_id": bookid,
                     "ScanResult": reason,

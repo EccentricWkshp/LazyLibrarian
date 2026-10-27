@@ -223,7 +223,7 @@ def refresh_book(book_id: str, progress=None) -> str:
         progress(f"Refreshing {book_id}")
     source = books.refresh_book(book_id, wait=True)
     if not source:
-        raise InvalidRequestError("The book is locked against changes, or isn't linked to an info source")
+        raise InvalidRequestError("The book is locked against changes, or its id isn't from an info source")
     db = database.DBConnection()
     try:
         row = db.match('SELECT BookName FROM books WHERE BookID=?', (book_id,))
