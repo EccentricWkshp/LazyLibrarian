@@ -138,6 +138,8 @@ class Magazine(ApiModel):
     publisher: str = ''
     # days between issues, from Wikidata, 0 when it isn't known
     frequency: int = 0
+    # the issues the owner hasn't finished
+    unread: int = 0
 
 
 class Issue(ApiModel):
@@ -150,6 +152,9 @@ class Issue(ApiModel):
     description: str = ''
     pages: int = 0
     number: str = ''
+    # the owner has finished it, or opened it
+    read: bool = False
+    started: bool = False
 
 
 class IssueSchedule(ApiModel):
@@ -172,6 +177,9 @@ class MagazineDetail(Magazine):
     started: str = ''
     wikidata_id: str = ''
     cover_page: int = 1
+    # how many of its newest issues it keeps, and of how many months; 0 for all
+    keep_issues: int = 0
+    keep_months: int = 0
     schedule: IssueSchedule
     issue_list: list[Issue]
 
@@ -191,6 +199,8 @@ class Comic(ApiModel):
     last: int
     overview: str
     link: str
+    # the issues the owner hasn't finished
+    unread: int = 0
 
 
 class ComicIssue(ApiModel):
@@ -200,6 +210,8 @@ class ComicIssue(ApiModel):
     overview: str
     format: str
     pages: int = 0
+    read: bool = False
+    started: bool = False
 
 
 class ComicDetail(Comic):
@@ -260,6 +272,17 @@ class RecentIssue(ApiModel):
     acquired: str
     cover: str
     format: str
+
+
+class IssuePage(ApiModel):
+    issue_id: str
+    # the magazine
+    title: str
+    date: str
+    cover: str
+    page: int
+    # the words around the ones searched for, which are between [ and ]
+    snippet: str
 
 
 class PastIssue(ApiModel):
@@ -350,6 +373,13 @@ def recent_issues(media_type: Literal['magazine', 'comic'] = Query('magazine', a
     """ The magazine or comic issues acquired most recently, as many as the cover wall shows unless
     limit is given """
     return library.recent_issues(media_type, limit)
+
+
+@router.get('/magazine/search', response_model=list[IssuePage])
+def search_issues(q: str, limit: int = Query(100, ge=1, le=500)):
+    """ The pages of issues with these words, best first. Words in quotes are a phrase, the last word
+    can be the start of one. The IndexIssues command puts the issues' words in the index """
+    return library.search_issues(q, limit)
 
 
 @router.get('/magazine/pastissues', response_model=list[PastIssue])

@@ -21,8 +21,23 @@ const SPREADS = [
   { key: '2', value: 'Two Pages' },
 ];
 
-function PageViewer({ kind, id, pages, title }: { kind: ReadKind; id: string; pages: number; title: string }) {
-  const [page, setPage] = useState(1);
+function PageViewer({
+  kind,
+  id,
+  pages,
+  title,
+  startPage = 1,
+  onPage,
+}: {
+  kind: ReadKind;
+  id: string;
+  pages: number;
+  title: string;
+  startPage?: number;
+  // the last page showing, once it's been turned to a moment
+  onPage?: (page: number) => void;
+}) {
+  const [page, setPage] = useState(Math.max(startPage, 1));
   const [fit, setFit] = useState<Fit>(() => (remembered('reader.fit', 'height') === 'width' ? 'width' : 'height'));
   const [spread, setSpread] = useState(() => (remembered('reader.spread', '1') === '2' ? 2 : 1));
   // the cover is a page of its own, the pages after it pair up
@@ -55,6 +70,18 @@ function PageViewer({ kind, id, pages, title }: { kind: ReadKind; id: string; pa
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // where the owner is, kept once they stop on a page
+  const last = shown[shown.length - 1];
+  useEffect(() => {
+    if (!onPage || !pages) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => onPage(last), 800);
+    return () => window.clearTimeout(timer);
+    // onPage is made again each render, the page is what matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [last, pages]);
 
   // the next pages are fetched before they're turned to
   useEffect(() => {

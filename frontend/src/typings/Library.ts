@@ -89,6 +89,8 @@ export interface Magazine {
   publisher: string;
   // days between issues, 0 when it isn't known
   frequency: number;
+  // the issues the owner hasn't finished
+  unread: number;
 }
 
 export interface MagazineIssue {
@@ -101,6 +103,9 @@ export interface MagazineIssue {
   description: string;
   pages: number;
   number: string;
+  // the owner has finished it, or opened it
+  read: boolean;
+  started: boolean;
 }
 
 export interface IssueSchedule {
@@ -120,6 +125,8 @@ export interface MagazineDetail extends Magazine {
   started: string;
   wikidataId: string;
   coverPage: number;
+  keepIssues: number;
+  keepMonths: number;
   schedule: IssueSchedule;
   issueList: MagazineIssue[];
 }
@@ -160,6 +167,8 @@ export interface Comic {
   last: number;
   overview: string;
   link: string;
+  // the issues the owner hasn't finished
+  unread: number;
 }
 
 export interface ComicIssue {
@@ -169,6 +178,8 @@ export interface ComicIssue {
   overview: string;
   format: string;
   pages: number;
+  read: boolean;
+  started: boolean;
 }
 
 export interface ComicDetail extends Comic {

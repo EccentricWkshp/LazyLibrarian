@@ -152,9 +152,16 @@ def _author_search(command: dict, body: dict) -> str:
 
 
 def _library_scan(command: dict, body: dict) -> str:
-    from lazylibrarian.services import system  # it imports most of LazyLibrarian
-    return system.scan_now(body.get('media_type') or '', body.get('title') or '', body.get('comic_id') or '',
-                           progress=lambda text: _update(command, message=text))
+    from lazylibrarian.config2 import CONFIG
+    from lazylibrarian.services import magazines, system  # they import most of LazyLibrarian
+    message = system.scan_now(body.get('media_type') or '', body.get('title') or '', body.get('comic_id') or '',
+                              progress=lambda text: _update(command, message=text))
+    if body.get('media_type') == 'magazine' and CONFIG.get_bool('MAG_FULLTEXT'):
+        # the issues it found go in the search index
+        found = magazines.index_issues(progress=lambda text: _update(command, message=text))
+        if found['indexed']:
+            message += f", {found['items']} {plural(found['items'], 'issue')} can be searched"
+    return message
 
 
 def _refresh_book(command: dict, body: dict) -> str:
@@ -236,6 +243,25 @@ def _refresh_magazine(command: dict, body: dict) -> str:
     return magazines.refresh_magazine(title)
 
 
+def _apply_retention(command: dict, body: dict) -> str:
+    """ Delete the issues a magazine (title), or every magazine, doesn't keep """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    title = body.get('title') or ''
+    _update(command, message=f"Deleting the issues {title or 'the magazines'} doesn't keep")
+    deleted = magazines.apply_retention(title) if title else magazines.apply_all_retention()
+    return f"Deleted {deleted} {plural(deleted, 'issue')} {title or 'the magazines'} doesn't keep" if deleted \
+        else f"{title or 'The magazines'} keeps every issue there is"
+
+
+def _index_issues(command: dict, body: dict) -> str:
+    """ Put the words of the issues that aren't, or whose files changed, in the search index """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    found = magazines.index_issues(progress=lambda text: _update(command, message=text))
+    command['result'] = found
+    return (f"Read the words of {found['indexed']} {plural(found['indexed'], 'issue')}, {found['items']} "
+            f"{plural(found['items'], 'issue')} can be searched, {found['pages']} {plural(found['pages'], 'page')}")
+
+
 def _refresh_languages(command: dict, body: dict) -> str:
     from lazylibrarian.services import books  # it imports most of LazyLibrarian
     return books.refresh_languages_now(progress=lambda text: _update(command, message=text))
@@ -251,7 +277,8 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'AuthorSearch': _author_search, 'LibraryScan': _library_scan,
                                                     'RefreshLanguages': _refresh_languages,
                                                     'IssueCovers': _issue_covers, 'SwapCover': _swap_cover,
-                                                    'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine}
+                                                    'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine,
+                                                    'ApplyRetention': _apply_retention, 'IndexIssues': _index_issues}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
@@ -259,7 +286,8 @@ TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'Missing
           'AddAuthor': 'Add Author', 'AddBook': 'Add Book', 'RefreshAuthor': 'Refresh Author',
           'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search', 'LibraryScan': 'Library Scan',
           'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0], 'IssueCovers': 'Make Covers',
-          'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine'}
+          'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine',
+          'ApplyRetention': 'Delete Old Issues', 'IndexIssues': 'Index Issues for Search'}
 
 
 def _run(command: dict, body: dict):

@@ -94,7 +94,8 @@ class ReaderTest(LLTestCaseWithDB):
 
     def test_reading(self):
         self.assertEqual(reader.reading('issue', 'I1'),
-                         {'title': 'Wired 2026-01', 'format': 'pdf', 'formats': [], 'reader': 'pdf', 'pages': 3})
+                         {'title': 'Wired 2026-01', 'format': 'pdf', 'formats': [], 'reader': 'pdf', 'pages': 3,
+                          'progress': {'position': '', 'page': 0, 'pages': 0, 'finished': False, 'updated': ''}})
         self.assertEqual(reader.reading('comic', 'CV1_54')['pages'], 2)
         self.assertEqual(reader.reading('book', 'B1', 'epub')['reader'], 'epub')
         self.assertEqual(Image.open(io.BytesIO(reader.page('comic', 'CV1_54', 2))).width, 20)
@@ -133,6 +134,57 @@ class ReaderTest(LLTestCaseWithDB):
         self.assertEqual(comics.set_issue_cover('CV1', '54', 0), 'It has no cover now')
         cover = self.sql("SELECT Cover FROM comicissues")[0]['Cover']
         self.assertTrue(os.path.exists(os.path.join(DIRS.DATADIR, cover)), 'The no cover picture, cached')
+
+    def test_reading_progress(self):
+        self.assertEqual(reader.progress('comic', 'CV1_54')['page'], 0)
+        saved = reader.save_progress('comic', 'CV1_54', page=1, pages=2)
+        self.assertEqual((saved['page'], saved['finished']), (1, False))
+        self.assertTrue(reader.save_progress('comic', 'CV1_54', page=2, pages=2)['finished'], 'The last page finishes it')
+        self.assertEqual(reader.read_items('comic'), {'CV1_54'})
+        from lazylibrarian.services import library
+        found = library.get_comic('CV1')
+        self.assertEqual((found['issue_list'][0]['read'], found['unread']), (True, 0))
+        self.assertEqual(library.list_magazines()[0]['unread'], 1)
+        self.assertEqual(reader.mark_read('issue', ['I1'], True), 1)
+        self.assertEqual(library.list_magazines()[0]['unread'], 0)
+        reader.mark_read('issue', ['I1'], False)
+        self.assertEqual(reader.progress('issue', 'I1')['updated'], '', 'Unread forgets where the owner was')
+        with mock.patch('lazylibrarian.services.library.mark_books') as lists:
+            reader.save_progress('book', 'B1', position='epubcfi(/6/4)', finished=False)
+            reader.save_progress('book', 'B1', position='epubcfi(/6/8)', finished=False)
+            reader.save_progress('book', 'B1', position='epubcfi(/6/9)', finished=True)
+        self.assertEqual([call.args[2] for call in lists.call_args_list], ['Reading', 'Read'],
+                         'Started, then finished, a book moves on the reading lists')
+        self.assertEqual(reader.reading('book', 'B1', 'epub')['progress']['position'], 'epubcfi(/6/9)')
+
+    def test_retention(self):
+        import datetime
+        for issueid, date in (('I2', '2026-02'), ('I3', '2025-06'), ('I4', '2024-01')):
+            self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Wired',?,?,'')", (issueid, date))
+        today = datetime.date(2026, 6, 15)
+        self.assertEqual(magazines.issues_past_retention('Wired', today), [], 'It keeps them all')
+        self.sql("UPDATE magazines SET KeepIssues=2")
+        self.assertEqual([i['IssueID'] for i in magazines.issues_past_retention('Wired', today)], ['I3', 'I4'])
+        self.sql("UPDATE magazines SET KeepIssues=0, KeepMonths=12")
+        self.assertEqual([i['IssueID'] for i in magazines.issues_past_retention('Wired', today)], ['I4'])
+        self.sql("UPDATE magazines SET KeepIssues=3, KeepMonths=0")
+        with mock.patch.object(magazines, 'mark_issues') as deleted:
+            self.assertEqual(magazines.apply_retention('Wired'), 1)
+        deleted.assert_called_once_with('Delete', ['I4'])
+
+    def test_a_magazines_own_profile(self):
+        from lazylibrarian.services import profiles
+        default = profiles.for_item('magazine', 'Wired')
+        other = self.sql("SELECT ProfileID FROM qualityprofiles WHERE MediaType='magazine' AND ProfileID != ?",
+                         (default['id'],))
+        if not other:
+            self.sql("INSERT INTO qualityprofiles (Name, MediaType, Items, Cutoff) SELECT 'Own', MediaType, Items, "
+                     "Cutoff FROM qualityprofiles WHERE ProfileID=?", (default['id'],))
+            other = self.sql("SELECT ProfileID FROM qualityprofiles WHERE Name='Own'")
+        self.sql("UPDATE magazines SET ProfileID=?", (other[0]['ProfileID'],))
+        self.assertEqual(profiles.for_item('magazine', 'wired')['id'], other[0]['ProfileID'])
+        self.sql("UPDATE magazines SET ProfileID=9999")
+        self.assertEqual(profiles.for_item('magazine', 'Wired')['id'], default['id'], "One that's gone, the default")
 
     def test_cover_commands(self):
         command = {'id': 0}

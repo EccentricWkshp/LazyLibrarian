@@ -2,6 +2,7 @@
 import { TextArea, TextInput } from 'Components/Form/Form';
 import { Alert } from 'Components/Misc';
 import { EditField, EditModal, useEdit } from 'Library/Edit/edit';
+import ProfileField from 'Library/Edit/ProfileField';
 
 interface ComicEdit {
   id: string;
@@ -9,6 +10,7 @@ interface ComicEdit {
   aka: string;
   description: string;
   genre: string;
+  profileId: number;
 }
 
 function EditComicModal({
@@ -58,6 +60,7 @@ function EditComicModal({
           <EditField id="comicGenre" label="Genres" help="Separated by commas">
             <TextInput id="comicGenre" value={comic.genre} onChange={(genre) => edit.set('genre', genre)} />
           </EditField>
+          <ProfileField mediaType="comic" value={comic.profileId} onChange={(profileId) => edit.set('profileId', profileId)} />
           <EditField id="comicDescription" label="Description">
             <TextArea
               id="comicDescription"

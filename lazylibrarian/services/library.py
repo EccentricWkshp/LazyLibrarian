@@ -357,8 +357,35 @@ def _magazine(row: dict) -> dict:
             'publisher': row.get('Publisher') or '', 'frequency': check_int(row.get('Frequency'), 0)}
 
 
+UNREAD = {'issue': "SELECT Title AS ID, COUNT(*) AS Unread FROM issues WHERE IssueID NOT IN (SELECT ItemID FROM "
+                   "readprogress WHERE Kind='issue' AND Finished=1) GROUP BY Title",
+          'comic': "SELECT ComicID AS ID, COUNT(*) AS Unread FROM comicissues WHERE ComicID || '_' || IssueID NOT IN "
+                   "(SELECT ItemID FROM readprogress WHERE Kind='comic' AND Finished=1) GROUP BY ComicID"}
+
+
+def _unread(kind: str) -> dict:
+    """ How many issues of each magazine (by title) or comic (by id) the owner hasn't finished """
+    db = database.DBConnection()
+    try:
+        return {row['ID']: row['Unread'] for row in db.select(UNREAD[kind])}
+    finally:
+        db.close()
+
+
+def _read_states(kind: str) -> dict:
+    """ Each item of a kind the owner has opened: True finished, False started """
+    db = database.DBConnection()
+    try:
+        return {row['ItemID']: bool(row['Finished']) for row in
+                db.select('SELECT ItemID, Finished FROM readprogress WHERE Kind=?', (kind,))}
+    finally:
+        db.close()
+
+
 def list_magazines() -> list[dict]:
-    return [_magazine(row) for row in magazines.list_magazines(limit=None).items]
+    unread = _unread('issue')
+    return [{**_magazine(row), 'unread': unread.get(row['Title'], 0)}
+            for row in magazines.list_magazines(limit=None).items]
 
 
 def get_magazine(title: str) -> dict:
@@ -372,12 +399,17 @@ def get_magazine(title: str) -> dict:
                   'logo': magazine.get('Logo') or '', 'started': magazine.get('Started') or '',
                   'wikidata_id': magazine.get('WikidataID') or '', 'cover_page': check_int(magazine['CoverPage'], 1),
                   'schedule': magazines.issue_schedule([issue['IssueDate'] for issue in issues],
-                                                       check_int(magazine.get('Frequency'), 0))})
+                                                       check_int(magazine.get('Frequency'), 0)),
+                  'keep_issues': check_int(magazine.get('KeepIssues'), 0),
+                  'keep_months': check_int(magazine.get('KeepMonths'), 0)})
+    states = _read_states('issue')
     found['issue_list'] = [{'id': issue['IssueID'], 'date': issue['IssueDate'] or '',
                             'acquired': issue['IssueAcquired'] or '', 'cover': issue['Cover'] or '',
                             'format': _file_format(issue['IssueFile'], 'magazine'),
                             'description': issue.get('Description') or '', 'pages': check_int(issue.get('Pages'), 0),
-                            'number': issue.get('IssueNumber') or ''} for issue in issues]
+                            'number': issue.get('IssueNumber') or '', 'read': states.get(issue['IssueID'], False),
+                            'started': issue['IssueID'] in states} for issue in issues]
+    found['unread'] = sum(not issue['read'] for issue in found['issue_list'])
     return found
 
 
@@ -421,6 +453,13 @@ def recent_issues(media_type: str = 'magazine', limit: int = 0) -> list[dict]:
              'format': _file_format(row['IssueFile'], 'magazine')} for row in rows]
 
 
+def search_issues(words: str, limit: int = 100) -> list[dict]:
+    """ The pages of issues with these words, best first """
+    if not words.strip():
+        raise InvalidRequestError('Type the words to look for')
+    return magazines.search_issues(words, limit)
+
+
 def list_past_issues(status: str = 'Skipped', title: str = '') -> list[dict]:
     """ The past issues, search results for a magazine's issues that weren't wanted when they were
     found, with a status, and of one magazine when title is given """
@@ -460,18 +499,23 @@ def _comic(row: dict) -> dict:
 
 
 def list_comics() -> list[dict]:
-    return [_comic(row) for row in comics.list_comics(limit=None).items]
+    unread = _unread('comic')
+    return [{**_comic(row), 'unread': unread.get(row['ComicID'], 0)} for row in comics.list_comics(limit=None).items]
 
 
 def get_comic(comic_id: str) -> dict:
-    """ A comic with its issues, newest first """
+    """ A comic with its issues, newest first, each saying whether the owner has read it """
     comic = comics.get_comic(comic_id)
     issues = comics.list_issues(comic_id, limit=None).items
     found = _comic({**comic, 'Iss_Cnt': len(issues)})
+    states = _read_states('comic')
     found['issue_list'] = [{'id': str(issue['IssueID']), 'acquired': issue['IssueAcquired'] or '',
                             'cover': issue['Cover'] or '', 'overview': issue.get('Description') or '',
                             'format': _file_format(issue['IssueFile'], 'comic'),
-                            'pages': check_int(issue.get('Pages'), 0)} for issue in issues]
+                            'pages': check_int(issue.get('Pages'), 0),
+                            'read': states.get(f"{comic['ComicID']}_{issue['IssueID']}", False),
+                            'started': f"{comic['ComicID']}_{issue['IssueID']}" in states} for issue in issues]
+    found['unread'] = sum(not issue['read'] for issue in found['issue_list'])
     return found
 
 

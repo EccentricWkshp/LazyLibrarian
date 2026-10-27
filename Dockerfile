@@ -43,5 +43,7 @@ ENV LAZYLIBRARIAN_SUPERVISED=1 \
 VOLUME /config
 EXPOSE 5299
 
-HEALTHCHECK --interval=1m --timeout=10s --start-period=2m \
+# Docker mods (calibre, ffmpeg) install their packages before LazyLibrarian starts, which takes
+# minutes on a slow mirror; a check that fails while it starts doesn't count, it's healthy once it answers
+HEALTHCHECK --interval=1m --timeout=10s --start-period=15m --start-interval=10s \
     CMD ["python3", "/app/lazylibrarian/docker/healthcheck.py"]

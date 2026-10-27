@@ -233,7 +233,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                 searchterms = get_list(res['Regex'], ',')
                 # the quality profile: each release's quality, the best first, so the first found for
                 # an issue, which is the one taken, is the best
-                profile = profiles.for_media('magazine', db)
+                profile = profiles.for_item('magazine', book['bookid'], db)
                 for nzb in resultlist:
                     nzb['quality'] = profiles.release_quality(
                         profile, quality.of_release(nzb['nzbtitle'], 'magazine')) if profile else quality.UNKNOWN

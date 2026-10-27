@@ -182,7 +182,15 @@ function ComicIndex() {
                 cover={comic.cover}
                 icon={Layers}
                 name={comic.title}
-                corner={comic.status !== 'Active' ? <Label kind="warning">{comic.status}</Label> : null}
+                corner={
+                  comic.status !== 'Active' ? (
+                    <Label kind="warning">{comic.status}</Label>
+                  ) : comic.unread ? (
+                    <Label kind="info" title={`${comic.unread} unread`}>
+                      {comic.unread}
+                    </Label>
+                  ) : null
+                }
               >
                 <div className={styles.posterFooter}>
                   {plural(comic.issues, 'issue')}
@@ -236,7 +244,10 @@ function ComicIndex() {
                 <TableRowCell className={styles.date}>
                   <FormattedDate value={comic.lastAcquired} />
                 </TableRowCell>
-                <TableRowCell>{comic.issues}</TableRowCell>
+                <TableRowCell>
+                  {comic.issues}
+                  {comic.unread ? <span className={styles.muted}> ({comic.unread} unread)</span> : null}
+                </TableRowCell>
               </TableRow>
             ))}
           </Table>

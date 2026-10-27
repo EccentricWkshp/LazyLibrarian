@@ -169,6 +169,12 @@ const GROUPS: Group[] = [
       { key: 'KEEP_JPG', label: "Keep a download's cover", advanced: true },
       { key: 'IMP_MAGOPF', label: 'An opf file for each magazine issue', showIf: (v) => !!v.MAG_TAB },
       { key: 'IMP_MAGCOVER', label: 'A cover for each magazine issue', showIf: (v) => !!v.MAG_TAB },
+      {
+        key: 'MAG_FULLTEXT',
+        label: "Index each issue's words for searching",
+        help: 'Magazines, Search Issues finds articles in them. The index is kept in fulltext.db, apart from the library',
+        showIf: (v) => !!v.MAG_TAB,
+      },
       { key: 'IMP_COMICOPF', label: 'An opf file for each comic issue', showIf: (v) => !!v.COMIC_TAB },
       { key: 'IMP_COMICCOVER', label: 'A cover for each comic issue', showIf: (v) => !!v.COMIC_TAB },
       {

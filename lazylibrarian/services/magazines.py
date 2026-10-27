@@ -23,7 +23,7 @@ import uuid
 from shutil import copyfile
 
 import lazylibrarian
-from lazylibrarian import database, pages, wikidata
+from lazylibrarian import database, fulltext, pages, wikidata
 from lazylibrarian.cache import ImageType, cache_img
 from lazylibrarian.calibre import calibredb, get_calibre_id
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
@@ -679,6 +679,132 @@ def search_for_magazine(title):
         logging.getLogger(__name__).warning(f"Magazine {title} was not found in the library")
         raise
     start_search([{"bookid": magazine['Title']}])
+
+
+# --- searching inside issues
+
+
+def index_issues(progress=None) -> dict:
+    """ Put the words of every issue that hasn't been, or whose file changed, in the search index, and
+    take out the ones that are gone. progress(message) is told how it's going. Returns how many issues
+    were indexed and how many there are """
+    db = database.DBConnection()
+    try:
+        issues = [(row['IssueID'], row['IssueFile']) for row in
+                  db.select("SELECT IssueID, IssueFile FROM issues WHERE IFNULL(IssueFile,'') != ''")]
+    finally:
+        db.close()
+    index = fulltext.connect()
+    try:
+        fulltext.forget('issue', {issue_id for issue_id, _path in issues}, index)
+        done = 0
+        for number, (issue_id, path) in enumerate(issues, start=1):
+            if not path_exists(path):
+                continue
+            if progress and number % 10 == 1:
+                progress(f"Reading the words of issue {number} of {len(issues)}")
+            fulltext.index_item('issue', issue_id, path, index)
+            done += 1
+    finally:
+        index.close()
+    return {'indexed': done, **fulltext.stats('issue')}
+
+
+def index_issue(issueid):
+    """ Put one issue's words in the search index, when the settings say to """
+    if not CONFIG.get_bool('MAG_FULLTEXT'):
+        return
+    db = database.DBConnection()
+    try:
+        issue = db.match('SELECT IssueFile FROM issues WHERE IssueID=?', (issueid,))
+    finally:
+        db.close()
+    if issue and issue['IssueFile'] and path_exists(issue['IssueFile']):
+        fulltext.index_item('issue', issueid, issue['IssueFile'])
+
+
+def after_import(title: str, issueid: str = ''):
+    """ What follows an issue's import, in the background: the magazine lets the issues it doesn't keep
+    go, and the new one's words go in the search index """
+    try:
+        apply_retention(title)
+        if issueid:
+            index_issue(issueid)
+    except Exception:
+        logging.getLogger(__name__).error(f"After importing {title}: {traceback.format_exc()}")
+
+
+def search_issues(words: str, limit: int = 100) -> list[dict]:
+    """ The pages of issues with these words, best first: each its magazine, issue, page and a snippet
+    with the words between [ and ] """
+    found = fulltext.search(words, 'issue', limit)
+    if not found:
+        return []
+    db = database.DBConnection()
+    try:
+        ids = list({row['item_id'] for row in found})
+        issues = {row['IssueID']: dict(row) for row in db.select(
+            f"SELECT IssueID, Title, IssueDate, Cover FROM issues WHERE IssueID IN ({', '.join('?' * len(ids))})",
+            tuple(ids))}
+    finally:
+        db.close()
+    return [{'issue_id': row['item_id'], 'title': issues[row['item_id']]['Title'],
+             'date': issues[row['item_id']]['IssueDate'] or '', 'cover': issues[row['item_id']]['Cover'] or '',
+             'page': row['page'], 'snippet': row['snippet']} for row in found if row['item_id'] in issues]
+
+
+# --- retention
+
+
+def _months_ago(today: datetime.date, months: int) -> datetime.date:
+    total = today.year * 12 + today.month - 1 - months
+    return datetime.date(total // 12, total % 12 + 1, 1)
+
+
+def issues_past_retention(title: str, today: datetime.date | None = None) -> list[dict]:
+    """ The issues a magazine doesn't keep: past the newest KeepIssues, or from before the last
+    KeepMonths months (by the issue's date, or when it was acquired for one known by number) """
+    today = today or datetime.date.today()
+    db = database.DBConnection()
+    try:
+        magazine = db.match('SELECT KeepIssues, KeepMonths FROM magazines WHERE Title=? COLLATE NOCASE', (title,))
+        if not magazine:
+            raise NotFoundError(f"Magazine {title} not found")
+        issues = [dict(row) for row in db.select('SELECT IssueID, IssueDate, IssueAcquired FROM issues WHERE '
+                                                 'Title=? COLLATE NOCASE ORDER BY IssueDate DESC', (title,))]
+    finally:
+        db.close()
+    keep, months = check_int(magazine['KeepIssues'], 0), check_int(magazine['KeepMonths'], 0)
+    gone = issues[keep:] if keep else []
+    if months:
+        since = _months_ago(today, months)
+        for issue in issues:
+            day = _issue_day(issue['IssueDate']) or _issue_day(issue['IssueAcquired'])
+            if day and day < since and issue not in gone:
+                gone.append(issue)
+    return gone
+
+
+def apply_retention(title: str) -> int:
+    """ Delete the issues a magazine doesn't keep, and their files. Returns how many were deleted """
+    gone = issues_past_retention(title)
+    if not gone:
+        return 0
+    mark_issues('Delete', [issue['IssueID'] for issue in gone])
+    logging.getLogger(__name__).info(f"{title} keeps fewer issues, deleted {len(gone)} "
+                                     f"{plural(len(gone), 'issue')}")
+    return len(gone)
+
+
+def apply_all_retention() -> int:
+    """ Apply every magazine's retention. Returns how many issues were deleted """
+    db = database.DBConnection()
+    try:
+        titles = [row['Title'] for row in db.select('SELECT Title FROM magazines WHERE IFNULL(KeepIssues,0) > 0 '
+                                                     'OR IFNULL(KeepMonths,0) > 0')]
+    finally:
+        db.close()
+    return sum(apply_retention(title) for title in titles)
 
 
 # --- missing and expected issues

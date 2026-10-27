@@ -138,8 +138,16 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 104 add qualityprofiles table, with the default profiles
 # 105 add notifications, notificationevents and appstate tables, the webhooks and what they're sent
 # 106 add a magazine's details from Wikidata to magazines, and what an issue's file says to issues and comicissues
+# 107 add a magazine's retention and a magazine's and comic's own quality profile, and the readprogress table
 
-db_current_version = 106
+db_current_version = 107
+# v107: how many issues a magazine keeps (KeepIssues, the newest; KeepMonths, those that recent; 0 for
+# all), and the quality profile of a magazine or comic (0 for the default)
+RETENTION_COLUMNS = {
+    'magazines': [('KeepIssues', 'INTEGER DEFAULT 0'), ('KeepMonths', 'INTEGER DEFAULT 0'),
+                  ('ProfileID', 'INTEGER DEFAULT 0')],
+    'comics': [('ProfileID', 'INTEGER DEFAULT 0')],
+}
 # v106: a magazine's Wikidata item and what it says (Frequency is days between issues), and what an
 # issue's file says about it
 MAGAZINE_INFO_COLUMNS = {
@@ -1845,13 +1853,24 @@ def update_schema(db, upgradelog):
                   'Message TEXT, Data TEXT, Created TEXT, Sent TEXT)')
         db.action('CREATE INDEX notificationevents_sent ON notificationevents (Sent)')
         db.action('CREATE TABLE appstate (Key TEXT PRIMARY KEY, Value TEXT)')
-    for table, columns in MAGAZINE_INFO_COLUMNS.items():
-        for column, kind in columns:
-            if not has_column(db, table, column):
-                changes += 1
-                lazylibrarian.UPDATE_MSG = f'Adding {column} column to {table} table'
-                upgradelog.write(f"{time.ctime()} v106: {lazylibrarian.UPDATE_MSG}\n")
-                db.action(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+    for version, added in (('v106', MAGAZINE_INFO_COLUMNS), ('v107', RETENTION_COLUMNS)):
+        for table, columns in added.items():
+            for column, kind in columns:
+                if not has_column(db, table, column):
+                    changes += 1
+                    lazylibrarian.UPDATE_MSG = f'Adding {column} column to {table} table'
+                    upgradelog.write(f"{time.ctime()} {version}: {lazylibrarian.UPDATE_MSG}\n")
+                    db.action(f'ALTER TABLE {table} ADD COLUMN {column} {kind}')
+
+    if not has_column(db, "readprogress", "ItemID"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating readprogress table'
+        upgradelog.write(f"{time.ctime()} v107: {lazylibrarian.UPDATE_MSG}\n")
+        # where the owner is in a book, issue or comic issue read in the browser: an EPUB's
+        # location, or a page of how many, and whether it's finished
+        db.action('CREATE TABLE readprogress (Kind TEXT NOT NULL, ItemID TEXT NOT NULL, Position TEXT, '
+                  'Page INTEGER DEFAULT 0, Pages INTEGER DEFAULT 0, Finished INTEGER DEFAULT 0, Updated TEXT, '
+                  'PRIMARY KEY (Kind, ItemID))')
 
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'notify_%'")) \
             < len(NOTIFY_TRIGGERS):

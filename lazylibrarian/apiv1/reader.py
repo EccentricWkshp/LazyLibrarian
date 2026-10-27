@@ -27,6 +27,32 @@ router = APIRouter(prefix='/read', tags=['Read'])
 Kind = Literal['book', 'issue', 'comic']
 
 
+class Progress(ApiModel):
+    # an EPUB's location
+    position: str = ''
+    page: int = 0
+    pages: int = 0
+    finished: bool = False
+    updated: str = ''
+
+
+class ProgressIn(ApiModel):
+    position: str = ''
+    page: int = 0
+    pages: int = 0
+    # finished at its last page unless it's given
+    finished: bool | None = None
+
+
+class ReadMark(ApiModel):
+    ids: list[str]
+    finished: bool
+
+
+class Changed(ApiModel):
+    changed: int
+
+
 class Reading(ApiModel):
     title: str
     format: str
@@ -36,10 +62,19 @@ class Reading(ApiModel):
     # reader, empty when it can't be read in the browser
     reader: str
     pages: int
+    # where the owner is in it
+    progress: Progress
 
 
 class Message(ApiModel):
     message: str
+
+
+@router.put('/{kind}', response_model=Changed)
+def mark_read(kind: Kind, mark: ReadMark):
+    """ Mark items read, or unread, which forgets where the owner was in them. A book goes on the
+    Read list, or off the reading lists """
+    return {'changed': reader.mark_read(kind, mark.ids, mark.finished)}
 
 
 @router.get('/{kind}/{item_id}', response_model=Reading)
@@ -60,6 +95,13 @@ def page(kind: Kind, item_id: str, number: int, width: int = 0):
     """ A page, counted from 1, as a JPEG no wider than width when it's given """
     return Response(reader.page(kind, item_id, number, width), media_type='image/jpeg',
                     headers={'Cache-Control': 'private, max-age=3600'})
+
+
+@router.put('/{kind}/{item_id}/progress', response_model=Progress)
+def save_progress(kind: Kind, item_id: str, change: ProgressIn):
+    """ Remember where the owner is: an EPUB's location, or a page of how many; at the last page it's
+    finished. A book read in the browser goes on the Reading list, then Read """
+    return reader.save_progress(kind, item_id, change.position, change.page, change.pages, change.finished)
 
 
 @router.post('/{kind}/{item_id}/send', response_model=Message)

@@ -107,7 +107,7 @@ def search_item(comicid=None):
     searchresults = []
     db = database.DBConnection()
     try:
-        profile = profiles.for_media('comic', db)
+        profile = profiles.for_item('comic', comicid, db)
         searchresults = _evaluate(results, comicid, searchterm, profile, db)
     finally:
         db.close()
@@ -300,7 +300,7 @@ def search_comics(comicid=None):
             have = {}
             for item in haveissues:
                 have[int(item['IssueID'])] = item['IssueFile']
-            profile = profiles.for_media('comic', db)
+            profile = profiles.for_item('comic', comicid, db)
             for item in list(foundissues):
                 if item in have:
                     # downloaded again when better than the file there is, and the profile upgrades

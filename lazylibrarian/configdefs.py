@@ -469,6 +469,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('Magazines', 'REJECT_MAGMIN', 0),
     ConfigBool('Magazines', 'IMP_MAGOPF', 1),
     ConfigBool('Magazines', 'IMP_MAGCOVER', 1),
+    # the words of issues go in a search index of their own, fulltext.db
+    ConfigBool('Magazines', 'MAG_FULLTEXT', 1),
     ConfigBool('Magazines', 'MAG_SINGLE', 1),
     ConfigCSV('Magazines', 'MAG_NOUNS', "winter, spring, summer, fall, autumn, christmas, edition, special",
               force_lower=True),

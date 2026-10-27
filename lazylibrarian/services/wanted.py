@@ -102,11 +102,12 @@ def _cutoff_unmet(kinds: list[str]) -> list[dict]:
     db = database.DBConnection()
     try:
         for kind in kinds:
-            profile = profiles.for_media(kind, db)
-            if not profile or not profile['upgrade_allowed']:
-                continue
             if kind in ISSUES:
+                # each magazine or comic can have a profile of its own
                 for row in db.select(ISSUES[kind]):
+                    profile = profiles.for_item(kind, row['ItemID'], db)
+                    if not profile or not profile['upgrade_allowed']:
+                        continue
                     current = quality.of_file(row['Path'], kind)
                     if profiles.cutoff_met(profile, current) or not path_isfile(row['Path']):
                         continue
@@ -114,6 +115,9 @@ def _cutoff_unmet(kinds: list[str]) -> list[dict]:
                                               added=row['Imported'] or '', quality=quality.name(current),
                                               cutoff=quality.name(profile['cutoff']), profile=profile['name']),
                                     'id': f"{row['ItemID']}|{row['Issue']}:{kind}"})
+                continue
+            profile = profiles.for_media(kind, db)
+            if not profile or not profile['upgrade_allowed']:
                 continue
             status, file_column, imported = BOOK_COLUMNS[kind]
             rows = db.select(f"SELECT BookID,BookName,AuthorName,books.AuthorID,{file_column} AS Path,{imported} AS "

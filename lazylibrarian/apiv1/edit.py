@@ -269,6 +269,11 @@ class MagazineEdit(ApiModel):
     language: str
     # the periodical on Wikidata its details come from, empty when it isn't linked
     wikidata_id: str = ''
+    # how many of its newest issues it keeps, and of how many months; 0 for all
+    keep_issues: int = 0
+    keep_months: int = 0
+    # its quality profile, 0 for the magazines' default
+    profile_id: int = 0
 
 
 class MagazineChange(ApiModel):
@@ -280,6 +285,9 @@ class MagazineChange(ApiModel):
     cover_page: int | None = None
     language: str | None = None
     wikidata_id: str | None = None
+    keep_issues: int | None = None
+    keep_months: int | None = None
+    profile_id: int | None = None
 
 
 class WikidataMatch(ApiModel):
@@ -348,6 +356,8 @@ class ComicEdit(ApiModel):
     aka: str
     description: str
     genre: str
+    # its quality profile, 0 for the comics' default
+    profile_id: int = 0
 
 
 class ComicChange(ApiModel):
@@ -356,6 +366,7 @@ class ComicChange(ApiModel):
     aka: str | None = None
     description: str | None = None
     genre: str | None = None
+    profile_id: int | None = None
 
 
 class IdSaved(ApiModel):

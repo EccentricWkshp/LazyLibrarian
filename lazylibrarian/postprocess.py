@@ -2165,6 +2165,12 @@ def _process_magazine_post(
         dest_path = os.path.dirname(dest_file)
         _process_auto_add(dest_path, book_type_enum=BookType.MAGAZINE)
 
+    # a magazine that keeps only its newest or most recent issues lets the old ones go, and the new
+    # one's words go in the search index, once this import is done with the database
+    from lazylibrarian.services.magazines import after_import  # it imports this
+    threading.Thread(target=after_import, name='AFTER-IMPORT',
+                     args=(book_state.book_id, create_id(f"{book_state.book_id} {book_state.aux_info}"))).start()
+
     return "", issueid
 
 

@@ -181,7 +181,15 @@ function MagazineIndex() {
                 cover={magazine.cover}
                 icon={Newspaper}
                 name={magazine.title}
-                corner={magazine.status !== 'Active' ? <Label kind="warning">{magazine.status}</Label> : null}
+                corner={
+                  magazine.status !== 'Active' ? (
+                    <Label kind="warning">{magazine.status}</Label>
+                  ) : magazine.unread ? (
+                    <Label kind="info" title={`${magazine.unread} unread`}>
+                      {magazine.unread}
+                    </Label>
+                  ) : null
+                }
               >
                 <div className={styles.posterFooter}>
                   {plural(magazine.issues, 'issue')}
@@ -240,7 +248,10 @@ function MagazineIndex() {
                 <TableRowCell className={styles.date}>
                   <FormattedDate value={magazine.lastAcquired} />
                 </TableRowCell>
-                <TableRowCell>{magazine.issues}</TableRowCell>
+                <TableRowCell>
+                  {magazine.issues}
+                  {magazine.unread ? <span className={styles.muted}> ({magazine.unread} unread)</span> : null}
+                </TableRowCell>
               </TableRow>
             ))}
           </Table>

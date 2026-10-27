@@ -36,6 +36,7 @@ import CoverPickerModal from 'Library/Reader/CoverPickerModal';
 import { canRead, filePath, readerPath, sendToDevice } from 'Library/Reader/reading';
 import { ComicDetail } from 'typings/Library';
 import { api } from 'Utilities/api';
+import { markRead } from 'Library/Magazines/MagazineDetails';
 import { deleteComics, setComicStatus } from './ComicIndex';
 import EditComicModal from './EditComicModal';
 
@@ -104,26 +105,33 @@ function ComicDetails() {
         </PageToolbarSection>
         <PageToolbarSection alignContent="right">
           <RssButton type="Comic" only={comicId} label="RSS Feed" />
-          <PageToolbarButton
-            label="Make Covers"
-            iconName={Image}
-            isDisabled={!selectedIds.length}
-            isSpinning={running === 'covers'}
-            onPress={() => {
-              run(
-                'covers',
-                'IssueCovers',
-                { mediaType: 'comic', ids: selectedIds.map(itemId), page: 1 },
-                `Make the covers of ${plural(selectedIds.length, 'issue')}`
-              );
+          <SelectInput
+            className={styles.filter}
+            value=""
+            isDisabled={!selectedIds.length || running === 'covers'}
+            values={[
+              { key: '', value: 'Selected issues…' },
+              { key: 'covers', value: 'Make covers from their first page' },
+              { key: 'read', value: 'Mark them read' },
+              { key: 'unread', value: 'Mark them unread' },
+              { key: 'delete', value: 'Delete them…' },
+            ]}
+            onChange={(action) => {
+              if (action === 'covers') {
+                run(
+                  'covers',
+                  'IssueCovers',
+                  { mediaType: 'comic', ids: selectedIds.map(itemId), page: 1 },
+                  `Make the covers of ${plural(selectedIds.length, 'issue')}`
+                );
+              } else if (action === 'read' || action === 'unread') {
+                markRead('comic', selectedIds.map(itemId), action === 'read');
+              } else if (action === 'delete') {
+                setDeleting('issues');
+                return;
+              }
               setSelected(new Set());
             }}
-          />
-          <PageToolbarButton
-            label="Delete Selected Issues"
-            iconName={Trash2}
-            isDisabled={!selectedIds.length}
-            onPress={() => setDeleting('issues')}
           />
         </PageToolbarSection>
       </PageToolbar>
@@ -152,6 +160,7 @@ function ComicDetails() {
                   onChange={(status) => setComicStatus([data.id], status)}
                 />
                 <Label>{plural(data.issues, 'issue')}</Label>
+                {data.unread ? <Label kind="info">{data.unread} unread</Label> : null}
                 {data.publisher ? <Label>{data.publisher}</Label> : null}
                 {data.first || data.last ? (
                   <Label>
@@ -213,6 +222,9 @@ function ComicDetails() {
                     <span className={styles.issueDate}>#{issue.id}</span>
                   </label>
                   {issue.pages ? <div className={styles.muted}>{plural(issue.pages, 'page')}</div> : null}
+                  {issue.read || issue.started ? (
+                    <div>{issue.read ? <Label>Read</Label> : <Label kind="info">Reading</Label>}</div>
+                  ) : null}
                   <div className={styles.issueMeta}>
                     {issue.format ? <Label kind="success">{issue.format}</Label> : <Label>No file</Label>}
                     {canRead(issue.format) ? (

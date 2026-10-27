@@ -237,6 +237,28 @@ def for_media(media_type: str, db=None) -> dict | None:
     return _profile(row) if row else None
 
 
+ITEM_PROFILES = {'magazine': ('magazines', 'Title'), 'comic': ('comics', 'ComicID')}
+
+
+def for_item(media_type: str, item_id, db=None) -> dict | None:
+    """ The profile a magazine's (by title) or comic's (by id) searches use: its own, else the media
+    type's default """
+    own = db is None
+    db = db or database.DBConnection()
+    try:
+        table, key = ITEM_PROFILES.get(media_type, ('', ''))
+        row = None
+        if table:
+            row = db.match(f"SELECT qualityprofiles.* FROM qualityprofiles JOIN {table} ON "
+                           f"{table}.ProfileID=qualityprofiles.ProfileID WHERE {table}.{key}=? COLLATE NOCASE "
+                           f"AND MediaType=?", (item_id, media_type))
+        found = _profile(row) if row else None
+    finally:
+        if own:
+            db.close()
+    return found or for_media(media_type, db if not own else None)
+
+
 def for_library(library: str, db=None) -> dict | None:
     """ The profile for eBook or AudioBook """
     media_type = LIBRARIES.get(library)

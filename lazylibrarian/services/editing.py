@@ -345,7 +345,18 @@ def magazine_for_edit(title) -> dict:
             'genre': _text(magazine['Genre']), 'date_type': _text(magazine['DateType']),
             'cover_page': check_int(magazine['CoverPage'], 1),
             'language': _text(magazine['Language']) or CONFIG['PREF_MAGLANG'],
-            'wikidata_id': _text(magazine.get('WikidataID'))}
+            'wikidata_id': _text(magazine.get('WikidataID')),
+            'keep_issues': check_int(magazine.get('KeepIssues'), 0), 'keep_months': check_int(magazine.get('KeepMonths'), 0),
+            'profile_id': check_int(magazine.get('ProfileID'), 0)}
+
+
+def _profile_id(media_type: str, value) -> int:
+    """ A quality profile of the media type's, by its id, or 0 for the default """
+    from lazylibrarian.services import profiles  # noqa: PLC0415, it reads the settings
+    profile_id = check_int(value, 0)
+    if profile_id and profiles.get(profile_id)['media_type'] != media_type:
+        raise InvalidRequestError(f"That quality profile isn't one for a {media_type}")
+    return profile_id
 
 
 def magazine_wikidata(title: str, term: str = '') -> list[dict]:
@@ -368,6 +379,16 @@ def save_magazine(title, values: dict) -> dict:
         settings.update_magazine_filters({title: {column: value if column == 'CoverPage' else _text(value).strip()
                                                   for column, value in filters.items()}})
     message = f"{title} saved"
+    kept = {column: max(check_int(values.get(key, current[key]), 0), 0)
+            for key, column in (('keep_issues', 'KeepIssues'), ('keep_months', 'KeepMonths'))}
+    profile_id = _profile_id('magazine', values.get('profile_id', current['profile_id']))
+    db = database.DBConnection()
+    try:
+        db.upsert('magazines', {**kept, 'ProfileID': profile_id}, {'Title': title})
+    finally:
+        db.close()
+    # fewer issues kept lets the others go now, a command so it shows how it went
+    retention_changed = (kept['KeepIssues'], kept['KeepMonths']) != (current['keep_issues'], current['keep_months'])
     if 'wikidata_id' in values and _text(values['wikidata_id']).strip() != current['wikidata_id']:
         message = magazines.set_wikidata(title, _text(values['wikidata_id']).strip())
     cover_page = check_int(values.get('cover_page', current['cover_page']), 1)
@@ -384,6 +405,10 @@ def save_magazine(title, values: dict) -> dict:
         from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
         commands.start('IssueCovers', {'title': title, 'page': cover_page})
         message += f", its covers are being made from page {cover_page}"
+    if retention_changed and (kept['KeepIssues'] or kept['KeepMonths']):
+        from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
+        commands.start('ApplyRetention', {'title': title})
+        message += ", the issues it doesn't keep are being deleted"
     return {'title': title, 'message': message}
 
 
@@ -417,7 +442,8 @@ def save_issue(issueid, values: dict) -> dict:
 def comic_for_edit(comicid) -> dict:
     comic = comics.get_comic(comicid)
     return {'id': comic['ComicID'], 'title': _text(comic['Title']), 'aka': _text(comic['aka']),
-            'description': _text(comic['Description']), 'genre': _text(comic['Genre'])}
+            'description': _text(comic['Description']), 'genre': _text(comic['Genre']),
+            'profile_id': check_int(comic.get('ProfileID'), 0)}
 
 
 def save_comic(comicid, values: dict) -> dict:
@@ -440,6 +466,13 @@ def save_comic(comicid, values: dict) -> dict:
                                   _text(values.get('description', current['description'])))
     if 'genre' in values and _text(values['genre']) != current['genre']:
         comics.set_genre(comicid, _text(values['genre']).strip())
+    if 'profile_id' in values:
+        db = database.DBConnection()
+        try:
+            db.action('UPDATE comics SET ProfileID=? WHERE ComicID=?', (_profile_id('comic', values['profile_id']),
+                                                                          comicid))
+        finally:
+            db.close()
     return {'id': comicid, 'message': f"{title} saved"}
 
 

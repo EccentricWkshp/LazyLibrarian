@@ -20,6 +20,7 @@ import MagazineDetails from 'Library/Magazines/MagazineDetails';
 import MagazineIndex from 'Library/Magazines/MagazineIndex';
 import PastIssues from 'Library/Magazines/PastIssues';
 import RecentIssues from 'Library/Magazines/RecentIssues';
+import SearchIssues from 'Library/Magazines/SearchIssues';
 import Reader from 'Library/Reader/Reader';
 import SeriesDetails from 'Library/Series/SeriesDetails';
 import SeriesIndex from 'Library/Series/SeriesIndex';
@@ -101,6 +102,7 @@ function App() {
               <Route path="/magazines/add" element={<AddNew key="magazine" kind="magazine" />} />
               <Route path="/magazines/recent" element={<RecentIssues key="magazine" mediaType="magazine" />} />
               <Route path="/magazines/pastissues" element={<PastIssues />} />
+              <Route path="/magazines/search" element={<SearchIssues />} />
               <Route path="/magazine" element={<MagazineDetails />} />
               <Route path="/comics" element={<ComicIndex />} />
               <Route path="/comics/add" element={<AddNew key="comic" kind="comic" />} />

@@ -29,6 +29,8 @@ const CHANGES: Record<string, string[][]> = {
   SwapCover: [['library']],
   TagIssues: [['library']],
   RefreshMagazine: [['library'], ['lookup']],
+  ApplyRetention: [['library']],
+  IndexIssues: [['library']],
 };
 
 function isDone(command: Command) {

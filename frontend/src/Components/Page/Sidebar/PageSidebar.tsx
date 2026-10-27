@@ -86,6 +86,7 @@ function groups(): SidebarGroup[] {
             { title: 'Add New', to: '/magazines/add' },
             { title: 'Recent Issues', to: '/magazines/recent' },
             { title: 'Past Issues', to: '/magazines/pastissues' },
+            { title: 'Search Issues', to: '/magazines/search' },
           ],
         },
         {

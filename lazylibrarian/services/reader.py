@@ -13,8 +13,11 @@
 """ Reading in the browser: the file of an eBook, magazine issue or comic issue, to open in the
 browser or download, its pages as pictures, and sending it to the owner's devices by email """
 
+import logging
+
 from lazylibrarian import database, pages
 from lazylibrarian.filesystem import path_isfile, splitext
+from lazylibrarian.formatter import now
 from lazylibrarian.services import InvalidRequestError, NotFoundError, delivery, users
 
 KINDS = ('book', 'issue', 'comic')
@@ -82,7 +85,8 @@ def reading(kind: str, item_id: str, fmt: str = '') -> dict:
     found = item_file(kind, item_id, fmt)
     return {'title': found['title'], 'format': found['format'], 'formats': found['formats'],
             'reader': READERS.get(found['format'], ''),
-            'pages': pages.page_count(found['path']) if pages.is_paged(found['path']) else 0}
+            'pages': pages.page_count(found['path']) if pages.is_paged(found['path']) else 0,
+            'progress': progress(kind, item_id)}
 
 
 def page(kind: str, item_id: str, number: int, width: int = 0) -> bytes:
@@ -92,6 +96,79 @@ def page(kind: str, item_id: str, number: int, width: int = 0) -> bytes:
     if not image:
         raise NotFoundError(f"{found['title']} has no page {number}")
     return image
+
+
+def progress(kind: str, item_id: str) -> dict:
+    """ Where the owner is in an item: an EPUB's location (position), or a page of how many, and
+    whether it's finished """
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT * FROM readprogress WHERE Kind=? AND ItemID=?', (kind, item_id))
+    finally:
+        db.close()
+    if not row:
+        return {'position': '', 'page': 0, 'pages': 0, 'finished': False, 'updated': ''}
+    return {'position': row['Position'] or '', 'page': row['Page'] or 0, 'pages': row['Pages'] or 0,
+            'finished': bool(row['Finished']), 'updated': row['Updated'] or ''}
+
+
+def _reading_list(book_ids: list[str], action: str):
+    """ A book read in the browser goes on the owner's reading lists too: Reading, then Read """
+    from lazylibrarian.services import library  # noqa: PLC0415, it imports most of LazyLibrarian
+    try:
+        library.mark_books(book_ids, 'ebook', action)
+    except Exception as why:
+        logging.getLogger(__name__).warning(f"Couldn't put {book_ids} on the {action} list: {why}")
+
+
+def save_progress(kind: str, item_id: str, position: str = '', page: int = 0, pages: int = 0,
+                  finished: bool | None = None) -> dict:
+    """ Remember where the owner is in an item; at its last page it's finished. Returns it """
+    item_file(kind, item_id)
+    before = progress(kind, item_id)
+    if finished is None:
+        finished = bool(pages) and page >= pages
+    db = database.DBConnection()
+    try:
+        db.action('INSERT OR REPLACE INTO readprogress (Kind, ItemID, Position, Page, Pages, Finished, Updated) '
+                  'VALUES (?,?,?,?,?,?,?)', (kind, item_id, position, max(page, 0), max(pages, 0), int(finished),
+                                             now()))
+    finally:
+        db.close()
+    # started, or finished, it moves on the reading lists
+    if kind == 'book' and (finished != before['finished'] or not before['updated']):
+        _reading_list([item_id], 'Read' if finished else 'Reading')
+    return progress(kind, item_id)
+
+
+def mark_read(kind: str, item_ids: list[str], finished: bool) -> int:
+    """ Mark items read, or unread, which forgets where the owner was. Returns how many """
+    if kind not in KINDS:
+        raise InvalidRequestError(f"The kind is one of {', '.join(KINDS)}")
+    db = database.DBConnection()
+    try:
+        for item_id in item_ids:
+            if finished:
+                db.action('INSERT OR REPLACE INTO readprogress (Kind, ItemID, Position, Page, Pages, Finished, '
+                          'Updated) VALUES (?,?,?,?,?,1,?)', (kind, item_id, '', 0, 0, now()))
+            else:
+                db.action('DELETE FROM readprogress WHERE Kind=? AND ItemID=?', (kind, item_id))
+    finally:
+        db.close()
+    if kind == 'book':
+        _reading_list(list(item_ids), 'Read' if finished else 'Unread')
+    return len(item_ids)
+
+
+def read_items(kind: str, item_ids=None) -> set[str]:
+    """ The items of a kind the owner has finished, of these when given """
+    db = database.DBConnection()
+    try:
+        rows = db.select('SELECT ItemID FROM readprogress WHERE Kind=? AND Finished=1', (kind,))
+    finally:
+        db.close()
+    found = {row['ItemID'] for row in rows}
+    return found & set(item_ids) if item_ids is not None else found
 
 
 def send(kind: str, item_id: str, fmt: str = '') -> str:

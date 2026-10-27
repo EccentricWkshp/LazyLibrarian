@@ -36,9 +36,28 @@ function chapters(items: NavItem[], depth = 0): Chapter[] {
   ]);
 }
 
-function EpubViewer({ url, title }: { url: string; title: string }) {
+interface Location {
+  start: { href: string; cfi: string; index: number };
+  atEnd?: boolean;
+}
+
+function EpubViewer({
+  url,
+  title,
+  startAt = '',
+  onLocation,
+}: {
+  url: string;
+  title: string;
+  // where the owner was, an EPUB CFI
+  startAt?: string;
+  // where they are, how far through by chapter, and whether it's the end, once they stop a moment
+  onLocation?: (position: string, percent: number, atEnd: boolean) => void;
+}) {
   const area = useRef<HTMLDivElement>(null);
   const rendition = useRef<Rendition | null>(null);
+  const reported = useRef(onLocation);
+  reported.current = onLocation;
   const [contents, setContents] = useState<Chapter[]>([]);
   const [chapter, setChapter] = useState('');
   const [error, setError] = useState('');
@@ -47,6 +66,7 @@ function EpubViewer({ url, title }: { url: string; title: string }) {
   useEffect(() => {
     let destroyed = false;
     let book: { destroy: () => void } | null = null;
+    let timer = 0;
 
     async function open() {
       try {
@@ -76,8 +96,22 @@ function EpubViewer({ url, title }: { url: string; title: string }) {
           body: { color: style.color, background: style.backgroundColor },
           a: { color: style.getPropertyValue('--linkColor') || 'inherit' },
         });
-        shown.on('relocated', ((location: { start: { href: string } }) => setChapter(location.start.href)) as never);
-        await shown.display();
+        shown.on('relocated', ((location: Location) => {
+          setChapter(location.start.href);
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => {
+            // the book's chapters are known once it's open
+            const chaptersIn = (opened as unknown as { spine: { length: number } }).spine?.length || 1;
+            const percent = Math.round(((location.start.index + 1) / chaptersIn) * 100);
+            reported.current?.(location.start.cfi, Math.min(percent, 100), !!location.atEnd);
+          }, 1000);
+        }) as never);
+        try {
+          await shown.display(startAt || undefined);
+        } catch {
+          // a place in another edition of the book
+          await shown.display();
+        }
         const navigation = await opened.loaded.navigation;
         if (!destroyed) {
           setContents(chapters(navigation.toc as NavItem[]));
@@ -94,6 +128,7 @@ function EpubViewer({ url, title }: { url: string; title: string }) {
     open();
     return () => {
       destroyed = true;
+      window.clearTimeout(timer);
       rendition.current?.destroy();
       rendition.current = null;
       book?.destroy();

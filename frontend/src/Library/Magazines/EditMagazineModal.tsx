@@ -7,6 +7,7 @@ import Button from 'Components/Link/Button';
 import { Alert } from 'Components/Misc';
 import { EditColumns, EditField, EditModal, useEdit } from 'Library/Edit/edit';
 import styles from 'Library/Edit/Edit.module.css';
+import ProfileField from 'Library/Edit/ProfileField';
 import { ConfigChoices } from 'Settings/Sections/fields';
 import { api } from 'Utilities/api';
 
@@ -19,6 +20,9 @@ interface MagazineEdit {
   coverPage: number;
   language: string;
   wikidataId: string;
+  keepIssues: number;
+  keepMonths: number;
+  profileId: number;
 }
 
 interface WikidataMatch {
@@ -173,6 +177,42 @@ function EditMagazineModal({
               onChange={(language) => edit.set('language', language)}
             />
           </EditField>
+          <ProfileField
+            mediaType="magazine"
+            value={magazine.profileId}
+            onChange={(profileId) => edit.set('profileId', profileId)}
+          />
+          <EditColumns>
+            <EditField
+              id="magKeepIssues"
+              label="Keep Issues"
+              help="Its newest issues kept, older ones and their files are deleted. 0 keeps them all"
+            >
+              <TextInput
+                id="magKeepIssues"
+                type="number"
+                min={0}
+                value={String(magazine.keepIssues)}
+                onChange={(keep) => edit.set('keepIssues', Math.max(0, Number(keep) || 0))}
+              />
+            </EditField>
+            <EditField
+              id="magKeepMonths"
+              label="Keep Months"
+              help="The issues of this many months kept, older ones and their files are deleted. 0 keeps them all"
+            >
+              <TextInput
+                id="magKeepMonths"
+                type="number"
+                min={0}
+                value={String(magazine.keepMonths)}
+                onChange={(keep) => edit.set('keepMonths', Math.max(0, Number(keep) || 0))}
+              />
+            </EditField>
+          </EditColumns>
+          {magazine.keepIssues || magazine.keepMonths ? (
+            <Alert kind="warning">Saving deletes the issues it doesn't keep, and their files.</Alert>
+          ) : null}
           <WikidataField
             title={title}
             value={magazine.wikidataId}

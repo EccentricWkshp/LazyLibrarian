@@ -67,8 +67,28 @@ const ISSUE_ACTIONS = [
   { key: 'covers', value: "Make covers from the magazine's cover page" },
   { key: 'swap', value: 'Move page 2 to the front of the PDF' },
   { key: 'tag', value: "Tag the PDFs with the magazine's details" },
+  { key: 'read', value: 'Mark them read' },
+  { key: 'unread', value: 'Mark them unread' },
   { key: 'delete', value: 'Delete them…' },
 ];
+
+// the issues kept, as the magazine's Edit says
+function retention(issues: number, months: number) {
+  const kept = [issues ? `its newest ${plural(issues, 'issue')}` : '', months ? `issues of the last ${plural(months, 'month')}` : '']
+    .filter(Boolean)
+    .join(' and ');
+  return kept ? `Keeps ${kept}, older ones are deleted` : '';
+}
+
+export function markRead(kind: 'issue' | 'comic', ids: string[], finished: boolean) {
+  return change(
+    `/read/${kind}`,
+    'PUT',
+    { ids, finished },
+    (changed) => `${plural(changed, 'issue')} marked ${finished ? 'read' : 'unread'}`,
+    'Marking them failed'
+  );
+}
 
 function Schedule({ schedule, title }: { schedule: IssueSchedule; title: string }) {
   const [showAll, setShowAll] = useState(false);
@@ -151,6 +171,11 @@ function IssueCard({
             {issue.description}
           </div>
         ) : null}
+        {issue.read || issue.started ? (
+          <div>
+            {issue.read ? <Label>Read</Label> : <Label kind="info">Reading</Label>}
+          </div>
+        ) : null}
         <div className={styles.issueMeta}>
           {issue.format ? <Label kind="success">{issue.format}</Label> : <Label>No file</Label>}
           {readable ? (
@@ -223,6 +248,8 @@ function MagazineDetails() {
       run('issues', 'SwapCover', { ids, page: 2 }, `Move page 2 to the front of ${plural(ids.length, 'issue')}`);
     } else if (action === 'tag') {
       run('issues', 'TagIssues', { ids }, `Tag ${plural(ids.length, 'issue')}`);
+    } else if (action === 'read' || action === 'unread') {
+      markRead('issue', ids, action === 'read');
     } else if (action === 'delete') {
       // they stay selected for the delete to take
       setDeleting('issues');
@@ -307,6 +334,7 @@ function MagazineDetails() {
                   onChange={(status) => setMagazineStatus([data.title], status)}
                 />
                 <Label>{plural(data.issues, 'issue')}</Label>
+                {data.unread ? <Label kind="info">{data.unread} unread</Label> : null}
                 {data.latestIssue ? (
                   <Label>
                     Latest <FormattedDate value={data.latestIssue} kind="issue" />
@@ -333,6 +361,9 @@ function MagazineDetails() {
               </p>
               {data.rejectWords ? (
                 <p className={styles.muted}>Releases with {data.rejectWords} in their name are ruled out</p>
+              ) : null}
+              {retention(data.keepIssues, data.keepMonths) ? (
+                <p className={styles.muted}>{retention(data.keepIssues, data.keepMonths)}</p>
               ) : null}
               {data.genre ? <p className={styles.muted}>{data.genre}</p> : null}
             </div>
