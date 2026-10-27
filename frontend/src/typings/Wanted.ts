@@ -13,6 +13,8 @@ export interface MissingBook {
 }
 
 export interface CutoffBook extends MissingBook {
+  // a magazine's issue date or a comic's issue number, '' for a book
+  issue: string;
   // the quality of the file there is, and the one to upgrade until, as names
   quality: string;
   cutoff: string;

@@ -39,7 +39,7 @@ def media_types() -> list[str]:
 
 def _record(item_id, kind: str, title: str, **fields) -> dict:
     return {'id': f"{item_id}:{kind}", 'book_id': item_id, 'title': title, 'subtitle': '', 'author': '',
-            'author_id': None, 'media_type': kind, 'added': '', 'published': '', **fields}
+            'author_id': None, 'media_type': kind, 'added': '', 'published': '', 'issue': '', **fields}
 
 
 def list_missing(media_type: str = '', search: str = '', sort: str = 'added', descending: bool = True,
@@ -85,8 +85,18 @@ BOOK_COLUMNS = {'ebook': ('Status', 'BookFile', 'BookLibrary'), 'audiobook': ('A
                                                                              'AudioLibrary')}
 
 
+# the issues of the magazines and comics that are active, with their files
+ISSUES = {'magazine': "SELECT issues.Title AS ItemID,issues.Title AS Title,issues.IssueDate AS Issue,IssueFile AS Path,"
+                      "IssueAcquired AS Imported FROM issues,magazines WHERE issues.Title=magazines.Title AND "
+                      "magazines.Status='Active' AND IFNULL(IssueFile,'')!=''",
+          'comic': "SELECT comics.ComicID AS ItemID,Title,IssueID AS Issue,IssueFile AS Path,IssueAcquired AS "
+                   "Imported FROM comicissues,comics WHERE comicissues.ComicID=comics.ComicID AND "
+                   "comics.Status='Active' AND IFNULL(IssueFile,'')!=''"}
+
+
 def _cutoff_unmet(kinds: list[str]) -> list[dict]:
-    """ The books whose file is below their quality profile's cutoff, when it allows upgrades """
+    """ The books, and magazine and comic issues, whose file is below their quality profile's cutoff,
+    when it allows upgrades """
     from lazylibrarian.services import profiles  # it reads the settings
     records = []
     db = database.DBConnection()
@@ -94,6 +104,16 @@ def _cutoff_unmet(kinds: list[str]) -> list[dict]:
         for kind in kinds:
             profile = profiles.for_media(kind, db)
             if not profile or not profile['upgrade_allowed']:
+                continue
+            if kind in ISSUES:
+                for row in db.select(ISSUES[kind]):
+                    current = quality.of_file(row['Path'], kind)
+                    if profiles.cutoff_met(profile, current) or not path_isfile(row['Path']):
+                        continue
+                    records.append({**_record(row['ItemID'], kind, row['Title'], issue=str(row['Issue']),
+                                              added=row['Imported'] or '', quality=quality.name(current),
+                                              cutoff=quality.name(profile['cutoff']), profile=profile['name']),
+                                    'id': f"{row['ItemID']}|{row['Issue']}:{kind}"})
                 continue
             status, file_column, imported = BOOK_COLUMNS[kind]
             rows = db.select(f"SELECT BookID,BookName,AuthorName,books.AuthorID,{file_column} AS Path,{imported} AS "
@@ -119,28 +139,31 @@ def _cutoff_unmet(kinds: list[str]) -> list[dict]:
 
 def list_cutoff_unmet(media_type: str = '', search: str = '', sort: str = 'title', descending: bool = False,
                       offset: int = 0, limit: int | None = None) -> Page:
-    """ Sonarr's Wanted, Cutoff Unmet: the books and audiobooks to upgrade, each with the quality of
-    its file and the cutoff it's to be upgraded until """
-    kinds = [media_type] if media_type else [kind for kind in media_types() if kind in LIBRARIES]
-    if any(kind not in LIBRARIES for kind in kinds):
-        raise InvalidRequestError('The type is ebook or audiobook')
+    """ Sonarr's Wanted, Cutoff Unmet: the books, audiobooks and magazine and comic issues to upgrade,
+    each with the quality of its file and the cutoff it's to be upgraded until """
+    kinds = [media_type] if media_type else media_types()
+    if any(kind not in MEDIA_TYPES for kind in kinds):
+        raise InvalidRequestError(f"The type is one of {', '.join(MEDIA_TYPES)}")
     if sort not in CUTOFF_SORTS:
         raise InvalidRequestError(f"Sort by one of {', '.join(CUTOFF_SORTS)}")
-    return page_of(_cutoff_unmet(kinds), search=search, search_fields=('title', 'author'), sort=sort,
+    return page_of(_cutoff_unmet(kinds), search=search, search_fields=('title', 'author', 'issue'), sort=sort,
                    descending=descending, natural=sort == 'title', offset=offset, limit=limit)
 
 
 def search_upgrades(books: list[dict], progress=None) -> tuple[int, str]:
-    """ Search for better releases of these books, [{'book_id', 'media_type'}], or of every book in
-    Cutoff Unmet when there are none. Only a release better than the file there is is taken """
-    from lazylibrarian.searchbook import search_book  # it imports most of LazyLibrarian
+    """ Search for better releases of these books, [{'book_id', 'media_type'}], or of everything in
+    Cutoff Unmet when there are none. Only a release better than the file there is is taken. A
+    magazine or comic is searched for, which upgrades each of its issues it finds better """
+    from lazylibrarian.comicsearch import search_comics  # they import most of LazyLibrarian
+    from lazylibrarian.searchbook import search_book
+    from lazylibrarian.searchmag import search_magazines
 
     if not CONFIG.total_active_providers():
         raise InvalidRequestError('No search providers are enabled, add one in Settings, Providers')
-    if any(book.get('media_type') not in LIBRARIES for book in books):
-        raise InvalidRequestError('Upgrades are for books and audiobooks')
+    if any(book.get('media_type') not in MEDIA_TYPES for book in books):
+        raise InvalidRequestError(f"The type is one of {', '.join(MEDIA_TYPES)}")
     wanted = books or [{'book_id': record['book_id'], 'media_type': record['media_type']}
-                       for record in _cutoff_unmet([kind for kind in media_types() if kind in LIBRARIES])]
+                       for record in _cutoff_unmet(media_types())]
     if not wanted:
         return 0, 'Nothing is below its cutoff'
     last = _last_download()
@@ -151,12 +174,23 @@ def search_upgrades(books: list[dict], progress=None) -> tuple[int, str]:
                 progress(f"Searching for upgrades of {len(ids)} {plural(len(ids), library)}")
             thread_name('FORCE-SEARCHBOOK')
             search_book(ids, library, upgrade=True)
+    titles = sorted({book['book_id'] for book in wanted if book['media_type'] == 'magazine'})
+    if titles:
+        if progress:
+            progress(f"Searching for upgrades of {len(titles)} {plural(len(titles), 'magazine')}")
+        thread_name('FORCE-SEARCHMAG')
+        search_magazines([{'bookid': title} for title in titles])
+    for comicid in sorted({book['book_id'] for book in wanted if book['media_type'] == 'comic'}):
+        if progress:
+            progress('Searching for upgrades of comics')
+        thread_name('FORCE-SEARCHCOMIC')
+        search_comics(comicid)
     found = _snatched_since(last)
     if len(wanted) == 1:
         name = _name(wanted[0])
         return found, (f'Search for an upgrade of {name} completed, found and sent to the download client' if found
                        else f'Search for an upgrade of {name} completed, nothing better found')
-    return found, f"Search for upgrades of {len(wanted)} books completed, {found} {plural(found, 'upgrade')} found"
+    return found, f"Search for upgrades of {len(wanted)} items completed, {found} {plural(found, 'upgrade')} found"
 
 
 def _name(item: dict) -> str:

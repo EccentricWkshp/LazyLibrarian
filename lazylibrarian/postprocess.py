@@ -110,6 +110,7 @@ from lazylibrarian.preprocessor import (
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
 from lazylibrarian.services import remotepaths
+from lazylibrarian.services.history import unsnatch_book
 
 
 @dataclass
@@ -741,15 +742,10 @@ def _get_ready_from_snatched(db, snatched_list: list[dict]):
             logger.debug(f"Rejected: {title} BookID: {book_id} DownloadID: {download_id}")
 
             # change status to "Failed", and ask downloader to delete task and files
-            # Only reset book status to wanted if still snatched in case another download task succeeded
+            # Only reset book status if still snatched in case another download task succeeded. A book
+            # that has its file, the download was an upgrade, stays owned
             if book_id != "unknown":
-                cmd = ""
-                if book_type_str == BookType.EBOOK.value:
-                    cmd = "UPDATE books SET status='Wanted' WHERE status='Snatched' and BookID=?"
-                elif book_type_str == BookType.AUDIOBOOK.value:
-                    cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
-                if cmd:
-                    db.action(cmd, (book_id,))
+                unsnatch_book(db, book_id, book_type_str)
                 # use downloadid as identifier as bookid is not unique for magazine issues
                 db.action(
                     "UPDATE wanted SET Status='Failed',DLResult=? WHERE DownloadID=?",
@@ -1292,6 +1288,18 @@ def _create_and_cache_cover(
     return f"cache/{sub_cache}/{myhash}.jpg"
 
 
+def _replace_issue_file(existing, dest_file: str) -> None:
+    """ An issue there was already, imported again as an upgrade in another format: its old file goes
+    to the recycling bin, or is deleted, as Sonarr replaces an episode's file. One in the same place
+    has been written over already """
+    old = existing['IssueFile'] if existing else ''
+    if not old or not path_isfile(old) or os.path.normcase(os.path.abspath(old)) == \
+            os.path.normcase(os.path.abspath(dest_file)):
+        return
+    # the bin keeps the folders below the magazine or comic library, the title's and the issue's
+    recycle(old, os.path.dirname(os.path.dirname(os.path.dirname(old))), logging.getLogger(__name__))
+
+
 def _update_issue_database(
     db,
     media_type: BookType,
@@ -1316,6 +1324,8 @@ def _update_issue_database(
         aux_info: Additional info (used for magazines)
     """
     if media_type == BookType.COMIC:
+        _replace_issue_file(db.match("SELECT IssueFile FROM comicissues WHERE ComicID=? AND IssueID=?",
+                                     (book_id, issue_id)), dest_file)
         # Update comics table
         control_value_dict = {"ComicID": book_id}
         if older:
@@ -1342,6 +1352,8 @@ def _update_issue_database(
         db.upsert("comicissues", new_value_dict, control_value_dict)
 
     elif media_type == BookType.MAGAZINE:
+        _replace_issue_file(db.match("SELECT IssueFile FROM issues WHERE Title=? AND IssueDate=?",
+                                     (book_id, aux_info)), dest_file)
         # Create issue ID
         issueid = create_id(f"{book_id} {aux_info}")
 
@@ -1543,17 +1555,8 @@ def _handle_failed_processing(
     }
     db.upsert("wanted", new_value_dict, control_value_dict)
 
-    # Reset book status to Wanted so we can try a different version
-    if book_type_enum == BookType.EBOOK:
-        db.action(
-            "UPDATE books SET status='Wanted' WHERE BookID=?",
-            (book_state.book_id,),
-        )
-    elif book_type_enum == BookType.AUDIOBOOK:
-        db.action(
-            "UPDATE books SET audiostatus='Wanted' WHERE BookID=?",
-            (book_state.book_id,),
-        )
+    # Reset book status to Wanted so we can try a different version, or owned if it has its file
+    unsnatch_book(db, book_state.book_id, book_type_enum.value, only_snatched=False)
 
     # Handle failed download cleanup
     _cleanup_failed_download(book_path, logger)
@@ -2731,18 +2734,10 @@ def _handle_aborted_download(
     )
 
     # change status to "Failed", and ask downloader to delete task and files
-    # Only reset book status to wanted if still snatched in case another download task succeeded
+    # Only reset book status if still snatched in case another download task succeeded. A book that
+    # has its file, the download was an upgrade, stays owned
     if book_state.book_id != "unknown":
-        cmd = ""
-        book_type_enum = book_state.get_book_type_enum()
-        if book_type_enum == BookType.EBOOK:
-            cmd = (
-                "UPDATE books SET status='Wanted' WHERE status='Snatched' and BookID=?"
-            )
-        elif book_type_enum == BookType.AUDIOBOOK:
-            cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
-        if cmd:
-            db.action(cmd, (book_state.book_id,))
+        unsnatch_book(db, book_state.book_id, book_state.get_book_type_enum().value)
 
         # use url and status for identifier because magazine id isn't unique
         if book_state.status == "Snatched":
@@ -3366,19 +3361,17 @@ def process_dir(reset=False, startdir=None, ignoreclient=False, downloadid=None)
             }
             db.upsert("wanted", new_value_dict, control_value_dict)
             book_type_str = book_state.get_book_type_str()
-            cmd = ''
+            if book_type_str in (BookType.EBOOK.value, BookType.AUDIOBOOK.value):
+                # owned again if it has its file, the download was an upgrade
+                unsnatch_book(db, book_state.book_id, book_type_str)
             if book_type_str == BookType.EBOOK.value:
-                cmd = "UPDATE books SET status='Wanted' WHERE status='Snatched' and BookID=?"
                 failed[0] += 1
             elif book_type_str == BookType.AUDIOBOOK.value:
-                cmd = "UPDATE books SET audiostatus='Wanted' WHERE audiostatus='Snatched' and BookID=?"
                 failed[1] += 1
             elif book_type_str == BookType.MAGAZINE.value:
                 failed[2] += 1
             elif book_type_str == BookType.COMIC.value:
                 failed[3] += 1
-            if cmd:
-                db.action(cmd, (book_state.book_id,))
             if CONFIG.get_bool("DEL_FAILED"):
                 delete_task(book_state.source, book_state.download_id, True)
         if any(failed):
@@ -3703,16 +3696,8 @@ def process_book(book_path: str, book_id: str, logger=None, library=""):
                     "DLResult": dest_file,
                 }
                 db.upsert("wanted", new_value_dict, control_value_dict)
-            # reset status so we try for a different version
-            if book_type_enum == BookType.AUDIOBOOK:
-                db.action(
-                    "UPDATE books SET audiostatus='Wanted' WHERE BookID=?",
-                    (book_id,),
-                )
-            else:
-                db.action(
-                    "UPDATE books SET status='Wanted' WHERE BookID=?", (book_id,)
-                )
+            # reset status so we try for a different version, or owned if it has its file
+            unsnatch_book(db, book_id, book_type_enum.value, only_snatched=False)
         return False
     except Exception:
         logger.error(f"Unhandled exception in process_book: {traceback.format_exc()}")

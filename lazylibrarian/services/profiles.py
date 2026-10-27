@@ -26,8 +26,13 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import get_list
 from lazylibrarian.services import InvalidRequestError, NotFoundError
 
-DEFAULT_SETTINGS = {'ebook': 'EBOOK_PROFILE', 'audiobook': 'AUDIO_PROFILE'}
-LIBRARIES = {'eBook': 'ebook', 'AudioBook': 'audiobook'}
+DEFAULT_SETTINGS = {'ebook': 'EBOOK_PROFILE', 'audiobook': 'AUDIO_PROFILE', 'magazine': 'MAG_PROFILE',
+                    'comic': 'COMIC_PROFILE'}
+LIBRARIES = {'eBook': 'ebook', 'AudioBook': 'audiobook', 'magazine': 'magazine', 'comic': 'comic'}
+# each media type's default profiles: the one that follows its types setting, and one that prefers a
+# format and upgrades until it
+DEFAULTS = (('ebook', 'Any eBook', 'Prefer EPUB', 'epub'), ('audiobook', 'Any Audiobook', 'Prefer M4B', 'm4b'),
+            ('magazine', 'Any Magazine', 'Prefer PDF', 'pdf'), ('comic', 'Any Comic', 'Prefer CBZ', 'cbz'))
 
 
 def _items(order: list[str], allowed: set[str], media_type: str) -> list[dict]:
@@ -37,11 +42,11 @@ def _items(order: list[str], allowed: set[str], media_type: str) -> list[dict]:
 
 
 def default_profiles() -> list[dict]:
-    """ The profiles a new database starts with. The Any ones keep the order of the eBook and
-    audiobook types settings, as the search preferred them before there were profiles """
+    """ The profiles a new database starts with. The Any ones keep the order of the types settings,
+    as the search preferred them before there were profiles. A Prefer one is only there when the
+    types setting has another format to upgrade from """
     found = []
-    for media_type, any_name, prefer_name, prefer in (('ebook', 'Any eBook', 'Prefer EPUB', 'epub'),
-                                                      ('audiobook', 'Any Audiobook', 'Prefer M4B', 'm4b')):
+    for media_type, any_name, prefer_name, prefer in DEFAULTS:
         words = quality.words(media_type)
         order = []
         for extension in get_types(media_type):
@@ -55,6 +60,8 @@ def default_profiles() -> list[dict]:
             order.append(quality.UNKNOWN)
         found.append({'name': any_name, 'media_type': media_type, 'items': _items(order, set(order), media_type),
                       'cutoff': order[0], 'upgrade_allowed': False})
+        if len([q for q in order if q not in (quality.UNKNOWN, prefer)]) < 1:
+            continue
         preferred = [prefer, *[q for q in order if q != prefer]]
         found.append({'name': prefer_name, 'media_type': media_type,
                       'items': _items(preferred, set(preferred), media_type), 'cutoff': prefer,

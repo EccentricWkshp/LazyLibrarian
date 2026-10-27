@@ -32,7 +32,8 @@ const COLUMNS: Column[] = [
 ];
 
 function searchFor(books: CutoffBook[]) {
-  const label = books.length === 1 ? `Search for an upgrade of ${books[0].title}` : `Search for ${books.length} upgrades`;
+  const one = books.length === 1 ? `${books[0].title}${books[0].issue ? ` ${books[0].issue}` : ''}` : '';
+  const label = one ? `Search for an upgrade of ${one}` : `Search for ${books.length} upgrades`;
 
   return runCommand(
     'CutoffUnmetSearch',
@@ -57,7 +58,7 @@ function CutoffRow({
       <TableRowCell className={styles.select}>
         <CheckInput checked={isSelected} label={`Select ${book.title}`} onChange={onSelectedChange} />
       </TableRowCell>
-      <ItemTitleCell item={{ ...book, issue: '' }} />
+      <ItemTitleCell item={book} />
       <TableRowCell>{MEDIA_TYPE_NAMES[book.mediaType]}</TableRowCell>
       <TableRowCell>
         <Label kind="warning">{book.quality}</Label>
@@ -141,6 +142,8 @@ function CutoffUnmet() {
               { key: '', value: 'All' },
               ...(tabs.ebook ? [{ key: 'ebook', value: 'eBooks' }] : []),
               ...(tabs.audio ? [{ key: 'audiobook', value: 'Audiobooks' }] : []),
+              ...(tabs.mag ? [{ key: 'magazine', value: 'Magazines' }] : []),
+              ...(tabs.comic ? [{ key: 'comic', value: 'Comics' }] : []),
             ]}
             onChange={(value) => {
               setMediaType(value);

@@ -18,9 +18,10 @@ import time
 import traceback
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.downloadmethods import direct_dl_method, nzb_dl_method, tor_dl_method
+from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import (
     age,
     check_int,
@@ -43,7 +44,7 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
-from lazylibrarian.services import blocklist
+from lazylibrarian.services import blocklist, profiles
 
 
 def cron_search_magazines():
@@ -230,6 +231,14 @@ def search_magazines(mags=None, reset=False, backissues=False):
                 control_date = ''
                 res = db.match("SELECT Regex from magazines WHERE Title=? AND Status='Active'", (book['bookid'],))
                 searchterms = get_list(res['Regex'], ',')
+                # the quality profile: each release's quality, the best first, so the first found for
+                # an issue, which is the one taken, is the best
+                profile = profiles.for_media('magazine', db)
+                for nzb in resultlist:
+                    nzb['quality'] = profiles.release_quality(
+                        profile, quality.of_release(nzb['nzbtitle'], 'magazine')) if profile else quality.UNKNOWN
+                if profile:
+                    resultlist.sort(key=lambda nzb: -profiles.rank(profile, nzb['quality']))
                 for nzb in resultlist:
                     total_nzbs += 1
                     bookid = nzb['bookid']
@@ -269,6 +278,16 @@ def search_magazines(mags=None, reset=False, backissues=False):
                             minsize = CONFIG.get_int('REJECT_MAGMIN')
                             if minsize and nzbsize < minsize:
                                 logger.debug(f"Rejecting {nzbtitle}, too small ({nzbsize}Mb)")
+                                rejected = True
+
+                        if not rejected and profile:
+                            if not quality.imported('magazine', nzb['quality']):
+                                logger.debug(f"Rejecting {nzbtitle}, {quality.name(nzb['quality'])} files "
+                                             f"aren't imported (magazine types)")
+                                rejected = True
+                            elif not profiles.rank(profile, nzb['quality']):
+                                logger.debug(f"Rejecting {nzbtitle}, {quality.name(nzb['quality'])} isn't wanted "
+                                             f"by the {profile['name']} quality profile")
                                 rejected = True
 
                         if not rejected:
@@ -433,11 +452,26 @@ def search_magazines(mags=None, reset=False, backissues=False):
                                         bad_date += 1
                                         issuedate = "1970-01-01"
 
+                            # an issue there is already is downloaded again when this is better than its
+                            # file and the profile upgrades until a quality its file is below
+                            upgrading = False
+                            if profile and profile['upgrade_allowed'] and issuedate != "1970-01-01" and \
+                                    dateparts['style']:
+                                have = db.match('SELECT IssueFile from issues WHERE title=? and issuedate=?',
+                                                (bookid, issuedate))
+                                if have and have['IssueFile'] and path_isfile(have['IssueFile']):
+                                    current = quality.of_file(have['IssueFile'], 'magazine')
+                                    upgrading = profiles.wants_upgrade(profile, current) and \
+                                        profiles.rank(profile, nzb['quality']) > profiles.rank(profile, current)
+
                             if issuedate == "1970-01-01":
                                 logger.debug(f'This issue of {nzbtitle_formatted} is unknown age; skipping.')
                             elif not dateparts['style']:
                                 logger.debug(f'This issue of {nzbtitle_formatted} not in a wanted date format.')
-                            elif comp_date > 0:
+                            elif comp_date > 0 or upgrading:
+                                if upgrading:
+                                    logger.info(f"{quality.name(nzb['quality'])} {nzbtitle_formatted} is an upgrade "
+                                                f"for the issue there is")
                                 # keep track of what we're going to download, so we don't download dupes
                                 new_date += 1
                                 new_list.append(issuedate)
@@ -465,7 +499,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
 
                             mag_entry = db.match('SELECT * from issues WHERE title=? and issuedate=?',
                                                  (bookid, issuedate))
-                            if mag_entry:
+                            if mag_entry and not upgrading:
                                 logger.info(f'This issue of {nzbtitle_formatted} is already downloaded; skipping')
                                 continue
                             # store only the _new_ matching results

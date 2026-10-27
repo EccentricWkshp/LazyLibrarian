@@ -22,17 +22,19 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import get_list
 
 UNKNOWN = 'unknown'
-MEDIA_TYPES = ('ebook', 'audiobook')
+MEDIA_TYPES = ('ebook', 'audiobook', 'magazine', 'comic')
 # the formats known, best first as the default order, and the words or extensions that are each
 FORMATS = {
     'ebook': {'epub': ('epub', 'kepub'), 'azw3': ('azw3', 'azw', 'kfx'), 'mobi': ('mobi', 'prc'), 'pdf': ('pdf',)},
     'audiobook': {'m4b': ('m4b',), 'mp3': ('mp3',), 'flac': ('flac',), 'm4a': ('m4a', 'aac'),
                   'ogg': ('ogg', 'opus')},
+    'magazine': {'pdf': ('pdf',), 'epub': ('epub',), 'cbz': ('cbz',), 'cbr': ('cbr',)},
+    'comic': {'cbz': ('cbz',), 'cbr': ('cbr',), 'pdf': ('pdf',), 'epub': ('epub',)},
 }
 NAMES = {'epub': 'EPUB', 'azw3': 'AZW3', 'mobi': 'MOBI', 'pdf': 'PDF', 'm4b': 'M4B', 'mp3': 'MP3', 'flac': 'FLAC',
-         'm4a': 'M4A', 'ogg': 'OGG', UNKNOWN: 'Unknown'}
+         'm4a': 'M4A', 'ogg': 'OGG', 'cbz': 'CBZ', 'cbr': 'CBR', UNKNOWN: 'Unknown'}
 # the settings that say which files are imported
-TYPE_SETTINGS = {'ebook': 'EBOOK_TYPE', 'audiobook': 'AUDIOBOOK_TYPE'}
+TYPE_SETTINGS = {'ebook': 'EBOOK_TYPE', 'audiobook': 'AUDIOBOOK_TYPE', 'magazine': 'MAG_TYPE', 'comic': 'COMIC_TYPE'}
 
 
 def words(media_type: str) -> dict[str, str]:

@@ -13,6 +13,7 @@
 """ Download history (the wanted table), the provider blocklist and the provider download counters """
 
 import logging
+import os
 
 from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
@@ -200,7 +201,7 @@ def delete_history_item(rowid):
 
 
 def mark_failed(rowid):
-    """ Mark a download Failed and want its book again """
+    """ Mark a download Failed and want its book again, unless it has its file already """
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
     try:
@@ -210,10 +211,7 @@ def mark_failed(rowid):
         logger.debug(f'Marking {match["Status"]} history item {match["NZBtitle"]} as Failed')
         # the blocklist says why, as Sonarr's does
         db.action("UPDATE wanted SET Status='Failed',DLResult='Manually marked as failed' WHERE rowid=?", (rowid,))
-        if item_type(match['AuxInfo']) == 'AudioBook':
-            db.action("UPDATE books SET audiostatus='Wanted' WHERE BookID=?", (match["BookID"],))
-        else:
-            db.action("UPDATE books SET status='Wanted' WHERE BookID=?", (match["BookID"],))
+        unsnatch_book(db, match['BookID'], item_type(match['AuxInfo']), only_snatched=False)
     finally:
         db.close()
 
@@ -243,16 +241,26 @@ def clear_history(status: str = 'all'):
         db.close()
 
 
+def unsnatch_book(db, book_id, library: str, only_snatched: bool = True):
+    """ A book whose download didn't come to anything: wanted again, unless it has its file in the
+    library, as when the download was an upgrade, when it is owned as before (FOUND_STATUS) rather
+    than looking like a book that isn't there. only_snatched leaves a book that isn't Snatched """
+    library = {'ebook': 'eBook', 'audiobook': 'AudioBook'}.get(str(library).lower())
+    if not library or book_id == 'unknown':
+        return
+    status, file_column = ('AudioStatus', 'AudioFile') if library == 'AudioBook' else ('Status', 'BookFile')
+    row = db.match(f'SELECT {file_column} AS Path FROM books WHERE BookID=?', (book_id,))
+    owned = bool(row and row['Path'] and os.path.isfile(row['Path']))
+    cmd = f"UPDATE books SET {status}=? WHERE BookID=?"
+    if only_snatched:
+        cmd += f" AND {status}='Snatched'"
+    db.action(cmd, (CONFIG['FOUND_STATUS'] if owned else 'Wanted', book_id))
+
+
 def reset_snatched_books(db, downloads):
-    """ Books still marked Snatched by these downloads go back to Wanted """
+    """ Books still marked Snatched by these downloads are wanted again, or owned if they have their file """
     for book in downloads:
-        if book['BookID'] == 'unknown':
-            continue
-        if book['AuxInfo'] == 'eBook':
-            db.action("UPDATE books SET Status='Wanted' WHERE Bookid=? AND Status='Snatched'", (book['BookID'],))
-        elif book['AuxInfo'] == 'AudioBook':
-            db.action("UPDATE books SET AudioStatus='Wanted' WHERE Bookid=? AND AudioStatus='Snatched'",
-                      (book['BookID'],))
+        unsnatch_book(db, book['BookID'], book['AuxInfo'])
 
 
 def clear_blocked() -> int:

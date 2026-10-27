@@ -14,10 +14,19 @@ import { api } from 'Utilities/api';
 import EditQualityProfileModal from './EditQualityProfileModal';
 import styles from './Profiles.module.css';
 
-const SECTIONS: { mediaType: ProfileMediaType; title: string }[] = [
-  { mediaType: 'ebook', title: 'eBook Profiles' },
-  { mediaType: 'audiobook', title: 'Audiobook Profiles' },
+const SECTIONS: { mediaType: ProfileMediaType; title: string; tab: 'ebook' | 'audio' | 'mag' | 'comic' }[] = [
+  { mediaType: 'ebook', title: 'eBook Profiles', tab: 'ebook' },
+  { mediaType: 'audiobook', title: 'Audiobook Profiles', tab: 'audio' },
+  { mediaType: 'magazine', title: 'Magazine Profiles', tab: 'mag' },
+  { mediaType: 'comic', title: 'Comic Profiles', tab: 'comic' },
 ];
+
+// the types whose library tabs are on
+function shownSections() {
+  const tabs = window.LazyLibrarian?.tabs ?? { ebook: true, audio: true, series: true, mag: true, comic: false };
+
+  return SECTIONS.filter((section) => tabs[section.tab]);
+}
 
 function ProfileCard({ profile, onPress }: { profile: QualityProfile; onPress: () => void }) {
   const allowed = profile.items.filter((item) => item.allowed);
@@ -65,7 +74,7 @@ function Profiles() {
         {isLoading ? <LoadingIndicator /> : null}
         {error ? <Alert kind="danger">Failed to load the profiles: {(error as Error).message}</Alert> : null}
         {data
-          ? SECTIONS.map(({ mediaType, title }) => (
+          ? shownSections().map(({ mediaType, title }) => (
               <section key={mediaType}>
                 <h2 className={styles.legend}>{title}</h2>
                 <div className={styles.cards}>

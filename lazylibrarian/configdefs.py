@@ -178,6 +178,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigInt('General', 'BACKUP_RETENTION', 28),
     ConfigInt('General', 'EBOOK_PROFILE', 0),
     ConfigInt('General', 'AUDIO_PROFILE', 0),
+    ConfigInt('General', 'MAG_PROFILE', 0),
+    ConfigInt('General', 'COMIC_PROFILE', 0),
     ConfigInt('General', 'TASK_AGE', 2),
     ConfigInt('General', 'STALL_AGE', 72),
     ConfigInt('General', 'MIN_SEEDERS', 1),

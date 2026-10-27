@@ -1,10 +1,10 @@
-export type ProfileMediaType = 'ebook' | 'audiobook';
+export type ProfileMediaType = 'ebook' | 'audiobook' | 'magazine' | 'comic';
 
 export interface ProfileItem {
   quality: string;
   name: string;
   allowed: boolean;
-  // whether its files are imported, by the eBook or audiobook types settings
+  // whether its files are imported, by the types settings
   imported: boolean;
 }
 

@@ -78,6 +78,7 @@ def missing(page: int = Query(1, ge=1), page_size: int = Query(20, alias='pageSi
 
 
 class CutoffBook(MissingBook):
+    issue: str = ''
     quality: str
     cutoff: str
     profile: str

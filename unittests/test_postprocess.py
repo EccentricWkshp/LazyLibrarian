@@ -1097,7 +1097,7 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
             progress=50,
         )
 
-        mock_db = mock.Mock()
+        mock_db = mock.Mock(**{'match.return_value': None})  # no book file
         mock_logger = mock.Mock()
 
         _handle_aborted_download(book_state, 12, mock_db, mock_logger)
@@ -1124,7 +1124,7 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
             progress=50,
         )
 
-        mock_db = mock.Mock()
+        mock_db = mock.Mock(**{'match.return_value': None})  # no book file
         mock_logger = mock.Mock()
 
         _handle_aborted_download(book_state, 12, mock_db, mock_logger)
@@ -1155,7 +1155,7 @@ class UnprocessedDownloadsTest(LLTestCaseWithStartup):
             progress=50,
         )
 
-        mock_db = mock.Mock()
+        mock_db = mock.Mock(**{'match.return_value': None})  # no book file
         mock_logger = mock.Mock()
 
         _handle_aborted_download(book_state, 12, mock_db, mock_logger)

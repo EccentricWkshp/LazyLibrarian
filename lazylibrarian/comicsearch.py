@@ -20,10 +20,11 @@ from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 import lazylibrarian
-from lazylibrarian import database
+from lazylibrarian import database, quality
 from lazylibrarian.comicid import cv_identify, cx_identify
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.downloadmethods import direct_dl_method, nzb_dl_method, tor_dl_method
+from lazylibrarian.filesystem import path_isfile
 from lazylibrarian.formatter import (
     check_int,
     date_format,
@@ -43,6 +44,7 @@ from lazylibrarian.providers import (
     iterate_over_znab_sites,
 )
 from lazylibrarian.scheduling import SchedulerCommand, schedule_job
+from lazylibrarian.services import blocklist, profiles
 
 # '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '',
 dictrepl = {'...': '', '.': ' ', ' & ': ' ', ' = ': ' ', '?': '', '$': 's', ' + ': ' ', '"': '',
@@ -102,6 +104,20 @@ def search_item(comicid=None):
             results += resultlist
 
     # reprocess to get consistent results
+    searchresults = []
+    db = database.DBConnection()
+    try:
+        profile = profiles.for_media('comic', db)
+        searchresults = _evaluate(results, comicid, searchterm, profile, db)
+    finally:
+        db.close()
+    logger.debug(f'Found {len(searchresults)} {cat} results for {searchterm}')
+    return searchresults
+
+
+def _evaluate(results, comicid, searchterm, profile, db) -> list[dict]:
+    """ The results that could be taken, scored, each with its quality to the profile """
+    logger = logging.getLogger(__name__)
     searchresults = []
     for item in results:
         provider = ''
@@ -165,7 +181,6 @@ def search_item(comicid=None):
 
                 maxsize = CONFIG.get_int('REJECT_MAXCOMIC')
                 minsize = CONFIG.get_int('REJECT_MINCOMIC')
-                filetypes = get_list(CONFIG['COMIC_TYPE'])
                 banwords = CONFIG.get_csv('REJECT_COMIC')
                 size_mb = check_int(size, 1000)
                 size_mb = round(float(size_mb) / 1048576, 2)
@@ -178,6 +193,24 @@ def search_item(comicid=None):
                     rejected = True
                     logger.debug(f"Rejecting {title}, too small ({size_mb}Mb)")
 
+                release_quality = profiles.release_quality(profile, quality.of_release(title, 'comic')) \
+                    if profile else quality.UNKNOWN
+                if not rejected and profile:
+                    if not quality.imported('comic', release_quality):
+                        rejected = True
+                        logger.debug(f"Rejecting {title}, {quality.name(release_quality)} files aren't imported "
+                                     f"(comic types)")
+                    elif not profiles.rank(profile, release_quality):
+                        rejected = True
+                        logger.debug(f"Rejecting {title}, {quality.name(release_quality)} isn't wanted by the "
+                                     f"{profile['name']} quality profile")
+
+                if not rejected and CONFIG.get_bool('BLACKLIST_FAILED'):
+                    blocked = blocklist.find(db, url.decode('utf-8'), title, provider)
+                    if blocked:
+                        rejected = True
+                        logger.debug(f"Rejecting {title}, blocklisted at {blocked['NZBprov']}")
+
                 if not rejected:
                     result_title = unaccented(replace_all(title, dictrepl), only_ascii=False).strip()
                     words = get_list(result_title.lower())
@@ -186,16 +219,11 @@ def search_item(comicid=None):
                             logger.debug(f"Rejecting {title}, contains {word}")
                             rejected = True
                             break
-                    if not rejected and filetypes:
-                        for word in filetypes:
-                            if word in words:
-                                score += 1
                 if not rejected:
                     result = {'score': score, 'title': title, 'provider': provider, 'size': size_mb, 'date': date,
-                              'url': url, 'mode': mode, 'bookid': comicid}
+                              'url': url, 'mode': mode, 'bookid': comicid, 'quality': release_quality,
+                              'quality_rank': profiles.rank(profile, release_quality) if profile else 0}
                     searchresults.append(result)
-
-    logger.debug(f'Found {len(searchresults)} {cat} results for {searchterm}')
     return searchresults
 
 
@@ -256,7 +284,9 @@ def search_comics(comicid=None):
                 if match:
                     if match[3]['seriesid'] == comicid or match[3]['seriesid'] in aka:
                         found += 1
-                        if match[4] and match[4] not in foundissues:
+                        # the best quality of each issue, the first found of the same
+                        if match[4] and (match[4] not in foundissues or
+                                         item['quality_rank'] > foundissues[match[4]]['quality_rank']):
                             foundissues[match[4]] = item
                     else:
                         searchinglogger.debug(f"No match ({match[3]['seriesid']}) want {id_list}: {item['title']}")
@@ -266,16 +296,22 @@ def search_comics(comicid=None):
                     notfound += 1
 
             total = len(foundissues)
-            haveissues = db.select("SELECT IssueID from comicissues WHERE ComicID=?", (comicid,))
-            have = []
-            located = []
+            haveissues = db.select("SELECT IssueID,IssueFile from comicissues WHERE ComicID=?", (comicid,))
+            have = {}
             for item in haveissues:
-                have.append(int(item['IssueID']))
-            for item in foundissues:
-                located.append(item)
-            for item in located:
+                have[int(item['IssueID'])] = item['IssueFile']
+            profile = profiles.for_media('comic', db)
+            for item in list(foundissues):
                 if item in have:
-                    foundissues.pop(item)
+                    # downloaded again when better than the file there is, and the profile upgrades
+                    # until a quality it is below
+                    current = quality.of_file(have[item], 'comic') if have[item] and \
+                        path_isfile(have[item]) else ''
+                    if profile and current and profiles.wants_upgrade(profile, current) and \
+                            foundissues[item]['quality_rank'] > profiles.rank(profile, current):
+                        logger.info(f"{foundissues[item]['title']} is an upgrade for issue {item}")
+                    else:
+                        foundissues.pop(item)
 
             logger.debug(
                 f"Found {len(res)} results, {found} match, {notfound} fail, {total} distinct, Have {sorted(have)}, "
