@@ -20,6 +20,14 @@
   color: var(--inkMuted);
 }
 
+.contributorList {
+  overflow-y: auto;
+  margin: 0 0 16px;
+  padding-left: 20px;
+  max-height: 30vh;
+  font-size: 13px;
+}
+
 .check {
   display: flex;
   align-items: center;

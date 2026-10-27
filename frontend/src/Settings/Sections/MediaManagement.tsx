@@ -152,7 +152,12 @@ const GROUPS: Group[] = [
         help: 'When an author comes in with a wishlist, a scan or an import',
         advanced: true,
       },
-      { key: 'CONTRIBUTING_AUTHORS', label: 'Add contributing authors too', advanced: true },
+      {
+        key: 'CONTRIBUTING_AUTHORS',
+        label: 'Link books to their other authors',
+        help: "A book by several authors is listed under each one that's in the library. Nobody is added for contributing",
+        advanced: true,
+      },
       { key: 'DEL_SECONDARY', label: 'Delete authors who are only contributors', advanced: true },
     ],
   },

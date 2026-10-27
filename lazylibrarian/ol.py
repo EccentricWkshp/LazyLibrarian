@@ -1337,16 +1337,8 @@ class OpenLibrary:
                                 cnt += 1
 
                             for entry in contributing_authors:
-                                auth_id = lazylibrarian.importer.add_author_to_db(authorname=entry[1], refresh=False,
-                                                                                  authorid=entry[0],
-                                                                                  addbooks=False,
-                                                                                  reason=f"Contributor to {title}")
-                                if auth_id:
-                                    db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
-                                              (auth_id, key, ROLE['CONTRIBUTING']), suppress='UNIQUE')
-                                    lazylibrarian.importer.update_totals(auth_id)
-                                else:
-                                    self.logger.debug(f"Unable to add {auth_id}")
+                                # when they are in the library
+                                lazylibrarian.importer.link_contributor(db, key, entry[1], entry[0])
 
                 next_page = True
                 if authorbooks and authorbooks.get("docs"):

@@ -15,6 +15,7 @@ author with their books, the eBooks and audiobooks, magazines and comics with th
 series, and changing what's wanted of them. The old pages' services do the work, this shapes it
 for /api/v1 """
 
+import logging
 import os
 import re
 
@@ -22,6 +23,7 @@ import lazylibrarian
 from lazylibrarian import database, quality
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_float, check_int, fold
+from lazylibrarian.importer import author_name_key, update_totals
 from lazylibrarian.services import (
     InvalidRequestError,
     NotFoundError,
@@ -160,6 +162,108 @@ def delete_authors(author_ids: list, delete_files: bool = False) -> int:
     """ Take authors out of the library, with the folders of their books if delete_files """
     passed, _failed = authors.mark_authors('Delete' if delete_files else 'Remove', author_ids)
     return passed
+
+
+# why an author was added only for contributing to a book, before nobody was
+CONTRIBUTOR_REASON = 'Contributor to '
+
+
+def _contributors(db) -> tuple[list[dict], list[dict]]:
+    """ The authors added only for contributing to a book: the ones that are another author in the
+    library with the name written differently (J.A. and J. A., or the dotted Brandon. Sanderson made to
+    keep them apart), each with the author to merge into, and the rest """
+    rows = [dict(row) for row in db.select('SELECT AuthorID,AuthorName,Reason,Status FROM authors')]
+    by_key: dict[str, list[dict]] = {}
+    for row in rows:
+        by_key.setdefault(author_name_key(row['AuthorName']), []).append(row)
+    merges, merged = [], set()
+    for same in by_key.values():
+        if len(same) < 2:
+            continue
+        # into one added on purpose, else the one with the most books
+        counts = {row['AuthorID']: db.match('SELECT COUNT(*) AS n FROM bookauthors WHERE AuthorID=?',
+                                            (row['AuthorID'],))['n'] for row in same}
+        keeper = sorted(same, key=lambda row: ((row['Reason'] or '').startswith(CONTRIBUTOR_REASON),
+                                               -counts[row['AuthorID']], row['AuthorName']))[0]
+        for row in same:
+            if row is not keeper and (row['Reason'] or '').startswith(CONTRIBUTOR_REASON):
+                merges.append({'id': row['AuthorID'], 'name': row['AuthorName'], 'into_id': keeper['AuthorID'],
+                               'into_name': keeper['AuthorName']})
+                merged.add(row['AuthorID'])
+    rest = [row for row in rows if (row['Reason'] or '').startswith(CONTRIBUTOR_REASON) and row['AuthorID'] not in merged]
+    return merges, rest
+
+
+def _removable(db, row: dict, also=()) -> bool:
+    """ A contributor still as they were added, Paused or Ignored, the main author of no book, with
+    none of their books in the library. also are the authors that are being merged into them """
+    if row['Status'] not in ('Paused', 'Ignored'):
+        return False
+    for author_id in (row['AuthorID'], *also):
+        if db.match('SELECT BookID FROM books WHERE AuthorID=?', (author_id,)) or \
+                db.match("SELECT books.BookID FROM books JOIN bookauthors ON books.BookID=bookauthors.BookID "
+                         "WHERE bookauthors.AuthorID=? AND (books.Status IN ('Open','Have') OR "
+                         "books.AudioStatus IN ('Open','Have'))", (author_id,)):
+            return False
+    return True
+
+
+def contributor_authors() -> dict:
+    """ What removing the contributor authors would do: the authors added only for contributing to a
+    book that would be merged into another author in the library, and the ones that would be
+    removed. Their books stay, under their main authors """
+    db = database.DBConnection()
+    try:
+        merges, rest = _contributors(db)
+        # one merged into is one author with the other's books
+        into = {}
+        for merge in merges:
+            into.setdefault(merge['into_id'], []).append(merge['id'])
+        remove = [{'id': row['AuthorID'], 'name': row['AuthorName'], 'reason': row['Reason'] or ''}
+                  for row in rest if _removable(db, row, into.get(row['AuthorID'], []))]
+    finally:
+        db.close()
+    return {'merge': merges, 'remove': sorted(remove, key=lambda row: row['name'].lower())}
+
+
+def remove_contributor_authors() -> dict:
+    """ Merge the contributor authors that are another author in the library, then remove the ones
+    that are only contributors with none of their books in the library. Returns how many of each """
+    logger = logging.getLogger(__name__)
+    db = database.DBConnection()
+    merged = removed = 0
+    try:
+        merges, _ = _contributors(db)
+        for merge in merges:
+            old, new = merge['id'], merge['into_id']
+            # their books, series and links to books go to the author they are, then they go
+            db.action('UPDATE books SET AuthorID=? WHERE AuthorID=?', (new, old))
+            db.action('INSERT OR IGNORE INTO bookauthors (BookID,AuthorID,Role) SELECT BookID,?,Role FROM bookauthors '
+                      'WHERE AuthorID=? AND BookID NOT IN (SELECT BookID FROM bookauthors WHERE AuthorID=?)',
+                      (new, old, new))
+            db.action('INSERT OR IGNORE INTO seriesauthors (SeriesID,AuthorID) SELECT SeriesID,? FROM seriesauthors '
+                      'WHERE AuthorID=?', (new, old))
+            db.action('DELETE FROM bookauthors WHERE AuthorID=?', (old,))
+            db.action('DELETE FROM seriesauthors WHERE AuthorID=?', (old,))
+            keeper = db.match('SELECT AKA FROM authors WHERE AuthorID=?', (new,))
+            akas = [aka.strip() for aka in (keeper['AKA'] or '').split(',') if aka.strip()] if keeper else []
+            if merge['name'] != merge['into_name'] and merge['name'] not in akas:
+                db.action('UPDATE authors SET AKA=? WHERE AuthorID=?', (', '.join([*akas, merge['name']]), new))
+            db.action('DELETE FROM authors WHERE AuthorID=?', (old,))
+            update_totals(new)
+            logger.info(f"Merged contributor {merge['name']} ({old}) into {merge['into_name']} ({new})")
+            merged += 1
+        _, rest = _contributors(db)
+        for row in rest:
+            if _removable(db, row):
+                db.action('DELETE FROM bookauthors WHERE AuthorID=?', (row['AuthorID'],))
+                db.action('DELETE FROM seriesauthors WHERE AuthorID=?', (row['AuthorID'],))
+                db.action('DELETE FROM authors WHERE AuthorID=?', (row['AuthorID'],))
+                logger.info(f"Removed contributor {row['AuthorName']} ({row['AuthorID']}), {row['Reason']}")
+                removed += 1
+    finally:
+        db.close()
+    return {'merged': merged, 'removed': removed}
 
 
 def set_book_status(book_ids: list, media_types: list[str], status: str) -> dict:

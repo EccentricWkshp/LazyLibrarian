@@ -60,6 +60,15 @@ export function deleteAuthors(authorIds: string[], deleteFiles: boolean) {
   );
 }
 
+export function removeContributorAuthors() {
+  return tell(
+    `author-contributors-${Date.now()}`,
+    () => api<{ merged: number; removed: number }>('/author/contributors', { method: 'DELETE' }),
+    (result) => `${result.removed} contributor ${result.removed === 1 ? 'author' : 'authors'} removed, ${result.merged} merged`,
+    'Removing the contributor authors failed'
+  );
+}
+
 export function setBookStatus(bookIds: string[], mediaTypes: string[], status: string) {
   return tell(
     `book-status-${Date.now()}`,

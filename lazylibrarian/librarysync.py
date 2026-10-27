@@ -27,7 +27,7 @@ from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 import lazylibrarian
-from lazylibrarian import ROLE, database
+from lazylibrarian import database
 from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.bookrename import audio_rename, book_rename, delete_empty_folders, id3read
 from lazylibrarian.cache import ImageType, cache_img
@@ -63,6 +63,7 @@ from lazylibrarian.importer import (
     book_keys,
     collate_fuzzy,
     collate_nopunctuation,
+    link_contributor,
     move_book_to_author,
     search_for,
     title_translates,
@@ -1376,18 +1377,8 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
                                                 authorlist = split_author_names(res['authors'],
                                                                                 get_list(CONFIG['MULTI_AUTHOR_SPLIT']))
                                                 for auth in authorlist:
-                                                    if auth != check_status['AuthorID']:  # primary author already added
-                                                        aname, aid, added = (
-                                                            add_author_name_to_db(auth, addbooks=False,
-                                                                                  reason=f"Contributor to "
-                                                                                         f"{check_status['BookName']}"))
-                                                        if aid:
-                                                            # Add any new authors as contributing authors
-                                                            db.action('INSERT into bookauthors (AuthorID, BookID, Role) '
-                                                                      'VALUES (?, ?, ?)',
-                                                                      (aid, check_status['BookID'], ROLE['CONTRIBUTING']),
-                                                                      suppress='UNIQUE')
-                                                            update_totals(aid)
+                                                    # the file's other authors that are in the library
+                                                    link_contributor(db, check_status['BookID'], auth)
 
                                             book_filename = os.path.join(rootdir, files)
                                             if library == 'eBook':

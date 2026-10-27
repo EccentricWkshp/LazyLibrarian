@@ -580,17 +580,9 @@ class GoogleBooks:
                                           (authorid, bookid, ROLE['PRIMARY']), suppress='UNIQUE')
 
                                 if CONFIG.get_bool('CONTRIBUTING_AUTHORS') and 'contributors' in book:
+                                    # its other authors that are in the library
                                     for entry in book['contributors']:
-                                        reason = f"Contributor to {bookname}"
-                                        auth_id = lazylibrarian.importer.add_author_to_db(authorname=entry,
-                                                                                          refresh=False,
-                                                                                          authorid='',
-                                                                                          addbooks=False,
-                                                                                          reason=reason)
-                                        if auth_id:
-                                            db.action('INSERT into bookauthors (AuthorID, BookID, Role)'
-                                                      ' VALUES (?, ?, ?)',
-                                                      (auth_id, bookid, ROLE['CONTRIBUTING']), suppress='UNIQUE')
+                                        lazylibrarian.importer.link_contributor(db, bookid, entry)
 
                                 serieslist = []
                                 if book['series']:

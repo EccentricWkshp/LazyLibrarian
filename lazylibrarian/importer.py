@@ -300,6 +300,49 @@ def author_keys():
     return keys
 
 
+def author_name_key(name: str) -> str:
+    """ An author's name to compare by, so J.A. Andrews is J. A. Andrews and Miran Lipovaca is Miran
+    Lipovača """
+    return re.sub(r'[^a-z0-9]', '', unaccented(unicodedata.normalize('NFC', name or '')).lower())
+
+
+def library_author(db, name: str, source_id: str = '') -> str:
+    """ The AuthorID of an author in the library, by an id of theirs at one of the sources or their
+    name, '' when they aren't there """
+    if source_id:
+        keys = author_keys()
+        found = db.match(f"SELECT AuthorID FROM authors WHERE AuthorID=?{''.join(f' OR {k}=?' for k in keys)}",
+                         tuple([str(source_id)] * (len(keys) + 1)))
+        if found:
+            return found['AuthorID']
+    wanted = author_name_key(name)
+    if not wanted:
+        return ''
+    for row in db.select('SELECT AuthorID,AuthorName,AKA FROM authors'):
+        if any(author_name_key(known) == wanted for known in [row['AuthorName'], *get_list(row['AKA'], ',')]):
+            return row['AuthorID']
+    return ''
+
+
+def link_contributor(db, book_id: str, name: str, source_id: str = '', role=None) -> str:
+    """ Link a book to one of its other authors when they are in the library already. Nobody is added
+    to the library for contributing to a book, as Readarr doesn't: an anthology would bring in every
+    one of its authors. Returns their AuthorID, '' when they aren't in the library """
+    logger = logging.getLogger(__name__)
+    author_id = library_author(db, name, source_id)
+    if not author_id:
+        logger.debug(f"Contributor {name} to {book_id} isn't in the library")
+        return ''
+    if db.match('SELECT AuthorID FROM bookauthors WHERE AuthorID=? AND BookID=?', (author_id, book_id)) or \
+            db.match('SELECT AuthorID FROM books WHERE AuthorID=? AND BookID=?', (author_id, book_id)):
+        return author_id  # the book's own author, or linked already
+    db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
+              (author_id, book_id, lazylibrarian.ROLE['CONTRIBUTING'] if role is None else role), suppress='UNIQUE')
+    update_totals(author_id)
+    logger.debug(f"Linked contributor {name} ({author_id}) to {book_id}")
+    return author_id
+
+
 def book_keys():
     keys = []
     for item in lazylibrarian.INFOSOURCES.keys():

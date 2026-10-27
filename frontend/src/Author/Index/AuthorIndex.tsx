@@ -1,7 +1,7 @@
 // Sonarr's series index for authors: posters or a table, sorted and filtered here, and authors
 // selected to set their status or delete them
 import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid, Plus, Table as TableIcon, Trash2, User } from 'lucide-react';
+import { LayoutGrid, Plus, Table as TableIcon, Trash2, User, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import FormattedDate from 'Components/FormattedDate';
 import { CheckInput, SelectInput, TextInput } from 'Components/Form/Form';
@@ -24,6 +24,7 @@ import { api } from 'Utilities/api';
 import { formatDateTime, relativeDate } from 'Utilities/format';
 import { imageUrl } from 'Utilities/images';
 import { AUTHOR_STATUSES, setAuthorStatus, statusKind } from '../authors';
+import ContributorAuthorsModal from '../ContributorAuthorsModal';
 import DeleteAuthorModal from '../DeleteAuthorModal';
 
 type View = 'posters' | 'table';
@@ -148,6 +149,7 @@ function AuthorIndex() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isContributorsOpen, setIsContributorsOpen] = useState(false);
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['author', 'list'],
@@ -195,6 +197,7 @@ function AuthorIndex() {
       <PageToolbar>
         <PageToolbarSection>
           <PageToolbarButton label="Add New" iconName={Plus} to="/add/new" />
+          <PageToolbarButton label="Contributors" iconName={UsersRound} onPress={() => setIsContributorsOpen(true)} />
           {view === 'table' ? (
             <>
               <PageToolbarSeparator />
@@ -340,6 +343,7 @@ function AuthorIndex() {
         onModalClose={() => setIsDeleteOpen(false)}
         onDeleted={() => setSelected(new Set())}
       />
+      <ContributorAuthorsModal isOpen={isContributorsOpen} onModalClose={() => setIsContributorsOpen(false)} />
     </PageContent>
   );
 }

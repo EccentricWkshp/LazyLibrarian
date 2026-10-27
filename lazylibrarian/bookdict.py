@@ -387,24 +387,9 @@ def add_bookdict_to_db(book):
               (book['authorid'], book['bookid'], ROLE['PRIMARY']), suppress='UNIQUE')
     logger.debug(f"Add primary {book['authorid']}:{author['authorname']}")
     if CONFIG.get_bool('CONTRIBUTING_AUTHORS') and book.get('contributors'):
+        # its other authors that are in the library
         for entry in book['contributors']:
-            if entry[0]:
-                auth_id = lazylibrarian.importer.add_author_to_db(authorname=entry[1], refresh=False,
-                                                                  authorid=entry[0], addbooks=False,
-                                                                  reason=f"Contributor to {book['bookname']}")
-            else:
-                _, auth_id, _ = lazylibrarian.importer.add_author_name_to_db(author=entry[1], refresh=False,
-                                                                             addbooks=False,
-                                                                             reason=f"Contributor to {book['bookname']}",
-                                                                             title=book['bookname'])
-            if auth_id:
-                # Add any others as contributing authors
-                logger.debug(f"Add secondary {auth_id}:{entry[1]}")
-                db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
-                          (auth_id, book['bookid'], ROLE['CONTRIBUTING']), suppress='UNIQUE')
-                lazylibrarian.importer.update_totals(auth_id)
-            else:
-                logger.debug(f"Unable to add contributor {entry[1]} for {book['bookname']}, no authorid")
+            lazylibrarian.importer.link_contributor(db, book['bookid'], entry[1], entry[0])
 
     # Handle series data if present
     if CONFIG.get_bool('ADD_SERIES') and book.get('series'):
@@ -655,23 +640,10 @@ def add_author_books_to_db(resultqueue, bookstatus, audiostatus, entrystatus, en
                 db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
                           (authorid, bookdict['bookid'], ROLE['PRIMARY']), suppress='UNIQUE')
 
-                # NOTE dnb contributing authors do not include authorid, so we add them by name
+                # its other authors that are in the library. dnb's have no authorid, they're found by name
                 if CONFIG.get_bool('CONTRIBUTING_AUTHORS'):
                     for entry in bookdict['contributors']:
-                        reason = f"Contributor to {bookdict['bookname']}"
-                        auth_id = lazylibrarian.importer.add_author_to_db(authorname=entry[1],
-                                                                          refresh=False,
-                                                                          authorid=entry[0],
-                                                                          addbooks=False,
-                                                                          reason=reason)
-                        if auth_id:
-                            # Add any others as contributing authors
-                            db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
-                                      (auth_id, bookdict['bookid'], ROLE['CONTRIBUTING']), suppress='UNIQUE')
-                            lazylibrarian.importer.update_totals(auth_id)
-                        else:
-                            logger.debug(f"Unable to add {auth_id}")
-                        time.sleep(0.25)
+                        lazylibrarian.importer.link_contributor(db, bookdict['bookid'], entry[1], entry[0])
 
             # Leave alone if locked
             if locked:

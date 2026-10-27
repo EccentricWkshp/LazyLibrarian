@@ -131,6 +131,44 @@ def delete_authors(editor: AuthorEditor):
     return {'changed': library.delete_authors(editor.author_ids, editor.delete_files)}
 
 
+class ContributorMerge(ApiModel):
+    id: str
+    name: str
+    into_id: str
+    into_name: str
+
+
+class ContributorRemoval(ApiModel):
+    id: str
+    name: str
+    # why they were added, the book they contributed to
+    reason: str
+
+
+class Contributors(ApiModel):
+    merge: list[ContributorMerge]
+    remove: list[ContributorRemoval]
+
+
+class ContributorsDone(ApiModel):
+    merged: int
+    removed: int
+
+
+@router.get('/author/contributors', response_model=Contributors)
+def contributor_authors():
+    """ The authors added only for contributing to a book: the ones that are another author in the
+    library under a name written differently, to merge, and the ones with none of their books in the
+    library, to remove """
+    return library.contributor_authors()
+
+
+@router.delete('/author/contributors', response_model=ContributorsDone)
+def remove_contributor_authors():
+    """ Merge and remove the contributor authors, their books stay under their main authors """
+    return library.remove_contributor_authors()
+
+
 @router.get('/author/{author_id}', response_model=AuthorDetail)
 def get_author(author_id: str):
     return library.get_author(author_id)
