@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from lazylibrarian import apiv1, auth
 from lazylibrarian.common import url_root
 from lazylibrarian.config2 import CONFIG
+from lazylibrarian.readarr import api as readarr_api
 from lazylibrarian.services import NotFoundError, ServiceError, system
 
 # CherryPy's own server had a pool of 10 threads, the WSGI bridge gets as many
@@ -146,6 +147,9 @@ def create_app(http_root: str, legacy_app, ui_dir: str = '') -> FastAPI:
         return get_swagger_ui_html(openapi_url=f"{root}/api/v1/openapi.json", title='LazyLibrarian API')
 
     router.include_router(apiv1.router, dependencies=[Depends(api_access)])
+    # Readarr's API for the apps that manage Readarr, beside ours and the same key
+    for prefix, readarr_router in readarr_api.routers():
+        router.include_router(readarr_router, prefix=prefix, dependencies=[Depends(api_access)])
 
     if ui_dir and os.path.isfile(os.path.join(ui_dir, 'index.html')):
         def ui(_page: str = '', _access=Depends(page_access)):

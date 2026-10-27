@@ -139,8 +139,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 105 add notifications, notificationevents and appstate tables, the webhooks and what they're sent
 # 106 add a magazine's details from Wikidata to magazines, and what an issue's file says to issues and comicissues
 # 107 add a magazine's retention and a magazine's and comic's own quality profile, and the readprogress table
+# 108 add the apiids table, the whole number ids the Readarr API gives authors and books
 
-db_current_version = 107
+db_current_version = 108
 # v107: how many issues a magazine keeps (KeepIssues, the newest; KeepMonths, those that recent; 0 for
 # all), and the quality profile of a magazine or comic (0 for the default)
 RETENTION_COLUMNS = {
@@ -1871,6 +1872,16 @@ def update_schema(db, upgradelog):
         db.action('CREATE TABLE readprogress (Kind TEXT NOT NULL, ItemID TEXT NOT NULL, Position TEXT, '
                   'Page INTEGER DEFAULT 0, Pages INTEGER DEFAULT 0, Finished INTEGER DEFAULT 0, Updated TEXT, '
                   'PRIMARY KEY (Kind, ItemID))')
+
+    if not has_column(db, "apiids", "ItemID"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating apiids table'
+        upgradelog.write(f"{time.ctime()} v108: {lazylibrarian.UPDATE_MSG}\n")
+        # Readarr's API, which apps like nzb360 talk to, numbers its authors and books. Each of
+        # ours gets a number the first time it's given out, and keeps it. AUTOINCREMENT, so a
+        # number isn't given to another after one is deleted
+        db.action('CREATE TABLE apiids (ID INTEGER PRIMARY KEY AUTOINCREMENT, Kind TEXT NOT NULL, '
+                  'ItemID TEXT NOT NULL, UNIQUE (Kind, ItemID))')
 
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'notify_%'")) \
             < len(NOTIFY_TRIGGERS):
