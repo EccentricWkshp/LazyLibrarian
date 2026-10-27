@@ -54,6 +54,17 @@ rar_executable_cached = None
 rar_executable_version = None
 
 
+def parse_date(raw_date):
+    """An entry's date as unrar lists it, a struct_time, or None for an entry without one, which
+    unrar lists as ????-??-?? ??:?? (a RAR5 archive needn't keep dates)"""
+    for date_format in ('%d-%m-%y %H:%M', '%Y-%m-%d %H:%M'):
+        try:
+            return time.strptime(raw_date, date_format)
+        except ValueError:
+            pass
+    return None
+
+
 def call_unrar(params):
     """Calls rar/unrar command line executable, returns stdout pipe"""
     global rar_executable_cached
@@ -166,18 +177,14 @@ class RarFileImplementation(object):
                 accum.append(line)
                 if len(accum) == 2:
                     data = {
-                        'index': i, 'filename': string_from_bytes(accum[0].strip().lstrip("*"))
+                        'index': i, 'filename': string_from_bytes(accum[0].strip().lstrip(b"*"))
                     }
                     # asterisks mark password-encrypted files
-                    fields = re_spaces.split(accum[1].strip())
+                    fields = re_spaces.split(string_from_bytes(accum[1].strip()))
                     data['size'] = int(fields[0])
                     attr = fields[5]
                     data['isdir'] = 'd' in attr.lower()
-                    raw_date = fields[3] + " " + fields[4]
-                    try:
-                        data['datetime'] = time.strptime(raw_date, '%d-%m-%y %H:%M')
-                    except ValueError:
-                        data['datetime'] = time.strptime(raw_date, '%Y-%m-%d %H:%M')
+                    data['datetime'] = parse_date(fields[3] + " " + fields[4])
 
                     data['comment'] = None
                     data['volume'] = None
@@ -194,11 +201,7 @@ class RarFileImplementation(object):
                 }
                 attr = fields[0]
                 data['isdir'] = b'd' in attr.lower()
-                raw_date = string_from_bytes(fields[2] + b" " + fields[3])
-                try:
-                    data['datetime'] = time.strptime(raw_date, '%d-%m-%y %H:%M')
-                except ValueError:
-                    data['datetime'] = time.strptime(raw_date, '%Y-%m-%d %H:%M')
+                data['datetime'] = parse_date(string_from_bytes(fields[2] + b" " + fields[3]))
                 data['comment'] = None
                 data['volume'] = None
                 yield data

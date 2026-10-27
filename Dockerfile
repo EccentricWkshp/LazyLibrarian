@@ -9,9 +9,11 @@ FROM ghcr.io/linuxserver/unrar:latest AS unrar
 
 FROM ghcr.io/linuxserver/baseimage-ubuntu:noble
 
-# ghostscript makes magazine covers from pdfs, libmagic1 identifies downloaded files
+# ghostscript makes magazine covers from pdfs, libmagic1 identifies downloaded files, libunrar
+# (multiverse) reads comic archives in rar format, RAR5 ones too, which the unrar command's
+# listing doesn't always give dates for
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ghostscript libmagic1 python3-venv \
+    && apt-get install -y --no-install-recommends ghostscript libmagic1 libunrar5t64 python3-venv \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /app/lazylibrarian
