@@ -182,6 +182,53 @@ class LibraryTest(LLTestCaseWithStartup):
         with self.assertRaises(NotFoundError):
             library.get_series('nothere')
 
+    def test_a_series_at_its_source(self):
+        with DBConnection() as db:
+            db.action("INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES ('OL1', 'a1')")
+            db.action("INSERT INTO member (SeriesID, BookID, SeriesNum) VALUES ('OL1', 'b2', '2')")
+        # order, title, author, workid, authorid, year, month, day, the source's book id
+        members = [['10', 'Running Blind', 'Lee Child', '', 'OL1A', '2000', '', '', ''],
+                   ['3', 'Tripwire', 'Lee Child', '', 'OL1A', '1999', '', '', 'OL3W'],
+                   ['1', 'Killing Floor', 'Lee Child', '', 'OL1A', '1997', '', '', 'OL1W'],
+                   ['2', 'Die Trying', 'Lee Child', '', 'OL1A', '1998', '', '', 'b2']]
+        with mock.patch('lazylibrarian.bookwork.get_series_members', return_value=(members, 0, 'OL')) as asked:
+            found = library.series_lookup('OL1')
+        asked.assert_called_once_with('OL1', 'Jack Reacher', refresh=True)
+        self.assertEqual([(b['number'], b['title'], b['in_library'], b['library_id'], b['id'], b['source'])
+                          for b in found],
+                         [('1', 'Killing Floor', True, 'b1', 'OL1W', 'OpenLibrary'),
+                          ('2', 'Die Trying', True, 'b2', 'b2', 'OpenLibrary'),
+                          ('3', 'Tripwire', False, '', 'OL3W', 'OpenLibrary'),
+                          ('10', 'Running Blind', False, '', '', '')],
+                         'In order, by its title, by id, to add, or without an id to add it by')
+        self.assertEqual((found[0]['status'], found[1]['audio_status']), ('Open', 'Wanted'))
+
+        # a source that lists none, as GoodReads no longer does: HardCover's series of that name
+        saved = CONFIG['HC_API']
+        self.addCleanup(CONFIG.set_from_ui, 'HC_API', saved)
+        CONFIG.set_from_ui('HC_API', True)
+        hardcover = [[3, 'Tripwire', 'Lee Child', 99, 4567, '1999-07-01', 'en']]
+        with mock.patch('lazylibrarian.bookwork.get_series_members', return_value=([], 0, 'OL')), \
+                mock.patch('lazylibrarian.hc.HardCover.find_series', return_value='HC77') as find, \
+                mock.patch('lazylibrarian.hc.HardCover.get_series_members', return_value=hardcover):
+            found = library.series_lookup('OL1')
+        find.assert_called_once_with('Jack Reacher', 'Lee Child')
+        self.assertEqual([(b['number'], b['title'], b['id'], b['source'], b['year'], b['author_id']) for b in found],
+                         [('3', 'Tripwire', '4567', 'HardCover', '1999', '99')])
+
+    def test_a_hardcover_series_by_name(self):
+        from lazylibrarian.hc import HardCover
+        hits = {'data': {'search': {'results': {'hits': [
+            {'document': {'id': 1, 'name': 'Temperance Brennan Short Stories', 'author_name': 'Kathy Reichs'}},
+            {'document': {'id': 2, 'name': 'Temperance Brennan', 'author_name': 'Someone Else'}},
+            {'document': {'id': 3, 'name': 'Temperance Brennan', 'author_name': 'Kathy Reichs'}}]}}}}
+        hc = HardCover()
+        with mock.patch.object(hc, 'result_from_cache', return_value=(hits, True)):
+            self.assertEqual(hc.find_series('Temperance Brennan', 'Kathy Reichs'), 'HC3', 'The name and its author')
+            self.assertEqual(hc.find_series('Bones'), '')
+        with mock.patch.object(hc, 'result_from_cache', return_value=({'errors': ['no']}, False)):
+            self.assertEqual(hc.find_series('Temperance Brennan'), '')
+
     def test_scan_now(self):
         from lazylibrarian.services import system
         with self.assertRaisesRegex(InvalidRequestError, 'The type is one of'):

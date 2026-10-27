@@ -445,6 +445,28 @@ def get_series(series_id: str):
     return library.get_series(series_id)
 
 
+class SeriesMember(ApiModel):
+    number: str
+    title: str
+    author_name: str
+    author_id: str
+    year: str
+    # the book at the series' info source, '' when it gave none
+    id: str
+    source: str
+    in_library: bool
+    library_id: str
+    status: str
+    audio_status: str
+
+
+@router.get('/series/{series_id}/lookup', response_model=list[SeriesMember])
+def series_lookup(series_id: str):
+    """ The books in the series as its info source lists them, in order, each saying whether the
+    library has it. One it hasn't can be added with the AddBook command """
+    return library.series_lookup(series_id)
+
+
 @router.put('/series', response_model=Changed)
 def set_series_status(editor: Editor):
     """ Wanted and Active look for the series' books and keep watching it, Skipped, Ignored and

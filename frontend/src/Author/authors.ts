@@ -27,6 +27,8 @@ export function statusKind(status: string) {
 function changed() {
   queryClient.invalidateQueries({ queryKey: ['author'] });
   queryClient.invalidateQueries({ queryKey: ['wanted'] });
+  // a book's page and the series and lists it's on
+  queryClient.invalidateQueries({ queryKey: ['library'] });
 }
 
 async function tell<T>(id: string, work: () => Promise<T>, done: (result: T) => string, failed: string) {

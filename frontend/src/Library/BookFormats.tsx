@@ -4,6 +4,8 @@ import { Bookmark, BookmarkX, Search, UserSearch } from 'lucide-react';
 import { useState } from 'react';
 import { runCommand } from 'App/commands';
 import { setBookStatus } from 'Author/authors';
+import Icon from 'Components/Icon';
+import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
 import { Label } from 'Components/Misc';
 import { TableRowCell } from 'Components/Table/Table';
@@ -61,8 +63,20 @@ export function bookKind(status: string) {
   }
 }
 
-// the status, or the file's format when the library has it, and a button to want or skip it
-export function FormatStatus({ book, format }: { book: BookStatuses; format: FormatInfo }) {
+// whether a format can be wanted or skipped: not when the library has it or it's downloading
+export function canWant(book: BookStatuses, format: FormatInfo) {
+  const status = book[format.status] || 'Skipped';
+  return !OWNED.includes(status) && status !== 'Snatched';
+}
+
+// want a format of a book, or skip it when it's wanted
+export function toggleWanted(book: BookStatuses, format: FormatInfo) {
+  return setBookStatus([book.id], [format.format], book[format.status] === 'Wanted' ? 'Skipped' : 'Wanted');
+}
+
+// the status, or the file's format when the library has it, and a button to want or skip it, in
+// words when labeled
+export function FormatStatus({ book, format, labeled = false }: { book: BookStatuses; format: FormatInfo; labeled?: boolean }) {
   const status = book[format.status] || 'Skipped';
   const fileFormat = book[format.file];
   const owned = OWNED.includes(status);
@@ -73,11 +87,20 @@ export function FormatStatus({ book, format }: { book: BookStatuses; format: For
       <Label kind={bookKind(status)} title={book.scanResult || undefined}>
         {owned && fileFormat ? fileFormat : status}
       </Label>
-      {owned || status === 'Snatched' ? null : (
+      {!canWant(book, format) ? null : labeled ? (
+        <Button
+          className={styles.wantButton}
+          kind={wanted ? 'default' : 'primary'}
+          title={wanted ? `Stop looking for the ${format.label}` : `Look for the ${format.label}, a search finds it`}
+          onPress={() => toggleWanted(book, format)}
+        >
+          <Icon name={wanted ? BookmarkX : Bookmark} size={14} /> {wanted ? "Don't Want" : 'Want'}
+        </Button>
+      ) : (
         <IconButton
           name={wanted ? BookmarkX : Bookmark}
           title={wanted ? `Skip the ${format.label}` : `Want the ${format.label}`}
-          onPress={() => setBookStatus([book.id], [format.format], wanted ? 'Skipped' : 'Wanted')}
+          onPress={() => toggleWanted(book, format)}
         />
       )}
     </>

@@ -666,6 +666,64 @@ def list_series(status: str = 'All') -> list[dict]:
     return [_one_series(row) for row in series.list_series(status=status, limit=None).items]
 
 
+# the info source a series is from, by its id's start, and its books' ids are that source's
+SERIES_SOURCES = {'GR': 'GoodReads', 'HC': 'HardCover', 'OL': 'OpenLibrary', 'LT': 'OpenLibrary'}
+
+
+def _hardcover_series(name: str, author: str) -> tuple[list, str]:
+    """ A series' members at HardCover, found by its name, as get_series_members gives them, and the
+    source their ids are from """
+    from lazylibrarian.hc import HardCover  # noqa: PLC0415, it imports most of LazyLibrarian
+    hc = HardCover()
+    hc_id = hc.find_series(name, author)
+    if not hc_id:
+        return [], ''
+    # position, title, author, author id, book id, published, language
+    members = [[item[0], item[1], item[2], item[4], item[3], str(item[5] or '')[:4], '', '', item[4]]
+               for item in hc.get_series_members(hc_id, name) or []]
+    return members, 'HardCover'
+
+
+def series_lookup(series_id: str) -> list[dict]:
+    """ The books in a series as its info source lists them, as Readarr's series page has them all, in
+    order, each saying whether the library has it (by an id of the source's, or a book of the series
+    or by its author with the same title). Any the library hasn't got can be added with the AddBook
+    command, one without an id at the source can't """
+    from lazylibrarian.bookwork import get_series_members  # noqa: PLC0415, it imports most of LazyLibrarian
+    from lazylibrarian.importer import book_keys  # noqa: PLC0415
+    found = get_series(series_id)
+    source = SERIES_SOURCES.get(series_id[:2], '')
+    # asked for, so a paused series is looked up too
+    members, _hits, _src = get_series_members(series_id, found['name'], refresh=True)
+    if not members and source != 'HardCover' and CONFIG['HC_API']:
+        # GoodReads no longer answers, HardCover may have the series by its name
+        members, source = _hardcover_series(found['name'], found['author_name'])
+    have = {_title_key(book['title']): book for book in found['books']}
+    keys = ['BookID', *book_keys()]
+    db = database.DBConnection()
+    try:
+        result = []
+        for order, title, author, _workid, author_id, year, _month, _day, book_id in members:
+            row = db.match(f"SELECT BookID, Status, AudioStatus FROM books WHERE {' OR '.join(f'{k}=?' for k in keys)}",
+                           tuple([str(book_id)] * len(keys))) if book_id else None
+            if not row and _title_key(title) in have:
+                mine = have[_title_key(title)]
+                row = {'BookID': mine['id'], 'Status': mine['status'], 'AudioStatus': mine['audio_status']}
+            if not row:
+                row = db.match('SELECT BookID, Status, AudioStatus FROM books JOIN authors ON '
+                               'books.AuthorID=authors.AuthorID WHERE BookName=? COLLATE NOCASE AND '
+                               'AuthorName=? COLLATE NOCASE', (title, author))
+            result.append({'number': str(order or ''), 'title': title or '', 'author_name': author or '',
+                           'author_id': str(author_id or ''), 'year': str(year or ''),
+                           'id': str(book_id or ''), 'source': source if book_id else '',
+                           'in_library': bool(row), 'library_id': row['BookID'] if row else '',
+                           'status': (row['Status'] or '') if row else '',
+                           'audio_status': (row['AudioStatus'] or '') if row else ''})
+    finally:
+        db.close()
+    return sorted(result, key=lambda book: check_float(book['number'], 9999))
+
+
 def get_series(series_id: str) -> dict:
     """ A series with its books, in order, the ignored ones too """
     found = series.series_page(series_id)

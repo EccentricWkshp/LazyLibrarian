@@ -19,6 +19,7 @@ import styles from 'Library/Library.module.css';
 import { SeriesDetail } from 'typings/Library';
 import { api } from 'Utilities/api';
 import EditSeriesModal from './EditSeriesModal';
+import SeriesSourceBooks from './SeriesSourceBooks';
 import { SERIES_STATUSES, setSeriesStatus } from './SeriesIndex';
 
 function SeriesDetails() {
@@ -175,6 +176,7 @@ function SeriesDetails() {
           </Table>
         ) : null}
         {data && !books.length ? <Alert kind="info">The library has none of its books yet</Alert> : null}
+        {data ? <SeriesSourceBooks seriesId={seriesId} name={data.name} /> : null}
       </PageContentBody>
       {isEditOpen ? (
         <EditSeriesModal

@@ -376,6 +376,13 @@ query FindBookByName {
   }
 }
 '''
+        self.HC_FINDSERIESBYNAME = '''
+query FindSeriesByName {
+    search(query: "[name]", query_type: "series", sort:"_text_match:desc,readers_count:desc") {
+    results
+  }
+}
+'''
 
         self.HC_ISBN13_BOOKS = self.HC_FINDBOOK.replace('[where]', '{isbn_13: {_eq: "[isbn]"}}'
                                                         ).replace('[order]', '')
@@ -689,6 +696,28 @@ query FindAuthor { authors_by_pk(id: [authorid])
 
         queue.put(resultlist)
         return None
+
+    def find_series(self, name: str, author: str = '') -> str:
+        """ HardCover's id (HC and its number) for a series by its name, and its author's when given,
+        '' when it has none that's close enough. For a series from a source that can't list its
+        books """
+        searchcmd = self.HC_FINDSERIESBYNAME.replace('[name]', name.replace('"', ''))
+        results, _ = self.result_from_cache(searchcmd, refresh=False)
+        try:
+            hits = results['data']['search']['results']['hits']
+        except (KeyError, TypeError):
+            self.logger.debug(f"No HardCover series found for {name}: {str(results)[:200]}")
+            return ''
+        for hit in hits:
+            document = hit.get('document') or {}
+            if fuzz.ratio(document.get('name') or '', name, processor=default_process) < 90:
+                continue
+            found_author = document.get('author_name') or ''
+            if author and found_author and \
+                    fuzz.token_set_ratio(found_author, author, processor=default_process) < CONFIG.get_int('NAME_RATIO'):
+                continue
+            return f"HC{document.get('id')}" if document.get('id') else ''
+        return ''
 
     def find_results(self, searchterm=None, queue=None, refresh=False):
         """Search for books or authors in HardCover."""

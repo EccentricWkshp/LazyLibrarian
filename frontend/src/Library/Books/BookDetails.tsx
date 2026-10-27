@@ -1,7 +1,19 @@
 // A book, as Sonarr's episode details: who wrote it and what it is, each format with its status,
 // its file to open or delete and searches for it, and its downloads
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, Download, ExternalLink, RefreshCw, Send, SquarePen, Star, Trash2, Wand2 } from 'lucide-react';
+import {
+  Bookmark,
+  BookmarkX,
+  BookOpen,
+  Download,
+  ExternalLink,
+  RefreshCw,
+  Send,
+  SquarePen,
+  Star,
+  Trash2,
+  Wand2,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { runCommand } from 'App/commands';
@@ -16,7 +28,7 @@ import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import { PageToolbar, PageToolbarButton, PageToolbarSection } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
-import { BookSearchButtons, FormatInfo, FormatStatus, shownFormats } from 'Library/BookFormats';
+import { BookSearchButtons, canWant, FormatInfo, FormatStatus, shownFormats, toggleWanted } from 'Library/BookFormats';
 import { Cover } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { canRead, readerPath, sendToDevice } from 'Library/Reader/reading';
@@ -76,7 +88,7 @@ function FormatPanel({ book, format }: { book: BookDetail; format: FormatInfo })
       <div className={styles.formatPanelHeader}>
         <h3>{format.label}</h3>
         <span>
-          <FormatStatus book={book} format={format} />
+          <FormatStatus book={book} format={format} labeled={true} />
         </span>
         <span className={styles.formatPanelActions}>
           <BookSearchButtons book={book} formats={[format]} />
@@ -192,6 +204,22 @@ function BookDetails() {
               });
             }}
           />
+          {/* want each format the library hasn't got, as Sonarr monitors an episode */}
+          {data
+            ? formats
+                .filter((format) => canWant(data, format))
+                .map((format) => {
+                  const wanted = data[format.status] === 'Wanted';
+                  return (
+                    <PageToolbarButton
+                      key={format.format}
+                      label={`${wanted ? "Don't Want" : 'Want'} ${format.label}`}
+                      iconName={wanted ? BookmarkX : Bookmark}
+                      onPress={() => toggleWanted(data, format)}
+                    />
+                  );
+                })
+            : null}
           <PageToolbarButton
             label="Fix Match"
             iconName={Wand2}
