@@ -16,6 +16,7 @@ import Status from 'System/Status/Status';
 import Tasks from 'System/Tasks/Tasks';
 import Updates from 'System/Updates/Updates';
 import { urlBase } from 'Utilities/api';
+import Connect from 'Settings/Connect/Connect';
 import Profiles from 'Settings/Profiles/Profiles';
 import CutoffUnmet from 'Wanted/CutoffUnmet/CutoffUnmet';
 import Missing from 'Wanted/Missing/Missing';
@@ -54,6 +55,7 @@ function App() {
               <Route path="/wanted/cutoffunmet" element={<CutoffUnmet />} />
               <Route path="/settings" element={<Navigate to="/settings/profiles" replace={true} />} />
               <Route path="/settings/profiles" element={<Profiles />} />
+              <Route path="/settings/connect" element={<Connect />} />
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
               <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />

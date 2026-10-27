@@ -136,8 +136,9 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 102 add remotepathmappings table, from the download clients' remote and local path settings
 # 103 add blocklist table, filled by triggers when a download fails, from the failed downloads
 # 104 add qualityprofiles table, with the default profiles
+# 105 add notifications, notificationevents and appstate tables, the webhooks and what they're sent
 
-db_current_version = 104
+db_current_version = 105
 
 # A failed download goes on the blocklist, as in Sonarr, however it was marked failed. Removing it
 # from the blocklist leaves its history, and clearing history leaves the blocklist
@@ -150,6 +151,55 @@ BLOCKLIST_TRIGGERS = (
     f"CREATE TRIGGER IF NOT EXISTS blocklist_failed_update AFTER UPDATE OF Status ON wanted "
     f"WHEN NEW.Status='Failed' AND IFNULL(OLD.Status,'')!='Failed' "
     f"BEGIN INSERT OR IGNORE INTO blocklist ({BLOCKLIST_COLUMNS}) VALUES ({BLOCKLIST_FROM_NEW}); END",
+)
+
+# What happens to a download goes to the webhooks the same way, however it happened: each event is
+# queued for services/notifications.py to send, when a webhook wants it. A grab is queued for an
+# import or upgrade webhook too, it says whether the book had a file already, which makes the
+# import an upgrade
+NOTIFY_COLUMNS = 'Event,WantedID,BookID,AuxInfo,NZBurl,Upgrade,Message,Created'
+HAD_FILE = ("CASE WHEN NEW.AuxInfo='AudioBook' THEN EXISTS (SELECT 1 FROM books WHERE BookID=NEW.BookID AND "
+            "IFNULL(AudioFile,'')!='') WHEN IFNULL(NEW.AuxInfo,'') IN ('eBook','') THEN EXISTS (SELECT 1 FROM "
+            "books WHERE BookID=NEW.BookID AND IFNULL(BookFile,'')!='') WHEN NEW.AuxInfo='comic' THEN EXISTS "
+            "(SELECT 1 FROM comicissues WHERE ComicID||'_'||IssueID=NEW.BookID AND IFNULL(IssueFile,'')!='') "
+            "ELSE EXISTS (SELECT 1 FROM issues WHERE Title=NEW.BookID AND IssueDate=NEW.AuxInfo AND "
+            "IFNULL(IssueFile,'')!='') END")
+GRAB_UPGRADE = ("IFNULL((SELECT Upgrade FROM notificationevents WHERE Event='Grab' AND NZBurl=NEW.NZBurl "
+                "AND BookID IS NEW.BookID ORDER BY EventID DESC LIMIT 1),0)")
+NOW = "datetime('now','localtime')"
+
+
+def _notify_values(event: str, upgrade: str = '0', message: str = 'NULL') -> str:
+    return f"'{event}',NEW.rowid,NEW.BookID,NEW.AuxInfo,NEW.NZBurl,{upgrade},{message},{NOW}"
+
+
+def _wanted_by(*fields: str) -> str:
+    return f"EXISTS (SELECT 1 FROM notifications WHERE {' OR '.join(fields)})"
+
+
+IMPORTED = "('Processed','Seeding')"
+NOTIFY_WHEN = {
+    'grab': ("NEW.Status='Snatched'", "IFNULL(OLD.Status,'')!='Snatched'",
+             _wanted_by('OnGrab', 'OnDownload', 'OnUpgrade'), _notify_values('Grab', HAD_FILE)),
+    'download': (f"NEW.Status IN {IMPORTED}", f"IFNULL(OLD.Status,'') NOT IN {IMPORTED}",
+                 _wanted_by('OnDownload', 'OnUpgrade'), _notify_values('Download', GRAB_UPGRADE)),
+    'failed': ("NEW.Status='Failed'", "IFNULL(OLD.Status,'')!='Failed'", _wanted_by('OnDownloadFailure'),
+               _notify_values('DownloadFailure', message='NEW.DLResult')),
+}
+NOTIFY_TRIGGERS = tuple(
+    trigger for name, (when, changed, wanted, values) in NOTIFY_WHEN.items() for trigger in (
+        f"CREATE TRIGGER IF NOT EXISTS notify_{name}_insert AFTER INSERT ON wanted WHEN {when} AND {wanted} "
+        f"BEGIN INSERT INTO notificationevents ({NOTIFY_COLUMNS}) VALUES ({values}); END",
+        f"CREATE TRIGGER IF NOT EXISTS notify_{name}_update AFTER UPDATE OF Status ON wanted "
+        f"WHEN {when} AND {changed} AND {wanted} "
+        f"BEGIN INSERT INTO notificationevents ({NOTIFY_COLUMNS}) VALUES ({values}); END")
+) + (
+    # a download the post processor can't import, as Sonarr's Manual Interaction Required
+    "CREATE TRIGGER IF NOT EXISTS notify_blocked_update AFTER UPDATE OF DLResult ON wanted "
+    "WHEN NEW.Status='Snatched' AND IFNULL(NEW.Source,'')!='MANUAL' AND NEW.DLResult LIKE 'Import blocked:%' "
+    "AND IFNULL(OLD.DLResult,'') NOT LIKE 'Import blocked:%' AND "
+    f"{_wanted_by('OnManualInteractionRequired')} BEGIN INSERT INTO notificationevents ({NOTIFY_COLUMNS}) "
+    f"VALUES ({_notify_values('ManualInteractionRequired', message='NEW.DLResult')}); END",
 )
 
 
@@ -1769,6 +1819,28 @@ def update_schema(db, upgradelog):
         # the defaults follow the eBook and audiobook types settings
         from lazylibrarian.services import profiles
         profiles.ensure_defaults(db)
+
+    if not has_column(db, "notifications", "Name"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating notifications, notificationevents and appstate tables'
+        upgradelog.write(f"{time.ctime()} v105: {lazylibrarian.UPDATE_MSG}\n")
+        db.action('CREATE TABLE notifications (NotificationID INTEGER PRIMARY KEY, Name TEXT UNIQUE NOT NULL, '
+                  'Implementation TEXT NOT NULL, Settings TEXT NOT NULL, OnGrab INTEGER DEFAULT 0, '
+                  'OnDownload INTEGER DEFAULT 0, OnUpgrade INTEGER DEFAULT 0, OnDownloadFailure INTEGER DEFAULT 0, '
+                  'OnManualInteractionRequired INTEGER DEFAULT 0, OnHealthIssue INTEGER DEFAULT 0, '
+                  'IncludeHealthWarnings INTEGER DEFAULT 0, OnHealthRestored INTEGER DEFAULT 0, '
+                  'OnApplicationUpdate INTEGER DEFAULT 0)')
+        db.action('CREATE TABLE notificationevents (EventID INTEGER PRIMARY KEY, Event TEXT NOT NULL, '
+                  'WantedID INTEGER, BookID TEXT, AuxInfo TEXT, NZBurl TEXT, Upgrade INTEGER DEFAULT 0, '
+                  'Message TEXT, Data TEXT, Created TEXT, Sent TEXT)')
+        db.action('CREATE INDEX notificationevents_sent ON notificationevents (Sent)')
+        db.action('CREATE TABLE appstate (Key TEXT PRIMARY KEY, Value TEXT)')
+    if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'notify_%'")) \
+            < len(NOTIFY_TRIGGERS):
+        changes += 1
+        upgradelog.write(f"{time.ctime()} v105: Adding the notification triggers\n")
+        for trigger in NOTIFY_TRIGGERS:
+            db.action(trigger)
 
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'blocklist_%'")) \
             < len(BLOCKLIST_TRIGGERS):

@@ -80,6 +80,7 @@ function groups(): SidebarGroup[] {
           children: [
             { title: 'General', to: '/config' },
             { title: 'Profiles', to: '/settings/profiles' },
+            { title: 'Connect', to: '/settings/connect' },
           ],
         },
         {

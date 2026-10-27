@@ -53,7 +53,7 @@ from lazylibrarian.scheduling import (
     shutdownscheduler,
     startscheduler,
 )
-from lazylibrarian.services import backups
+from lazylibrarian.services import backups, notifications
 
 
 def prioritized_infosources():
@@ -733,12 +733,15 @@ class StartupLazyLibrarian:
         db.close()
         if not lazylibrarian.STOPTHREADS:
             restart_jobs(command=SchedulerCommand.START)
+            # the webhooks
+            notifications.start()
 
     def shutdown(self, restart=False, update=False, doquit=False, testing=False) -> int:
         """ Stop, and restart or update when asked to. Returns the exit status, which tests use """
         from lazylibrarian import webStart  # it imports the web pages, which import this module
 
         shutdownscheduler()
+        notifications.stop()
         if not testing and not (update and doquit):  # commandline update, don't save config as no filename
             if self.logger.isEnabledFor(logging.DEBUG):  # TODO add a separate setting
                 CONFIG.create_access_summary(syspath(DIRS.get_logfile('configaccess.log')))

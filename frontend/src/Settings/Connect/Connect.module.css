@@ -1,0 +1,33 @@
+/* From Sonarr's NotificationEventItems and KeyValueListInput styles */
+
+.triggers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 6px 20px;
+}
+
+.trigger,
+.subTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.subTrigger {
+  margin: 4px 0 0 26px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  & > input {
+    flex: 1;
+    min-width: 0;
+  }
+}

@@ -37,7 +37,7 @@ from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import check_int, get_list, plural
-from lazylibrarian.services import backups, queue, remotepaths
+from lazylibrarian.services import backups, notifications, queue, remotepaths
 
 # seconds a download client's answer is kept
 CLIENT_KEEP = 300
@@ -145,6 +145,7 @@ def checks() -> list[dict]:
         found.append(_check('DownloadClientCheck', 'warning', "There are torrent indexers but no torrent download "
                             "client to send their releases to. Add one in Settings, Downloaders", SETTINGS))
     found.extend(client_checks())
+    found.extend(notifications.health_checks())
 
     libraries = []
     if CONFIG.get_bool('EBOOK_TAB'):
