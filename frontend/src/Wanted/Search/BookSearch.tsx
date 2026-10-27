@@ -74,7 +74,7 @@ function BookSearch() {
           <>
             <div className={styles.header}>
               <h1 className={styles.title}>
-                <Link to={`/book_detail?bookid=${encodeURIComponent(book.id)}`}>{name}</Link>
+                <Link to={`/book/${encodeURIComponent(book.id)}`}>{name}</Link>
               </h1>
               <div className={styles.author}>
                 {book.authorId ? (

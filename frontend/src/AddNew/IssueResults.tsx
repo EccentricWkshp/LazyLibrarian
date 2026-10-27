@@ -28,7 +28,7 @@ export function MagazineResults({ found, onAdd }: { found: MagazineLookup[]; onA
           </div>
           <div className={styles.bookActions}>
             {magazine.inLibrary ? (
-              <Link to={`/issue_page?title=${encodeURIComponent(magazine.title)}`} className={styles.inLibrary}>
+              <Link to={`/magazine?title=${encodeURIComponent(magazine.title)}`} className={styles.inLibrary}>
                 <Label kind="success">In Library</Label>
               </Link>
             ) : (
@@ -74,7 +74,7 @@ export function ComicResults({ found, onAdd }: { found: ComicLookup[]; onAdd: (a
           </div>
           <div className={styles.bookActions}>
             {comic.inLibrary ? (
-              <Link to={`/comicissue_page?comicid=${encodeURIComponent(comic.id)}`} className={styles.inLibrary}>
+              <Link to={`/comic/${encodeURIComponent(comic.id)}`} className={styles.inLibrary}>
                 <Label kind="success">In Library</Label>
               </Link>
             ) : (

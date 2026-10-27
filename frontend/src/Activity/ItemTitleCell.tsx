@@ -16,14 +16,14 @@ export interface DownloadTarget {
 
 export function itemLink(item: DownloadTarget) {
   if (item.mediaType === 'magazine') {
-    return `/issue_page?title=${encodeURIComponent(item.bookId)}`;
+    return `/magazine?title=${encodeURIComponent(item.bookId)}`;
   }
 
   if (item.mediaType === 'comic') {
-    return `/comicissue_page?comicid=${encodeURIComponent(item.bookId.split('_')[0])}`;
+    return `/comic/${encodeURIComponent(item.bookId.split('_')[0])}`;
   }
 
-  return `/book_detail?bookid=${encodeURIComponent(item.bookId)}`;
+  return `/book/${encodeURIComponent(item.bookId)}`;
 }
 
 // subtitle is a line under the title, a magazine's latest issue

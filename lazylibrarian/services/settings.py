@@ -43,7 +43,18 @@ from lazylibrarian.booklanguages import (
 from lazylibrarian.bookrename import name_vars
 from lazylibrarian.common import is_valid_email, pwd_check, validate_monthtable
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.configtypes import ConfigBool
+from lazylibrarian.configtypes import (
+    ConfigBool,
+    ConfigCSV,
+    ConfigEmail,
+    ConfigFloat,
+    ConfigFolder,
+    ConfigInt,
+    ConfigPerm,
+    ConfigScheduler,
+    ConfigStr,
+    ConfigURL,
+)
 from lazylibrarian.csvfile import dump_table, restore_table
 from lazylibrarian.dbupgrade import check_db
 from lazylibrarian.filesystem import DIRS, listdir, path_isdir, syspath
@@ -59,7 +70,7 @@ from lazylibrarian.formatter import (
 )
 from lazylibrarian.logconfig import LOGCONFIG
 from lazylibrarian.scheduling import check_running_jobs
-from lazylibrarian.services import InvalidRequestError, remotepaths
+from lazylibrarian.services import InvalidRequestError, NotFoundError, remotepaths
 from lazylibrarian.services.users import plain_text
 
 # the info sources switched on and off, by their setting, and the name BOOK_API uses for each
@@ -501,3 +512,129 @@ def new_api_key(read_only: bool = False) -> str:
 def set_settings_tab(tab) -> None:
     """ Remember which settings tab was open """
     CONFIG.set_from_ui('CONFIG_TAB_NUM', check_int(tab, 1))
+
+
+# --- the settings by name, for the new Settings pages
+
+# a secret is never sent back, saving it masked keeps it
+MASK = '********'
+# the owner's login isn't a setting, it's in the users table
+OWNER_FIELDS = ('OWNER_USERNAME', 'OWNER_PASSWORD', 'OWNER_PASSWORD2')
+# names that look secret and aren't: switches and a file
+NOT_SECRET = ('OL_API', 'DNB_API', 'BN_API', 'DBK_API', 'RAN_API', 'HC_API', 'BOOK_API', 'HTTPS_KEY')
+KINDS = ((ConfigScheduler, 'interval'), (ConfigBool, 'bool'), (ConfigPerm, 'perm'), (ConfigFloat, 'float'),
+         (ConfigInt, 'int'), (ConfigEmail, 'email'), (ConfigURL, 'url'), (ConfigFolder, 'folder'),
+         (ConfigCSV, 'csv'), (ConfigStr, 'str'))
+
+
+def _kind(item) -> str:
+    return next((kind for cls, kind in KINDS if isinstance(item, cls)), 'str')
+
+
+def is_secret(key: str) -> bool:
+    """ A password, key or token, by its name """
+    key = key.upper()
+    if key in NOT_SECRET:
+        return False
+    return any(word in key for word in ('PASS', 'TOKEN', 'SECRET')) or key.endswith(('_KEY', 'APIKEY', 'DEVKEY', '_API'))
+
+
+def _item(key: str):
+    item = CONFIG.config.get(key.upper())
+    if item is None:
+        raise NotFoundError(f'There is no setting {key}')
+    return item
+
+
+def config_values(keys: list[str]) -> list[dict]:
+    """ Settings by name: each one's kind, value and default, a secret masked. An interval's unit is
+    the unit its value is in """
+    found = []
+    for key in keys:
+        if key.upper() in OWNER_FIELDS:
+            owner = owner_summary()
+            found.append({'key': key.upper(), 'kind': 'password' if 'PASSWORD' in key.upper() else 'str',
+                          'value': owner['username'] if key.upper() == 'OWNER_USERNAME' else '',
+                          'default': '', 'unit': ''})
+            continue
+        item = _item(key)
+        kind = _kind(item)
+        if kind == 'bool':
+            value = item.get_bool()
+            default = bool(item.get_default())
+        elif kind in ('int', 'interval'):
+            value, default = item.get_int(), item.get_default()
+        elif kind == 'float':
+            value, default = item.get_float(), item.get_default()
+        else:
+            value, default = item.get_str(), str(item.get_default())
+            if is_secret(item.key) and value:
+                value = MASK
+        found.append({'key': item.key, 'kind': kind, 'value': value, 'default': default,
+                      'unit': item.unit.value if kind == 'interval' else ''})
+    return found
+
+
+def config_choices() -> dict:
+    """ The choices of the settings that have a list to choose from """
+    def formats(picker: dict) -> list[dict]:
+        found = [{'value': entry['format'], 'example': entry['example']} for entry in picker['formats']]
+        if picker['other']:
+            found.append({'value': picker['other']['format'], 'example': picker['other']['example']})
+        return found
+
+    from lazylibrarian import i18n  # noqa: PLC0415, it needs the translations set up
+    return {'themes': list(getattr(lazylibrarian, 'BOOKSTRAP_THEMELIST', []) or []),
+            'ui_languages': [{'value': 'auto', 'label': 'Automatic (browser language)'}] +
+                            [{'value': lang, 'label': f"{i18n.language_name(lang)} ({lang})"}
+                             for lang in i18n.available_languages()],
+            'author_date_formats': formats(date_format_picker(CONFIG['AUTHOR_DATE_FORMAT'], DISPLAY_DATE_FORMATS,
+                                                              CONFIG['DATE_LANG'])),
+            'date_formats': formats(date_format_picker(CONFIG['DATE_FORMAT'], DISPLAY_DATE_FORMATS,
+                                                       CONFIG['DATE_LANG'])),
+            'issue_date_formats': formats(date_format_picker(CONFIG['ISS_FORMAT'], ISSUE_DATE_FORMATS,
+                                                             CONFIG['DATE_LANG'])),
+            'book_statuses': ['Skipped', 'Wanted', 'Have', 'Ignored'],
+            'owner': owner_summary()['username']}
+
+
+def save_values(values: dict, keep_token=None) -> list[str]:
+    """ Change settings by name and save them, as the old settings page does: the owner's login,
+    authentication settings that can be used, a contact email that looks like one. A secret sent
+    back masked is kept. Returns what to tell the user; a value that can't be used isn't saved """
+    values = {key.upper(): value for key, value in values.items()}
+    for key in values:
+        if key not in OWNER_FIELDS:
+            _item(key)
+    messages = update_owner_login(str(values.pop('OWNER_USERNAME', '') or '').strip(),
+                                  str(values.pop('OWNER_PASSWORD', '') or ''),
+                                  str(values.pop('OWNER_PASSWORD2', '') or ''), keep_token=keep_token)
+    auth = {key.lower(): str(values[key]) for key in ('AUTH_TYPE', 'AUTH_REQUIRED', 'PROXY_AUTH_USER')
+            if key in values}
+    if 'auth_type' in auth and 'proxy_auth_user' not in auth:
+        auth['proxy_auth_user'] = CONFIG['PROXY_AUTH_USER']
+    messages += check_auth_settings(auth)
+    for key in ('AUTH_TYPE', 'AUTH_REQUIRED'):
+        if key in values and key.lower() not in auth:
+            values.pop(key)
+    if values.get('ADMIN_EMAIL') and not is_valid_email(str(values['ADMIN_EMAIL'])):
+        messages.append(INVALID_ADMIN_EMAIL)
+        values.pop('ADMIN_EMAIL')
+    for key, value in values.items():
+        item = _item(key)
+        kind = _kind(item)
+        if is_secret(key) and value == MASK:
+            continue
+        if kind == 'bool':
+            item.set_from_ui(bool(value))
+            continue
+        if kind in ('int', 'interval', 'float'):
+            try:
+                float(value) if kind == 'float' else int(value)
+            except (TypeError, ValueError):
+                messages.append(f"{key} wasn't changed, {value} isn't a number")
+                continue
+        CONFIG.set_from_ui(key, clean_setting(key, str(value if value is not None else '')))
+    CONFIG.ensure_valid_homepage()
+    save_config()
+    return messages

@@ -9,7 +9,8 @@ export class ApiError extends Error {
   }
 }
 
-type Query = Record<string, string | number | boolean | null | undefined>;
+// a list is sent as the name repeated, keys=a&keys=b
+type Query = Record<string, string | number | boolean | string[] | null | undefined>;
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -45,7 +46,9 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   const params = new URLSearchParams();
 
   Object.entries(query ?? {}).forEach(([key, value]) => {
-    if (value !== null && value !== undefined && value !== '') {
+    if (Array.isArray(value)) {
+      value.forEach((one) => params.append(key, one));
+    } else if (value !== null && value !== undefined && value !== '') {
       params.set(key, String(value));
     }
   });

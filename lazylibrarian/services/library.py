@@ -15,6 +15,8 @@ author with their books, the eBooks and audiobooks, magazines and comics with th
 series, and changing what's wanted of them. The old pages' services do the work, this shapes it
 for /api/v1 """
 
+import os
+
 import lazylibrarian
 from lazylibrarian import database, quality
 from lazylibrarian.formatter import check_float, check_int
@@ -147,6 +149,14 @@ BOOK_SORTS = {'title': 'TitleSort', 'author': 'AuthorSort', 'released': 'BookDat
               'added': {'ebook': 'BookLibrary', 'audiobook': 'AudioLibrary'}}
 # a book is listed in its library once it's more than skipped or ignored
 LISTED_STATUSES = ('Wanted', 'Snatched', 'Open', 'Have')
+# what Manage lists besides a status: everything, or what's on one of the owner's reading lists
+READING_LISTS = {'ToRead': 'To read', 'Read': 'Read', 'Reading': 'Reading', 'Abandoned': 'Abandoned'}
+BOOK_FILTERS = LISTED_STATUSES + ('Skipped', 'Ignored', 'All') + tuple(READING_LISTS)
+# the reading list a book is on, by the name books.reading_lists gives it
+LIST_NAMES = {'ToRead': 'To read', 'HaveRead': 'Read', 'Reading': 'Reading', 'Abandoned': 'Abandoned'}
+# what Manage can do to books: their status, a reading list, searching again now, or ignoring
+# them with or without deleting their files
+MARK_ACTIONS = ('Wanted', 'Have', 'Skipped', 'Ignored', 'NoDelay', 'Remove', 'Delete', 'Unread') + tuple(READING_LISTS)
 
 
 def _series(text: str) -> list[dict]:
@@ -161,14 +171,20 @@ def _series(text: str) -> list[dict]:
     return found
 
 
+def _owner():
+    from lazylibrarian.auth import owner_id  # noqa: PLC0415, auth imports the services
+    return owner_id()
+
+
 def list_books(media_type: str, status: str = '', search: str = '', sort: str = 'title', descending: bool = False,
                offset: int = 0, limit: int | None = None) -> Page:
     """ The eBooks or the audiobooks in the library, wanted, snatched or had, or those with a status,
-    one row a book, by its primary author """
+    All of them, or those on one of the owner's reading lists, one row a book, by its primary author.
+    Each says which reading list it's on and how its searches have gone """
     if media_type not in LIBRARIES:
         raise InvalidRequestError(f"The type is one of {', '.join(LIBRARIES)}")
-    if status and status not in LISTED_STATUSES + ('Skipped', 'Ignored'):
-        raise InvalidRequestError(f"The status is one of {', '.join(LISTED_STATUSES)}, Skipped or Ignored")
+    if status and status not in BOOK_FILTERS:
+        raise InvalidRequestError(f"The status is one of {', '.join(BOOK_FILTERS)}")
     if sort not in BOOK_SORTS:
         raise InvalidRequestError(f"Sort by one of {', '.join(BOOK_SORTS)}")
     library = LIBRARIES[media_type]
@@ -176,15 +192,16 @@ def list_books(media_type: str, status: str = '', search: str = '', sort: str = 
     # sorted and searched by list_books, but a book written together is listed once for each author
     if status:
         found = books.list_books('Manage', library, status=status, search=search, sort=sort_column,
-                                 descending=descending, primary_only=True)
+                                 descending=descending, primary_only=True, userid=_owner())
     else:
         found = books.list_books('Books' if media_type == 'ebook' else 'Audio', library, search=search,
-                                 sort=sort_column, descending=descending, primary_only=True)
+                                 sort=sort_column, descending=descending, primary_only=True, userid=_owner())
     db = database.DBConnection()
     try:
         files = {row['BookID']: dict(row) for row in db.select(
-            "SELECT BookID, AuthorID, BookFile, AudioFile FROM books WHERE Status IN ({0}) OR AudioStatus IN ({0})"
-            .format(','.join('?' * len(LISTED_STATUSES + (status,)))), (*LISTED_STATUSES, status) * 2)}
+            "SELECT BookID, AuthorID, BookFile, AudioFile FROM books")}
+        searches = {row['BookID']: dict(row) for row in db.select(
+            "SELECT BookID, Time, Interval, Count FROM failedsearch WHERE Library=?", (library,))}
     finally:
         db.close()
     rows = {}
@@ -206,8 +223,86 @@ def list_books(media_type: str, status: str = '', search: str = '', sort: str = 
                         'image': row['BookImg'] or '', 'rating': check_float(row['BookRate'], 0),
                         'language': row['BookLang'] or '', 'status': row[column] or '',
                         'format': _file_format(path, media_type),
-                        'added': (row['BookLibrary'] if media_type == 'ebook' else row['AudioLibrary']) or ''})
+                        'added': (row['BookLibrary'] if media_type == 'ebook' else row['AudioLibrary']) or '',
+                        'reading_list': LIST_NAMES.get(row.get('ReadingList') or '', ''),
+                        'search': _search_delay(searches.get(row['BookID']))})
     return Page(items=records, total=len(unique), matched=len(unique))
+
+
+def _search_delay(row) -> dict | None:
+    """ How a book's searches have gone: how many found nothing, when it was last looked for, and
+    the hours until it's looked for again """
+    if not row:
+        return None
+    return {'count': check_int(row['Count'], 0), 'last': row['Time'] or '', 'interval': check_int(row['Interval'], 0)}
+
+
+def mark_books(book_ids: list, media_type: str, action: str) -> dict:
+    """ Manage's actions on books, as an eBook or audiobook: want, have, skip or ignore them, search
+    again now (NoDelay), ignore them (Remove) or delete their files and ignore them (Delete), or put
+    them on a reading list of the owner's or take them off (Unread) """
+    if media_type not in LIBRARIES:
+        raise InvalidRequestError(f"The type is one of {', '.join(LIBRARIES)}")
+    if action not in MARK_ACTIONS:
+        raise InvalidRequestError(f"The action is one of {', '.join(MARK_ACTIONS)}")
+    result = books.mark_books(action, book_ids, library=LIBRARIES[media_type], userid=_owner())
+    return {'passed': result['passed'], 'failed': result['failed']}
+
+
+def get_book(book_id: str) -> dict:
+    """ A book as the Book page shows it: its details, links to the sources, its series, each
+    format's status and file, and its downloads """
+
+    details = books.book_details(book_id)
+    row = details['book']
+    names = {source['book_key']: name for name, source in lazylibrarian.INFOSOURCES.items()}
+    links = [{'source': names.get(column, column), 'id': str(source_id), 'url': url}
+             for column, source_id, url in details['links']]
+    if details['amazon_link']:
+        links.append({'source': 'Amazon', 'id': row.get('ASIN') or '', 'url': details['amazon_link']})
+    db = database.DBConnection()
+    try:
+        in_series = [{'id': str(m['SeriesID']), 'name': m['SeriesName'] or '', 'number': m['SeriesNum'] or ''}
+                     for m in db.select("SELECT series.SeriesID, SeriesName, SeriesNum FROM member JOIN series "
+                                        "ON member.SeriesID=series.SeriesID WHERE BookID=?", (book_id,))]
+        downloads = [{'id': d['rowid'], 'title': d['NZBtitle'] or '', 'indexer': d['NZBprov'] or '',
+                      'date': d['NZBdate'] or '', 'status': d['Status'] or '', 'source': d['Source'] or '',
+                      'media_type': 'audiobook' if d['AuxInfo'] == 'AudioBook' else 'ebook',
+                      'message': d['DLResult'] or ''}
+                     for d in db.select("SELECT rowid, NZBtitle, NZBprov, NZBdate, Status, Source, AuxInfo, DLResult "
+                                        "FROM wanted WHERE BookID=? ORDER BY NZBdate DESC", (book_id,))]
+    finally:
+        db.close()
+
+    def file(path, media_type) -> dict | None:
+        if not path:
+            return None
+        size = 0
+        exists = os.path.exists(path)
+        if exists:
+            # an audiobook's file is one of its parts, its folder is the book
+            folder = os.path.dirname(path) if media_type == 'audiobook' else ''
+            try:
+                size = sum(os.path.getsize(os.path.join(folder, f)) for f in os.listdir(folder)) if folder \
+                    else os.path.getsize(path)
+            except OSError:
+                size = 0
+        return {'path': path, 'format': _file_format(path, media_type), 'size': size, 'exists': exists}
+
+    return {'id': row['BookID'], 'title': row['BookName'] or '', 'subtitle': row['BookSub'] or '',
+            'author_id': row['AuthorID'] or '', 'author_name': row['AuthorName'] or '',
+            'series': in_series, 'release_date': row['BookDate'] or '',
+            'original_date': row.get('OriginalPubDate') or '', 'publisher': row['BookPub'] or '',
+            'isbn': row['BookIsbn'] or '', 'pages': check_int(row['BookPages'], 0), 'language': row['BookLang'] or '',
+            'genres': row['BookGenre'] or '', 'rating': check_float(row['BookRate'], 0), 'image': row['BookImg'] or '',
+            'description': row['BookDesc'] or '', 'narrator': row.get('Narrator') or '',
+            'locked': bool(check_int(row.get('Manual'), 0)), 'added': row['BookAdded'] or '', 'links': links,
+            'status': row['Status'] or '', 'audio_status': row['AudioStatus'] or '',
+            'ebook_format': _file_format(row['BookFile'], 'ebook'),
+            'audio_format': _file_format(row['AudioFile'], 'audiobook'),
+            'scan_result': row['ScanResult'] or '',
+            'ebook_file': file(row['BookFile'], 'ebook'), 'audio_file': file(row['AudioFile'], 'audiobook'),
+            'downloads': downloads}
 
 
 # --- magazines

@@ -12,6 +12,7 @@ import { Alert } from 'Components/Misc';
 import Page from 'Components/Page/Page';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import BookDetails from 'Library/Books/BookDetails';
 import BookIndex from 'Library/Books/BookIndex';
 import ComicDetails from 'Library/Comics/ComicDetails';
 import ComicIndex from 'Library/Comics/ComicIndex';
@@ -28,6 +29,9 @@ import Updates from 'System/Updates/Updates';
 import { urlBase } from 'Utilities/api';
 import Connect from 'Settings/Connect/Connect';
 import Profiles from 'Settings/Profiles/Profiles';
+import General from 'Settings/Sections/General';
+import MediaManagement from 'Settings/Sections/MediaManagement';
+import UI from 'Settings/Sections/UI';
 import CutoffUnmet from 'Wanted/CutoffUnmet/CutoffUnmet';
 import Missing from 'Wanted/Missing/Missing';
 import BookSearch from 'Wanted/Search/BookSearch';
@@ -63,7 +67,10 @@ function App() {
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="/wanted/search" element={<BookSearch />} />
               <Route path="/wanted/cutoffunmet" element={<CutoffUnmet />} />
-              <Route path="/settings" element={<Navigate to="/settings/profiles" replace={true} />} />
+              <Route path="/settings" element={<Navigate to="/settings/mediamanagement" replace={true} />} />
+              <Route path="/settings/mediamanagement" element={<MediaManagement />} />
+              <Route path="/settings/general" element={<General />} />
+              <Route path="/settings/ui" element={<UI />} />
               <Route path="/settings/profiles" element={<Profiles />} />
               <Route path="/settings/connect" element={<Connect />} />
               <Route path="/add" element={<Navigate to="/add/new" replace={true} />} />
@@ -72,6 +79,8 @@ function App() {
               <Route path="/author/:authorId" element={<AuthorDetails />} />
               <Route path="/books" element={<BookIndex key="ebook" mediaType="ebook" />} />
               <Route path="/audio" element={<BookIndex key="audiobook" mediaType="audiobook" />} />
+              <Route path="/book/:bookId" element={<BookDetails />} />
+              <Route path="/manage" element={<BookIndex key="manage" manage={true} />} />
               <Route path="/magazines" element={<MagazineIndex />} />
               <Route path="/magazine" element={<MagazineDetails />} />
               <Route path="/comics" element={<ComicIndex />} />

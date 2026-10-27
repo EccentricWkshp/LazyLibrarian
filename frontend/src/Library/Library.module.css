@@ -304,6 +304,84 @@
   }
 }
 
+/* a book's formats, each with its status, searches and file */
+.formatPanels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.formatPanel {
+  padding: 12px 15px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+}
+
+.formatPanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+
+  & h3 {
+    margin: 0;
+    font-weight: 500;
+    font-size: 17px;
+  }
+}
+
+.formatPanelActions {
+  margin-left: auto;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--smallFontSize);
+
+  & code {
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & a {
+    color: var(--inkMuted);
+  }
+}
+
+.iconLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--inkMuted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--dangerColor, var(--ink));
+  }
+}
+
+.legend {
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+}
+
+.message {
+  max-width: 400px;
+  overflow-wrap: anywhere;
+  color: var(--inkMuted);
+  font-size: var(--smallFontSize);
+}
+
 .coverCell {
   width: 40px;
   color: var(--inkMuted);

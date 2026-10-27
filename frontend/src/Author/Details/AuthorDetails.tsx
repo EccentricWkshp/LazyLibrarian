@@ -72,7 +72,7 @@ function BookRow({
         <CheckInput checked={isSelected} label={`Select ${book.title}`} onChange={onSelectedChange} />
       </TableRowCell>
       <TableRowCell>
-        <Link to={`/book_detail?bookid=${encodeURIComponent(book.id)}`} className={styles.bookTitle}>
+        <Link to={`/book/${encodeURIComponent(book.id)}`} className={styles.bookTitle}>
           {book.title}
         </Link>
         {book.subtitle ? <span className={styles.muted}>: {book.subtitle}</span> : null}

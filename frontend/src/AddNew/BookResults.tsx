@@ -135,7 +135,7 @@ function BookResults({ lookup, onAdd }: { lookup: Lookup; onAdd: (adding: Adding
                 </div>
                 <div className={styles.bookActions}>
                   {book.inLibrary ? (
-                    <Link to={`/book_detail?bookid=${encodeURIComponent(book.id)}`} className={styles.inLibrary}>
+                    <Link to={`/book/${encodeURIComponent(book.id)}`} className={styles.inLibrary}>
                       <Label kind="success">In Library</Label>
                     </Link>
                   ) : null}

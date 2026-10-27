@@ -93,6 +93,44 @@ class LibraryTest(LLTestCaseWithStartup):
             with self.subTest(args), self.assertRaises(InvalidRequestError):
                 library.list_books(*args)
 
+    def test_manage(self):
+        self.assertEqual([b['id'] for b in library.list_books('ebook', status='All').items], ['b2', 'b1', 'b3', 'b4'])
+        with mock.patch.object(library, '_owner', return_value='owner'):
+            with DBConnection() as db:
+                db.action("DELETE FROM users")
+                db.action("INSERT INTO users (UserID, UserName) VALUES ('owner', 'owner')")
+            self.assertEqual(library.mark_books(['b1'], 'ebook', 'Read')['passed'], 1)
+            found = library.list_books('ebook', status='Read').items
+            self.assertEqual([(b['id'], b['reading_list']) for b in found], [('b1', 'Read')])
+            library.mark_books(['b3'], 'ebook', 'Skipped')
+            self.assertEqual(self.statuses()['b3'], ('Skipped', 'Skipped'))
+            with DBConnection() as db:
+                db.action("INSERT INTO failedsearch (BookID, Library, Time, Interval, Count) VALUES "
+                          "('b3', 'eBook', '2026-10-26', 24, 3)")
+            row = next(b for b in library.list_books('ebook', status='Skipped').items if b['id'] == 'b3')
+            self.assertEqual(row['search'], {'count': 3, 'last': '2026-10-26', 'interval': 24})
+            library.mark_books(['b3'], 'ebook', 'NoDelay')
+            row = next(b for b in library.list_books('ebook', status='Skipped').items if b['id'] == 'b3')
+            self.assertIsNone(row['search'])
+        with self.assertRaises(InvalidRequestError):
+            library.mark_books(['b1'], 'ebook', 'Snatched')
+
+    def test_a_book(self):
+        book = library.get_book('b1')
+        self.assertEqual((book['title'], book['author_name'], book['ebook_format']), ('Killing Floor', 'Lee Child', 'EPUB'))
+        self.assertEqual(book['series'], [{'id': 'OL1', 'name': 'Jack Reacher', 'number': '1'}])
+        self.assertEqual(book['ebook_file'], {'path': '/books/Killing Floor.epub', 'format': 'EPUB', 'size': 0,
+                                              'exists': False})
+        self.assertIsNone(book['audio_file'])
+        with DBConnection() as db:
+            db.action("INSERT INTO wanted (BookID, NZBtitle, NZBprov, NZBdate, Status, AuxInfo, Source, DLResult) "
+                      "VALUES ('b1', 'Lee Child - Killing Floor epub', 'Fake', '2026-10-01', 'Processed', 'eBook', "
+                      "'SABNZBD', '/books/Killing Floor.epub')")
+        self.assertEqual([(d['title'], d['status'], d['media_type']) for d in library.get_book('b1')['downloads']],
+                         [('Lee Child - Killing Floor epub', 'Processed', 'ebook')])
+        with self.assertRaises(NotFoundError):
+            library.get_book('nothere')
+
     def test_magazines(self):
         with DBConnection() as db:
             db.action("DELETE FROM magazines")

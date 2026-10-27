@@ -20,6 +20,8 @@ const UI_PATHS = [
   '/comics',
   '/comic',
   '/series',
+  '/book',
+  '/manage',
 ];
 
 export function isUiPath(to: string) {

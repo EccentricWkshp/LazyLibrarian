@@ -24,6 +24,13 @@ from lazylibrarian.services import library
 router = APIRouter(prefix='/library', tags=['Library'])
 
 
+class SearchDelay(ApiModel):
+    # searches that found nothing, the last, and the hours until the next
+    count: int
+    last: str
+    interval: int
+
+
 class LibraryBook(ApiModel):
     id: str
     title: str
@@ -40,6 +47,71 @@ class LibraryBook(ApiModel):
     format: str
     # when it came into the library
     added: str
+    # the owner's reading list it's on
+    reading_list: str = ''
+    search: SearchDelay | None = None
+
+
+class SourceLink(ApiModel):
+    source: str
+    id: str
+    url: str
+
+
+class BookFile(ApiModel):
+    path: str
+    format: str
+    size: int
+    exists: bool
+
+
+class BookDownload(ApiModel):
+    id: int
+    title: str
+    indexer: str
+    date: str
+    status: str
+    source: str
+    media_type: str
+    message: str
+
+
+class BookDetail(ApiModel):
+    id: str
+    title: str
+    subtitle: str
+    author_id: str
+    author_name: str
+    series: list[SeriesRef]
+    release_date: str
+    original_date: str
+    publisher: str
+    isbn: str
+    pages: int
+    language: str
+    genres: str
+    rating: float
+    image: str
+    description: str
+    narrator: str
+    locked: bool
+    added: str
+    links: list[SourceLink]
+    status: str
+    audio_status: str
+    ebook_format: str
+    audio_format: str
+    scan_result: str
+    ebook_file: BookFile | None
+    audio_file: BookFile | None
+    downloads: list[BookDownload]
+
+
+class BookMark(ApiModel):
+    ids: list[str]
+    media_type: str
+    # Wanted, Have, Skipped, Ignored, NoDelay, Remove, Delete, Unread, ToRead, Read, Reading, Abandoned
+    action: str
 
 
 class BookPage(ApiModel):
@@ -153,12 +225,27 @@ def list_books(media_type: Literal['ebook', 'audiobook'] = Query('ebook', alias=
                sort_key: str = Query('title', alias='sortKey'),
                sort_direction: Literal['ascending', 'descending'] = Query('ascending', alias='sortDirection')):
     """ The eBooks or audiobooks in the library: wanted, snatched or had, or those with status
-    (Wanted, Snatched, Open, Have, Skipped, Ignored). Sorted by title, author, released, rating or
-    added (to the library) """
+    (Wanted, Snatched, Open, Have, Skipped, Ignored), All, or those on a reading list (ToRead,
+    Read, Reading, Abandoned). Sorted by title, author, released, rating or added (to the library) """
     found = library.list_books(media_type, status, search, sort_key, sort_direction == 'descending',
                                (page - 1) * page_size, page_size)
     return {'page': page, 'page_size': page_size, 'sort_key': sort_key, 'sort_direction': sort_direction,
             'total_records': found.matched, 'records': found.items}
+
+
+@router.put('/books/mark', response_model=Changed)
+def mark_books(mark: BookMark):
+    """ Want, have, skip or ignore books as an eBook or audiobook, search again now (NoDelay),
+    ignore them (Remove) or delete their files too (Delete), or put them on a reading list
+    (ToRead, Read, Reading, Abandoned) or take them off (Unread) """
+    result = library.mark_books(mark.ids, mark.media_type, mark.action)
+    return {'changed': result['passed'], 'failed': result['failed']}
+
+
+@router.get('/book/{book_id}', response_model=BookDetail)
+def get_book(book_id: str):
+    """ A book: its details, links, series, each format's status and file, and its downloads """
+    return library.get_book(book_id)
 
 
 @router.get('/magazines', response_model=list[Magazine])

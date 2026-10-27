@@ -97,11 +97,15 @@ function groups(): SidebarGroup[] {
         {
           iconName: Settings,
           title: 'Settings',
-          to: '/config',
+          to: '/settings/mediamanagement',
           children: [
-            { title: 'General', to: '/config' },
+            { title: 'Media Management', to: '/settings/mediamanagement' },
             { title: 'Profiles', to: '/settings/profiles' },
             { title: 'Connect', to: '/settings/connect' },
+            { title: 'General', to: '/settings/general' },
+            { title: 'UI', to: '/settings/ui' },
+            // what isn't on the new pages yet: download clients, indexers, info sources and more
+            { title: 'All Settings', to: '/config' },
           ],
         },
         {

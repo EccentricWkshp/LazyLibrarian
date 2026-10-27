@@ -46,7 +46,7 @@ API_KEY_QUERY = APIKeyQuery(name='apikey', auto_error=False, description='The AP
 
 # The single page front end, built from frontend/ into data/ui. Its pages are below these paths
 UI_PAGES = ('activity', 'wanted', 'system', 'settings', 'add', 'authors', 'author', 'books', 'audio', 'magazines',
-            'magazine', 'comics', 'comic', 'series')
+            'magazine', 'comics', 'comic', 'series', 'book', 'manage')
 # Bootswatch themes the old pages can have that are dark, the new pages follow them
 DARK_THEMES = frozenset(('slate', 'darkly', 'cyborg', 'superhero', 'solar', 'vapor', 'quartz'))
 
