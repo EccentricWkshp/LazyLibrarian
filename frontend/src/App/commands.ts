@@ -15,7 +15,8 @@ const CHANGES: Record<string, string[][]> = {
   BookSearch: [['queue'], ['wanted']],
   MissingBookSearch: [['queue'], ['wanted']],
   ClearBlocklist: [['blocklist']],
-  RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history']],
+  RunTask: [['tasks'], ['commands'], ['queue'], ['wanted'], ['history'], ['backups'], ['update']],
+  Backup: [['backups']],
 };
 
 function isDone(command: Command) {

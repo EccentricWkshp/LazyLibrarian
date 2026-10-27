@@ -37,7 +37,7 @@ from lazylibrarian.blockhandler import BLOCKHANDLER
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import DIRS
 from lazylibrarian.formatter import check_int, get_list, plural
-from lazylibrarian.services import queue, remotepaths
+from lazylibrarian.services import backups, queue, remotepaths
 
 # seconds a download client's answer is kept
 CLIENT_KEEP = 300
@@ -188,10 +188,13 @@ def checks() -> list[dict]:
                             f"Hover the warning in the queue to see why, and use Manual Import",
                             '/activity/queue'))
 
+    if backups.RESTORED:
+        found.append(_check('RestoreCheck', 'notice', backups.RESTORED, '/system/backup'))
+
     behind = CONFIG.get_int('COMMITS_BEHIND')
     if behind > 0:
         found.append(_check('UpdateCheck', 'notice', f"A new version is available, {behind} "
-                            f"{plural(behind, 'change')} behind", '/'))
+                            f"{plural(behind, 'change')} behind", '/system/updates'))
     order = {'error': 0, 'warning': 1, 'notice': 2}
     return sorted(found, key=lambda check: order.get(check['type'], 3))
 

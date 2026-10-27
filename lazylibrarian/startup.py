@@ -53,6 +53,7 @@ from lazylibrarian.scheduling import (
     shutdownscheduler,
     startscheduler,
 )
+from lazylibrarian.services import backups
 
 
 def prioritized_infosources():
@@ -223,6 +224,10 @@ class StartupLazyLibrarian:
     @staticmethod
     def load_config(configfile: str):
         """ Load the config file, perform post-load fixups to ensure consistent states """
+        # a backup restored from System, Backup goes in place before its settings or database are read
+        backups.RESTORED = backups.apply_pending_restore(configfile)
+        if backups.RESTORED:
+            logging.getLogger(__name__).warning(backups.RESTORED)
         config = lazylibrarian.config2.CONFIG  # Don't create a new instance
         config.pre_load_fixup(configfile=configfile)
         config.load_configfile(configfile=configfile)

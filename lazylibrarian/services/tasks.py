@@ -33,9 +33,10 @@ def _when(seconds) -> str | None:
 
 def _scheduled() -> dict:
     """ The scheduler's jobs by name, the ones that are switched on """
-    if not scheduling.SCHED:
+    scheduler = getattr(scheduling, 'SCHED', None)  # there from initscheduler on
+    if not scheduler:
         return {}
-    return {job.id: job for job in scheduling.SCHED.get_jobs()}
+    return {job.id: job for job in scheduler.get_jobs()}
 
 
 def _why_not(scheduler) -> str:

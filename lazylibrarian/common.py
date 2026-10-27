@@ -27,7 +27,6 @@ import ssl
 import string
 import subprocess
 import sys
-import tarfile
 import time
 import zipfile
 from pathlib import Path
@@ -53,13 +52,13 @@ from lazylibrarian.filesystem import (
     DIRS,
     listdir,
     path_exists,
-    path_isfile,
     remove_file,
     setperm,
     splitext,
 )
 from lazylibrarian.formatter import get_list, make_unicode
 from lazylibrarian.logconfig import LOGCONFIG
+from lazylibrarian.services import backups
 
 reading_status = {'toread': 1, 'reading': 2, 'haveread': 3, 'read': 3, 'owned': 4, 'abandoned': 5, 'dnf': 5, }
 
@@ -607,26 +606,26 @@ def cron_dbbackup():
     try:
         db.upsert("jobs", {'Start': time.time()}, {'Name': 'BACKUP'})
         dbbackup('scheduled')
+        backups.clean_scheduled(CONFIG.get_int('BACKUP_RETENTION'))
     finally:
         db.upsert("jobs", {'Finish': time.time()}, {'Name': 'BACKUP'})
         db.close()
 
 
 def dbbackup(source='lazylibrarian'):
+    """ Back up the database and settings, into Backups/<type> in the data folder: scheduled, manual
+    (lazylibrarian or api) or update (upgrade). Returns the backup's path, and any error """
     db = database.DBConnection()
-    fname, err = db.backup()
+    try:
+        fname, err = db.backup()
+    finally:
+        db.close()
     backup_file = ''
-    err = ''
     if fname:
-        backup_file = f"{source}_{time.asctime().replace(' ', '_').replace(':', '_')}.tgz"
-        backup_file = os.path.join(DIRS.DATADIR, backup_file)
-        with tarfile.open(backup_file, mode='w:gz') as zf:
-            zf.add(fname, arcname=DIRS.DBFILENAME)
+        try:
+            backup_file = backups.archive(fname, backups.backup_type(source), DIRS.DATADIR)
+        finally:
             remove_file(fname)
-            for f in ['config.ini', 'dicts.json', 'genres.json', 'filetemplate.text']:
-                target = os.path.join(DIRS.DATADIR, f)
-                if path_isfile(target):
-                    zf.add(target, arcname=f)
     return backup_file, err
 
 

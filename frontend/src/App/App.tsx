@@ -9,8 +9,12 @@ import { Alert } from 'Components/Misc';
 import Page from 'Components/Page/Page';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import Backups from 'System/Backup/Backups';
+import Events from 'System/Events/Events';
+import LogFiles from 'System/LogFiles/LogFiles';
 import Status from 'System/Status/Status';
 import Tasks from 'System/Tasks/Tasks';
+import Updates from 'System/Updates/Updates';
 import { urlBase } from 'Utilities/api';
 import Missing from 'Wanted/Missing/Missing';
 import BookSearch from 'Wanted/Search/BookSearch';
@@ -48,6 +52,10 @@ function App() {
               <Route path="/system" element={<Navigate to="/system/status" replace={true} />} />
               <Route path="/system/status" element={<Status />} />
               <Route path="/system/tasks" element={<Tasks />} />
+              <Route path="/system/backup" element={<Backups />} />
+              <Route path="/system/updates" element={<Updates />} />
+              <Route path="/system/events" element={<Events />} />
+              <Route path="/system/logs/files" element={<LogFiles />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Page>

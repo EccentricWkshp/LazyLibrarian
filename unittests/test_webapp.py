@@ -197,6 +197,19 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertEqual(self.get('/ll/api/v1/health', headers={'X-Api-Key': self.FULL_KEY}).status_code, 200)
         disks = self.get('/ll/api/v1/diskspace', headers={'X-Api-Key': self.FULL_KEY}).json()
         self.assertIn('freeSpace', disks[0])
+        key = {'X-Api-Key': self.FULL_KEY}
+        self.assertEqual(self.get('/ll/api/v1/system/backup', headers=key).status_code, 200)
+        self.assertEqual(self.get('/ll/api/v1/system/backup/file/manual/../../config.ini', headers=key).status_code,
+                         404)
+        with mock.patch('lazylibrarian.services.system.request_stop') as stop:
+            response = self.client.post('/ll/api/v1/system/backup/upload', headers=key, content=b'not a backup')
+        self.assertEqual(response.status_code, 400, response.text)
+        stop.assert_not_called()
+        self.assertIn('canInstall', self.get('/ll/api/v1/update', headers=key).json())
+        self.assertIn('records', self.get('/ll/api/v1/log', headers=key, params={'level': 'warn'}).json())
+        files = self.get('/ll/api/v1/log/file', headers=key).json()
+        if files:
+            self.assertEqual(self.get(f"/ll/api/v1/log/file/{files[0]['filename']}", headers=key).status_code, 200)
         found = self.get('/ll/api/v1/system/task', headers={'X-Api-Key': self.FULL_KEY}).json()
         self.assertIn('search_book', [task['name'] for task in found])
         self.assertIn('nextExecution', found[0])

@@ -16,6 +16,7 @@ the most recent first, until LazyLibrarian restarts """
 
 import itertools
 import logging
+import os
 import threading
 import traceback
 from collections.abc import Callable
@@ -92,12 +93,26 @@ def _run_task(command: dict, body: dict) -> str:
     return tasks.run(body.get('task') or '')
 
 
+def _backup(command: dict, body: dict) -> str:
+    from lazylibrarian.common import dbbackup  # it imports most of LazyLibrarian
+    path, error = dbbackup('manual')
+    if not path:
+        raise InvalidRequestError(f"The backup failed: {error}")
+    return f"Backed up to {os.path.basename(path)}"
+
+
+def _application_update(command: dict, body: dict) -> str:
+    from lazylibrarian.services import updates  # it imports most of LazyLibrarian
+    return updates.install()
+
+
 HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_import, 'BookSearch': _book_search,
                                                     'MissingBookSearch': _missing_book_search,
-                                                    'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task}
+                                                    'ClearBlocklist': _clear_blocklist, 'RunTask': _run_task,
+                                                    'Backup': _backup, 'ApplicationUpdate': _application_update}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
-          'ClearBlocklist': 'Clear Blocklist'}
+          'ClearBlocklist': 'Clear Blocklist', 'Backup': 'Backup', 'ApplicationUpdate': 'Update'}
 
 
 def _run(command: dict, body: dict):

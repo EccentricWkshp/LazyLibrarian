@@ -1,0 +1,78 @@
+/* The System pages' pieces, from Sonarr's FieldSet, Backups, Updates, Logs and LogFiles styles */
+
+.legend {
+  margin: 0 0 15px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 21px;
+
+  &:not(:first-child) {
+    margin-top: 30px;
+  }
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.icon {
+  width: 30px;
+}
+
+.actions {
+  width: 80px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.muted {
+  margin-top: 2px;
+  color: var(--inkMuted);
+  font-size: var(--extraSmallFontSize);
+  overflow-wrap: anywhere;
+}
+
+.message {
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0 0 15px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.filter {
+  width: auto;
+  min-width: 140px;
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+
+.changes {
+  margin: 0 0 15px;
+  padding-left: 20px;
+
+  & li {
+    margin-bottom: 4px;
+  }
+}
+
+.version {
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.fileInput {
+  display: block;
+  margin: 10px 0;
+}
+
+@media (--breakpointSmall) {
+  .filter {
+    min-width: 100px;
+  }
+}

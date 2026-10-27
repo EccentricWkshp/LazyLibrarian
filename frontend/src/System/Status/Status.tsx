@@ -1,16 +1,20 @@
 // Sonarr's System, Status: what needs looking at, the disk space where the libraries and downloads
 // are, and what's running where
 import { useQuery } from '@tanstack/react-query';
-import { CircleX, Info, TriangleAlert } from 'lucide-react';
+import { CircleX, Info, Power, RotateCcw, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { Alert, LoadingIndicator, ProgressBar } from 'Components/Misc';
+import ConfirmModal from 'Components/Modal/ConfirmModal';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import { PageToolbar, PageToolbarButton, PageToolbarSection } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import { DiskSpace, HealthCheck, SystemStatus } from 'typings/System';
 import { api } from 'Utilities/api';
 import { formatBytes, formatDateTime, relativeDate } from 'Utilities/format';
+import Restarting from '../Restarting';
 import { useHealth } from './useHealth';
 import styles from './Status.module.css';
 
@@ -146,13 +150,48 @@ function About() {
 }
 
 function Status() {
+  const [isConfirming, setIsConfirming] = useState<'restart' | 'shutdown' | null>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const [isShutDown, setIsShutDown] = useState(false);
+
   return (
     <PageContent title="Status">
+      <PageToolbar>
+        <PageToolbarSection>
+          <PageToolbarButton label="Restart" iconName={RotateCcw} onPress={() => setIsConfirming('restart')} />
+          <PageToolbarButton label="Shutdown" iconName={Power} onPress={() => setIsConfirming('shutdown')} />
+        </PageToolbarSection>
+      </PageToolbar>
       <PageContentBody>
+        {isShutDown ? <Alert kind="warning">LazyLibrarian has shut down</Alert> : null}
         <Health />
         <Disks />
         <About />
       </PageContentBody>
+      <ConfirmModal
+        isOpen={isConfirming === 'restart'}
+        title="Restart"
+        message="Are you sure you want to restart LazyLibrarian?"
+        confirmLabel="Restart"
+        kind="primary"
+        onConfirm={() => {
+          setIsConfirming(null);
+          api('/system/restart', { method: 'POST' }).then(() => setIsRestarting(true));
+        }}
+        onCancel={() => setIsConfirming(null)}
+      />
+      <ConfirmModal
+        isOpen={isConfirming === 'shutdown'}
+        title="Shutdown"
+        message="Are you sure you want to shut down LazyLibrarian? It has to be started again on the computer it runs on."
+        confirmLabel="Shutdown"
+        onConfirm={() => {
+          setIsConfirming(null);
+          api('/system/shutdown', { method: 'POST' }).then(() => setIsShutDown(true));
+        }}
+        onCancel={() => setIsConfirming(null)}
+      />
+      <Restarting isOpen={isRestarting} message="LazyLibrarian is restarting." />
     </PageContent>
   );
 }

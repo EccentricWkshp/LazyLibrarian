@@ -12,10 +12,17 @@
 
 """ /api/v1/system """
 
-from fastapi import APIRouter
+import asyncio
+import contextlib
+import os
+import tempfile
+
+from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse
 
 from lazylibrarian.apiv1.models import ApiModel
-from lazylibrarian.services import system, tasks
+from lazylibrarian.filesystem import DIRS
+from lazylibrarian.services import backups, system, tasks
 
 router = APIRouter(prefix='/system', tags=['System'])
 
@@ -58,8 +65,78 @@ def get_status():
     return system.status()
 
 
+class Backup(ApiModel):
+    id: str
+    name: str
+    type: str
+    size: int
+    time: str
+
+
+class Message(ApiModel):
+    message: str
+
+
 @router.get('/task', response_model=list[Task])
 def list_tasks():
     """ The scheduled tasks, like Sonarr's: interval in minutes, lastDuration in seconds, and why a
     task doesn't run when it doesn't. The RunTask command runs one now """
     return tasks.list_tasks()
+
+
+@router.post('/restart', response_model=Message)
+def restart():
+    system.request_stop('restart')
+    return {'message': 'Restarting'}
+
+
+@router.post('/shutdown', response_model=Message)
+def shutdown():
+    system.request_stop('shutdown')
+    return {'message': 'Shutting down'}
+
+
+@router.get('/backup', response_model=list[Backup], tags=['Backup'])
+def list_backups():
+    """ The backups, the most recent first. type is scheduled, manual, update or restore (what was
+    there before a restore). The Backup command makes one now """
+    return backups.list_backups()
+
+
+@router.get('/backup/file/{backup_id:path}', tags=['Backup'])
+def download_backup(backup_id: str):
+    path = backups.path_of(backup_id)
+    return FileResponse(path, media_type='application/gzip', filename=os.path.basename(path))
+
+
+@router.delete('/backup/{backup_id:path}', response_model=Message, tags=['Backup'])
+def delete_backup(backup_id: str):
+    backups.delete(backup_id)
+    return {'message': 'Deleted'}
+
+
+@router.post('/backup/restore/{backup_id:path}', response_model=Message, tags=['Backup'])
+def restore_backup(backup_id: str):
+    """ Restore a backup: LazyLibrarian restarts and puts it in place as it starts, keeping what was
+    there as a backup of its own """
+    path = backups.path_of(backup_id)
+    backups.stage_restore(path, os.path.basename(path))
+    system.request_stop('restart')
+    return {'message': 'Restoring, LazyLibrarian is restarting'}
+
+
+@router.post('/backup/upload', response_model=Message, tags=['Backup'])
+async def upload_backup(request: Request):
+    """ Restore a backup sent as the request's body, a .tgz from System, Backup """
+    handle, path = tempfile.mkstemp(suffix='.tgz', dir=DIRS.DATADIR)
+    try:
+        with os.fdopen(handle, 'wb') as out:
+            async for chunk in request.stream():
+                out.write(chunk)
+        name = request.headers.get('X-File-Name') or 'an uploaded backup'
+        await asyncio.to_thread(backups.stage_restore, path, os.path.basename(name))
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(path)
+    system.request_stop('restart')
+    return {'message': 'Restoring, LazyLibrarian is restarting'}

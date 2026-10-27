@@ -12,6 +12,7 @@
 
 """ Background tasks, scans and imports, updates, restarting, jobs, logs and syncing """
 
+import contextlib
 import logging
 import os
 import platform
@@ -44,13 +45,16 @@ from lazylibrarian.scheduling import (
 )
 from lazylibrarian.searchmag import search_magazines
 from lazylibrarian.searchrss import search_wishlist
-from lazylibrarian.services import InvalidRequestError
+from lazylibrarian.services import InvalidRequestError, NotFoundError
 from lazylibrarian.services.paging import Page, page_of
 
 # the columns of the log the web interface keeps in memory
 LOG_FIELDS = ('Time', 'Level', 'Thread', 'File', 'Method', 'Line', 'Message')
 # when LazyLibrarian started, near enough: this is loaded as it starts serving pages
 STARTED = time.time()
+# the levels each of Sonarr's event filters shows, at the level and above. All of them for ''
+EVENT_LEVELS = {'': None, 'info': ('INFO', 'WARNING', 'ERROR', 'CRITICAL'), 'warn': ('WARNING', 'ERROR', 'CRITICAL'),
+                'error': ('ERROR', 'CRITICAL')}
 
 
 def is_running(name: str) -> bool:
@@ -226,6 +230,42 @@ def list_log(search: str = '', sort: str = 'Time', descending: bool = True, offs
                    offset=offset, limit=limit)
     page.total = total
     return page
+
+
+def list_events(level: str = '', search: str = '', offset: int = 0, limit: int | None = None) -> Page:
+    """ The log kept in memory as Sonarr's System, Events: the most recent first, at this level and
+    above (info, warn or error), or all of it """
+    if level not in EVENT_LEVELS:
+        raise InvalidRequestError(f"The level is one of {', '.join(name for name in EVENT_LEVELS if name)}")
+    shown = EVENT_LEVELS[level]
+    rows, _total = LOGCONFIG.get_ui_logrows(search)
+    records = [{'time': str(row[0]).replace(',', '.'), 'level': row[1], 'thread': row[2], 'file': row[3],
+                'method': row[4], 'line': row[5], 'message': row[6]}
+               for row in rows if not shown or row[1] in shown]
+    records.reverse()
+    return page_of(records, offset=offset, limit=limit)
+
+
+def list_log_files() -> list[dict]:
+    """ The log files, like Sonarr's System, Log Files, the most recently written first """
+    folder = CONFIG['LOGDIR']
+    files = []
+    with contextlib.suppress(OSError):
+        for name in os.listdir(folder):
+            path = os.path.join(folder, name)
+            if '.log' in name and os.path.isfile(path):
+                stat = os.stat(path)
+                files.append({'filename': name, 'size': stat.st_size,
+                              'last_write_time': datetime.fromtimestamp(stat.st_mtime).astimezone()
+                              .isoformat(timespec='seconds')})
+    return sorted(files, key=lambda f: f['last_write_time'], reverse=True)
+
+
+def log_file_path(name: str) -> str:
+    """ A log file's path, by a name from list_log_files, so a request can't name any other file """
+    if name not in [f['filename'] for f in list_log_files()]:
+        raise NotFoundError(f'No log file {name}')
+    return os.path.join(CONFIG['LOGDIR'], name)
 
 
 def clear_log():

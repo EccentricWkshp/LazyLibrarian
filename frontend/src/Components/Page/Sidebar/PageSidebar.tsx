@@ -79,7 +79,10 @@ function groups(): SidebarGroup[] {
           children: [
             { title: 'Status', to: '/system/status' },
             { title: 'Tasks', to: '/system/tasks' },
-            { title: 'Logs', to: '/logs' },
+            { title: 'Backup', to: '/system/backup' },
+            { title: 'Updates', to: '/system/updates' },
+            { title: 'Events', to: '/system/events' },
+            { title: 'Log Files', to: '/system/logs/files' },
           ],
         },
       ],

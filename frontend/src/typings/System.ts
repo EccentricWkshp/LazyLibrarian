@@ -33,6 +33,46 @@ export interface SystemStatus {
   startTime: string;
 }
 
+export interface Backup {
+  // its type and file name
+  id: string;
+  name: string;
+  type: 'scheduled' | 'manual' | 'update' | 'restore';
+  size: number;
+  time: string;
+}
+
+export interface UpdateInfo {
+  version: string;
+  latestVersion: string;
+  branch: string;
+  installType: string;
+  behind: number;
+  // the changes since, newest first
+  changes: string[];
+  message: string;
+  canInstall: boolean;
+  whyNot: string;
+  lastChecked: string | null;
+  repo: string;
+}
+
+export interface LogEvent {
+  time: string;
+  level: string;
+  thread: string;
+  file: string;
+  method: string;
+  line: number;
+  message: string;
+}
+
+export interface LogFile {
+  filename: string;
+  size: number;
+  lastWriteTime: string;
+}
+
 export interface Task {
   name: string;
   taskName: string;
