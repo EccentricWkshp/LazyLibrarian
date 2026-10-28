@@ -474,6 +474,14 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigBool('Magazines', 'MAG_SINGLE', 1),
     ConfigCSV('Magazines', 'MAG_NOUNS', "winter, spring, summer, fall, autumn, christmas, edition, special",
               force_lower=True),
+    # search results set aside rather than taken as an issue: several issues in one, another country's edition
+    ConfigCSV('Magazines', 'MAG_BUNDLE_WORDS', "collection, complete, bundle, pack, compilation, archive, "
+              "full year, whole year, all issues, back issues", force_lower=True),
+    ConfigCSV('Magazines', 'MAG_EDITION_WORDS', "south africa, sa, australia, australian, aus, uk, india, "
+              "germany, deutsch, deutschland, france, espana, spain, italia, italy, nederland, netherlands, "
+              "canada, singapore, malaysia, philippines, new zealand, nz, middle east, arabia, russia, polska, "
+              "mexico, latam, brasil, brazil, japan, korea, china, turkey, turkiye, greece, international, intl",
+              force_lower=True),
     ConfigStr('Magazines', 'IMP_AUTOADDMAG', ''),
     ConfigBool('Magazines', 'IMP_AUTOADDMAG_COPY', 1),
     ConfigBool('Magazines', 'IMP_AUTOADD_MAGONLY', 0),

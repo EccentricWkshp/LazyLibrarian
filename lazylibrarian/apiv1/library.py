@@ -305,6 +305,9 @@ class PastIssue(ApiModel):
     indexer: str
     # the magazine
     title: str
+    # why it has no issue: set aside (several issues in one, a special, another edition), or no date
+    # or number the magazine's issues can be matched to; or why its download failed
+    reason: str = ''
 
 
 class PastIssueMark(ApiModel):

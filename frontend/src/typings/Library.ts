@@ -153,6 +153,8 @@ export interface PastIssue {
   issue: string;
   indexer: string;
   title: string;
+  // why it has no issue (set aside, or nothing to match it to), or why its download failed
+  reason: string;
 }
 
 export interface Comic {

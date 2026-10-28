@@ -311,7 +311,7 @@ def list_past_issues(status: str, magazine: str | None = None, search: str = '',
                      descending: bool = False, offset: int = 0, limit: int | None = None) -> Page:
     """ A page of past issues, the search results not wanted for a magazine at the time, with a status,
         and for one magazine if given """
-    cmd = f"SELECT {', '.join(PAST_ISSUE_FIELDS)}, BookID from pastissues WHERE Status=?"
+    cmd = f"SELECT {', '.join(PAST_ISSUE_FIELDS)}, BookID, DLResult from pastissues WHERE Status=?"
     args = [status]
     if magazine:
         cmd += " AND BookID=?"

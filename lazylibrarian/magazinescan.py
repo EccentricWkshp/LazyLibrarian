@@ -599,6 +599,11 @@ def format_issue_filename(base, mag_title, dateparts):
     return issue_name
 
 
+# numbers in a name that aren't its issue's: a size ("1646 MB"), a part counter ("1 of 9", "[01/10]")
+NOT_ISSUE_NUMBERS = re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:[kmgt]i?b|bytes)\b|\b\d+\s+of\s+\d+\b|'
+                               r'[\[(]\s*\d+\s*/\s*\d+\s*[])]', re.IGNORECASE)
+
+
 def get_dateparts(title_or_issue, datetype=''):
     # Magazine names have many different styles of date
     # These are the ones we can currently match...
@@ -621,7 +626,7 @@ def get_dateparts(title_or_issue, datetype=''):
     #
     logger = logging.getLogger(__name__)
     dic = {'.': ' ', '-': ' ', '/': ' ', '+': ' ', '_': ' ', '(': '', ')': '', '[': ' ', ']': ' ', '#': '# '}
-    words = replace_all(title_or_issue, dic).split()
+    words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', str(title_or_issue)), dic).split()
     issuenouns = get_list(CONFIG['ISSUE_NOUNS'])
     volumenouns = get_list(CONFIG['VOLUME_NOUNS'])
     nouns = issuenouns + volumenouns
@@ -687,6 +692,11 @@ def get_dateparts(title_or_issue, datetype=''):
                         day = first
                 break
             pos += 1
+
+    if style in (1, 3) and not year:
+        # months, or a day and month, without a year aren't a date ("Nuts And Volts TruePDF-October")
+        style = 0
+        day = 0
 
     if volume and issue:
         if year:
@@ -851,6 +861,8 @@ def get_dateparts(title_or_issue, datetype=''):
                 # might be "Vol.3" or "#12" with no space between noun and number
                 splitted = re.split(r'(\d+)', words[pos].lower())
                 if splitted[0].strip('.') in nouns:
+                    # found by its noun, it's a number however the magazine dates its issues
+                    dateparts['inoun'] = words[pos]
                     if len(splitted) > 1:
                         issue = check_int(splitted[1], 0)
                         if issue:
@@ -899,7 +911,13 @@ def get_dateparts(title_or_issue, datetype=''):
                             if "MDY" in datetype:
                                 m, d = d, m
                             # if only one of the numbers is < 13 assume month
-                            if m < 13:
+                            if m < 13 and d > 31:
+                                # an issue number then its month and year, "Circuit Cellar 282 (01-2014)"
+                                dateparts['months'] = [m]
+                                dateparts['issue'] = d
+                                dateparts['day'] = 1
+                                dateparts['style'] = 7
+                            elif m < 13:
                                 dateparts['months'] = [m]
                                 dateparts['day'] = d
                                 dateparts['style'] = 3
@@ -985,8 +1003,11 @@ def get_dateparts(title_or_issue, datetype=''):
                 issuenum = f"{dateparts['volume']:04d}{dateparts['issue']:04d}"
             elif dateparts['style'] == 18:
                 issuenum = f"{dateparts['year']}{dateparts['volume']:04d}{dateparts['issue']:04d}"
-            else:
+            elif dateparts['year'] and dateparts['month']:
                 issuenum = f"{dateparts['year']}-{dateparts['month']:02d}-{dateparts['day']:02d}"
+            else:  # no year or no month is no date, not 0-10-01 or 2013-00-01
+                dateparts['style'] = 0
+                issuenum = ''
         dateparts['dbdate'] = issuenum
 
     return dateparts

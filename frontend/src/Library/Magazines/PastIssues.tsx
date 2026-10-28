@@ -147,7 +147,10 @@ function PastIssues() {
                 <TableRowCell className={styles.date}>
                   <FormattedDate value={issue.issue} kind="issue" />
                 </TableRowCell>
-                <TableRowCell>{issue.releaseTitle}</TableRowCell>
+                <TableRowCell>
+                  {issue.releaseTitle}
+                  {issue.reason ? <div className={styles.muted}>{issue.reason}</div> : null}
+                </TableRowCell>
                 <TableRowCell>{issue.indexer}</TableRowCell>
                 <TableRowCell className={styles.date}>
                   <FormattedDate value={issue.date} />

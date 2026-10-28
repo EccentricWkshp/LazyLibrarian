@@ -30,6 +30,20 @@ const GROUPS: Group[] = [
         help: `${WORDS} is turned down. Each magazine's own are on the old Settings page`,
         showIf: (v) => !!v.MAG_TAB,
       },
+      {
+        key: 'MAG_BUNDLE_WORDS',
+        label: 'Magazine bundles',
+        help: 'Separated by commas. A magazine result with any of them is several issues in one, set aside on Past Issues',
+        advanced: true,
+        showIf: (v) => !!v.MAG_TAB,
+      },
+      {
+        key: 'MAG_EDITION_WORDS',
+        label: 'Other editions',
+        help: "Separated by commas. A magazine result with any of them that its title hasn't is another country's edition, set aside on Past Issues",
+        advanced: true,
+        showIf: (v) => !!v.MAG_TAB,
+      },
       { key: 'REJECT_COMIC', label: 'Comics must not have', help: 'Separated by commas', showIf: (v) => !!v.COMIC_TAB },
       { key: 'BANNED_EXT', label: 'File types turned down', help: 'Extensions separated by commas, for any library' },
       {

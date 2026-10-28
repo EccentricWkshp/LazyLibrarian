@@ -20,7 +20,7 @@ import os
 import re
 
 import lazylibrarian
-from lazylibrarian import database, quality
+from lazylibrarian import database, magreleases, quality
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_float, check_int, fold, natural_sort
 from lazylibrarian.importer import author_name_key, update_totals
@@ -580,8 +580,10 @@ def list_past_issues(status: str = 'Skipped', title: str = '') -> list[dict]:
     if status not in PAST_ISSUE_STATUSES:
         raise InvalidRequestError(f"The status is one of {', '.join(PAST_ISSUE_STATUSES)}")
     return [{'url': row['NZBurl'] or '', 'release_title': (row['NZBtitle'] or '').replace('.', ' '),
-             'date': row['NZBdate'] or '', 'issue': row['AuxInfo'] or '', 'indexer': row['NZBprov'] or '',
-             'title': row['BookID'] or ''}
+             'date': row['NZBdate'] or '',
+             'issue': '' if row['AuxInfo'] == magreleases.NO_ISSUE else row['AuxInfo'] or '',
+             'indexer': row['NZBprov'] or '', 'title': row['BookID'] or '',
+             'reason': row['DLResult'] or ''}
             for row in magazines.list_past_issues(status, title or None, sort='NZBdate', descending=True).items]
 
 
