@@ -55,6 +55,7 @@ from lazylibrarian.filesystem import (
     book_file,
     bts_file,
     copy_tree,
+    folder_unwriteable,
     get_directory,
     jpg_file,
     listdir,
@@ -1604,13 +1605,9 @@ def _cleanup_failed_download(book_path, logger) -> None:
 
             # Test parent directory writability
             parent = os.path.dirname(book_path)
-            try:
-                test_file = os.path.join(parent, "ll_temp")
-                with open(syspath(test_file), "w", encoding="utf-8") as f:
-                    f.write("test")
-                remove_file(test_file)
-            except Exception as why:
-                logger.error(f"Parent Directory {parent} is not writeable: {why}")
+            unwriteable = folder_unwriteable(parent)
+            if unwriteable:
+                logger.error(f"Parent Directory {parent} is not writeable: {unwriteable}")
 
             logger.warning(f"Residual files remain in {book_path}")
 
@@ -3681,16 +3678,9 @@ def process_book(book_path: str, book_id: str, logger=None, library=""):
                 if not os.access(syspath(book_path), os.W_OK):
                     logger.error(f"{book_path!r} is not writeable")
                 parent = os.path.dirname(book_path)
-                try:
-                    with open(
-                        syspath(os.path.join(parent, "ll_temp")),
-                        "w",
-                        encoding="utf-8",
-                    ) as f:
-                        f.write("test")
-                    remove_file(os.path.join(parent, "ll_temp"))
-                except Exception as why:
-                    logger.error(f"Directory {parent} is not writeable: {why}")
+                unwriteable = folder_unwriteable(parent)
+                if unwriteable:
+                    logger.error(f"Directory {parent} is not writeable: {unwriteable}")
                 logger.warning(f"Residual files remain in {book_path}")
 
             was_snatched = dict(
@@ -4325,16 +4315,9 @@ def _process_destination(
         except Exception as why:
             # extra debugging to see if we can figure out a windows encoding issue
             parent = os.path.dirname(destfile)
-            try:
-                with open(
-                    syspath(os.path.join(parent, "ll_temp")),
-                    "w",
-                    encoding="utf-8",
-                ) as f:
-                    f.write("test")
-                remove_file(os.path.join(parent, "ll_temp"))
-            except Exception as w:
-                logger.error(f"Destination Directory [{parent}] is not writeable: {w}")
+            unwriteable = folder_unwriteable(parent)
+            if unwriteable:
+                logger.error(f"Destination Directory [{parent}] is not writeable: {unwriteable}")
             return (
                 False,
                 f"Unable to copy file {srcfile} to {destfile}: {type(why).__name__} {why!s}",

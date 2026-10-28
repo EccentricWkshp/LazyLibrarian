@@ -314,6 +314,25 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
             opf = filesystem.opf_file(folder, bookfile='Title - Author.epub')
             self.assertEqual(opf, os.path.join(folder, 'metadata.opf'))
 
+    def test_a_folder_is_writeable_whoever_else_checks(self):
+        # the reported one: two checks at once with one test file's name removed each other's, and the
+        # audiobook library was taken as not writeable, so an audiobook went into the data folder
+        import threading
+
+        from lazylibrarian.filesystem import folder_unwriteable
+        folder = os.path.join(TESTDIR, 'writeable')
+        os.makedirs(folder, exist_ok=True)
+        answers = []
+        workers = [threading.Thread(target=lambda: answers.extend(folder_unwriteable(folder) for _ in range(50)))
+                   for _ in range(8)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join()
+        self.assertEqual(set(answers), {''})
+        self.assertEqual(os.listdir(folder), [], 'No test file left behind')
+        self.assertTrue(folder_unwriteable(os.path.join(TESTDIR, 'not there')))
+
     def test_a_books_own_opf(self):
         def make_files(folder, names):
             for name in names:

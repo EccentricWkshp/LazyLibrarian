@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+import tempfile
 import traceback
 from datetime import datetime
 
@@ -629,9 +630,9 @@ def get_directory(dirname):
             usedir = DIRS.DATADIR
     if usedir and path_isdir(usedir):
         try:
-            with open(syspath(os.path.join(usedir, 'll_temp')), 'w') as f:
-                f.write('test')
-            os.remove(syspath(os.path.join(usedir, 'll_temp')))
+            unwriteable = folder_unwriteable(usedir)
+            if unwriteable:
+                raise OSError(unwriteable)
         except Exception as why:
             logger.warning(f"{dirname} dir [{repr(usedir)}] not writeable, using {DIRS.DATADIR}: {str(why)}")
             usedir = syspath(usedir)
@@ -644,6 +645,20 @@ def get_directory(dirname):
         usedir = DIRS.DATADIR
 
     return make_unicode(usedir)
+
+
+def folder_unwriteable(folder: str) -> str:
+    """ Why a file can't be written in a folder, '' when one can. The test file has a name of its
+    own: two threads checking at once with one name removed each other's, and the folder was taken
+    as not writeable, so a download was put in the data folder instead of the library """
+    try:
+        handle, testfile = tempfile.mkstemp(prefix='ll_temp', dir=syspath(folder))
+        os.write(handle, b'test')
+        os.close(handle)
+        os.remove(testfile)
+        return ''
+    except OSError as why:
+        return str(why)
 
 
 def issue_folder(library: str, folder: str) -> str:

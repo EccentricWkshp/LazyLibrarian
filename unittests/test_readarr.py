@@ -158,8 +158,145 @@ class ReadarrApiTest(LLTestCaseWithDB):
         response = self.client.get(f'/ll/readarr/api/v1/MediaCover/{author}/poster.jpg', headers={'X-Api-Key': KEY},
                                    follow_redirects=False)
         self.assertEqual(response.status_code, 307, 'Below /api/v1 too')
+        # as nzb360 asks for them
+        response = self.client.get(f'/ll/readarr/api/v1/mediacover/author/{author}/poster.jpg',
+                                   headers={'X-Api-Key': KEY}, follow_redirects=False)
+        self.assertEqual((response.status_code, response.headers['location']), (307, 'https://covers/lee.jpg'))
+        book = self.get('/api/v1/book', authorId=author).json()[0]['id']
+        response = self.client.get(f'/ll/readarr/api/v1/mediacover/book/{book}/cover.jpg', headers={'X-Api-Key': KEY})
+        self.assertEqual(response.status_code, 404, 'One without a picture')
 
     def test_what_is_not_here_is_logged(self):
         with self.assertLogs('lazylibrarian.readarr.api', 'WARNING') as logged:
-            self.assertEqual(self.get('/api/v1/series').status_code, 404)
-        self.assertIn('no GET /api/v1/series yet', logged.output[0])
+            self.assertEqual(self.get('/api/v1/nosuchthing').status_code, 404)
+        self.assertIn('no GET /api/v1/nosuchthing yet', logged.output[0])
+
+    def numbers(self) -> tuple[int, dict]:
+        author = self.get('/api/v1/author').json()[0]['id']
+        return author, {b['title']: b['id'] for b in self.get('/api/v1/book', authorId=author).json()}
+
+    def statuses(self) -> dict:
+        with DBConnection() as db:
+            return {row['BookID']: (row['Status'], row['AudioStatus'])
+                    for row in db.select('SELECT BookID, Status, AudioStatus FROM books')}
+
+    def test_paths_in_any_case(self):
+        # nzb360 asks for /api/v1/bookFile, Readarr matches paths whatever their case
+        author, books = self.numbers()
+        files = self.client.get('/ll/readarr/api/v1/bookFile', params={'authorId': author},
+                                headers={'X-Api-Key': KEY}).json()
+        self.assertEqual([(f['bookId'], f['path'], f['size'], f['quality']['quality']['name']) for f in files],
+                         [(books['Killing Floor'], self.epub, 1234, 'EPUB')])
+
+    def test_series_and_editions(self):
+        author, books = self.numbers()
+        series = self.get('/api/v1/series', authorId=author).json()
+        self.assertEqual([(s['title'], [(link['bookId'], link['position']) for link in s['links']]) for s in series],
+                         [('Jack Reacher', [(books['Killing Floor'], '1')])])
+        editions = self.get('/api/v1/edition', bookId=books['Killing Floor']).json()
+        self.assertEqual((editions[0]['bookId'], editions[0]['isEbook']), (books['Killing Floor'], True))
+
+    def test_monitoring(self):
+        author, books = self.numbers()
+        response = self.client.put(f'/ll/readarr/api/v1/book/{books["Tripwire"]}', json={'monitored': True},
+                                   headers={'X-Api-Key': KEY})
+        self.assertEqual((response.status_code, response.json()['monitored']), (200, True))
+        self.assertEqual(self.statuses()['OL3W'], ('Wanted', 'Skipped'), 'Only this format')
+        self.client.put('/ll/readarr/api/v1/book/monitor', json={'bookIds': [books['Tripwire'], books['Killing Floor']],
+                                                                 'monitored': False}, headers={'X-Api-Key': KEY})
+        self.assertEqual(self.statuses()['OL3W'][0], 'Skipped')
+        self.assertEqual(self.statuses()['OL1W'][0], 'Open', 'One the library has stays had')
+        # Readarr's monitoring editor, as nzb360 sends it
+        response = self.client.post('/ll/readarr/api/v1/bookshelf', headers={'X-Api-Key': KEY}, json={
+            'authors': [{'id': author, 'monitored': False, 'books': [{'id': books['Die Trying'], 'monitored': False}]}]})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.statuses()['OL2W'][0], 'Skipped')
+        self.assertFalse(self.get(f'/api/v1/author/{author}').json()['monitored'], 'The author paused')
+        response = self.client.put(f'/ll/readarr/api/v1/author/{author}', json={'monitored': True},
+                                   headers={'X-Api-Key': KEY})
+        self.assertTrue(response.json()['monitored'])
+
+    def test_deleting(self):
+        author, books = self.numbers()
+        response = self.client.delete(f'/ll/readarr/api/v1/book/{books["Tripwire"]}', headers={'X-Api-Key': KEY})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.statuses()['OL3W'][0], 'Ignored', 'This format of it ignored from now on')
+        self.assertEqual(self.client.delete('/ll/readarr/api/v1/author/999', headers={'X-Api-Key': KEY}).status_code, 404)
+        with mock.patch('lazylibrarian.services.library.delete_authors') as delete:
+            self.client.delete(f'/ll/readarr/api/v1/author/{author}', params={'deleteFiles': 'true'},
+                               headers={'X-Api-Key': KEY})
+        delete.assert_called_once_with(['OL1A'], True)
+
+    def test_commands(self):
+        author, books = self.numbers()
+        started = {'id': 7, 'name': 'BookSearch', 'title': 'Book Search', 'status': 'queued', 'message': '',
+                   'queued': '2026-10-27T10:00:00+00:00', 'started': None, 'ended': None}
+        with mock.patch('lazylibrarian.services.commands.start', return_value=started) as start:
+            response = self.client.post('/ll/readarr/api/v1/command', headers={'X-Api-Key': KEY},
+                                        json={'name': 'BookSearch', 'bookIds': [books['Die Trying']]})
+            self.client.post('/ll/readarr/api/v1/command', json={'name': 'AuthorSearch', 'authorId': author},
+                             headers={'X-Api-Key': KEY})
+            self.client.post('/ll/readarr/audio/api/v1/command', json={'name': 'MissingBookSearch'},
+                             headers={'X-Api-Key': KEY})
+        self.assertEqual((response.json()['id'], response.json()['status']), (7, 'queued'))
+        self.assertEqual(start.call_args_list[0].args, ('BookSearch', {'books': [{'book_id': 'OL2W',
+                                                                                  'media_type': 'ebook'}]}))
+        self.assertEqual(start.call_args_list[1].args[1]['books'], [{'book_id': 'OL2W', 'media_type': 'ebook'}],
+                         "The author's wanted books in this format")
+        self.assertEqual(start.call_args_list[2].args[1]['books'], [{'book_id': 'OL1W', 'media_type': 'audiobook'}])
+        response = self.client.post('/ll/readarr/api/v1/command', json={'name': 'Nonsense'}, headers={'X-Api-Key': KEY})
+        self.assertEqual(response.status_code, 400)
+
+    def test_interactive_search(self):
+        _author, books = self.numbers()
+        found = [{'id': 'abc123', 'title': 'Lee Child - Die Trying EPUB', 'indexer': 'NZBFinder', 'protocol': 'usenet',
+                  'size': 1000, 'seeders': -1, 'score': 95.0, 'quality': 'EPUB', 'quality_rank': 5, 'rejections': [],
+                  'approved': True}]
+        with mock.patch('lazylibrarian.services.releases.search', return_value=found) as search:
+            releases = self.get('/api/v1/release', bookId=books['Die Trying']).json()
+        search.assert_called_once_with('OL2W', 'ebook')
+        self.assertEqual((releases[0]['guid'], releases[0]['quality']['quality']['name'], releases[0]['bookId']),
+                         ('abc123', 'EPUB', books['Die Trying']))
+        with mock.patch('lazylibrarian.services.releases.download', return_value='Downloading it') as download:
+            response = self.client.post('/ll/readarr/api/v1/release', json={'guid': 'abc123', 'indexerId': 0},
+                                        headers={'X-Api-Key': KEY})
+        download.assert_called_once_with('abc123')
+        self.assertEqual(response.status_code, 200)
+
+    def test_looking_up_and_adding(self):
+        found = {'authors': [{'id': 'OL9A', 'name': 'Matt Dinniman', 'source': 'OpenLibrary', 'in_library': False,
+                              'loading': False, 'books': 12, 'score': 100}],
+                 'books': [{'id': 'OL9W', 'title': 'Dungeon Crawler Carl', 'subtitle': '', 'author_id': 'OL9A',
+                            'author_name': 'Matt Dinniman', 'author_in_library': False, 'isbn': '', 'publisher': '',
+                            'release_date': '2020', 'language': 'en', 'pages': 0, 'genres': '', 'overview': '',
+                            'cover': 'https://covers/dcc.jpg', 'link': '', 'rating': 4.5, 'ratings': 10,
+                            'source': 'HardCover', 'score': 100, 'in_library': False, 'status': '',
+                            'audio_status': ''}]}
+        with mock.patch('lazylibrarian.services.addnew.lookup', return_value=found):
+            authors = self.get('/api/v1/author/lookup', term='Dinniman').json()
+            books = self.get('/api/v1/book/lookup', term='Dungeon').json()
+        self.assertEqual((authors[0]['foreignAuthorId'], authors[0]['id']), ('OL9A', 0), 'Not in the library yet')
+        self.assertEqual((books[0]['foreignBookId'], books[0]['author']['authorName']), ('OL9W', 'Matt Dinniman'))
+        with mock.patch('lazylibrarian.services.commands.start') as start:
+            self.client.post('/ll/readarr/audio/api/v1/book', headers={'X-Api-Key': KEY}, json={
+                'foreignBookId': 'OL9W', 'title': 'Dungeon Crawler Carl', 'author': {'foreignAuthorId': 'OL9A'},
+                'addOptions': {'searchForNewBook': True}})
+            self.client.post('/ll/readarr/api/v1/author', headers={'X-Api-Key': KEY}, json={
+                'foreignAuthorId': 'OL9A', 'authorName': 'Matt Dinniman', 'monitored': True,
+                'addOptions': {'monitor': 'future', 'searchForMissingBooks': False}})
+        self.assertEqual(start.call_args_list[0].args, ('AddBook', {
+            'book_id': 'OL9W', 'source': 'HardCover', 'author_id': 'OL9A', 'media_types': ['audiobook'],
+            'search': True, 'title': 'Dungeon Crawler Carl'}), 'From the source it was found at')
+        self.assertEqual(start.call_args_list[1].args[1]['monitor'], 'new')
+
+    def test_queue_actions_and_empty_settings(self):
+        with mock.patch('lazylibrarian.services.queue.remove') as remove:
+            self.client.delete('/ll/readarr/api/v1/queue/5', params={'blocklist': 'true'}, headers={'X-Api-Key': KEY})
+        remove.assert_called_once_with(5, True, True, False)
+        for path in ('customformat', 'delayprofile', 'importlist', 'releaseprofile', 'notification', 'indexer'):
+            self.assertEqual(self.get(f'/api/v1/{path}').json(), [], path)
+        self.assertEqual(self.get('/api').json()['current'], 'v1')
+        author = self.get('/api/v1/author').json()[0]['id']
+        response = self.client.get(f'/ll/readarr/api/v1/MediaCover/Author/{author}/poster-250.jpg',
+                                   headers={'X-Api-Key': KEY}, follow_redirects=False)
+        self.assertEqual(response.status_code, 307, 'Any size, any case')

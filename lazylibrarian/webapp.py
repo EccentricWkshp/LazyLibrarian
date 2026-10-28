@@ -106,6 +106,18 @@ def create_app(http_root: str, legacy_app, ui_dir: str = '') -> FastAPI:
         """ The login the pages need, a browser that hasn't got one goes to the login page """
         return auth.check_access(web_request(request, root), page_load=True)
 
+    readarr_root = f'{root}/readarr'
+
+    @app.middleware('http')
+    async def readarr_paths(request: Request, call_next):
+        """ Readarr's paths are matched whatever their case, as Readarr matches them: nzb360 asks for
+        /api/v1/bookFile. The paths after /readarr are made lower case, as the routes are """
+        path = request.scope['path']
+        if path.startswith(f'{readarr_root}/') and path != path.lower():
+            request.scope['path'] = readarr_root + path[len(readarr_root):].lower()
+            request.scope['raw_path'] = request.scope['path'].encode()
+        return await call_next(request)
+
     @app.exception_handler(auth.AccessDeniedError)
     async def access_denied(request: Request, exc: auth.AccessDeniedError):
         if exc.redirect:

@@ -19,7 +19,15 @@ import traceback
 from lazylibrarian import database
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.configtypes import ConfigDict
-from lazylibrarian.filesystem import DIRS, csv_file, path_isdir, remove_file, safe_move, syspath
+from lazylibrarian.filesystem import (
+    DIRS,
+    csv_file,
+    folder_unwriteable,
+    path_isdir,
+    remove_file,
+    safe_move,
+    syspath,
+)
 from lazylibrarian.formatter import (
     format_author_name,
     get_list,
@@ -451,12 +459,9 @@ def import_csv(search_dir: str, status: str = 'Wanted', library: str = '', confi
                     if not os.access(syspath(csvfile), os.W_OK):
                         logger.error(f"{csvfile} is not writeable")
                     parent = os.path.dirname(csvfile)
-                    try:
-                        with open(syspath(os.path.join(parent, 'll_temp')), 'w') as f:
-                            f.write('test')
-                        remove_file(os.path.join(parent, 'll_temp'))
-                    except Exception as why:
-                        logger.error(f"Directory {parent} is not writeable: {why}")
+                    unwriteable = folder_unwriteable(parent)
+                    if unwriteable:
+                        logger.error(f"Directory {parent} is not writeable: {unwriteable}")
     except Exception:
         msg = f'Unhandled exception in import_csv: {traceback.format_exc()}'
         logger.error(msg)
