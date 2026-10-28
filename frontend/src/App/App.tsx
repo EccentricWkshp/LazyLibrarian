@@ -6,6 +6,7 @@ import Queue from 'Activity/Queue/Queue';
 import AddNew from 'AddNew/AddNew';
 import AuthorDetails from 'Author/Details/AuthorDetails';
 import AuthorIndex from 'Author/Index/AuthorIndex';
+import Calendar from 'Calendar/Calendar';
 import ErrorBoundary from 'Components/ErrorBoundary';
 import Link from 'Components/Link/Link';
 import { Alert } from 'Components/Misc';
@@ -74,6 +75,7 @@ function App() {
               <Route path="/activity/queue" element={<Queue />} />
               <Route path="/activity/history" element={<History />} />
               <Route path="/activity/blocklist" element={<Blocklist />} />
+              <Route path="/calendar" element={<Calendar />} />
               <Route path="/wanted" element={<Navigate to="/wanted/missing" replace={true} />} />
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="/wanted/search" element={<BookSearch />} />

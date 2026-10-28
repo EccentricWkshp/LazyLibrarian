@@ -19,7 +19,7 @@ export default defineConfig({
     // be here: one that isn't is found some other way, differently on Windows and Linux
     alias: [
       {
-        find: /^(Activity|AddNew|App|Author|Components|InteractiveImport|InteractiveSearch|Library|Settings|Styles|System|Utilities|Wanted|typings)\//,
+        find: /^(Activity|AddNew|App|Author|Calendar|Components|InteractiveImport|InteractiveSearch|Library|Settings|Styles|System|Utilities|Wanted|typings)\//,
         replacement: `${src}/$1/`,
       },
     ],

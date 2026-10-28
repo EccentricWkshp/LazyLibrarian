@@ -388,6 +388,19 @@ class ApiV1Test(LLTestCaseWithDB):
         self.assertEqual(self.get('/ll/api/v1/history', headers=key).json()['records'][0]['eventType'],
                          'downloadFailed', 'Its history stays')
 
+    def test_calendar(self):
+        self.set_owner()
+        response = self.get('/ll/api/v1/calendar', params={'start': '2026-10-01', 'end': '2026-10-31'},
+                            headers={'X-Api-Key': self.READ_KEY})
+        self.assertEqual((response.status_code, response.json()), (200, []))
+        self.assertEqual(self.get('/ll/api/v1/calendar', params={'start': 'soon'},
+                                  headers={'X-Api-Key': self.READ_KEY}).status_code, 400)
+        feed = self.get('/ll/feed/v1/calendar/LazyLibrarian.ics', params={'apikey': self.READ_KEY, 'pastDays': 3})
+        self.assertEqual(feed.status_code, 200)
+        self.assertTrue(feed.headers['content-type'].startswith('text/calendar'))
+        self.assertIn('BEGIN:VCALENDAR', feed.text)
+        self.assertEqual(self.get('/ll/feed/v1/calendar/LazyLibrarian.ics').status_code, 401, 'A key or a login')
+
     def test_unknown_endpoint_is_not_the_old_api(self):
         self.set_owner()
         response = self.get('/ll/api/v1/nosuch', headers={'X-Api-Key': self.FULL_KEY})

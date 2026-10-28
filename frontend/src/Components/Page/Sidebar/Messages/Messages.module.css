@@ -1,7 +1,11 @@
 .messages {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
-  padding: 0 8px 12px;
+  overflow-y: auto;
+  max-height: 50%;
+  padding: 10px 8px 12px;
+  border-top: 1px solid var(--borderColor);
   gap: 6px;
 }
 

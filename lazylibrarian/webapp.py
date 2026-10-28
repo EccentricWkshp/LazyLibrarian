@@ -31,6 +31,7 @@ from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.staticfiles import StaticFiles
 
 from lazylibrarian import apiv1, auth
+from lazylibrarian.apiv1 import calendar as apiv1_calendar
 from lazylibrarian.common import url_root
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.readarr import api as readarr_api
@@ -49,7 +50,7 @@ API_KEY_QUERY = APIKeyQuery(name='apikey', auto_error=False, description='The AP
 
 # The single page front end, built from frontend/ into data/ui. Its pages are below these paths
 UI_PAGES = ('activity', 'wanted', 'system', 'settings', 'add', 'authors', 'author', 'books', 'audio', 'magazines',
-            'magazine', 'comics', 'comic', 'series', 'book', 'manage', 'read')
+            'magazine', 'comics', 'comic', 'series', 'book', 'manage', 'read', 'calendar')
 # Bootswatch themes the old pages can have that are dark, the new pages follow them
 DARK_THEMES = frozenset(('slate', 'darkly', 'cyborg', 'superhero', 'solar', 'vapor', 'quartz'))
 
@@ -159,6 +160,7 @@ def create_app(http_root: str, legacy_app, ui_dir: str = '') -> FastAPI:
         return get_swagger_ui_html(openapi_url=f"{root}/api/v1/openapi.json", title='LazyLibrarian API')
 
     router.include_router(apiv1.router, dependencies=[Depends(api_access)])
+    router.include_router(apiv1_calendar.feed, dependencies=[Depends(api_access)])
     # Readarr's API for the apps that manage Readarr, beside ours and the same key
     for prefix, readarr_router in readarr_api.routers():
         router.include_router(readarr_router, prefix=prefix, dependencies=[Depends(api_access)])

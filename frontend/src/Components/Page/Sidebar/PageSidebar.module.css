@@ -4,15 +4,18 @@
   display: flex;
   flex-direction: column;
   flex: 0 0 var(--sidebarWidth);
-  overflow-y: auto;
+  overflow: hidden;
   width: var(--sidebarWidth);
   background-color: var(--sidebarBackgroundColor);
 }
 
+/* the menu scrolls, so the messages below it are always on screen */
 .sidebar {
   display: flex;
   flex-direction: column;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
   padding: 8px 0 16px;
   background-color: var(--sidebarBackgroundColor);
   color: var(--sidebarColor);

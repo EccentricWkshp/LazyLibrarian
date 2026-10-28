@@ -1,0 +1,363 @@
+/* From Sonarr's Calendar: the month and week grids, the agenda, the event colours by state */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.navigation,
+.views {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.navButton,
+.todayButton,
+.viewButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--calendarBorderColor);
+  border-radius: 4px;
+  background: var(--calendarBackgroundColor);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.navButton:hover,
+.todayButton:hover,
+.viewButton:hover {
+  border-color: var(--calendarTodayColor);
+}
+
+.viewActive {
+  border-color: var(--calendarTodayColor);
+  color: var(--calendarTodayColor);
+  font-weight: 600;
+}
+
+.title {
+  margin: 0;
+  font-weight: 400;
+  font-size: 22px;
+}
+
+.fetching {
+  margin-left: 6px;
+  color: var(--calendarTextDim);
+}
+
+/* the month and the week */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--calendarBorderColor);
+  border-left: 1px solid var(--calendarBorderColor);
+}
+
+.dayName {
+  padding: 6px;
+  border-right: 1px solid var(--calendarBorderColor);
+  border-bottom: 1px solid var(--calendarBorderColor);
+  color: var(--calendarTextDim);
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.day {
+  overflow: hidden;
+  min-height: 110px;
+  padding: 4px;
+  border-right: 1px solid var(--calendarBorderColor);
+  border-bottom: 1px solid var(--calendarBorderColor);
+  background: var(--calendarBackgroundColor);
+}
+
+.week .day {
+  min-height: 380px;
+}
+
+.today {
+  background: var(--calendarTodayBackgroundColor);
+}
+
+.today .dayNumber {
+  color: var(--calendarTodayColor);
+  font-weight: 700;
+}
+
+.otherMonth {
+  opacity: 0.55;
+}
+
+.dayNumber {
+  margin-bottom: 4px;
+  color: var(--calendarTextDimAlternate);
+  text-align: right;
+  font-size: 13px;
+}
+
+.event {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+  padding: 3px 5px;
+  border-left: 4px solid var(--calendarUnairedColor);
+  border-radius: 2px;
+  background: var(--calendarTodayBackgroundColor);
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.event:hover {
+  text-decoration: none;
+  filter: brightness(0.96);
+}
+
+.eventCover {
+  flex: 0 0 auto;
+  width: 34px;
+}
+
+.eventCover img {
+  display: block;
+  width: 34px;
+  height: 50px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.eventText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eventParent,
+.eventTitle,
+.eventSeries {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventParent {
+  font-weight: 600;
+}
+
+.eventSeries {
+  color: var(--calendarTextDim);
+}
+
+.formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.formatDot {
+  padding: 0 4px;
+  border-left: 3px solid var(--calendarUnairedColor);
+  color: var(--calendarTextDim);
+  font-size: 11px;
+}
+
+/* the agenda */
+
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agendaDay {
+  display: flex;
+  gap: 15px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--calendarBorderColor);
+}
+
+.agendaDate {
+  display: flex;
+  flex: 0 0 150px;
+  flex-direction: column;
+  color: var(--calendarTextDimAlternate);
+  font-size: 13px;
+}
+
+.agendaDate span:first-child {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.agendaToday {
+  color: var(--calendarTodayColor);
+}
+
+.agendaItems {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agendaItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-left: 4px solid var(--calendarUnairedColor);
+  background: var(--calendarBackgroundColor);
+}
+
+.agendaCover {
+  flex: 0 0 auto;
+  width: 32px;
+}
+
+.agendaCover img {
+  display: block;
+  width: 32px;
+  height: 48px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.agendaText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.agendaTitle {
+  font-weight: 600;
+}
+
+.agendaStates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.stateLabel {
+  padding: 1px 6px;
+  border-left: 4px solid var(--calendarUnairedColor);
+  color: var(--calendarTextDimAlternate);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--calendarTextDim);
+}
+
+/* the legend */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 15px;
+  color: var(--calendarTextDim);
+  font-size: 13px;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendSwatch {
+  width: 14px;
+  height: 14px;
+  border-left: 14px solid var(--calendarUnairedColor);
+}
+
+/* the iCal link */
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.feedUrl {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feedUrl input {
+  width: calc(100% - 40px);
+}
+
+.subscribe {
+  margin-right: auto;
+}
+
+/* the colour of each state: the event's edge, the legend's swatch, the agenda's labels. After the
+   rules they colour, so they win */
+
+.downloaded {
+  border-left-color: var(--calendarDownloadedColor);
+}
+
+.downloading {
+  border-left-color: var(--calendarDownloadingColor, var(--purple));
+}
+
+.missing {
+  border-left-color: var(--calendarMissingColor);
+}
+
+.unreleased {
+  border-left-color: var(--calendarUnairedColor);
+}
+
+.unmonitored {
+  border-left-color: var(--gray);
+}
+
+.event.unmonitored,
+.agendaItem.unmonitored {
+  opacity: 0.65;
+}
+
+@media only screen and (max-width: 768px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dayName,
+  .otherMonth {
+    display: none;
+  }
+
+  .day,
+  .week .day {
+    min-height: 0;
+  }
+
+  .agendaDay {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .agendaDate {
+    flex-basis: auto;
+  }
+}

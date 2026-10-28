@@ -2,6 +2,7 @@ import classNames from 'classnames';
 import {
   Ban,
   BookOpen,
+  CalendarDays,
   Download,
   Headphones,
   History,
@@ -101,6 +102,7 @@ function groups(): SidebarGroup[] {
           ],
         },
         { iconName: ListChecks, title: 'Manage', to: '/manage' },
+        { iconName: CalendarDays, title: 'Calendar', to: '/calendar' },
         {
           iconName: TriangleAlert,
           title: 'Wanted',

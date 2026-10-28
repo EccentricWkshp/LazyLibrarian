@@ -23,6 +23,7 @@ const UI_PATHS = [
   '/book',
   '/manage',
   '/read',
+  '/calendar',
 ];
 
 export function isUiPath(to: string) {
