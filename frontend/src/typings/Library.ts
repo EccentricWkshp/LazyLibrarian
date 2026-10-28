@@ -218,4 +218,6 @@ export interface SeriesBook {
 
 export interface SeriesDetail extends Series {
   books: SeriesBook[];
+  // the books taken out of it by hand, they stay out until put back
+  removed: { id: string; title: string; number: string }[];
 }

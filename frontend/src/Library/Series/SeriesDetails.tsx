@@ -14,7 +14,7 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import { PageToolbar, PageToolbarButton, PageToolbarSection } from 'Components/Page/Toolbar/PageToolbar';
 import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import { BookSearchButtons, FormatCell, shownFormats } from 'Library/BookFormats';
-import { Cover } from 'Library/library';
+import { change, Cover, plural } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { SeriesDetail } from 'typings/Library';
 import { api } from 'Utilities/api';
@@ -34,6 +34,11 @@ function SeriesDetails() {
     queryFn: () => api<SeriesDetail>(`/library/series/${encodeURIComponent(seriesId)}`),
     retry: false,
   });
+
+  // take books out of the series, and keep them out, or put them back
+  function changeMembers(method: 'DELETE' | 'PUT', ids: string[], done: string) {
+    change(`/library/series/${encodeURIComponent(seriesId)}/books`, method, { ids }, () => done, "The series didn't change");
+  }
 
   const books = data?.books ?? [];
   const selectedIds = books.filter((book) => selected.has(book.id)).map((book) => book.id);
@@ -71,9 +76,13 @@ function SeriesDetails() {
               ...(formats.length > 1 ? [{ key: 'Wanted:both', value: 'Want both' }] : []),
               { key: 'Skipped:both', value: 'Skip' },
               { key: 'Ignored:both', value: 'Ignore' },
+              { key: 'remove', value: 'Take out of this series' },
             ]}
             onChange={(value) => {
-              if (value) {
+              if (value === 'remove') {
+                changeMembers('DELETE', selectedIds, `Took ${plural(selectedIds.length, 'book')} out of ${data?.name}`);
+                setSelected(new Set());
+              } else if (value) {
                 const [status, which] = value.split(':');
                 setBookStatus(
                   selectedIds,
@@ -176,6 +185,24 @@ function SeriesDetails() {
           </Table>
         ) : null}
         {data && !books.length ? <Alert kind="info">The library has none of its books yet</Alert> : null}
+        {data?.removed?.length ? (
+          <p className={styles.footer}>
+            Taken out of this series, they stay out whatever its source lists:{' '}
+            {data.removed.map((book, index) => (
+              <span key={book.id}>
+                {index ? ', ' : ''}
+                {book.number ? `#${book.number} ` : ''}
+                {book.title}{' '}
+                <Link
+                  onPress={() => changeMembers('PUT', [book.id], `Put ${book.title} back in ${data.name}`)}
+                  title={`Put ${book.title} back in the series`}
+                >
+                  (put back)
+                </Link>
+              </span>
+            ))}
+          </p>
+        ) : null}
         {data ? <SeriesSourceBooks seriesId={seriesId} name={data.name} /> : null}
       </PageContentBody>
       {isEditOpen ? (

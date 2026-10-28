@@ -248,8 +248,16 @@ class SeriesBook(ApiModel):
     audio_format: str
 
 
+class RemovedBook(ApiModel):
+    id: str
+    title: str
+    number: str
+
+
 class SeriesDetail(Series):
     books: list[SeriesBook]
+    # the books taken out of it by hand, they stay out until put back
+    removed: list[RemovedBook] = []
 
 
 class Editor(ApiModel):
@@ -436,7 +444,8 @@ def delete_comic_issues(comic_id: str, editor: IssueEditor):
 
 @router.get('/series', response_model=list[Series])
 def list_series(status: str = 'All'):
-    """ The series; status one of theirs, or Empty, Partial or Complete for how much the library has """
+    """ The series; status one of theirs, Empty, Partial or Complete for how much the library has, or
+    AllButIgnored, the list as the page shows it with the ignored ones hidden """
     return library.list_series(status)
 
 
@@ -465,6 +474,18 @@ def series_lookup(series_id: str):
     """ The books in the series as its info source lists them, in order, each saying whether the
     library has it. One it hasn't can be added with the AddBook command """
     return library.series_lookup(series_id)
+
+
+@router.delete('/series/{series_id}/books', response_model=Changed)
+def remove_from_series(series_id: str, editor: Editor):
+    """ Take books out of a series and keep them out, whatever source or refresh lists them in it """
+    return {'changed': library.remove_from_series(series_id, editor.ids)}
+
+
+@router.put('/series/{series_id}/books', response_model=Changed)
+def put_back_in_series(series_id: str, editor: Editor):
+    """ Put books taken out of a series back in it """
+    return {'changed': library.put_back_in_series(series_id, editor.ids)}
 
 
 @router.put('/series', response_model=Changed)

@@ -662,7 +662,11 @@ def _one_series(row: dict) -> dict:
 
 
 def list_series(status: str = 'All') -> list[dict]:
-    """ The series, by author and name; status one of theirs, or All """
+    """ The series, by author and name; status one of theirs, All, or AllButIgnored, the list as it's
+    shown: an ignored series is hidden, as one wrongly listed or a duplicate from another source """
+    if status == 'AllButIgnored':
+        return [_one_series(row) for row in series.list_series(status='All', limit=None).items
+                if row['Status'] != 'Ignored']
     return [_one_series(row) for row in series.list_series(status=status, limit=None).items]
 
 
@@ -752,7 +756,22 @@ def get_series(series_id: str) -> dict:
                         'ebook_format': _file_format((files.get(m['BookID']) or {}).get('BookFile'), 'ebook'),
                         'audio_format': _file_format((files.get(m['BookID']) or {}).get('AudioFile'), 'audiobook')}
                        for m in sorted(members, key=number)]
+    # the books taken out of it by hand, to put back
+    result['removed'] = [{'id': row['BookID'], 'title': row['BookName'] or row['BookID'], 'number': row['SeriesNum'] or ''}
+                         for row in series.removed_members(series_id)]
     return result
+
+
+def remove_from_series(series_id: str, book_ids: list[str]) -> int:
+    """ Take books out of a series and keep them out, as a collection set or another language's
+    edition the source lists in it """
+    if not book_ids:
+        raise InvalidRequestError('Choose the books to take out of the series')
+    return series.remove_members(series_id, book_ids)
+
+
+def put_back_in_series(series_id: str, book_ids: list[str]) -> int:
+    return series.restore_members(series_id, book_ids)
 
 
 def set_series_status(series_ids: list[str], status: str) -> int:

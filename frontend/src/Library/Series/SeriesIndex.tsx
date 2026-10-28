@@ -21,10 +21,11 @@ export const SERIES_STATUSES = [
   { key: 'Active', value: 'Active', hint: 'New books in it are looked for' },
   { key: 'Paused', value: 'Paused', hint: "It isn't watched for new books" },
   { key: 'Skipped', value: 'Skipped', hint: "It isn't watched for new books" },
-  { key: 'Ignored', value: 'Ignored', hint: "It isn't watched for new books" },
+  { key: 'Ignored', value: 'Ignored', hint: "Hidden from the list, and it isn't watched for new books" },
 ];
 
 const FILTERS = [
+  { key: 'AllButIgnored', value: 'All but ignored' },
   { key: 'All', value: 'All' },
   ...SERIES_STATUSES.map((status) => ({ key: status.key, value: status.value })),
   { key: 'Empty', value: 'None in the library' },
@@ -55,7 +56,8 @@ export function setSeriesStatus(ids: string[], status: string) {
 }
 
 function SeriesIndex() {
-  const [filter, setFilter] = useState(() => remembered('series.filter', 'All'));
+  // an ignored series is hidden unless asked for, as a duplicate or one wrongly listed
+  const [filter, setFilter] = useState(() => remembered('series.shown', 'AllButIgnored'));
   const [term, setTerm] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -102,7 +104,7 @@ function SeriesIndex() {
             onChange={(value) => {
               setFilter(value);
               setPage(1);
-              remember('series.filter', value);
+              remember('series.shown', value);
             }}
           />
           <TextInput

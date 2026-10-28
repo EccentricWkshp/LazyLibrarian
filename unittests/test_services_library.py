@@ -182,6 +182,36 @@ class LibraryTest(LLTestCaseWithStartup):
         with self.assertRaises(NotFoundError):
             library.get_series('nothere')
 
+    def test_taking_a_book_out_of_a_series(self):
+        # the reported one: a collection set and another language's edition listed in a series
+        from lazylibrarian.bookwork import set_series
+        with DBConnection() as db:
+            db.action("INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES ('OL1', 'a1')")
+            db.action("INSERT INTO member (SeriesID, BookID, SeriesNum) VALUES ('OL1', 'b2', '1')")
+        self.assertEqual(library.remove_from_series('OL1', ['b2']), 1)
+        found = library.get_series('OL1')
+        self.assertEqual([b['id'] for b in found['books']], ['b1'])
+        self.assertEqual(found['removed'], [{'id': 'b2', 'title': 'Die Trying', 'number': '1'}])
+        self.assertEqual((found['have'], found['total']), (1, 1), 'Counted again')
+        # a source, or a refresh, listing it in the series again
+        set_series([('OL1', '1', 'Jack Reacher')], 'b2')
+        with DBConnection() as db:
+            db.action("INSERT INTO member (SeriesID, BookID, SeriesNum) VALUES ('OL1', 'b2', '1')")
+        self.assertEqual([b['id'] for b in library.get_series('OL1')['books']], ['b1'], 'It stays out')
+        self.assertEqual(library.put_back_in_series('OL1', ['b2']), 1)
+        found = library.get_series('OL1')
+        self.assertEqual(([b['id'] for b in found['books']], found['removed']), (['b1', 'b2'], []))
+        with self.assertRaises(InvalidRequestError):
+            library.remove_from_series('OL1', [])
+
+    def test_an_ignored_series_is_hidden(self):
+        with DBConnection() as db:
+            db.action("INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES ('OL1', 'a1')")
+        self.assertEqual([s['id'] for s in library.list_series('AllButIgnored')], ['OL1'])
+        library.set_series_status(['OL1'], 'Ignored')
+        self.assertEqual(library.list_series('AllButIgnored'), [])
+        self.assertEqual([s['id'] for s in library.list_series('All')], ['OL1'], 'Shown when asked for')
+
     def test_a_series_at_its_source(self):
         with DBConnection() as db:
             db.action("INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES ('OL1', 'a1')")

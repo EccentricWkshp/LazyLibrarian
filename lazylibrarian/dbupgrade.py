@@ -140,8 +140,13 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 106 add a magazine's details from Wikidata to magazines, and what an issue's file says to issues and comicissues
 # 107 add a magazine's retention and a magazine's and comic's own quality profile, and the readprogress table
 # 108 add the apiids table, the whole number ids the Readarr API gives authors and books
+# 109 add the seriesexclusions table, the books taken out of a series by hand, and the trigger that keeps them out
 
-db_current_version = 108
+db_current_version = 109
+# v109: a book taken out of a series by hand stays out, whichever source or refresh puts it back in
+SERIES_EXCLUSION_TRIGGER = ("CREATE TRIGGER IF NOT EXISTS member_excluded BEFORE INSERT ON member "
+                            "WHEN EXISTS (SELECT 1 FROM seriesexclusions WHERE SeriesID=NEW.SeriesID AND "
+                            "BookID=NEW.BookID) BEGIN SELECT RAISE(IGNORE); END")
 # v107: how many issues a magazine keeps (KeepIssues, the newest; KeepMonths, those that recent; 0 for
 # all), and the quality profile of a magazine or comic (0 for the default)
 RETENTION_COLUMNS = {
@@ -1882,6 +1887,19 @@ def update_schema(db, upgradelog):
         # number isn't given to another after one is deleted
         db.action('CREATE TABLE apiids (ID INTEGER PRIMARY KEY AUTOINCREMENT, Kind TEXT NOT NULL, '
                   'ItemID TEXT NOT NULL, UNIQUE (Kind, ItemID))')
+
+    if not has_column(db, "seriesexclusions", "BookID"):
+        changes += 1
+        lazylibrarian.UPDATE_MSG = 'Creating seriesexclusions table'
+        upgradelog.write(f"{time.ctime()} v109: {lazylibrarian.UPDATE_MSG}\n")
+        # a book taken out of a series by hand, a collection set or another language's edition the
+        # source lists in it, with its number there to put it back
+        db.action('CREATE TABLE seriesexclusions (SeriesID TEXT NOT NULL, BookID TEXT NOT NULL, SeriesNum TEXT, '
+                  'PRIMARY KEY (SeriesID, BookID))')
+    if not db.match("SELECT name FROM sqlite_master WHERE type='trigger' AND name='member_excluded'"):
+        changes += 1
+        upgradelog.write(f"{time.ctime()} v109: Adding the series exclusion trigger\n")
+        db.action(SERIES_EXCLUSION_TRIGGER)
 
     if len(db.select("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'notify_%'")) \
             < len(NOTIFY_TRIGGERS):

@@ -38,6 +38,72 @@ def remove_series(seriesid):
         db.close()
 
 
+def recount(db, seriesid):
+    """ How many of a series' books aren't ignored, and how many the library has """
+    res = db.match("SELECT SUM(CASE books.Status WHEN 'Ignored' THEN 0 ELSE 1 END) AS Total, "
+                   "SUM(CASE WHEN books.Status IN ('Have','Open') OR books.AudioStatus IN ('Have','Open') THEN 1 "
+                   "ELSE 0 END) AS Have FROM books, member WHERE member.BookID=books.BookID AND member.SeriesID=?",
+                   (seriesid,))
+    db.action('UPDATE series SET Have=?, Total=? WHERE SeriesID=?',
+              (check_int(res['Have'], 0) if res else 0, check_int(res['Total'], 0) if res else 0, seriesid))
+
+
+def remove_members(seriesid, book_ids: list) -> int:
+    """ Take books out of a series, as a collection set or another language's edition the source
+    lists in it, and keep them out: no source or refresh puts them back (the member_excluded
+    trigger). Returns how many were taken out """
+    logger = logging.getLogger(__name__)
+    db = database.DBConnection()
+    try:
+        if not db.match('SELECT SeriesID FROM series WHERE SeriesID=?', (seriesid,)):
+            raise NotFoundError(f'Missing series: {seriesid}')
+        removed = 0
+        for book_id in book_ids:
+            member = db.match('SELECT SeriesNum FROM member WHERE SeriesID=? AND BookID=?', (seriesid, book_id))
+            if not member:
+                continue
+            db.action('INSERT OR REPLACE INTO seriesexclusions (SeriesID, BookID, SeriesNum) VALUES (?, ?, ?)',
+                      (seriesid, book_id, member['SeriesNum']))
+            db.action('DELETE FROM member WHERE SeriesID=? AND BookID=?', (seriesid, book_id))
+            logger.info(f"Took {book_id} out of series {seriesid}, it stays out")
+            removed += 1
+        recount(db, seriesid)
+    finally:
+        db.close()
+    return removed
+
+
+def removed_members(seriesid) -> list[dict]:
+    """ The books taken out of a series by hand, to put back """
+    db = database.DBConnection()
+    try:
+        return [dict(row) for row in db.select(
+            'SELECT seriesexclusions.BookID, BookName, SeriesNum FROM seriesexclusions LEFT JOIN books ON '
+            'seriesexclusions.BookID=books.BookID WHERE SeriesID=? ORDER BY BookName', (seriesid,))]
+    finally:
+        db.close()
+
+
+def restore_members(seriesid, book_ids: list) -> int:
+    """ Put books taken out of a series back in it, at the number they had """
+    db = database.DBConnection()
+    try:
+        restored = 0
+        for book_id in book_ids:
+            row = db.match('SELECT SeriesNum FROM seriesexclusions WHERE SeriesID=? AND BookID=?', (seriesid, book_id))
+            if not row:
+                continue
+            db.action('DELETE FROM seriesexclusions WHERE SeriesID=? AND BookID=?', (seriesid, book_id))
+            if db.match('SELECT BookID FROM books WHERE BookID=?', (book_id,)):
+                db.action('INSERT OR IGNORE INTO member (SeriesID, BookID, SeriesNum) VALUES (?, ?, ?)',
+                          (seriesid, book_id, row['SeriesNum']))
+            restored += 1
+        recount(db, seriesid)
+    finally:
+        db.close()
+    return restored
+
+
 def series_for_edit(seriesid) -> dict:
     """ A series, with Reason showing the book it was found from when it was, and its members in order """
     db = database.DBConnection()
