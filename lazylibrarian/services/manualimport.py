@@ -31,7 +31,7 @@ import uuid
 from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
-from lazylibrarian import database, postprocess
+from lazylibrarian import database, magreleases, postprocess
 from lazylibrarian.comicid import get_issue_num, name_words
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.download_client import is_archive_file
@@ -222,7 +222,7 @@ def _checked_issue(db, media_type: str, target_id: str, issue: str) -> str:
         if not dated:
             raise InvalidRequestError(f"{issue} isn't an issue date or number for {target_id}"
                                       + (f" [{datetype}]" if datetype else ''))
-        return dated
+        return magreleases.convert(dated, magreleases.chosen_scheme(db, row['Title']))
     return issue
 
 

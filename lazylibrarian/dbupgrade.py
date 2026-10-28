@@ -141,12 +141,15 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 107 add a magazine's retention and a magazine's and comic's own quality profile, and the readprogress table
 # 108 add the apiids table, the whole number ids the Readarr API gives authors and books
 # 109 add the seriesexclusions table, the books taken out of a series by hand, and the trigger that keeps them out
+# 110 add Numbering to magazines, how its issues are known when chosen: date, running, yearly, volume or year
 
-db_current_version = 109
+db_current_version = 110
 # v109: a book taken out of a series by hand stays out, whichever source or refresh puts it back in
 SERIES_EXCLUSION_TRIGGER = ("CREATE TRIGGER IF NOT EXISTS member_excluded BEFORE INSERT ON member "
                             "WHEN EXISTS (SELECT 1 FROM seriesexclusions WHERE SeriesID=NEW.SeriesID AND "
                             "BookID=NEW.BookID) BEGIN SELECT RAISE(IGNORE); END")
+# v110: how a magazine's issues are known, when it's chosen in its Edit (magreleases.SCHEMES)
+NUMBERING_COLUMNS = {'magazines': [('Numbering', "TEXT DEFAULT ''")]}
 # v107: how many issues a magazine keeps (KeepIssues, the newest; KeepMonths, those that recent; 0 for
 # all), and the quality profile of a magazine or comic (0 for the default)
 RETENTION_COLUMNS = {
@@ -1859,7 +1862,8 @@ def update_schema(db, upgradelog):
                   'Message TEXT, Data TEXT, Created TEXT, Sent TEXT)')
         db.action('CREATE INDEX notificationevents_sent ON notificationevents (Sent)')
         db.action('CREATE TABLE appstate (Key TEXT PRIMARY KEY, Value TEXT)')
-    for version, added in (('v106', MAGAZINE_INFO_COLUMNS), ('v107', RETENTION_COLUMNS)):
+    for version, added in (('v106', MAGAZINE_INFO_COLUMNS), ('v107', RETENTION_COLUMNS),
+                           ('v110', NUMBERING_COLUMNS)):
         for table, columns in added.items():
             for column, kind in columns:
                 if not has_column(db, table, column):

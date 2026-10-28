@@ -23,7 +23,7 @@ import uuid
 from shutil import copyfile
 
 import lazylibrarian
-from lazylibrarian import database, fulltext, pages, wikidata
+from lazylibrarian import database, fulltext, magreleases, pages, wikidata
 from lazylibrarian.cache import ImageType, cache_img
 from lazylibrarian.calibre import calibredb, get_calibre_id
 from lazylibrarian.calibre_integration import send_mag_issue_to_calibre
@@ -48,6 +48,7 @@ from lazylibrarian.images import (
 )
 from lazylibrarian.magazinescan import (
     get_dateparts,
+    issue_date,
     magazine_scan,
     remove_if_empty,
     rename_issue,
@@ -235,10 +236,15 @@ def update_issue(issueid, magtitle: str, issuenum: str, new_tags: dict, old_tags
         datetype = magazine['DateType'] if magazine else ''
         mostrecentissue = magazine['IssueDate'] if magazine else ''
         redirect = issue['Title']
-        if not date_matches_type(get_dateparts(issuenum, datetype=datetype), datetype):
+        dateparts = get_dateparts(issuenum, datetype=datetype)
+        if not date_matches_type(dateparts, datetype):
             response = f'Date {issuenum} not in a recognised date format [{datetype}]'
             logger.debug(response)
             return redirect, response
+        # "Volume 98", "No 98 2026" or 0098 the same, in the numbering chosen for the magazine
+        scheme = magreleases.chosen_scheme(db, magtitle)
+        if scheme:
+            issuenum = magreleases.convert(issue_date(dateparts) or issuenum, scheme)
         if not magtitle and issuenum:
             response = (f"Issue {issue['IssueDate']} of {issue['Title']} is unchanged. "
                         f"Insufficient information, need Title and valid IssueNum/Date")
@@ -331,6 +337,7 @@ def mark_past_issues(action: str, nzburls) -> int:
         downloaded in the background). Returns how many were changed """
     logger = logging.getLogger(__name__)
     maglist = []
+    not_wanted = []
     db = database.DBConnection()
     try:
         for nzburl in nzburls:
@@ -353,12 +360,20 @@ def mark_past_issues(action: str, nzburls) -> int:
                     logger.debug(f'Item {itm["NZBtitle"]} removed from past issues')
                     maglist.append({'nzburl': nzburl})
                 elif action == 'Wanted':
+                    issuedate = magreleases.convert(itm['AuxInfo'], magreleases.chosen_scheme(db, itm['BookID']))
+                    if not issuedate or issuedate == magreleases.NO_ISSUE:
+                        # found without an issue, or before names were read as they are now: read
+                        # again, it's never downloaded as an issue of 1970-01-01
+                        issuedate, why = magreleases.chosen_issue(db, itm['BookID'], itm['NZBtitle'])
+                        if not issuedate:
+                            not_wanted.append(f"{itm['NZBtitle']} ({why})")
+                            continue
                     maglist.append({'bookid': itm['BookID'], 'nzbprov': itm['NZBprov'], 'nzbtitle': itm['NZBtitle'],
                                     'nzburl': nzburl, 'nzbmode': itm['NZBmode']})
                     # copy into wanted table
                     db.upsert("wanted", {'BookID': itm['BookID'], 'NZBtitle': itm['NZBtitle'], 'NZBdate': now(),
                                          'NZBprov': itm['NZBprov'], 'Status': action, 'NZBsize': itm['NZBsize'],
-                                         'AuxInfo': itm['AuxInfo'], 'NZBmode': itm['NZBmode']}, {'NZBurl': nzburl})
+                                         'AuxInfo': issuedate, 'NZBmode': itm['NZBmode']}, {'NZBurl': nzburl})
                 elif action in ['Ignored', 'Skipped']:
                     db.action('UPDATE pastissues set status=? WHERE NZBurl=?', (action, nzburl))
                     logger.debug(f'Item {itm["NZBtitle"]} marked {action} in past issues')
@@ -369,8 +384,13 @@ def mark_past_issues(action: str, nzburls) -> int:
         logger.info(f'Removed {len(maglist)} {plural(len(maglist), "item")} from past issues')
     else:
         logger.info(f'Status set to {action} for {len(maglist)} past {plural(len(maglist), "issue")}')
-    if action == 'Wanted':
+    if action == 'Wanted' and maglist:
         threading.Thread(target=download_maglist, name='DL-MAGLIST', args=[maglist, 'wanted']).start()
+    if not_wanted:
+        logger.warning(f"Not wanted, with no issue to file them under: {'; '.join(not_wanted)}")
+        wanted = f"{len(maglist)} {plural(len(maglist), 'past issue')} wanted. " if maglist else ''
+        raise InvalidRequestError(f"{wanted}Not wanted, with no issue to file "
+                                  f"{'it' if len(not_wanted) == 1 else 'them'} under: {'; '.join(not_wanted)}")
     return len(maglist)
 
 
@@ -550,6 +570,54 @@ def set_latest(title) -> str:
     finally:
         db.close()
     return new_value_dict['IssueDate']
+
+
+def renumber_issues(title: str, progress=None) -> dict:
+    """ Put a magazine's issues in the numbering chosen for it (Make's 20260098 as the running number
+    0098), their files renamed to match, and the releases it has wanted and kept read the same way.
+    An issue whose new number is another's is left as it is. Returns how many were renumbered and the
+    ones that weren't, with why """
+    logger = logging.getLogger(__name__)
+    magazine = get_magazine(title)
+    title = magazine['Title']
+    db = database.DBConnection()
+    try:
+        scheme = magreleases.chosen_scheme(db, title)
+        if not scheme:
+            return {'renumbered': 0, 'left': []}
+        terms = get_list(magazine['Regex'], ',') or [title]
+        pairs = magreleases.known_pairs(db, title, terms)
+        issues = db.select('SELECT IssueID,IssueDate from issues WHERE Title=? ORDER BY IssueDate', (title,))
+        taken = {issue['IssueDate'] for issue in issues}
+        renumbered, left = 0, []
+        for number, issue in enumerate(issues, start=1):
+            if progress:
+                progress(f"Renumbering issue {number} of {len(issues)} of {title}")
+            new = magreleases.convert(issue['IssueDate'], scheme, pairs)
+            if new == issue['IssueDate']:
+                continue
+            if new in taken:
+                left.append(f"{issue['IssueDate']} (its number, {new}, is another issue's)")
+                continue
+            db.action('UPDATE issues SET IssueDate=? WHERE IssueID=?', (new, issue['IssueID']))
+            taken.discard(issue['IssueDate'])
+            taken.add(new)
+            renumbered += 1
+            _, err = rename_issue(issue['IssueID'])
+            if err:
+                logger.warning(f"{title} {new}: its file wasn't renamed: {err}")
+        for row in db.select("SELECT rowid AS RowID,AuxInfo from wanted WHERE BookID=? AND Status IN "
+                             "('Wanted','Snatched')", (title,)):
+            new = magreleases.convert(row['AuxInfo'], scheme, pairs)
+            if new != row['AuxInfo']:
+                db.action('UPDATE wanted SET AuxInfo=? WHERE rowid=?', (new, row['RowID']))
+        magreleases.reread(db, title, terms, magazine['DateType'] or '', scheme, pairs)
+        update_latest(db, title)
+    finally:
+        db.close()
+    logger.info(f"Renumbered {renumbered} {plural(renumbered, 'issue')} of {title} as {magreleases.SCHEMES[scheme]}"
+                + (f", left {len(left)}: {'; '.join(left)}" if left else ''))
+    return {'renumbered': renumbered, 'left': left}
 
 
 def file_date(filename) -> str:

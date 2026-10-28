@@ -23,6 +23,31 @@ interface MagazineEdit {
   keepIssues: number;
   keepMonths: number;
   profileId: number;
+  // how its issues are known when it's chosen, '' to work it out, which numberingFound says
+  numbering: string;
+  numberingFound: string;
+}
+
+const FOUND_NAMES: Record<string, string> = { date: 'dates', number: 'numbers', year: 'years' };
+
+// how a magazine's issues are known: its key for each, which its releases are read into
+function numberings(found: string) {
+  return [
+    { key: '', value: `Work it out from its issues${FOUND_NAMES[found] ? ` (now ${FOUND_NAMES[found]})` : ''}` },
+    { key: 'date', value: 'Date', hint: 'Its issues are known by the month or day they came out: 2026-03-01' },
+    {
+      key: 'running',
+      value: 'Running number',
+      hint: 'A number that runs on from issue to issue, whatever the year: Make Volume 98 is 0098',
+    },
+    {
+      key: 'yearly',
+      value: 'Number within the year',
+      hint: 'A number that starts again each year, kept with its year: No 5 of 2025 is 20250005',
+    },
+    { key: 'volume', value: 'Volume and number', hint: 'A volume and a number in it: Vol 45 No 5 is 00450005' },
+    { key: 'year', value: 'Year, an annual', hint: 'One issue a year, known by the year: 2026' },
+  ];
 }
 
 interface WikidataMatch {
@@ -138,6 +163,24 @@ function EditMagazineModal({
           <EditField id="magGenre" label="Genres" help="Separated by commas, written into each issue's opf file">
             <TextInput id="magGenre" value={magazine.genre} onChange={(genre) => edit.set('genre', genre)} />
           </EditField>
+          <EditField
+            id="magNumbering"
+            label="Issues Are Known By"
+            help="How its releases' names are read into its issues. Choosing one renumbers the issues there are and renames their files to match"
+          >
+            <SelectInput
+              id="magNumbering"
+              value={magazine.numbering}
+              values={numberings(magazine.numberingFound)}
+              onChange={(numbering) => edit.set('numbering', numbering)}
+            />
+          </EditField>
+          {magazine.numbering && edit.edited.numbering !== undefined && edit.edited.numbering !== edit.loaded.data?.numbering ? (
+            <Alert kind="warning">
+              Its issues are renumbered and their files renamed when it's saved. An issue whose new number is
+              another's is left as it is.
+            </Alert>
+          ) : null}
           <EditColumns>
             <EditField
               id="magDateType"

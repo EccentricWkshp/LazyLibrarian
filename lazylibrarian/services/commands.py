@@ -253,6 +253,18 @@ def _apply_retention(command: dict, body: dict) -> str:
         else f"{title or 'The magazines'} keeps every issue there is"
 
 
+def _renumber_issues(command: dict, body: dict) -> str:
+    """ Put a magazine's (title) issues in the numbering chosen for it """
+    from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
+    title = body.get('title') or ''
+    done = magazines.renumber_issues(title, progress=lambda message: _update(command, message=message))
+    message = f"Renumbered {done['renumbered']} {plural(done['renumbered'], 'issue')} of {title}"
+    if done['left']:
+        message += f", left {len(done['left'])} as {'it was' if len(done['left']) == 1 else 'they were'}: " \
+                   f"{'; '.join(done['left'])}"
+    return message
+
+
 def _index_issues(command: dict, body: dict) -> str:
     """ Put the words of the issues that aren't, or whose files changed, in the search index """
     from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
@@ -278,7 +290,8 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'RefreshLanguages': _refresh_languages,
                                                     'IssueCovers': _issue_covers, 'SwapCover': _swap_cover,
                                                     'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine,
-                                                    'ApplyRetention': _apply_retention, 'IndexIssues': _index_issues}
+                                                    'ApplyRetention': _apply_retention, 'IndexIssues': _index_issues,
+                                                    'RenumberIssues': _renumber_issues}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
@@ -287,7 +300,8 @@ TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'Missing
           'RefreshBook': 'Refresh Book', 'AuthorSearch': 'Author Search', 'LibraryScan': 'Library Scan',
           'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0], 'IssueCovers': 'Make Covers',
           'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine',
-          'ApplyRetention': 'Delete Old Issues', 'IndexIssues': 'Index Issues for Search'}
+          'ApplyRetention': 'Delete Old Issues', 'IndexIssues': 'Index Issues for Search',
+          'RenumberIssues': 'Renumber Issues'}
 
 
 def _run(command: dict, body: dict):

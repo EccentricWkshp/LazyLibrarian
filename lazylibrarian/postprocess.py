@@ -32,7 +32,7 @@ from rapidfuzz import fuzz
 from rapidfuzz.utils import default_process
 
 import lazylibrarian
-from lazylibrarian import database, filemeta
+from lazylibrarian import database, filemeta, magreleases
 from lazylibrarian.archive_utils import unpack_archive, unpack_multipart
 from lazylibrarian.bookrename import audio_rename, name_vars, stripspaces
 from lazylibrarian.cache import ImageType, cache_img
@@ -2319,6 +2319,20 @@ def _process_book_after_matching(
         mostrecentissue = ""
 
     elif book_state.is_magazine():  # Magazine
+        if not book_state.aux_info or book_state.aux_info == magreleases.NO_ISSUE:
+            # snatched without an issue: its name read again, or left for Manual Import to say which
+            # issue it is, never imported as an issue of 1970-01-01
+            issuedate, why = magreleases.chosen_issue(db, book_state.book_id, book_state.download_title)
+            if not issuedate:
+                book_state.mark_failed("metadata", f"{why}: choose its issue in Manual Import")
+                logger.warning(f"{book_state.download_title}: {book_state.failure_reason}")
+                return 0
+            book_state.aux_info = issuedate
+            db.action("UPDATE wanted SET AuxInfo=? WHERE NZBurl=?", (issuedate, book_state.download_url))
+        issuedate = magreleases.convert(book_state.aux_info, magreleases.chosen_scheme(db, book_state.book_id))
+        if issuedate != book_state.aux_info:
+            book_state.aux_info = issuedate
+            db.action("UPDATE wanted SET AuxInfo=? WHERE NZBurl=?", (issuedate, book_state.download_url))
         metadata = prepare_magazine_metadata(
             book_state.book_id, book_state.aux_info, db
         )

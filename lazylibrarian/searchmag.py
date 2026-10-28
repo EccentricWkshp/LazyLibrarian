@@ -230,14 +230,14 @@ def search_magazines(mags=None, reset=False, backissues=False):
                 control_date = ''
                 res = db.match("SELECT Regex from magazines WHERE Title=? AND Status='Active'", (book['bookid'],))
                 searchterms = get_list(res['Regex'], ',')
-                # what the magazine's issues are known by, dates or numbers, and the numbers and dates
-                # names give together, to put each result's issue in that form; the results stored
-                # before are read again the same way
+                # what the magazine's issues are known by (the numbering chosen for it, or the form its
+                # issues have), and the numbers and dates names give together, to put each result's
+                # issue in that form; the results stored before are read again the same way
                 datetype = book['datetype']
                 terms = searchterms or [book['bookid']]
-                form = magreleases.magazine_form(db, book['bookid'], datetype)
+                scheme = magreleases.scheme_of(db, book['bookid'])
                 pairs = magreleases.known_pairs(db, book['bookid'], terms, [nzb['nzbtitle'] for nzb in resultlist])
-                magreleases.reread(db, book['bookid'], terms, datetype, form, pairs)
+                magreleases.reread(db, book['bookid'], terms, datetype, scheme, pairs)
                 set_aside = 0
                 # the quality profile: each release's quality, the best first, so the first found for
                 # an issue, which is the one taken, is the best
@@ -300,7 +300,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                         if not rejected:
                             # the magazine's title (or a search term) starts the name, then the issue:
                             # "Lets Make-31 July 2023" isn't Make
-                            found = magreleases.read(nzbtitle, terms, datetype, form, pairs)
+                            found = magreleases.read(nzbtitle, terms, datetype, scheme, pairs)
                             if found['kind'] is None:
                                 logger.debug(f"Rejecting {nzbtitle}: {found['reason']} ({', '.join(terms)})")
                                 rejected = True

@@ -45,7 +45,8 @@ SIGNATURES = {
     # the library pages: the books by status, the magazines, comics and their issues, the series
     'library': "SELECT (SELECT GROUP_CONCAT(c) FROM (SELECT Status||'/'||AudioStatus||COUNT(*) AS c FROM books "
                "GROUP BY Status, AudioStatus)),"
-               "(SELECT COUNT(*)||GROUP_CONCAT(Status) FROM magazines),(SELECT COUNT(*) FROM issues),"
+               "(SELECT COUNT(*)||GROUP_CONCAT(Status) FROM magazines),"
+               "(SELECT COUNT(*)||'/'||TOTAL(LENGTH(IssueDate)) FROM issues),"
                "(SELECT COUNT(*)||GROUP_CONCAT(Status) FROM comics),(SELECT COUNT(*) FROM comicissues),"
                "(SELECT GROUP_CONCAT(c) FROM (SELECT Status||COUNT(*)||'/'||TOTAL(Have) AS c FROM series "
                "GROUP BY Status))",

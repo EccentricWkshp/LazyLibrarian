@@ -11,6 +11,7 @@ import lazylibrarian
 from lazylibrarian import magreleases, searchmag
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.magazinescan import get_dateparts, issue_date
+from lazylibrarian.services import InvalidRequestError, magazines
 from lazylibrarian.startup import StartupLazyLibrarian
 from unittests.unittesthelpers import LLTestCaseWithDB
 
@@ -112,6 +113,101 @@ class MagReleasesTest(LLTestCaseWithDB):
         self.assertEqual(magreleases.form_of('', ['20130221', '20130222', '0-00-01']), 'number')
         self.assertEqual(magreleases.form_of('', ['0-00-01']), '')
         self.assertEqual(magreleases.form_of('I', ['2026-03-01']), 'number')
+
+    def test_wanting_a_past_issue_without_one(self):
+        """ A past issue stored without an issue, as names were read before, is read again when it's
+        wanted, and isn't wanted when it still has none: never downloaded as an issue of 1970-01-01 """
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject) "
+                 "VALUES ('Make','Active','',NULL,'',''), ('Wood','Active','2024-01-01','','','')")
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Make','1','1970-01-01',''), "
+                 "('Wood','2','2024-01-01','')")
+        for url, title, name in (('u1', 'Make', 'Make.No.98.2026.RETAIL.MAGAZINE.eBook-21A1'),
+                                 ('u2', 'Make', 'Make TruePDF-October'), ('u3', 'Wood', 'Wood Tool Guide-January 2024')):
+            self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,NZBprov,AuxInfo,Status,NZBmode) "
+                     "VALUES (?,?,?,'test','1970-01-01','Skipped','nzb')", (title, url, name))
+        with mock.patch.object(magazines.threading, 'Thread') as thread:
+            self.assertEqual(magazines.mark_past_issues('Wanted', ['u1']), 1)
+            with self.assertRaises(InvalidRequestError) as raised:
+                magazines.mark_past_issues('Wanted', ['u2', 'u3'])
+        self.assertIn('No issue date or number', str(raised.exception))
+        self.assertIn("issue 2024-01-01's, which it would replace", str(raised.exception))
+        self.assertEqual(thread.call_count, 1, 'Nothing downloaded when nothing was wanted')
+        self.assertEqual(self.sql("SELECT NZBurl, AuxInfo FROM wanted"), [{'NZBurl': 'u1', 'AuxInfo': '20260098'}])
+
+    def test_numberings(self):
+        """ The same issue has the one key however its name says it, in the numbering chosen """
+        for name in ('Make Volume 98', 'Make No 98 2026 RETAIL MAGAZINE', 'MAKE Magazine-Volume98 2026'):
+            self.assertEqual(self.read(name, 'Make', 'running')['issuedate'], '0098', name)
+        self.assertEqual(self.read('Make Magazine Vol 41 September 2014', 'Make', 'running')['issuedate'], '0041')
+        self.assertEqual(self.read('Make No 98 2026', 'Make', 'yearly')['issuedate'], '20260098')
+        found = self.read('Make Volume 98', 'Make', 'yearly')
+        self.assertEqual((found['kind'], found['issuedate']), (magreleases.UNDATED, ''))
+        self.assertIn('start again each year', found['reason'])
+        self.assertEqual(self.read('Popular Woodworking Vol 45 No 05 2025', 'Popular Woodworking', 'volume')['issuedate'],
+                         '00450005')
+        self.assertEqual(self.read('Popular Woodworking October 2026', 'Popular Woodworking', 'volume')['kind'],
+                         magreleases.UNDATED)
+        self.assertEqual(self.read('Fine Woodworking Tool Guide TruePDF-2017', 'Fine Woodworking', 'year')['issuedate'],
+                         '2017')
+        pairs = magreleases.pairs_of([self.read('Wood Magazine 248 September 2017', 'Wood Magazine')])
+        self.assertEqual(self.read('WOOD Magazine TruePDF-September 2017', 'Wood Magazine', 'running', pairs)['issuedate'],
+                         '0248', 'A month a name numbered')
+
+    def test_convert(self):
+        for key, scheme, converted in (('20260098', 'running', '0098'), ('0098', 'running', '0098'),
+                                       ('0098', 'yearly', '0098'), ('20250005', 'yearly', '20250005'),
+                                       ('00450005', 'volume', '00450005'), ('2026-03-01', 'running', '2026-03-01'),
+                                       ('20260098', '', '20260098'), ('20260098', 'number', '20260098'),
+                                       ('1970-01-01', 'running', '1970-01-01'), ('2014-09-01', 'date', '2014-09-01')):
+            self.assertEqual(magreleases.convert(key, scheme), converted, (key, scheme))
+        pairs = {'month': {'2014-09': 41}, 'number': {41: '2014-09-01'}}
+        self.assertEqual(magreleases.convert('2014-09-01', 'running', pairs), '0041')
+        self.assertEqual(magreleases.convert('0041', 'date', pairs), '2014-09-01')
+
+    def test_renumbering(self):
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject,Numbering) "
+                 "VALUES ('Make','Active','20260098','','','','running')")
+        for issue_id, date in (('1', '20260098'), ('2', '20250097'), ('3', '0096'), ('4', '20250096'),
+                               ('5', '1970-01-01')):
+            self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Make',?,?,'')", (issue_id, date))
+        self.sql("INSERT INTO wanted (BookID,NZBurl,NZBtitle,AuxInfo,Status) VALUES "
+                 "('Make','w1','Make No 99 2026','20260099','Snatched')")
+        with mock.patch.object(magazines, 'rename_issue', return_value=('', '')) as renamed:
+            done = magazines.renumber_issues('make')
+        self.assertEqual(done['renumbered'], 2)
+        self.assertEqual(done['left'], ["20250096 (its number, 0096, is another issue's)"])
+        self.assertEqual(sorted(call.args[0] for call in renamed.call_args_list), ['1', '2'], 'Their files renamed')
+        issues = {row['IssueID']: row['IssueDate'] for row in self.sql("SELECT IssueID,IssueDate FROM issues")}
+        self.assertEqual(issues, {'1': '0098', '2': '0097', '3': '0096', '4': '20250096', '5': '1970-01-01'})
+        self.assertEqual(self.sql("SELECT AuxInfo FROM wanted"), [{'AuxInfo': '0099'}])
+        self.assertEqual(self.sql("SELECT IssueDate FROM magazines"), [{'IssueDate': '20250096'}],
+                         'The latest as the issues sort')
+
+    def test_choosing_a_numbering(self):
+        from lazylibrarian.services import editing
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject,CoverPage) "
+                 "VALUES ('Make','Active','','','','',1)")
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Make','1','20260098','')")
+        found = editing.magazine_for_edit('Make')
+        self.assertEqual((found['numbering'], found['numbering_found']), ('', 'number'))
+        with mock.patch('lazylibrarian.services.commands.start') as start:
+            saved = editing.save_magazine('Make', {'numbering': 'running'})
+            editing.save_magazine('Make', {'numbering': 'running'})
+        start.assert_called_once_with('RenumberIssues', {'title': 'Make'})
+        self.assertIn('renumbered as running numbers', saved['message'])
+        self.assertRaises(InvalidRequestError, editing.save_magazine, 'Make', {'numbering': 'weekly'})
+        # an issue edited, and one imported by hand, are kept in it
+        with mock.patch.object(magazines, 'rename_issue', return_value=('Make - 0099.pdf', '')):
+            magazines.update_issue('1', 'Make', 'Volume 99', {}, {})
+        self.assertEqual(self.sql("SELECT IssueDate FROM issues"), [{'IssueDate': '0099'}])
+        from lazylibrarian import database
+        from lazylibrarian.services import manualimport
+        with database.DBConnection() as db:
+            self.assertEqual(manualimport._checked_issue(db, 'magazine', 'Make', 'No 100 2026'), '0100')
+
+    def test_no_date_type(self):
+        self.assertEqual(issue_date(get_dateparts('Make No 98 2026', datetype=None)), '20260098',
+                         "A magazine's DateType can be NULL")
 
     def test_a_search(self):
         """ A magazine search takes the newer issues, and keeps the rest with why they aren't wanted;

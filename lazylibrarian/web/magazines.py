@@ -357,7 +357,8 @@ class MagazinePages(BasePages):
     @require_auth()
     def mark_past_issues(self, action=None, **args):
         args.pop('book_table_length', None)
-        magazines.mark_past_issues(action, list(args))
+        with contextlib.suppress(InvalidRequestError):  # the ones with no issue to want, in the log
+            magazines.mark_past_issues(action, list(args))
         raise cherrypy.HTTPRedirect("past_issues")
 
     @cherrypy.expose

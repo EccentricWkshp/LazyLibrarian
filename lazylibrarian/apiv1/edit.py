@@ -274,6 +274,11 @@ class MagazineEdit(ApiModel):
     keep_months: int = 0
     # its quality profile, 0 for the magazines' default
     profile_id: int = 0
+    # how its issues are known, when it's chosen: date, running (a number running on from issue to
+    # issue), yearly (a number within the year), volume (volume and number) or year (an annual); ''
+    # to work it out from its issues, which numbering_found says: date, number, year or ''
+    numbering: str = ''
+    numbering_found: str = ''
 
 
 class MagazineChange(ApiModel):
@@ -288,6 +293,7 @@ class MagazineChange(ApiModel):
     keep_issues: int | None = None
     keep_months: int | None = None
     profile_id: int | None = None
+    numbering: str | None = None
 
 
 class WikidataMatch(ApiModel):

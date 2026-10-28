@@ -19,7 +19,7 @@ import re
 import uuid
 
 import lazylibrarian
-from lazylibrarian import database, wikidata
+from lazylibrarian import database, magreleases, wikidata
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.formatter import check_int
 from lazylibrarian.services import (
@@ -347,7 +347,20 @@ def magazine_for_edit(title) -> dict:
             'language': _text(magazine['Language']) or CONFIG['PREF_MAGLANG'],
             'wikidata_id': _text(magazine.get('WikidataID')),
             'keep_issues': check_int(magazine.get('KeepIssues'), 0), 'keep_months': check_int(magazine.get('KeepMonths'), 0),
-            'profile_id': check_int(magazine.get('ProfileID'), 0)}
+            'profile_id': check_int(magazine.get('ProfileID'), 0),
+            'numbering': _text(magazine.get('Numbering')) if magazine.get('Numbering') in magreleases.SCHEMES else '',
+            'numbering_found': _numbering_found(magazine['Title'])}
+
+
+def _numbering_found(title: str) -> str:
+    """ What a magazine's issues are known by without a numbering chosen, worked out from them """
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT DateType from magazines WHERE Title=?', (title,))
+        return magreleases.form_of(row['DateType'] if row else '', [issue['IssueDate'] for issue in db.select(
+            'SELECT IssueDate from issues WHERE Title=?', (title,))])
+    finally:
+        db.close()
 
 
 def _profile_id(media_type: str, value) -> int:
@@ -382,9 +395,12 @@ def save_magazine(title, values: dict) -> dict:
     kept = {column: max(check_int(values.get(key, current[key]), 0), 0)
             for key, column in (('keep_issues', 'KeepIssues'), ('keep_months', 'KeepMonths'))}
     profile_id = _profile_id('magazine', values.get('profile_id', current['profile_id']))
+    numbering = _text(values.get('numbering', current['numbering'])).strip()
+    if numbering and numbering not in magreleases.SCHEMES:
+        raise InvalidRequestError(f"A magazine's issues are known by one of {', '.join(magreleases.SCHEMES)}")
     db = database.DBConnection()
     try:
-        db.upsert('magazines', {**kept, 'ProfileID': profile_id}, {'Title': title})
+        db.upsert('magazines', {**kept, 'ProfileID': profile_id, 'Numbering': numbering}, {'Title': title})
     finally:
         db.close()
     # fewer issues kept lets the others go now, a command so it shows how it went
@@ -405,6 +421,11 @@ def save_magazine(title, values: dict) -> dict:
         from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
         commands.start('IssueCovers', {'title': title, 'page': cover_page})
         message += f", its covers are being made from page {cover_page}"
+    # the issues there are follow a numbering chosen, a command as their files are renamed
+    if numbering and numbering != current['numbering']:
+        from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
+        commands.start('RenumberIssues', {'title': title})
+        message += f", its issues are being renumbered as {magreleases.SCHEMES[numbering].lower()}s"
     if retention_changed and (kept['KeepIssues'] or kept['KeepMonths']):
         from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
         commands.start('ApplyRetention', {'title': title})

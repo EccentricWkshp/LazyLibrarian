@@ -137,6 +137,8 @@ def magazine_scan(title=None):
     lazylibrarian.MAG_UPDATE = 1
 
     db = database.DBConnection()
+    # each magazine's numbering, when one was chosen, and how to put an issue in it
+    schemes = {}
     # noinspection PyBroadException
     try:
         mag_path = issue_folder('magazine', CONFIG['MAG_DEST_FOLDER'])
@@ -334,6 +336,11 @@ def magazine_scan(title=None):
                         if not issuedate:
                             logger.warning(f"Invalid name format for [{fname}]")
                             continue
+                        if title not in schemes:
+                            from lazylibrarian import magreleases  # noqa: PLC0415, it reads names with this module
+                            schemes[title] = (magreleases.convert, magreleases.chosen_scheme(db, title))
+                        convert, scheme = schemes[title]
+                        issuedate = convert(issuedate, scheme)
 
                         mtime = os.path.getmtime(syspath(issuefile))
                         iss_acquired = datetime.date.isoformat(datetime.date.fromtimestamp(mtime))
@@ -625,6 +632,7 @@ def get_dateparts(title_or_issue, datetype=''):
     # 16 to 18 internal issuedates used for filenames, YYYYIIII, VVVVIIII, YYYYVVVVIIII
     #
     logger = logging.getLogger(__name__)
+    datetype = datetype or ''  # a magazine's DateType can be NULL
     dic = {'.': ' ', '-': ' ', '/': ' ', '+': ' ', '_': ' ', '(': '', ')': '', '[': ' ', ']': ' ', '#': '# '}
     words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', str(title_or_issue)), dic).split()
     issuenouns = get_list(CONFIG['ISSUE_NOUNS'])
