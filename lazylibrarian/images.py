@@ -880,7 +880,9 @@ def create_mag_covers(refresh=False):
         for item in issues:
             try:
                 maginfo = db.match("SELECT CoverPage from magazines WHERE Title=?", (item['Title'],))
-                create_mag_cover(item['IssueFile'], refresh=refresh, pagenum=maginfo['CoverPage'])
+                # page 1 when it was never set; 0 makes none
+                create_mag_cover(item['IssueFile'], refresh=refresh,
+                                 pagenum=check_int(maginfo['CoverPage'], 1) if maginfo else 1)
                 cnt += 1
             except Exception as why:
                 logger.warning(f"Unable to create cover for {item['IssueFile']}, {type(why).__name__} {str(why)}")
@@ -1232,13 +1234,18 @@ def read_pdf_tags(srcfile):
     if not path_isfile(srcfile):
         logger.error(f"Unable to read source file {srcfile}")
         return {}
-    src_pdf = PdfReader(srcfile)
+    # a damaged pdf has no tags to read, as for writing them
+    try:
+        src_pdf = PdfReader(srcfile)
+    except Exception as e:
+        logger.warning(f"Unable to read the tags of {srcfile}: {e}")
+        return {}
     if not src_pdf:
         logger.error(f"Unable to read source file {src_pdf}")
         return {}
     try:
         return dict(src_pdf.metadata)
-    except TypeError:
+    except Exception:
         # no metadata found in source file
         return {}
 

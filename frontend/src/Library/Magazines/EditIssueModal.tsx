@@ -54,7 +54,7 @@ function EditIssueModal({
           <EditField
             id="issueDate"
             label="Issue Date or Number"
-            help="Its file is renamed to match. It has to fit the magazine's Issue Dates"
+            help="A date (2026-03, March 2026) or a number (34, Volume 34, No 98 2026), kept as the magazine's issues are known. Its file is renamed to match"
           >
             <TextInput id="issueDate" value={issue.issueDate} onChange={(issueDate) => edit.set('issueDate', issueDate)} />
           </EditField>

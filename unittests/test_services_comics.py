@@ -34,6 +34,14 @@ class ComicServiceTest(LLTestCaseWithDB):
         self.assertEqual([c['Iss_Cnt'] for c in page.items], [1, 0, 3])
         self.assertEqual(self.ids(comics.list_comics(search='saga')), ['CV1'])
 
+    def test_a_cover_when_the_latest_issue_has_none(self):
+        from lazylibrarian.services import library
+        self.sql("UPDATE comicissues SET Cover='cache/comic/9.jpg' WHERE ComicID='CV1' AND IssueID='9'")
+        self.sql("UPDATE comicissues SET Cover='cache/comic/10.jpg' WHERE ComicID='CV1' AND IssueID='10'")
+        self.sql("UPDATE comicissues SET Cover='images/nocover.png' WHERE ComicID='CV1' AND IssueID='54'")
+        self.assertEqual(library.get_comic('CV1')['cover'], 'cache/comic/10.jpg', 'Issue 10 is newer than 9')
+        self.assertEqual([c['cover'] for c in library.list_comics() if c['id'] == 'CV1'], ['cache/comic/10.jpg'])
+
     def test_list_subscribed(self):
         self.sql("INSERT INTO subscribers (UserID,Type,WantID) VALUES (?,'comic','CV1'),(?,'comic','CX3')",
                  (self.owner, self.owner))

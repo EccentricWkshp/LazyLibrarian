@@ -195,6 +195,8 @@ def _date(dateparts: dict) -> str:
 SCHEMES = {'date': 'Date', 'running': 'Running number', 'yearly': 'Number within the year',
            'volume': 'Volume and number', 'year': 'Year, an annual'}
 NO_KEY = 'No issue date or number in the name'
+# a key as it's kept: 0098, 2026, 20260098, 00450005, 2026-03-01
+KEY = re.compile(r'^(\d{4}|\d{8}|\d{4}-\d\d-\d\d)$')
 
 
 def form_of(datetype: str, issue_dates: list[str]) -> str:
@@ -210,7 +212,8 @@ def form_of(datetype: str, issue_dates: list[str]) -> str:
         return 'year'
     # not an issue filed as 1970-01-01 when it had none
     dated = sum(1 for d in issue_dates if re.match(r'^[12]\d{3}-\d\d-\d\d$', str(d or '')) and d != NO_ISSUE)
-    numbered = sum(1 for d in issue_dates if str(d or '').isdigit() and len(str(d)) != 4)
+    # a year's number, or a running one (0034) that no year starts with
+    numbered = sum(1 for d in issue_dates if str(d or '').isdigit() and (len(str(d)) != 4 or str(d)[0] == '0'))
     if dated or numbered:
         return 'date' if dated >= numbered else 'number'
     return ''
@@ -296,14 +299,38 @@ def convert(key: str, scheme: str, pairs: dict | None = None) -> str:
     return converted or key
 
 
-def read(name: str, terms: list[str], datetype: str = '', scheme: str = '', pairs: dict | None = None) -> dict:
+def _posted_year(month: int, posted: str) -> int:
+    """ The year of an issue named by its month alone, from when it was posted: an issue comes out up
+    to two months ahead of its date and is posted within ten months after it. 0 without a real date """
+    try:
+        when = datetime.date.fromisoformat(str(posted)[:10])
+    except ValueError:
+        return 0
+    if when.year < 2000:  # the date put on a result that came without one
+        return 0
+    # the nearest of those that can be
+    ahead = {year: (year * 12 + month) - (when.year * 12 + when.month) for year in range(when.year - 1, when.year + 2)}
+    return min((year for year, months in ahead.items() if -10 <= months <= 2), key=lambda year: abs(ahead[year]))
+
+
+def _as_named(text: str, phrase: str) -> str:
+    """ A phrase as the name has it, "South Africa" for "south africa" """
+    pattern = r'[\W_]+'.join(re.escape(word) for word in words_of(phrase))
+    found = re.search(pattern, text, re.IGNORECASE)
+    return ' '.join(re.split(r'[\W_]+', found.group(0))) if found else phrase
+
+
+def read(name: str, terms: list[str], datetype: str = '', scheme: str = '', pairs: dict | None = None,
+         posted: str = '') -> dict:
     """ What a search result's name says about the magazine searched for by these terms (its title or
     search terms). kind is None when the name isn't the magazine's, else ISSUE, UNDATED or one of
     SET_ASIDE; reason says why it isn't an issue; issuedate is the issue as the magazine's issues
-    are known (scheme, using pairs to put a number as a date or a date as a number) or '' """
+    are known (scheme, using pairs to put a number as a date or a date as a number) or ''; edition is
+    another edition's words, as the name has them. A month without a year is the one around posted,
+    when the result was posted (yyyy-mm-dd) """
     text = html.unescape(str(name))
     found = {'kind': None, 'reason': '', 'issuedate': '', 'date': '', 'number': 0, 'issue': 0, 'volume': 0,
-             'year': 0}
+             'year': 0, 'edition': ''}
     # sizes and part counts are no issue's numbers
     low = words_of(NOT_ISSUE_NUMBERS.sub(' ', text))
     start, end = _after_title(low, terms)
@@ -315,6 +342,8 @@ def read(name: str, terms: list[str], datetype: str = '', scheme: str = '', pair
         found['reason'] = 'Nothing but the title'
         return found
     found['kind'], found['reason'] = _set_aside(text, rest)
+    if found['kind'] == EDITION:
+        found['edition'] = _as_named(text, _phrase(rest, get_list(CONFIG['MAG_EDITION_WORDS'], ',')))
     found['kind'] = found['kind'] or ISSUE
 
     # the issue part as get_dateparts reads it, without the title
@@ -332,6 +361,10 @@ def read(name: str, terms: list[str], datetype: str = '', scheme: str = '', pair
     if found['number'] and dateparts['day'] == found['number']:
         # the number before the month is the issue's, not the day: "Nuts and Volts No 7-July 2014"
         dateparts['day'] = 1
+    if not dateparts['year'] and dateparts['months'] and not found['number'] and posted:
+        # "Popular Mechanics USA-October": the October around when it was posted
+        dateparts['year'] = _posted_year(dateparts['months'][0], posted)
+        dateparts['style'] = dateparts['style'] or (4 if dateparts['year'] else 0)
     found['year'] = dateparts['year']
     found['date'] = _date(dateparts)
     found['issuedate'], why = key_of(found, scheme, pairs)
@@ -374,9 +407,9 @@ def reread(db, title: str, terms: list[str], datetype: str, scheme: str, pairs: 
     there) read again, for their issue and why they're set aside; ones that aren't the magazine's
     are forgotten. Returns how many changed """
     changed = 0
-    for row in db.select("SELECT rowid AS RowID,NZBtitle,AuxInfo,Status,DLResult from pastissues "
+    for row in db.select("SELECT rowid AS RowID,NZBtitle,NZBdate,AuxInfo,Status,DLResult from pastissues "
                          "WHERE BookID=? AND Status IN ('Skipped','Have')", (title,)):
-        found = read(row['NZBtitle'], terms, datetype, scheme, pairs)
+        found = read(row['NZBtitle'], terms, datetype, scheme, pairs, row['NZBdate'] or '')
         if found['kind'] is None:
             db.action('DELETE from pastissues WHERE rowid=?', (row['RowID'],))
             changed += 1
@@ -391,19 +424,19 @@ def reread(db, title: str, terms: list[str], datetype: str, scheme: str, pairs: 
     return changed
 
 
-def issue_of(db, title: str, name: str) -> dict:
+def issue_of(db, title: str, name: str, posted: str = '') -> dict:
     """ What a search result's name says about a magazine, read as its searches read it """
     magazine = db.match('SELECT Regex,DateType from magazines WHERE Title=?', (title,))
     terms = get_list(magazine['Regex'] if magazine else '', ',') or [title]
     datetype = (magazine['DateType'] if magazine else '') or ''
-    return read(name, terms, datetype, scheme_of(db, title), known_pairs(db, title, terms))
+    return read(name, terms, datetype, scheme_of(db, title), known_pairs(db, title, terms), posted)
 
 
-def chosen_issue(db, title: str, name: str) -> tuple[str, str]:
+def chosen_issue(db, title: str, name: str, posted: str = '') -> tuple[str, str]:
     """ The issue to file a search result someone chose under, and '' with why when there's none: no
     date or number in its name, or one set aside (a special, say) whose date is an issue there is,
     which it would replace """
-    found = issue_of(db, title, name)
+    found = issue_of(db, title, name, posted)
     issuedate = found['issuedate']
     if not issuedate:
         return '', found['reason'] or 'No issue date or number in the name'
@@ -411,3 +444,34 @@ def chosen_issue(db, title: str, name: str) -> tuple[str, str]:
                                            (title, issuedate)):
         return '', f"{found['reason']}, and its date is issue {issuedate}'s, which it would replace"
     return issuedate, ''
+
+
+def entered(db, title: str, entry: str, strict: bool = True) -> tuple[str, str]:
+    """ The key for what's typed as an issue's date or number in its Edit, read as a name with the
+    magazine's title would be ("34", "Volume 34", "No 98 2026", "March 2026", "2026-03") or a key as
+    it's kept (0034, 20260098), in the form the magazine's issues are known by; not strict, as it's
+    typed when it can't be put in that form (a date for numbered issues no name gives a number for).
+    Returns it, or '' and why there's none """
+    entry = entry.strip()
+    magazine = db.match('SELECT Regex,DateType from magazines WHERE Title=? COLLATE NOCASE', (title,))
+    datetype = (magazine['DateType'] if magazine else '') or ''
+    scheme = scheme_of(db, title)
+    if KEY.match(entry):
+        parts = parts_of_key(entry)
+    else:
+        name = entry if words_of(entry)[:len(words_of(title))] == words_of(title) else f'{title} {entry}'
+        parts = read(name, [title], datetype)
+        if not (parts['date'] or parts['number'] or parts['year']):
+            parts = parts_of_key(get_dateparts(entry, datetype=datetype)['dbdate'] or '')
+    terms = get_list(magazine['Regex'] if magazine else '', ',') or [title]
+    key, why = key_of(parts, scheme, known_pairs(db, title, terms))
+    if not key and not strict:
+        key = key_of(parts, '')[0]
+    if not key and parts['year'] and not parts['number'] and not parts['date'] and scheme in ('', 'year'):
+        key = str(parts['year'])  # an annual's
+    if key:
+        return key, ''
+    if why == NO_KEY:
+        return '', f'"{entry}" is no date (2026-03, March 2026) or number (34, Volume 34, No 98 2026)'
+    return '', (f'"{entry}" can\'t be an issue of {title}: {why[0].lower()}{why[1:]}. How its issues are known '
+                f'is chosen in the magazine\'s Edit')

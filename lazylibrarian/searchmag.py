@@ -300,7 +300,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                         if not rejected:
                             # the magazine's title (or a search term) starts the name, then the issue:
                             # "Lets Make-31 July 2023" isn't Make
-                            found = magreleases.read(nzbtitle, terms, datetype, scheme, pairs)
+                            found = magreleases.read(nzbtitle, terms, datetype, scheme, pairs, nzbdate)
                             if found['kind'] is None:
                                 logger.debug(f"Rejecting {nzbtitle}: {found['reason']} ({', '.join(terms)})")
                                 rejected = True

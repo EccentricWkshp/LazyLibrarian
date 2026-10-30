@@ -33,6 +33,7 @@ from lazylibrarian.filesystem import (
 )
 from lazylibrarian.formatter import check_int, get_list, now, plural, sanitize
 from lazylibrarian.images import create_mag_cover
+from lazylibrarian.magazinescan import real_cover
 from lazylibrarian.metadata_opf import create_comic_opf
 
 
@@ -215,8 +216,8 @@ def comic_scan(comicid=None):
                             added = mag_entry['Added']
 
                         # is this issue already in the database?
-                        iss_entry = db.match('SELECT IssueFile,Pages from comicissues WHERE ComicID=? and IssueID=?',
-                                             (comicid, issue))
+                        iss_entry = db.match('SELECT IssueFile,Pages,Cover from comicissues WHERE ComicID=? and '
+                                             'IssueID=?', (comicid, issue))
                         issuefile = os.path.join(rootdir, fname)  # full path to issue.cbr
                         mtime = os.path.getmtime(issuefile)
                         iss_acquired = datetime.date.isoformat(datetime.date.fromtimestamp(mtime))
@@ -268,6 +269,15 @@ def comic_scan(comicid=None):
                                     logger.debug('create_comic_opf is disabled')
                                 else:
                                     _ = create_comic_opf(dest_path, data, global_name, overwrite=True)
+                        if iss_entry and not real_cover(iss_entry['Cover']) and CONFIG.get_bool('IMP_COMICCOVER'):
+                            # an issue that came in without a cover gets one now
+                            coverfile = create_mag_cover(issuefile, refresh=True)
+                            if coverfile and path_isfile(coverfile):
+                                hashname = os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg')
+                                copyfile(coverfile, hashname)
+                                setperm(hashname)
+                                db.action('UPDATE comicissues SET Cover=? WHERE ComicID=? AND IssueID=?',
+                                          (f'cache/comic/{myhash}.jpg', comicid, issue))
                         if not iss_entry or iss_entry['IssueFile'] != issuefile or not iss_entry['Pages']:
                             # what the file says, a description only when the comic's source had none
                             meta = filemeta.read_metadata(issuefile)

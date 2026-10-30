@@ -140,6 +140,17 @@ class EditingTest(LLTestCaseWithStartup):
         self.assertEqual(saved['title'], 'Wired UK')
         self.assertIn('3 issue files moved', saved['message'])
 
+    def test_covers_for_issues_without_one(self):
+        """ Saving a magazine with the same cover page makes covers for its issues that have none """
+        with DBConnection() as db:
+            db.action("INSERT INTO issues (Title, IssueID, IssueDate, IssueFile, Cover) VALUES "
+                      "('Wired', 'i1', '2025-01-01', 'a.pdf', ''), ('Wired', 'i2', '2025-02-01', 'b.pdf', "
+                      "'data/images/nocover.jpg'), ('Wired', 'i3', '2025-03-01', 'c.pdf', 'cache/magazine/c.jpg')")
+        with mock.patch('lazylibrarian.services.commands.start') as start:
+            saved = editing.save_magazine('Wired', {'cover_page': 1})
+        start.assert_called_once_with('IssueCovers', {'ids': ['i1', 'i2'], 'page': 1})
+        self.assertIn('covers are being made for the 2 issues without one', saved['message'])
+
     def test_an_issue(self):
         with DBConnection() as db:
             db.action("INSERT INTO issues (Title, IssueID, IssueDate, IssueFile) VALUES "

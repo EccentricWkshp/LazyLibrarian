@@ -47,8 +47,7 @@ from lazylibrarian.images import (
     write_pdf_tags,
 )
 from lazylibrarian.magazinescan import (
-    get_dateparts,
-    issue_date,
+    RECENT_COVER,
     magazine_scan,
     remove_if_empty,
     rename_issue,
@@ -87,7 +86,7 @@ def list_magazines(search: str = '', sort: str = 'Title', descending: bool = Fal
         ignoring case, LastAcquired and IssueDate sort numbers in text by value """
     serversidelogger = logging.getLogger('special.serverside')
     cmd = ("select magazines.*,(select count(*) as counter from issues where "
-           "magazines.title = issues.title) as Iss_Cnt from magazines")
+           f"magazines.title = issues.title) as Iss_Cnt,{RECENT_COVER} from magazines")
     args = []
     db = database.DBConnection()
     try:
@@ -114,7 +113,7 @@ def get_magazine(title) -> dict:
     """ A magazine, its title matched ignoring case """
     db = database.DBConnection()
     try:
-        magazine = db.match("SELECT * from magazines WHERE Title=? COLLATE NOCASE", (title,))
+        magazine = db.match(f"SELECT *,{RECENT_COVER} from magazines WHERE Title=? COLLATE NOCASE", (title,))
     finally:
         db.close()
     if not magazine:
@@ -208,20 +207,6 @@ def issue_for_edit(issueid) -> tuple[dict, dict]:
     return dict(issue), read_pdf_tags(issue['IssueFile']) if is_pdf else {}
 
 
-def date_matches_type(dateparts: dict, datetype: str) -> bool:
-    """ Does an issue date/number have every part (Day Month Year Vol Iss, MM for two months) the
-        magazine's date type needs """
-    style = dateparts['style']
-    if not style:
-        return False
-    if not datetype:
-        return True
-    needs = (('M', [1, 2, 3, 4, 5, 6, 7, 12]), ('D', [3, 5, 6]), ('MM', [1]),
-             ('V', [2, 8, 9, 10, 11, 12, 13, 14, 17, 18]), ('I', [2, 10, 11, 12, 13, 14, 16, 17, 18]),
-             ('Y', [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 15, 16, 18]))
-    return all(style in styles for part, styles in needs if part in datetype)
-
-
 def update_issue(issueid, magtitle: str, issuenum: str, new_tags: dict, old_tags: dict) -> tuple[str, str]:
     """ Move an issue to another magazine title (added if new) and/or issue date/number, and change the
         tags in its file. Returns (the magazine title to show, what happened). NotFoundError for a missing
@@ -232,19 +217,16 @@ def update_issue(issueid, magtitle: str, issuenum: str, new_tags: dict, old_tags
         issue = db.match("SELECT Title,IssueDate,IssueFile,Cover,IssueID from issues WHERE IssueID=?", (issueid,))
         if not issue:
             raise NotFoundError(f"Missing issue {issueid}")
-        magazine = db.match("SELECT DateType,IssueDate from magazines WHERE Title=? COLLATE NOCASE", (magtitle,))
-        datetype = magazine['DateType'] if magazine else ''
+        magazine = db.match("SELECT IssueDate from magazines WHERE Title=? COLLATE NOCASE", (magtitle,))
         mostrecentissue = magazine['IssueDate'] if magazine else ''
         redirect = issue['Title']
-        dateparts = get_dateparts(issuenum, datetype=datetype)
-        if not date_matches_type(dateparts, datetype):
-            response = f'Date {issuenum} not in a recognised date format [{datetype}]'
-            logger.debug(response)
-            return redirect, response
-        # "Volume 98", "No 98 2026" or 0098 the same, in the numbering chosen for the magazine
-        scheme = magreleases.chosen_scheme(db, magtitle)
-        if scheme:
-            issuenum = magreleases.convert(issue_date(dateparts) or issuenum, scheme)
+        # "34", "Volume 34", "No 98 2026" or 0034 the same, as the magazine's issues are known
+        issuenum = str(issuenum or '').strip()
+        if issuenum != issue['IssueDate']:
+            issuenum, why = magreleases.entered(db, magtitle, issuenum)
+            if not issuenum:
+                logger.debug(why)
+                raise InvalidRequestError(why)
         if not magtitle and issuenum:
             response = (f"Issue {issue['IssueDate']} of {issue['Title']} is unchanged. "
                         f"Insufficient information, need Title and valid IssueNum/Date")
@@ -332,9 +314,10 @@ def list_past_issues(status: str, magazine: str | None = None, search: str = '',
                    descending=descending, offset=offset, limit=limit)
 
 
-def mark_past_issues(action: str, nzburls) -> int:
+def mark_past_issues(action: str, nzburls, issue: str = '') -> int:
     """ Remove past issues, set them Ignored or Skipped, or want them (copied into the wanted table and
-        downloaded in the background). Returns how many were changed """
+        downloaded in the background), filed under the issue given, typed as in an issue's Edit, or the
+        one its name says. Returns how many were changed """
     logger = logging.getLogger(__name__)
     maglist = []
     not_wanted = []
@@ -360,11 +343,18 @@ def mark_past_issues(action: str, nzburls) -> int:
                     logger.debug(f'Item {itm["NZBtitle"]} removed from past issues')
                     maglist.append({'nzburl': nzburl})
                 elif action == 'Wanted':
-                    issuedate = magreleases.convert(itm['AuxInfo'], magreleases.chosen_scheme(db, itm['BookID']))
+                    if issue.strip():
+                        # the issue it is, said by whoever wants it
+                        issuedate, why = magreleases.entered(db, itm['BookID'], issue, strict=False)
+                        if not issuedate:
+                            raise InvalidRequestError(why)
+                    else:
+                        issuedate = magreleases.convert(itm['AuxInfo'], magreleases.chosen_scheme(db, itm['BookID']))
                     if not issuedate or issuedate == magreleases.NO_ISSUE:
                         # found without an issue, or before names were read as they are now: read
                         # again, it's never downloaded as an issue of 1970-01-01
-                        issuedate, why = magreleases.chosen_issue(db, itm['BookID'], itm['NZBtitle'])
+                        issuedate, why = magreleases.chosen_issue(db, itm['BookID'], itm['NZBtitle'],
+                                                                  itm['NZBdate'] or '')
                         if not issuedate:
                             not_wanted.append(f"{itm['NZBtitle']} ({why})")
                             continue
@@ -440,6 +430,17 @@ def cover_page(title: str = '', issueid: str = '') -> int:
     finally:
         db.close()
     return check_int(row['CoverPage'], 1) if row else 1
+
+
+def coverless_issues(title: str) -> list[str]:
+    """ The ids of a magazine's issues that have no cover, or the no cover picture """
+    db = database.DBConnection()
+    try:
+        return [row['IssueID'] for row in db.select("SELECT IssueID FROM issues WHERE Title=? AND IssueFile!='' AND "
+                                                    "(Cover IS NULL OR Cover='' OR instr(Cover,'nocover')>0)",
+                                                    (title,))]
+    finally:
+        db.close()
 
 
 def page_cover(issuefile: str, page: int) -> str:
@@ -557,9 +558,10 @@ def set_latest(title) -> str:
         issue date, empty if there are no issues """
     db = database.DBConnection()
     try:
-        cmd = "select IssueDate,IssueAcquired,IssueFile,Cover from issues where title=? order by IssueDate "
-        newest = db.match(cmd + 'DESC', (title,))
-        oldest = db.match(cmd + 'ASC', (title,))
+        cmd = "select IssueDate,IssueAcquired,IssueFile,Cover from issues where title=? order by "
+        # an issue filed under 1970-01-01, with none, isn't the newest
+        newest = db.match(cmd + "IssueDate='1970-01-01', IssueDate DESC", (title,))
+        oldest = db.match(cmd + 'IssueDate ASC', (title,))
         if newest and oldest:
             new_value_dict = {'IssueDate': newest['IssueDate'], 'LatestCover': newest['Cover'],
                               'LastAcquired': file_date(newest['IssueFile']),
@@ -1038,3 +1040,45 @@ def add_magazine(title: str, search: bool | None = None) -> tuple[str, bool]:
     if CONFIG.get_bool('IMP_AUTOSEARCH') if search is None else search:
         start_search([{"bookid": title}])
     return title, True
+
+
+def add_edition(nzburl: str) -> tuple[str, int]:
+    """ The other edition a past issue is (Popular Mechanics South Africa) as a magazine of its own,
+    known by the same numbering, and the past issues of that edition moved to it and read as its
+    issues. Returns its title and how many were moved """
+    db = database.DBConnection()
+    try:
+        row = db.match('SELECT BookID,NZBtitle,NZBdate from pastissues WHERE NZBurl=?', (nzburl,))
+        if not row:
+            raise NotFoundError("That past issue isn't there")
+        magazine = db.match('SELECT Title,DateType,Numbering,CoverPage,ProfileID,Language from magazines '
+                            'WHERE Title=?', (row['BookID'],))
+        if not magazine:
+            raise NotFoundError(f"Magazine {row['BookID']} not found")
+        edition = magreleases.read(row['NZBtitle'], [magazine['Title']], posted=row['NZBdate'] or '')['edition']
+        if not edition:
+            raise InvalidRequestError(f"{row['NZBtitle']} isn't another edition of {magazine['Title']}")
+    finally:
+        db.close()
+    title, is_new = add_magazine(f"{magazine['Title']} {edition}")
+    db = database.DBConnection()
+    try:
+        if is_new:
+            db.upsert('magazines', {'DateType': magazine['DateType'] or '', 'Numbering': magazine['Numbering'] or '',
+                                    'CoverPage': magazine['CoverPage'], 'ProfileID': magazine['ProfileID'],
+                                    'Language': magazine['Language']}, {'Title': title})
+        moved = 0
+        for past in db.select("SELECT rowid AS RowID,NZBtitle,NZBdate from pastissues WHERE BookID=?",
+                              (magazine['Title'],)):
+            found = magreleases.read(past['NZBtitle'], [magazine['Title']], posted=past['NZBdate'] or '')
+            if found['edition'].lower() == edition.lower():
+                db.action('UPDATE pastissues SET BookID=? WHERE rowid=?', (title, past['RowID']))
+                moved += 1
+        terms = [title]
+        magreleases.reread(db, title, terms, magazine['DateType'] or '', magreleases.scheme_of(db, title),
+                           magreleases.known_pairs(db, title, terms))
+    finally:
+        db.close()
+    logging.getLogger(__name__).info(f"{edition} edition of {magazine['Title']} added as {title}, "
+                                     f"{moved} past {plural(moved, 'issue')} moved to it")
+    return title, moved

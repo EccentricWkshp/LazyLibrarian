@@ -21,7 +21,7 @@ import uuid
 import lazylibrarian
 from lazylibrarian import database, magreleases, wikidata
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.formatter import check_int
+from lazylibrarian.formatter import check_int, plural
 from lazylibrarian.services import (
     InvalidRequestError,
     NotFoundError,
@@ -421,6 +421,11 @@ def save_magazine(title, values: dict) -> dict:
         from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
         commands.start('IssueCovers', {'title': title, 'page': cover_page})
         message += f", its covers are being made from page {cover_page}"
+    elif cover_page and (coverless := magazines.coverless_issues(title)):
+        # the same page, and issues that came in without a cover get one
+        from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
+        commands.start('IssueCovers', {'ids': coverless, 'page': cover_page})
+        message += f", covers are being made for the {len(coverless)} {plural(len(coverless), 'issue')} without one"
     # the issues there are follow a numbering chosen, a command as their files are renamed
     if numbering and numbering != current['numbering']:
         from lazylibrarian.services import commands  # noqa: PLC0415, it imports most of LazyLibrarian
@@ -453,8 +458,6 @@ def save_issue(issueid, values: dict) -> dict:
     new_tags.update({tag['name']: _text(tag['value']) for tag in values.get('tags') or [] if tag['name'] in old_tags})
     shown, message = magazines.update_issue(issueid, title, _text(values.get('issue_date', current['issue_date'])).strip(),
                                             new_tags, old_tags)
-    if message.startswith('Date ') and 'not in a recognised date format' in message:
-        raise InvalidRequestError(message)
     return {'title': shown, 'message': message}
 
 

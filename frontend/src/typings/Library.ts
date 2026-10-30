@@ -155,6 +155,10 @@ export interface PastIssue {
   title: string;
   // why it has no issue (set aside, or nothing to match it to), or why its download failed
   reason: string;
+  // the issue its name gives, as it would be typed, when it has none the magazine's issues match
+  named: string;
+  // another edition's words, as the name has them (South Africa), when it's set aside as one
+  edition: string;
 }
 
 export interface Comic {

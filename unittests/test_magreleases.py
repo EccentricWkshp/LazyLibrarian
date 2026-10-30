@@ -134,6 +134,66 @@ class MagReleasesTest(LLTestCaseWithDB):
         self.assertEqual(thread.call_count, 1, 'Nothing downloaded when nothing was wanted')
         self.assertEqual(self.sql("SELECT NZBurl, AuxInfo FROM wanted"), [{'NZBurl': 'u1', 'AuxInfo': '20260098'}])
 
+    def test_downloading_a_past_issue_as_an_issue(self):
+        """ A past issue its name gives no issue the magazine's issues match is downloaded as the issue
+        given for it, as it's typed when it can't be put in their form """
+        from lazylibrarian.services import library
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject) "
+                 "VALUES ('Wood','Active','20130221','','','')")
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Wood','1','20130221',''), "
+                 "('Wood','2','20130222','')")
+        for url, name in (('u1', 'Wood September 2026 RETAIL MAGAZINE eBook-21A1'), ('u2', 'Wood March 2026 RETAIL')):
+            self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,NZBprov,AuxInfo,Status,NZBmode,DLResult) VALUES "
+                     "('Wood',?,?,'test','1970-01-01','Skipped','nzb','Dated 2026-09, but the magazine''s issues "
+                     "are numbered')", (url, name))
+        named = {row['url']: row['named'] for row in library.list_past_issues('Skipped', 'Wood')}
+        self.assertEqual(named, {'u1': '2026-09', 'u2': '2026-03'}, 'What the names say, to be typed')
+        with mock.patch.object(magazines.threading, 'Thread'):
+            self.assertRaises(InvalidRequestError, magazines.mark_past_issues, 'Wanted', ['u1'])
+            self.assertEqual(library.mark_past_issues(['u1'], 'Wanted', named['u1']), 1)
+            self.assertEqual(library.mark_past_issues(['u2'], 'Wanted', 'No 230 2026'), 1)
+            with self.assertRaisesRegex(InvalidRequestError, 'is no date'):
+                library.mark_past_issues(['u2'], 'Wanted', 'whenever')
+            self.assertRaises(InvalidRequestError, library.mark_past_issues, ['u1', 'u2'], 'Wanted', '2026-09')
+        self.assertEqual({row['NZBurl']: row['AuxInfo'] for row in self.sql("SELECT NZBurl, AuxInfo FROM wanted")},
+                         {'u1': '2026-09-01', 'u2': '20260230'})
+
+    def test_a_month_without_a_year(self):
+        """ A month alone is the one around when the release was posted, up to two months ahead """
+        def date(name, posted):
+            return magreleases.read(name, ['Popular Mechanics'], posted=posted)['issuedate']
+        self.assertEqual(date('Popular Mechanics USA-October', '2026-09-21'), '2026-10-01')
+        self.assertEqual(date('Popular Mechanics USA TruePDF-November', '2026-09-21'), '2026-11-01')
+        self.assertEqual(date('Popular Mechanics USA TruePDF-December', '2026-09-21'), '2025-12-01')
+        self.assertEqual(date('Popular Mechanics USA-February', '2025-12-20'), '2026-02-01')
+        self.assertEqual(date('Popular Mechanics USA-October', ''), '', 'Not without when it was posted')
+        self.assertEqual(date('Popular Mechanics USA-October', '1970-01-01'), '', "Nor a result's made-up date")
+        self.assertEqual(date('Popular Mechanics USA-May 2023', '2026-09-21'), '2023-05-01', 'Its own year first')
+
+    def test_another_edition_as_a_magazine(self):
+        """ Another edition set aside is added as a magazine of its own, with its past issues """
+        from lazylibrarian.services import library
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject,CoverPage) "
+                 "VALUES ('Popular Mechanics','Active','2026-09-01','','','',2)")
+        for url, name in (('u1', 'Popular.Mechanics.South.Africa.TruePDF-September'),
+                          ('u2', 'Popular Mechanics South Africa TruePDF-October 2026'),
+                          ('u3', 'Popular Mechanics USA-October'), ('u4', 'Popular Mechanics UK-October 2026')):
+            self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,NZBprov,NZBdate,AuxInfo,Status,NZBmode) "
+                     "VALUES ('Popular Mechanics',?,?,'test','2026-09-21','1970-01-01','Skipped','nzb')", (url, name))
+        rows = {row['url']: row for row in library.list_past_issues('Skipped', 'Popular Mechanics')}
+        self.assertEqual(rows['u1']['edition'], 'South Africa', 'As the name has it')
+        self.assertEqual((rows['u3']['edition'], rows['u3']['named']), ('', '2026-10'))
+        self.assertRaises(InvalidRequestError, magazines.add_edition, 'u3')
+        with mock.patch.object(magazines, 'start_search'):
+            self.assertEqual(library.add_edition('u1'), {'title': 'Popular Mechanics South Africa', 'moved': 2})
+        self.assertEqual(self.sql("SELECT CoverPage FROM magazines WHERE Title='Popular Mechanics South Africa'"),
+                         [{'CoverPage': 2}], "The magazine's settings")
+        moved = {row['NZBurl']: row['AuxInfo'] for row in self.sql(
+            "SELECT NZBurl,AuxInfo FROM pastissues WHERE BookID='Popular Mechanics South Africa'")}
+        self.assertEqual(moved, {'u1': '2026-09-01', 'u2': '2026-10-01'}, 'Read as its issues')
+        self.assertEqual(sorted(row['NZBurl'] for row in self.sql(
+            "SELECT NZBurl FROM pastissues WHERE BookID='Popular Mechanics'")), ['u3', 'u4'])
+
     def test_numberings(self):
         """ The same issue has the one key however its name says it, in the numbering chosen """
         for name in ('Make Volume 98', 'Make No 98 2026 RETAIL MAGAZINE', 'MAKE Magazine-Volume98 2026'):
@@ -204,6 +264,42 @@ class MagReleasesTest(LLTestCaseWithDB):
         from lazylibrarian.services import manualimport
         with database.DBConnection() as db:
             self.assertEqual(manualimport._checked_issue(db, 'magazine', 'Make', 'No 100 2026'), '0100')
+
+    def test_typing_an_issue(self):
+        """ An issue's date or number, typed in its Edit, read as a name would be in the form the
+        magazine's issues are known by """
+        from lazylibrarian import database
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject,CoverPage) VALUES "
+                 "('Make','Active','0025',NULL,'','',1), ('Wired','Active','2026-01-01','','','',1), "
+                 "('Annual','Active','2025','','','',1), ('New','Active','','','','',1)")
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate,IssueFile) VALUES ('Make','1','0025',''), "
+                 "('Make','2','0022',''), ('Make','3','1970-01-01',''), ('Wired','4','2026-01-01','')")
+        self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,AuxInfo,Status) VALUES "
+                 "('Wired','u1','Wired No 230 March 2026','2026-03-01','Have')")
+        with database.DBConnection() as db:
+            def entered(title, entry):
+                return magreleases.entered(db, title, entry)[0]
+            # Make's issues are running numbers, without a numbering chosen
+            for entry in ('34', 'Volume 34', 'Vol 34', 'No 34', '#34', 'Issue 34', '0034', 'Make Volume 34',
+                          'MAKE Magazine - Volume 34'):
+                self.assertEqual(entered('Make', entry), '0034', entry)
+            self.assertEqual(entered('Make', 'No 98 2026'), '20260098', 'A number with its year, as they have been')
+            # Wired's are dated, a number given a date by a name
+            for entry in ('2026-03', 'March 2026', 'Mar 2026', '2026-03-01', '230'):
+                self.assertEqual(entered('Wired', entry), '2026-03-01', entry)
+            self.assertEqual(magreleases.entered(db, 'Wired', '34')[1],
+                             "\"34\" can't be an issue of Wired: numbered 34, but the magazine's issues are dated and "
+                             "no name gives that number's date. How its issues are known is chosen in the "
+                             "magazine's Edit")
+            self.assertIn('is no date', magreleases.entered(db, 'Make', 'whenever')[1])
+            self.assertEqual(entered('Annual', '2026'), '2026')
+            # a magazine with no issues yet takes what's typed
+            self.assertEqual((entered('New', '34'), entered('New', 'March 2026')), ('0034', '2026-03-01'))
+            self.sql("UPDATE magazines SET Numbering='yearly' WHERE Title='Make'")
+            self.assertEqual(entered('Make', 'No 5 2025'), '20250005')
+            self.assertIn("there's no year", magreleases.entered(db, 'Make', '34')[1])
+        # the newest issue isn't the one filed under 1970-01-01
+        self.assertEqual(magazines.set_latest('Make'), '0025')
 
     def test_no_date_type(self):
         self.assertEqual(issue_date(get_dateparts('Make No 98 2026', datetype=None)), '20260098',

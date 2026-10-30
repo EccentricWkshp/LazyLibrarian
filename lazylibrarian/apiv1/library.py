@@ -308,12 +308,28 @@ class PastIssue(ApiModel):
     # why it has no issue: set aside (several issues in one, a special, another edition), or no date
     # or number the magazine's issues can be matched to; or why its download failed
     reason: str = ''
+    # the issue its name gives, as it would be typed, when it has none the magazine's issues match
+    named: str = ''
+    # another edition's words, as the name has them (South Africa), when it's set aside as one
+    edition: str = ''
+
+
+class PastIssueEdition(ApiModel):
+    url: str
+
+
+class EditionAdded(ApiModel):
+    # the edition's magazine, and how many past issues moved to it
+    title: str
+    moved: int
 
 
 class PastIssueMark(ApiModel):
     urls: list[str]
     # Skipped, Wanted, Ignored or Remove
     action: str
+    # for one that's wanted, the issue to file it under, typed as in an issue's Edit
+    issue: str = ''
 
 
 class CoverPage(ApiModel):
@@ -406,7 +422,14 @@ def list_past_issues(status: str = 'Skipped', title: str = ''):
 @router.put('/magazine/pastissues', response_model=Changed)
 def mark_past_issues(mark: PastIssueMark):
     """ Want past issues (they're downloaded), skip or ignore them, or forget them (Remove) """
-    return {'changed': library.mark_past_issues(mark.urls, mark.action)}
+    return {'changed': library.mark_past_issues(mark.urls, mark.action, mark.issue)}
+
+
+@router.post('/magazine/pastissues/edition', response_model=EditionAdded)
+def add_edition(edition: PastIssueEdition):
+    """ The other edition a past issue is, added as a magazine of its own, with that edition's past
+    issues moved to it """
+    return library.add_edition(edition.url)
 
 
 @router.put('/magazine/issue/{issue_id}/cover', response_model=Message)

@@ -77,16 +77,14 @@ class MagazineServiceTest(LLTestCaseWithDB):
         with self.assertRaises(NotFoundError):
             magazines.issue_for_edit('nosuch')
 
-    def test_date_matches_type(self):
-        self.assertTrue(magazines.date_matches_type({'style': 1}, ''))
-        self.assertFalse(magazines.date_matches_type({'style': 0}, ''))
-        self.assertTrue(magazines.date_matches_type({'style': 12}, 'VI'))
-        self.assertFalse(magazines.date_matches_type({'style': 3}, 'VI'))
-
     def test_update_issue_unchanged_or_bad_date(self):
         self.assertIn('is unchanged', magazines.update_issue('I1', 'Wired', '2026-01', {}, {})[1])
+        with self.assertRaisesRegex(InvalidRequestError, 'is no date'):
+            magazines.update_issue('I1', 'Wired', 'sometime', {}, {})
+        # numbered by its date type, and no name says which number February's is
         self.sql("UPDATE magazines SET DateType='VI' WHERE Title='Wired'")
-        self.assertIn('not in a recognised date format', magazines.update_issue('I1', 'Wired', '2026-02', {}, {})[1])
+        with self.assertRaisesRegex(InvalidRequestError, "Wired: dated 2026-02, but the magazine's issues are numbered"):
+            magazines.update_issue('I1', 'Wired', '2026-02', {}, {})
         with self.assertRaises(NotFoundError):
             magazines.update_issue('nosuch', 'Wired', '2026-01', {}, {})
 
@@ -228,6 +226,32 @@ class MagazineServiceTest(LLTestCaseWithDB):
         found = self.sql("SELECT IssueDate, LatestCover FROM magazines WHERE Title='Wood Magazine'")[0]
         self.assertEqual(found['IssueDate'], '20110301')
         self.assertEqual(found['LatestCover'], self.sql("SELECT Cover FROM issues WHERE IssueDate='20110301'")[0]['Cover'])
+
+        # issues that came in without a cover get one at the next scan, from page 1 when the
+        # magazine's cover page was never set
+        self.assertEqual({row['Cover'] for row in self.sql("SELECT Cover FROM issues WHERE Title='Wood Magazine'")},
+                         {'data/images/nocover.jpg'})
+        CONFIG.set_from_ui('IMP_MAGCOVER', True)
+        self.sql("UPDATE magazines SET CoverPage=NULL WHERE Title='Wood Magazine'")
+        picture = os.path.join(root, 'cover.jpg')
+        with open(picture, 'wb') as f:
+            f.write(b'\xff\xd8\xff')
+        os.makedirs(os.path.join(DIRS.CACHEDIR, 'magazine'), exist_ok=True)
+        with mock.patch.object(magazinescan, 'create_mag_cover', return_value=picture) as made:
+            magazinescan.magazine_scan()
+        self.assertEqual({call.kwargs['pagenum'] for call in made.call_args_list}, {1})
+        covers = [row['Cover'] for row in self.sql("SELECT Cover FROM issues WHERE Title='Wood Magazine' "
+                                                   "ORDER BY IssueDate")]
+        self.assertTrue(all(cover.startswith('cache/magazine/') for cover in covers), covers)
+
+        # the magazine's cover is the newest an issue has, when its latest issue has none
+        from lazylibrarian.services import library
+        self.sql("UPDATE issues SET Cover='' WHERE IssueDate='20110301'")
+        self.sql("UPDATE magazines SET LatestCover='' WHERE Title='Wood Magazine'")
+        self.assertEqual(library.get_magazine('Wood Magazine')['cover'], covers[0])
+        self.assertEqual([m['cover'] for m in library.list_magazines() if m['title'] == 'Wood Magazine'], [covers[0]])
+        self.assertEqual(magazines.coverless_issues('Wood Magazine'),
+                         [row['IssueID'] for row in self.sql("SELECT IssueID FROM issues WHERE IssueDate='20110301'")])
 
     def test_a_date_found_or_not(self):
         from lazylibrarian import magazinescan

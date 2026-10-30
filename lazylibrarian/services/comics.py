@@ -35,6 +35,10 @@ from lazylibrarian.services.magazines import file_date, page_cover
 from lazylibrarian.services.paging import Page, page_of
 from lazylibrarian.services.system import start_task
 
+# the newest cover a comic's issues have, by number, for when its latest issue has none, as a column of
+# a select from comics
+RECENT_COVER = ("(SELECT Cover FROM comicissues WHERE comicissues.ComicID=comics.ComicID AND Cover!='' AND "
+                "instr(Cover,'nocover')=0 ORDER BY CAST(IssueID AS REAL) DESC, IssueID DESC LIMIT 1) AS RecentCover")
 # the comic list fields, in the order the search has always matched them
 SEARCH_FIELDS = ('ComicID', 'LatestCover', 'Title', 'Iss_Cnt', 'LastAcquired', 'LatestIssue', 'Status', 'IssueStatus',
                  'Start', 'Publisher', 'Link', 'Genre')
@@ -50,7 +54,7 @@ found_comics = []
 def get_comic(comicid) -> dict:
     db = database.DBConnection()
     try:
-        comic = db.match('SELECT * from comics WHERE ComicID=?', (comicid,))
+        comic = db.match(f'SELECT *,{RECENT_COVER} from comics WHERE ComicID=?', (comicid,))
     finally:
         db.close()
     if not comic:
@@ -132,7 +136,7 @@ def list_comics(search: str = '', sort: str = 'Title', descending: bool = False,
         ignoring case, LastAcquired and LatestIssue sort numbers in text by value """
     serversidelogger = logging.getLogger('special.serverside')
     cmd = ("select comics.*,(select count(*) as counter from comicissues where "
-           "comics.comicid = comicissues.comicid) as Iss_Cnt from comics")
+           f"comics.comicid = comicissues.comicid) as Iss_Cnt,{RECENT_COVER} from comics")
     args = []
     db = database.DBConnection()
     try:

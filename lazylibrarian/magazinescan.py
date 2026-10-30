@@ -376,7 +376,8 @@ def magazine_scan(title=None):
                             magissuedate = mag_entry['IssueDate']
                             magazineadded = mag_entry['MagazineAdded']
                             magissuedate = str(magissuedate).zfill(4)
-                            magcoverpage = mag_entry['CoverPage']
+                            # page 1 when it was never set, as the Edit shows it; 0 makes none
+                            magcoverpage = check_int(mag_entry['CoverPage'], 1)
                             maglanguage = mag_entry['Language']
 
                         issuedate = str(issuedate).zfill(4)  # for sorting issue numbers
@@ -396,8 +397,11 @@ def magazine_scan(title=None):
 
                         new_entry = False
                         myhash = uuid.uuid4().hex
-                        if not iss_entry or iss_entry['IssueFile'] != issuefile:
-                            coverfile = create_mag_cover(issuefile, pagenum=magcoverpage, refresh=new_entry)
+                        # an issue that came in without a cover gets one now
+                        coverless = bool(iss_entry) and not real_cover(iss_entry['Cover']) and bool(magcoverpage) \
+                            and CONFIG.get_bool('IMP_MAGCOVER')
+                        if not iss_entry or iss_entry['IssueFile'] != issuefile or coverless:
+                            coverfile = create_mag_cover(issuefile, pagenum=magcoverpage, refresh=coverless)
                             if coverfile:
                                 hashname = os.path.join(DIRS.CACHEDIR, 'magazine', f'{myhash}.jpg')
                                 copyfile(coverfile, hashname)
@@ -491,10 +495,23 @@ def magazine_scan(title=None):
         db.close()
 
 
+def real_cover(cover) -> bool:
+    """ Whether an issue's cover is a picture of it, not none or the no cover picture """
+    return bool(cover) and 'nocover' not in str(cover)
+
+
+# the newest cover a magazine's issues have, for when its latest issue has none, as a column of a
+# select from magazines
+RECENT_COVER = ("(SELECT Cover FROM issues WHERE issues.Title=magazines.Title AND Cover!='' AND "
+                "instr(Cover,'nocover')=0 ORDER BY IssueDate='1970-01-01', IssueDate DESC LIMIT 1) AS RecentCover")
+
+
 def update_latest(db, title: str):
     """ A magazine's latest issue date and cover from its newest issue, as they would be if each issue
     had come in in order """
-    newest = db.match('SELECT IssueDate,Cover FROM issues WHERE Title=? ORDER BY IssueDate DESC', (title,))
+    # an issue filed under 1970-01-01, with none, isn't the newest
+    newest = db.match("SELECT IssueDate,Cover FROM issues WHERE Title=? ORDER BY IssueDate='1970-01-01', "
+                      "IssueDate DESC", (title,))
     if newest:
         db.action('UPDATE magazines SET IssueDate=?, LatestCover=? WHERE Title=?',
                   (newest['IssueDate'], newest['Cover'], title))
