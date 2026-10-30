@@ -18,10 +18,12 @@ import itertools
 import logging
 import os
 import threading
+import time
 import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from lazylibrarian import database
 from lazylibrarian.formatter import plural
 from lazylibrarian.services import (
     InvalidRequestError,
@@ -169,6 +171,38 @@ def _refresh_book(command: dict, body: dict) -> str:
     return addnew.refresh_book(body.get('book_id') or '', progress=lambda text: _update(command, message=text))
 
 
+def _complete_books(command: dict, body: dict) -> str:
+    """ Fill in what books and authors are missing from every info source: the books asked for, an
+    author's, or every one not looked at within CACHE_AGE days and their authors """
+    from lazylibrarian import completion  # it imports most of LazyLibrarian
+    asked = bool(body.get('ids') or body.get('author_id'))
+    book_ids = list(body.get('ids') or []) or completion.due_books(body.get('author_id') or '')
+    author_ids = [body['author_id']] if body.get('author_id') else [] if asked else completion.due_authors()
+    db = database.DBConnection()
+    try:
+        db.upsert('jobs', {'Start': time.time()}, {'Name': 'COMPLETEINFO'})
+    finally:
+        db.close()
+    books_filled = authors_filled = 0
+    try:
+        for number, author_id in enumerate(author_ids, start=1):
+            _update(command, message=f"Filling in author {number} of {len(author_ids)}")
+            authors_filled += bool(completion.complete_author(author_id, force=asked))
+        for number, book_id in enumerate(book_ids, start=1):
+            _update(command, message=f"Filling in book {number} of {len(book_ids)}")
+            books_filled += bool(completion.complete_book(book_id, force=asked))
+    finally:
+        db = database.DBConnection()
+        try:
+            db.upsert('jobs', {'Finish': time.time()}, {'Name': 'COMPLETEINFO'})
+        finally:
+            db.close()
+    message = f"Filled in details of {books_filled} of {len(book_ids)} {plural(len(book_ids), 'book')}"
+    if author_ids:
+        message += f" and {authors_filled} of {len(author_ids)} {plural(len(author_ids), 'author')}"
+    return message
+
+
 def _issues(body: dict) -> list[str]:
     """ The magazine issues a command is for: those asked for, else every issue of the magazine """
     from lazylibrarian.services import magazines  # it imports most of LazyLibrarian
@@ -291,7 +325,8 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'IssueCovers': _issue_covers, 'SwapCover': _swap_cover,
                                                     'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine,
                                                     'ApplyRetention': _apply_retention, 'IndexIssues': _index_issues,
-                                                    'RenumberIssues': _renumber_issues}
+                                                    'RenumberIssues': _renumber_issues,
+                                                    'CompleteBooks': _complete_books}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
@@ -301,7 +336,7 @@ TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'Missing
           'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0], 'IssueCovers': 'Make Covers',
           'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine',
           'ApplyRetention': 'Delete Old Issues', 'IndexIssues': 'Index Issues for Search',
-          'RenumberIssues': 'Renumber Issues'}
+          'RenumberIssues': 'Renumber Issues', 'CompleteBooks': tasks.MANUAL['CompleteBooks'][0]}
 
 
 def _run(command: dict, body: dict):

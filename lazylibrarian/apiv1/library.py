@@ -109,6 +109,8 @@ class BookDetail(ApiModel):
     ebook_file: BookFile | None
     audio_file: BookFile | None
     downloads: list[BookDownload]
+    # the details filled in from the other info sources, and from which
+    filled_from: str = ''
 
 
 class BookMark(ApiModel):

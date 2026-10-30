@@ -61,6 +61,20 @@ from lazylibrarian.oldump import (
     query_local_dump_books,
 )
 
+# what a search asks OpenLibrary for of each work it finds
+SEARCH_FIELDS = ('key,title,subtitle,author_name,author_key,first_publish_year,cover_i,language,isbn,'
+                 'number_of_pages_median,id_librarything,ratings_average,ratings_count')
+# and of each of an author's books, as they're added
+AUTHOR_BOOK_FIELDS = f"{SEARCH_FIELDS},publish_date,publisher"
+
+
+def edition_isbn(isbns, languages) -> str:
+    """ One of a work's ISBNs, which are all its editions' in every language: an English one when
+    it's in English and has one """
+    isbns = isbns or []
+    english = [isbn for isbn in isbns if isbn.startswith(('9780', '9781')) or (len(isbn) == 10 and isbn[0] in '01')]
+    return (english if 'eng' in (languages or []) and english else isbns or [''])[0]
+
 
 class OpenLibrary:
     # https://openlibrary.org/developers/api
@@ -98,7 +112,8 @@ class OpenLibrary:
             self.logger.debug(f'Now searching OpenLibrary API with searchterm: {searchterm}')
             searchbytes, _ = make_utf8bytes(searchterm)
             searchbytes = searchbytes.replace(b'#', b'').replace(b'/', b'_')
-            baseurl = f"{self.OL_SEARCH}q={quote_plus(searchbytes)}"
+            # OpenLibrary's search gives only a few fields unless it's asked for them
+            baseurl = f"{self.OL_SEARCH}q={quote_plus(searchbytes)}&fields={SEARCH_FIELDS}"
             self.searchinglogger.debug(baseurl)
 
             while next_page:
@@ -126,23 +141,23 @@ class OpenLibrary:
                     if authorid:
                         authorid = authorid[0]
                     book_title = book.get('title')
-                    booksub = ''
-                    bookisbn = book.get('isbn')
-                    if bookisbn:
-                        bookisbn = bookisbn[0]
-                    bookpub = book.get('first_publish_year')
-                    booklang = book.get('lang')
-                    bookdate = ''
-                    if isinstance(booklang, list):
-                        booklang = ', '.join(booklang)
-                    bookrate = 0
-                    bookrate_count = 0
+                    booksub = book.get('subtitle') or ''
+                    # a work's languages and ISBNs are all its editions': a language only when it has
+                    # just the one
+                    languages = book.get('language') or []
+                    bookisbn = edition_isbn(book.get('isbn'), languages)
+                    # which edition each publisher is of isn't said, so none
+                    bookpub = ''
+                    booklang = languages[0] if len(languages) == 1 else ''
+                    bookdate = str(book.get('first_publish_year') or '')
+                    bookrate = round(check_float(book.get('ratings_average'), 0), 2)
+                    bookrate_count = check_int(book.get('ratings_count'), 0)
                     cover = book.get('cover_i')
                     if not cover:
                         cover = 'images/nocover.png'
                     else:
                         cover = f'http://covers.openlibrary.org/b/id/{cover}-S.jpg'
-                    bookpages = 0
+                    bookpages = check_int(book.get('number_of_pages_median'), 0)
                     bookgenre = ''
                     bookdesc = ''
                     workid = book.get('id_librarything')
@@ -608,7 +623,7 @@ class OpenLibrary:
                     authorbooks = None
                 else:
                     loop_count += 1
-                    url = f"{self.OL_SEARCH}author={ol_id}"
+                    url = f"{self.OL_SEARCH}author={ol_id}&fields={AUTHOR_BOOK_FIELDS}"
                     if offset:
                         url += f"&offset={offset}"
                     authorbooks, in_cache = json_request(url, use_cache=not refresh)
@@ -639,11 +654,9 @@ class OpenLibrary:
                     cover = book.get('cover_i')
                     isbns = book.get('isbn', '')
                     link = book.get('key')
-                    isbn = ''
                     lang = ''
-                    if isbns:
-                        isbn = isbns[0]
-                    bookpages = 0
+                    isbn = edition_isbn(isbns, book.get('language'))
+                    bookpages = check_int(book.get('number_of_pages_median'), 0)
                     bookdesc = book.get('description', '')
                     if title.endswith(')') and '(' not in title:  # openlibrary oddity, "book title )"
                         title = title.rstrip(')').strip()
@@ -896,7 +909,9 @@ class OpenLibrary:
                                 reason = f"[{thread_name()}] {reason}"
 
                                 if isinstance(publishers, list):
-                                    publishers = ', '.join(publishers)
+                                    # a work's publishers are all its editions', in every language:
+                                    # one only when there's just the one
+                                    publishers = publishers[0] if len(publishers) == 1 else ''
                                 cover_link = cover
                                 if 'nocover' in cover or 'nophoto' in cover:
                                     # infodict['img'] (Google Books) was already fetched a few
@@ -1302,10 +1317,11 @@ class OpenLibrary:
                             db.action(
                                 "INSERT INTO books (AuthorID, BookName, BookImg, BookLink, BookID, BookDesc, "
                                 "BookDate, BookLang, BookAdded, Status, WorkPage, AudioStatus, ScanResult, "
-                                "OriginalPubDate, ol_id, BookIsbn) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                "OriginalPubDate, ol_id, BookIsbn, BookPages) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                 (authorid, title, cover, link, key, bookdesc, publish_date, lang, now(),
                                  book_status if book_status else 'Skipped', '',
-                                 audio_status if audio_status else 'Skipped', reason, first_publish_year, key, isbn))
+                                 audio_status if audio_status else 'Skipped', reason, first_publish_year, key, isbn,
+                                 bookpages))
 
                     if not rejected:
                         db.action('INSERT into bookauthors (AuthorID, BookID, Role) VALUES (?, ?, ?)',
@@ -1461,7 +1477,8 @@ class OpenLibrary:
         bookdict['bookpub'] = workinfo.get('publishers', '')
         if isinstance(bookdict['bookpub'], list):
             bookdict['bookpub'] = ', '.join(bookdict['bookpub'])
-        bookdict['bookdate'] = date_format(workinfo.get('publish_date', ''),
+        # a work has when it was first published, an edition when it was
+        bookdict['bookdate'] = date_format(workinfo.get('publish_date', '') or workinfo.get('first_publish_date', ''),
                                            context=bookdict['bookname'], datelang=CONFIG['DATE_LANG'])
         desc = workinfo.get('description', '')
         if isinstance(desc, dict):
@@ -1485,7 +1502,7 @@ class OpenLibrary:
         bookdict['bookimg'] = cover
         bookdict['bookpages'] = int(workinfo.get('number_of_pages', 0))
         bookdict['bookgenre'] = ''
-        bookdict['bookdesc'] = ''
+        bookdict['bookdesc'] = desc  # it was read above, then thrown away
         bookdict['contributors'] = []
         bookdict['series'] = []
         bookdict['source'] = 'OpenLibrary'

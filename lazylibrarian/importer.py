@@ -755,6 +755,9 @@ def add_author_to_db(authorname=None, refresh=False, authorid='', addbooks=True,
             logger.info(msg)
             db.commit()
             ret_id = current_author['authorid']
+            # the author's and their books' missing details from the other sources, in the background
+            from lazylibrarian.completion import queue_author  # noqa: PLC0415, it imports this
+            queue_author(ret_id)
         else:
             logger.warning(f"Authorid {authorid} ({authorname}) not found in database")
         return ret_id

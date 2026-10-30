@@ -326,6 +326,11 @@ function BookDetails() {
                     ) : null}
                   </div>
                 ) : null}
+                {data.filledFrom ? (
+                  <p className={styles.muted} title="Its own source hadn't got these, the others had">
+                    Filled in: {data.filledFrom}
+                  </p>
+                ) : null}
               </div>
             </div>
 

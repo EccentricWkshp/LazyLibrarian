@@ -15,6 +15,7 @@ author with their books, the eBooks and audiobooks, magazines and comics with th
 series, and changing what's wanted of them. The old pages' services do the work, this shapes it
 for /api/v1 """
 
+import json
 import logging
 import os
 import re
@@ -73,7 +74,7 @@ def get_author(author_id) -> dict:
              if source.get('author_link') and row.get(source['author_link'])]
     author.update(born=row.get('AuthorBorn') or '', died=row.get('AuthorDeath') or '', age=details['age'],
                   about=row.get('About') or '', aka=row.get('AKA') or '', links=links,
-                  locked=bool(check_int(row.get('Manual'), 0)),
+                  locked=bool(check_int(row.get('Manual'), 0)), filled_from=filled_from(row.get('FilledFrom')),
                   ebook_counts=details['ebook_status_counts'], audio_counts=details['audio_status_counts'])
     return author
 
@@ -453,7 +454,17 @@ def get_book(book_id: str) -> dict:
             'audio_format': _file_format(row['AudioFile'], 'audiobook'),
             'scan_result': row['ScanResult'] or '',
             'ebook_file': file(row['BookFile'], 'ebook'), 'audio_file': file(row['AudioFile'], 'audiobook'),
-            'downloads': downloads}
+            'downloads': downloads, 'filled_from': filled_from(row.get('FilledFrom'))}
+
+
+def filled_from(value) -> str:
+    """ What of a book's or author's details came from the other info sources, and from which """
+    from lazylibrarian import completion  # noqa: PLC0415, it imports most of LazyLibrarian
+    try:
+        found = json.loads(value) if value else {}
+    except ValueError:
+        return ''
+    return completion.described(found) if isinstance(found, dict) else ''
 
 
 # --- magazines

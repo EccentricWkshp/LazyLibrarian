@@ -32,7 +32,16 @@ const GROUPS: Group[] = [
         optionsFor: sourcesOn,
         help: 'Of the sources that are on',
       },
-      { key: 'MULTI_SOURCE', label: 'Use all the sources that are on', help: 'For what the first one is missing' },
+      {
+        key: 'MULTI_SOURCE',
+        label: "Add authors' books from all the sources that are on",
+        help: "Not just the first one's: books only another source knows are added too",
+      },
+      {
+        key: 'FILL_MISSING',
+        label: 'Fill in missing details from every source',
+        help: "A book's or author's description, ISBN, pages, publisher, genres, cover, series or biography, when its own source hasn't got them. Asked again after the cache's days",
+      },
       { key: 'OL_API', label: 'OpenLibrary' },
       { key: 'HC_API', label: 'HardCover' },
       { key: 'GB_API', label: 'GoogleBooks API Key', input: 'password', help: 'Each user needs their own, it has a daily limit' },

@@ -249,6 +249,7 @@ class CommandTest(AddNewTestCase):
                 commands._add_book({}, {'book_id': 'b2', 'title': 'Die Trying', 'media_types': ['ebook']})
             with mock.patch.object(commands.wanted, 'search_books', side_effect=search):
                 message = commands._author_search({}, {'author_id': 'ol1'})
-        self.assertEqual(told, ['Refreshing Killing Floor', 'Adding Die Trying', "Finding Lee Child's wanted books",
+        self.assertEqual(told, ['Refreshing Killing Floor', 'Filling in what Killing Floor is missing from the other '
+                                'sources', 'Adding Die Trying', "Finding Lee Child's wanted books",
                                 'Searching for 1 eBook by Lee Child'])
         self.assertEqual(message, 'Lee Child: Search for Killing Floor completed, nothing found')

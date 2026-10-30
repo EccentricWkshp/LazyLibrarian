@@ -145,6 +145,8 @@ BASE_DEFAULTS: list[ConfigItem] = [
     ConfigCSV('Logging', 'LOGSPECIALDEBUG', ''),
 
     ConfigBool('Importer', 'MULTI_SOURCE', 0),
+    # a book's or author's missing details filled in from every enabled info source, not just its own
+    ConfigBool('Importer', 'FILL_MISSING', 1),
     ConfigBool('Importer', 'OL_USE_DUMP', 0),
     ConfigFolder('Importer', 'OL_DUMP_DIR', ''),
     ConfigScheduler('Importer', 'OL_DUMP_INTERVAL', 'update_openlibrary_dump', 7, TimeUnit.DAY,

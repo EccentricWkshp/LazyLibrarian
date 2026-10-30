@@ -88,7 +88,11 @@ def start(command: CommandIn):
     or the magazine's cover page; a comic's (mediaType comic) ids are comicid_issueid. SwapCover
     moves page (2 unless given) of magazine issues' PDFs to the front, TagIssues writes the
     magazine's details into them. RefreshMagazine takes a magazine's (title) details from Wikidata:
-    the item wikidataId, the one it's linked to, or the one called exactly its title """
+    the item wikidataId, the one it's linked to, or the one called exactly its title.
+
+    CompleteBooks fills in what books (ids) or an author and their books (authorId) are missing from
+    every enabled info source; with neither, every book and author not looked at within the cache's
+    days """
     return commands.start(command.name, command.model_dump())
 
 

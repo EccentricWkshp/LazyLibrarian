@@ -142,8 +142,14 @@ from lazylibrarian.scheduling import SchedulerCommand, restart_jobs
 # 108 add the apiids table, the whole number ids the Readarr API gives authors and books
 # 109 add the seriesexclusions table, the books taken out of a series by hand, and the trigger that keeps them out
 # 110 add Numbering to magazines, how its issues are known when chosen: date, running, yearly, volume or year
+# 111 add Completed and FilledFrom to books and authors: when their missing details were last looked for at
+#     the other info sources, and which source each detail filled in came from
 
-db_current_version = 110
+db_current_version = 111
+# v111: when a book's or author's missing details were last looked for at the other sources, and the
+# source of each one filled in, JSON {column: source}
+COMPLETION_COLUMNS = {'books': [('Completed', "TEXT DEFAULT ''"), ('FilledFrom', "TEXT DEFAULT ''")],
+                      'authors': [('Completed', "TEXT DEFAULT ''"), ('FilledFrom', "TEXT DEFAULT ''")]}
 # v109: a book taken out of a series by hand stays out, whichever source or refresh puts it back in
 SERIES_EXCLUSION_TRIGGER = ("CREATE TRIGGER IF NOT EXISTS member_excluded BEFORE INSERT ON member "
                             "WHEN EXISTS (SELECT 1 FROM seriesexclusions WHERE SeriesID=NEW.SeriesID AND "
@@ -1863,7 +1869,7 @@ def update_schema(db, upgradelog):
         db.action('CREATE INDEX notificationevents_sent ON notificationevents (Sent)')
         db.action('CREATE TABLE appstate (Key TEXT PRIMARY KEY, Value TEXT)')
     for version, added in (('v106', MAGAZINE_INFO_COLUMNS), ('v107', RETENTION_COLUMNS),
-                           ('v110', NUMBERING_COLUMNS)):
+                           ('v110', NUMBERING_COLUMNS), ('v111', COMPLETION_COLUMNS)):
         for table, columns in added.items():
             for column, kind in columns:
                 if not has_column(db, table, column):

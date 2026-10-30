@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from collections import Counter
 from shutil import copyfile, rmtree
+from unittest import mock
 
 import lazylibrarian
 from lazylibrarian.config2 import CONFIG, LLConfigHandler  # One day, won't need this any more
@@ -37,6 +38,14 @@ class LLTestCase(unittest.TestCase):
         super().setUp()
         self.logger = logging.getLogger('')
         self.logger.setLevel(logging.INFO)
+        # a book's or author's missing details are never looked for at the real info sources, nor in
+        # the background: a test that wants them patches the sources it asks
+        from lazylibrarian import completion
+        for name, value in (('_sources', lambda own='': []), ('queue_books', lambda *args, **kwargs: None),
+                            ('_found_cover', lambda bookid, book: None)):
+            patcher = mock.patch.object(completion, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def set_loglevel(self, level):
         """ Set the root log level per request; the calling test function depends on it to test log messages """

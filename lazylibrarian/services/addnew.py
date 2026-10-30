@@ -220,13 +220,23 @@ def refresh_author(author_id: str, progress=None) -> str:
 
 
 def refresh_book(book_id: str, progress=None) -> str:
-    """ Fetch a book's details again, now, from the first source it's linked to """
+    """ Fetch a book's details again, now, from the first source it's linked to, and what that
+    hasn't got from the others """
+    from lazylibrarian import completion  # noqa: PLC0415, it imports most of LazyLibrarian
     if progress:
         progress(f"Refreshing {_book_name(book_id)}")
     source = books.refresh_book(book_id, wait=True)
-    if not source:
+    filled = {}
+    if CONFIG.get_bool('FILL_MISSING'):
+        if progress:
+            progress(f"Filling in what {_book_name(book_id)} is missing from the other sources")
+        filled = completion.complete_book(book_id, force=True)
+    if not source and not filled:
         raise InvalidRequestError("The book is locked against changes, or its id isn't from an info source")
-    return f"Refreshed {_book_name(book_id)} from {source}"
+    message = f"Refreshed {_book_name(book_id)}" + (f" from {source}" if source else '')
+    if filled:
+        message += f", {completion.described(filled)}"
+    return message
 
 
 def _book_name(book_id: str) -> str:

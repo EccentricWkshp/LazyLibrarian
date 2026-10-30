@@ -26,6 +26,8 @@ export interface AuthorDetail extends Author {
   locked: boolean;
   ebookCounts: Record<string, number>;
   audioCounts: Record<string, number>;
+  // the details filled in from the other info sources, and from which
+  filledFrom: string;
 }
 
 export interface AuthorBook {

@@ -174,6 +174,11 @@ function AuthorHeader({ author }: { author: AuthorDetail }) {
             ) : null}
           </div>
         ) : null}
+        {author.filledFrom ? (
+          <p className={styles.muted} title="Its own source hadn't got these, the others had">
+            Filled in: {author.filledFrom}
+          </p>
+        ) : null}
       </div>
     </div>
   );

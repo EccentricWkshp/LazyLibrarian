@@ -76,6 +76,8 @@ export interface BookDetail {
   ebookFile: BookFile | null;
   audioFile: BookFile | null;
   downloads: BookDownload[];
+  // the details filled in from the other info sources, and from which
+  filledFrom: string;
 }
 
 export interface Magazine {

@@ -27,7 +27,11 @@ from lazylibrarian.services import InvalidRequestError, NotFoundError
 # are under in the jobs table, what they do)
 MANUAL = {'RefreshLanguages': ('Refresh Book Languages', 'LANGREFRESH',
                                "Looks again at the language of books whose language is unknown or might be "
-                               "wrong, and stops ignoring the ones that turn out to be in a preferred language")}
+                               "wrong, and stops ignoring the ones that turn out to be in a preferred language"),
+          'CompleteBooks': ('Fill In Missing Details', 'COMPLETEINFO',
+                            "Fills in the details books and authors are missing (descriptions, ISBNs, pages, "
+                            "publishers, genres, covers, series, biographies) from every enabled info source, "
+                            "for those not looked at in the last month")}
 
 
 def _when(seconds) -> str | None:

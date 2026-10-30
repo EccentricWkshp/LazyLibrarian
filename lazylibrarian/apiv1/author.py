@@ -60,6 +60,8 @@ class AuthorDetail(Author):
     locked: bool
     ebook_counts: dict[str, int]
     audio_counts: dict[str, int]
+    # the details filled in from the other info sources, and from which
+    filled_from: str = ''
 
 
 class SeriesRef(ApiModel):

@@ -319,6 +319,59 @@ def kept_status(existing, new):
     return existing if existing in KEPT_STATUSES else new
 
 
+def add_series_members(db, bookid: str, authorid: str, authorname: str, series, source: str):
+    """ A book in the series a source says it's in, (name, series id, position) each: the series is
+    added if it's new (one of the same name from the same source is the same series), with the
+    author as one of its authors """
+    logger = logging.getLogger(__name__)
+    for item in series:
+        ser_name = item[0].strip()
+        ser_id = str(item[1]).strip()
+        src = id_key.get(source, '')[:2].upper()
+        exists = db.match("SELECT * from series WHERE seriesid=?", (ser_id,))
+        if not exists:
+            if src:
+                exists = db.match("SELECT * from series WHERE seriesname=? "
+                                  "and instr(seriesid, ?) = 1", (ser_name, src))
+            else:
+                exists = db.match("SELECT * from series WHERE seriesname=? ", (ser_name,))
+
+            if exists:
+                ser_id = exists['SeriesID']
+        if not exists:
+            logger.debug(f"New series: {ser_id}:{ser_name}: {CONFIG['NEWSERIES_STATUS']}")
+            db.action('INSERT INTO series (SeriesID, SeriesName, Status, '
+                      'Updated, Reason) VALUES (?,?,?,?,?)',
+                      (ser_id, ser_name, CONFIG['NEWSERIES_STATUS'], time.time(), ser_name))
+            db.commit()
+
+        # Add author to series
+        authmatch = db.match("SELECT * from seriesauthors WHERE "
+                             "SeriesID=? and AuthorID=?", (ser_id, authorid))
+        if not authmatch:
+            logger.debug(f"Adding {authorname} as series author for {ser_name}")
+            db.action('INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES (?, ?)',
+                      (ser_id, authorid), suppress='UNIQUE')
+
+        # Add book to series
+        match = db.match("SELECT * from member WHERE SeriesID=? AND BookID=?",
+                         (ser_id, bookid))
+        if not match:
+            logger.debug(f"Inserting new member [{item[2]}] for {ser_id}")
+            db.action(
+                "INSERT INTO member (SeriesID, BookID, WorkID, SeriesNum) VALUES (?,?,?,?)",
+                (ser_id, bookid, '', item[2]), suppress='UNIQUE')
+
+        # Update series total
+        ser = db.match(
+            "select count(*) as counter from member where seriesid=?",
+            (ser_id,))
+        if ser:
+            counter = check_int(ser['counter'], 0)
+            db.action("UPDATE series SET Total=? WHERE SeriesID=?",
+                      (counter, ser_id))
+
+
 def add_bookdict_to_db(book):
     logger = logging.getLogger(__name__)
     db = database.DBConnection()
@@ -393,52 +446,8 @@ def add_bookdict_to_db(book):
 
     # Handle series data if present
     if CONFIG.get_bool('ADD_SERIES') and book.get('series'):
-        for item in book['series']:
-            ser_name = item[0].strip()
-            ser_id = str(item[1]).strip()
-            src = id_key[book['source']][:2].upper()
-            exists = db.match("SELECT * from series WHERE seriesid=?", (ser_id,))
-            if not exists:
-                if src:
-                    exists = db.match("SELECT * from series WHERE seriesname=? "
-                                      "and instr(seriesid, ?) = 1", (ser_name, src))
-                else:
-                    exists = db.match("SELECT * from series WHERE seriesname=? ", (ser_name,))
-
-                if exists:
-                    ser_id = exists['SeriesID']
-            if not exists:
-                logger.debug(f"New series: {ser_id}:{ser_name}: {CONFIG['NEWSERIES_STATUS']}")
-                db.action('INSERT INTO series (SeriesID, SeriesName, Status, '
-                          'Updated, Reason) VALUES (?,?,?,?,?)',
-                          (ser_id, ser_name, CONFIG['NEWSERIES_STATUS'], time.time(), ser_name))
-                db.commit()
-
-            # Add author to series
-            authmatch = db.match("SELECT * from seriesauthors WHERE "
-                                 "SeriesID=? and AuthorID=?", (ser_id, book['authorid']))
-            if not authmatch:
-                logger.debug(f"Adding {author['authorname']} as series author for {ser_name}")
-                db.action('INSERT INTO seriesauthors (SeriesID, AuthorID) VALUES (?, ?)',
-                          (ser_id, book['authorid']), suppress='UNIQUE')
-
-            # Add book to series
-            match = db.match("SELECT * from member WHERE SeriesID=? AND BookID=?",
-                             (ser_id, book['bookid']))
-            if not match:
-                logger.debug(f"Inserting new member [{item[2]}] for {ser_id}")
-                db.action(
-                    "INSERT INTO member (SeriesID, BookID, WorkID, SeriesNum) VALUES (?,?,?,?)",
-                    (ser_id, book['bookid'], '', item[2]), suppress='UNIQUE')
-
-            # Update series total
-            ser = db.match(
-                "select count(*) as counter from member where seriesid=?",
-                (ser_id,))
-            if ser:
-                counter = check_int(ser['counter'], 0)
-                db.action("UPDATE series SET Total=? WHERE SeriesID=?",
-                          (counter, ser_id))
+        add_series_members(db, book['bookid'], book['authorid'], author['authorname'], book['series'],
+                           book['source'])
     if exists:
         added = 'updated'
     else:
@@ -454,6 +463,9 @@ def add_bookdict_to_db(book):
         enrich_audiobook(book['bookid'])
     except Exception as enrich_err:
         logger.debug(f"Audnexus enrich skipped for {book.get('bookid')}: {enrich_err}")
+    # what this source hasn't got, from the others, in the background
+    from lazylibrarian.completion import queue_books
+    queue_books([book['bookid']])
     return True
 
 
