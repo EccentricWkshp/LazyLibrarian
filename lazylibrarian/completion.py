@@ -387,7 +387,9 @@ def complete_author(authorid: str, force: bool = False) -> dict:
             continue
         try:
             api = source['api']()
-            known = row.get(id_column) or (row['AuthorID'] if name == CONFIG['BOOK_API'] else '')
+            # the AuthorID is an id at the source the author came from only, an OpenLibrary or a
+            # LazyLibrarian one isn't Hardcover's
+            known = row.get(id_column) or (row['AuthorID'] if name == row.get('PrimarySource') else '')
             if not known:
                 found = api.find_author_id(authorname=row['AuthorName'], title=title['BookName'] if title else '')
                 known = (found or {}).get('authorid', '')

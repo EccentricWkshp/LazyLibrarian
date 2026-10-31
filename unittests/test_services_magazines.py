@@ -244,6 +244,22 @@ class MagazineServiceTest(LLTestCaseWithDB):
                                                    "ORDER BY IssueDate")]
         self.assertTrue(all(cover.startswith('cache/magazine/') for cover in covers), covers)
 
+        # a scan doesn't read again the files it has: one no cover could be made from is tried once
+        # while it's the same, and one no issue could be read from isn't read again
+        magazinescan.COVER_TRIED.clear()
+        magazinescan.UNREAD.clear()
+        self.sql("UPDATE issues SET Pages=12, Cover='data/images/nocover.jpg' WHERE Title='Wood Magazine'")
+        nothing = dict.fromkeys(magazinescan.filemeta.FIELDS, '')
+        with mock.patch.object(magazinescan, 'create_mag_cover', return_value='') as made, \
+                mock.patch.object(magazinescan.filemeta, 'read_metadata', return_value=nothing) as read:
+            magazinescan.magazine_scan()
+            magazinescan.magazine_scan()
+        self.assertEqual(made.call_count, 2, 'Each of the two issues once')
+        self.assertEqual([call.args[0] for call in read.call_args_list],
+                         [os.path.join(root, 'Wood Magazine', 'Wood notes.pdf')])
+        self.sql("UPDATE issues SET Cover=? WHERE IssueDate='20110206'", (covers[0],))
+        self.sql("UPDATE issues SET Cover=? WHERE IssueDate='20110301'", (covers[1],))
+
         # the magazine's cover is the newest an issue has, when its latest issue has none
         from lazylibrarian.services import library
         self.sql("UPDATE issues SET Cover='' WHERE IssueDate='20110301'")
@@ -252,6 +268,28 @@ class MagazineServiceTest(LLTestCaseWithDB):
         self.assertEqual([m['cover'] for m in library.list_magazines() if m['title'] == 'Wood Magazine'], [covers[0]])
         self.assertEqual(magazines.coverless_issues('Wood Magazine'),
                          [row['IssueID'] for row in self.sql("SELECT IssueID FROM issues WHERE IssueDate='20110301'")])
+
+    def test_a_cover_by_its_own_kinds_setting(self):
+        # a pdf can be a magazine's or a comic's: the comics' covers being off doesn't stop a
+        # magazine's, nor the other way round
+        from lazylibrarian import images
+        for key in ('IMP_MAGCOVER', 'IMP_COMICCOVER'):
+            self.addCleanup(CONFIG.set_from_ui, key, CONFIG.get_bool(key))
+        CONFIG.set_from_ui('IMP_MAGCOVER', True)
+        CONFIG.set_from_ui('IMP_COMICCOVER', False)
+        issue = os.path.join(TESTDIR, 'Kinds 2024-05.pdf')
+        with open(issue, 'wb') as f:
+            f.write(b'%PDF-1.4')
+        self.addCleanup(os.remove, issue)
+        with mock.patch.object(images, 'extract_image_from_page', return_value='cover.jpg') as extract:
+            self.assertEqual(images.create_mag_cover(issue), 'cover.jpg')
+            self.assertEqual(images.create_mag_cover(issue, comic=True), '')
+            self.assertEqual(images.create_mag_cover(issue, pagenum=0), '', 'Page 0 is no cover')
+            CONFIG.set_from_ui('IMP_MAGCOVER', False)
+            CONFIG.set_from_ui('IMP_COMICCOVER', True)
+            self.assertEqual(images.create_mag_cover(issue), '')
+            self.assertEqual(images.create_mag_cover(issue, comic=True), 'cover.jpg')
+        self.assertEqual(extract.call_count, 2)
 
     def test_a_date_found_or_not(self):
         from lazylibrarian import magazinescan

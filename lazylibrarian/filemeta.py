@@ -25,6 +25,9 @@ from lazylibrarian import pages
 from lazylibrarian.filesystem import splitext, syspath
 
 FIELDS = ('title', 'series', 'number', 'volume', 'date', 'description', 'publisher', 'language', 'pages')
+# pypdf says what it worked around in a damaged PDF, a line or dozens for each file, which a library
+# scan doesn't need; what it can't read at all still raises
+logging.getLogger('pypdf').setLevel(logging.ERROR)
 
 
 def _text(value) -> str:

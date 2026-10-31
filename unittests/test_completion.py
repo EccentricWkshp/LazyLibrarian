@@ -177,6 +177,23 @@ class CompletionTest(LLTestCaseWithDB):
         self.assertTrue(author['AuthorImg'].startswith('cache/author/'))
         self.assertEqual(author['Completed'], datetime.date.today().isoformat())
 
+    def test_another_sources_id_isnt_asked_for(self):
+        """ An author from OpenLibrary, with Hardcover the main source, is found at Hardcover by name,
+        their OpenLibrary id isn't asked for there """
+        asked = []
+
+        def get_author_info(_self, authorid=None, authorname=None, refresh=False):
+            asked.append(authorid)
+            return dict(AUTHORS.get(authorid, {}))
+
+        saved = CONFIG['BOOK_API']
+        self.addCleanup(CONFIG.__setitem__, 'BOOK_API', saved)
+        CONFIG['BOOK_API'] = 'HardCover'
+        self.sql("UPDATE authors SET PrimarySource='OpenLibrary' WHERE AuthorID='OL1A'")
+        with mock.patch.object(WholeSource, 'get_author_info', get_author_info):
+            self.assertIn('About', completion.complete_author('OL1A'))
+        self.assertEqual(asked, ['hca1'])
+
     def test_not_an_author_of_another_name(self):
         self.sql("UPDATE authors SET AuthorName='Lee Childs' WHERE AuthorID='OL1A'")
         self.assertEqual(completion.complete_author('OL1A'), {}, 'Leigh Childs is someone else')

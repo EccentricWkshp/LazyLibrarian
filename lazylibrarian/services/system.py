@@ -18,6 +18,7 @@ import os
 import platform
 import threading
 import time
+import zipfile
 from datetime import datetime
 
 import lazylibrarian
@@ -335,6 +336,16 @@ def support_zip() -> str:
     msg, zipfile = create_support_zip()
     logging.getLogger(__name__).info(msg)
     return zipfile
+
+
+def logs_zip() -> str:
+    """ Save every log file, as it is, to a zip file, returns its path """
+    path = DIRS.get_tmpfilename('logs.zip')
+    with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as logs:
+        for log in list_log_files():
+            with contextlib.suppress(OSError):  # rotated away since it was listed
+                logs.write(os.path.join(CONFIG['LOGDIR'], log['filename']), arcname=log['filename'])
+    return path
 
 
 def database_ok() -> bool:

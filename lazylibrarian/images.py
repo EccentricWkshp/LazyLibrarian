@@ -45,7 +45,6 @@ from lazylibrarian.filesystem import (
 from lazylibrarian.formatter import (
     check_int,
     get_list,
-    is_valid_type,
     make_unicode,
     make_utf8bytes,
     plural,
@@ -1016,14 +1015,14 @@ def save_jpeg(data: bytes, imagefile: str) -> bool:
     return True
 
 
-def create_mag_cover(issuefile=None, refresh=False, pagenum=1):
+def create_mag_cover(issuefile=None, refresh=False, pagenum=1, comic=False):
+    """ A cover for a magazine's issue from its page pagenum, or for a comic's when comic. Whether
+    one is made is up to that kind's setting alone: a pdf can be either, and the comics' setting
+    isn't the magazines' """
     logger = logging.getLogger(__name__)
-    if is_valid_type(issuefile, extensions=get_list(CONFIG['MAG_TYPE'])) and (not CONFIG.get_bool('IMP_MAGCOVER')
-                                                                              or not pagenum):
-        logger.warning(f'No cover required for {issuefile}')
-        return ''
-    if is_valid_type(issuefile, extensions=get_list(CONFIG['COMIC_TYPE'])) and not CONFIG.get_bool('IMP_COMICCOVER'):
-        logger.warning(f'No cover required for {issuefile}')
+    if comic and not CONFIG.get_bool('IMP_COMICCOVER') or \
+            not comic and (not CONFIG.get_bool('IMP_MAGCOVER') or not pagenum):
+        logger.debug(f'No cover required for {issuefile}')
         return ''
     if not issuefile or not path_isfile(issuefile):
         logger.warning(f'No issuefile {issuefile}')

@@ -93,6 +93,17 @@ class ScheduleTest(unittest.TestCase):
                          {'frequency': 0, 'inferred': False, 'missing': [], 'next': '', 'overdue': False})
         self.assertEqual(issue_schedule([], 30, self.today)['next'], '')
 
+    def test_misread_dates_and_the_most_recent_missing(self):
+        # issues dated before the magazine started were misread, and of more missing than are
+        # shown, the most recent are
+        dates = ['0-00-01', '1910', '1910-01-01', '1995-10-01', '1995-11-01', '1996-01-01', '2026-03-01',
+                 '2026-05-01']
+        found = issue_schedule(dates, 30, self.today, started='1980')
+        self.assertEqual(len(found['missing']), 60)
+        self.assertEqual((found['missing'][0], found['missing'][-2:]), ('2021-04-01', ['2026-02-01', '2026-04-01']))
+        self.assertEqual(issue_schedule(dates[2:6], 30, self.today, started='1980')['missing'], ['1995-12-01'])
+        self.assertEqual(len(issue_schedule(dates[2:6], 30, self.today)['missing']), 60, '1910 to 1995')
+
 
 if __name__ == '__main__':
     unittest.main()

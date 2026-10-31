@@ -53,6 +53,11 @@ from lazylibrarian.formatter import (
 from lazylibrarian.images import create_mag_cover, write_pdf_tags
 from lazylibrarian.librarysync import get_book_info
 
+# the files, with when they were changed, that no cover could be made from, or no issue read from,
+# while LazyLibrarian runs: a scan doesn't read them again until they change
+COVER_TRIED = set()
+UNREAD = set()
+
 
 def create_id(issuename=None):
     hash_id = sha1(make_bytestr(issuename)).hexdigest()
@@ -203,6 +208,9 @@ def magazine_scan(title=None):
 
         # the magazines whose issues were seen, their latest issue and cover are set from them after
         touched = set()
+        # the issues whose files are read once all are found, and the folders marked as magazines'
+        details = []
+        ignored = set()
         if pattern:
             total_items = issue_cnt
             current_item = 0
@@ -224,6 +232,9 @@ def magazine_scan(title=None):
                                 title = match['Title']
                                 issuedate = match['IssueDate']
                                 logger.debug(f"Using {title}:{issuedate} from database issuefile")
+                            elif (issuefile, os.path.getmtime(syspath(issuefile))) in UNREAD:
+                                logger.debug(f"No issue was read from {issuefile}, it hasn't changed since")
+                                continue
 
                             if not match:  # try for data in an opf file (faster than reading pdf tags)
                                 opf_file = f"{splitext(issuefile)[0]}.opf"
@@ -335,6 +346,7 @@ def magazine_scan(title=None):
 
                         if not issuedate:
                             logger.warning(f"Invalid name format for [{fname}]")
+                            UNREAD.add((issuefile, os.path.getmtime(syspath(issuefile))))
                             continue
                         if title not in schemes:
                             from lazylibrarian import magreleases  # noqa: PLC0415, it reads names with this module
@@ -395,54 +407,39 @@ def magazine_scan(title=None):
                             if not msg:
                                 issuefile = new_issuefile
 
-                        new_entry = False
-                        myhash = uuid.uuid4().hex
-                        # an issue that came in without a cover gets one now
+                        # the issue is in the library now; what needs its file read (its cover, pages
+                        # and opf) is seen to once every file has been found
+                        changed = not iss_entry or iss_entry['IssueFile'] != issuefile
+                        # an issue that came in without a cover gets one, tried once while its file
+                        # is the same
                         coverless = bool(iss_entry) and not real_cover(iss_entry['Cover']) and bool(magcoverpage) \
-                            and CONFIG.get_bool('IMP_MAGCOVER')
-                        if not iss_entry or iss_entry['IssueFile'] != issuefile or coverless:
-                            coverfile = create_mag_cover(issuefile, pagenum=magcoverpage, refresh=coverless)
-                            if coverfile:
-                                hashname = os.path.join(DIRS.CACHEDIR, 'magazine', f'{myhash}.jpg')
-                                copyfile(coverfile, hashname)
-                                setperm(hashname)
-                                cover = f'cache/magazine/{myhash}.jpg'
-                            else:
-                                cover = 'data/images/nocover.jpg'
-                            new_entry = True  # new entry or name changed
-                            if not iss_entry:
-                                logger.debug(f"Adding issue {title} {issuedate}")
-                            else:
-                                logger.debug(f"Updating issue {title} {issuedate}")
-                            control_value_dict = {"Title": title, "IssueDate": issuedate}
-                            new_value_dict = {
-                                "IssueAcquired": iss_acquired,
-                                "IssueID": issue_id,
-                                "IssueFile": issuefile,
-                                "Cover": cover
-                            }
-                            db.upsert("Issues", new_value_dict, control_value_dict)
+                            and CONFIG.get_bool('IMP_MAGCOVER') and (issuefile, mtime) not in COVER_TRIED
+                        if changed:
+                            cover = iss_entry['Cover'] if iss_entry and iss_entry['Cover'] else \
+                                'data/images/nocover.jpg'
+                            logger.debug(f"{'Updating' if iss_entry else 'Adding'} issue {title} {issuedate}")
+                            db.upsert("Issues", {"IssueAcquired": iss_acquired, "IssueID": issue_id,
+                                                 "IssueFile": issuefile, "Cover": cover},
+                                      {"Title": title, "IssueDate": issuedate})
                         else:
                             logger.debug(f"Issue {title} {issuedate} already exists")
                             cover = iss_entry['Cover']
-                        if new_entry or not iss_entry['Pages']:  # what the file says, once
-                            meta = meta or filemeta.read_metadata(issuefile)
-                            db.action('UPDATE issues SET Description=?, Pages=?, IssueNumber=? WHERE IssueID=?',
-                                      (*filemeta.issue_details(meta, issuedate), issue_id))
+                        opf = CONFIG.get_bool('IMP_MAGOPF') and \
+                            (changed or not path_isfile(f"{splitext(issuefile)[0]}.opf"))
+                        if changed or coverless or not iss_entry['Pages'] or opf:
+                            details.append({'id': issue_id, 'file': issuefile, 'mtime': mtime, 'title': title,
+                                            'issuedate': issuedate, 'page': magcoverpage, 'language': maglanguage,
+                                            'changed': changed, 'cover': changed or coverless, 'refresh': coverless,
+                                            'pages': changed or not iss_entry['Pages'], 'opf': opf, 'meta': meta})
 
-                        ignorefile = os.path.join(os.path.dirname(issuefile), '.ll_ignore')
-                        try:
-                            with open(syspath(ignorefile), 'w', encoding='utf-8') as f:
-                                f.write("magazine")
-                        except OSError as e:
-                            logger.warning(f"Unable to create/write to ignorefile: {str(e)}")
-
-                        if not CONFIG.get_bool('IMP_MAGOPF'):
-                            logger.debug('create_mag_opf is disabled')
-                        else:
-                            lazylibrarian.metadata_opf.create_mag_opf(issuefile, title, issuedate,
-                                                                      issue_id, language=maglanguage,
-                                                                      overwrite=new_entry)
+                        folder = os.path.dirname(issuefile)
+                        if folder not in ignored:
+                            ignored.add(folder)
+                            try:
+                                with open(syspath(os.path.join(folder, '.ll_ignore')), 'w', encoding='utf-8') as f:
+                                    f.write("magazine")
+                            except OSError as e:
+                                logger.warning(f"Unable to create/write to ignorefile: {str(e)}")
                         # see if this issues date values are useful
                         control_value_dict = {"Title": title}
                         if not mag_entry:  # new magazine, this is the only issue
@@ -471,9 +468,14 @@ def magazine_scan(title=None):
                                 new_value_dict["LatestCover"] = cover
                             db.upsert("magazines", new_value_dict, control_value_dict)
 
-            # as if the issues had come in in order, whatever order the files were found in
+            # as if the issues had come in in order, whatever order the files were found in, now
+            # that every issue is in the library and again once their covers are made
             for seen in touched:
                 update_latest(db, seen)
+            if details:
+                issue_details(db, details)
+                for seen in {item['title'] for item in details}:
+                    update_latest(db, seen)
 
             if CONFIG.get_bool('FULL_SCAN') and not onetitle:
                 magcount = db.match("select count(*) from magazines")
@@ -504,6 +506,38 @@ def real_cover(cover) -> bool:
 # select from magazines
 RECENT_COVER = ("(SELECT Cover FROM issues WHERE issues.Title=magazines.Title AND Cover!='' AND "
                 "instr(Cover,'nocover')=0 ORDER BY IssueDate='1970-01-01', IssueDate DESC LIMIT 1) AS RecentCover")
+
+
+def issue_details(db, details: list[dict]):
+    """ What reading the files of the issues a scan found gives them, once every issue is in the
+    library: a cover from the magazine's cover page for one that came in or moved, or hasn't got
+    one; its description, pages and number; its opf. A file no cover could be made from isn't tried
+    again until it changes or LazyLibrarian restarts """
+    logger = logging.getLogger(__name__)
+    for count, item in enumerate(details, 1):
+        lazylibrarian.magazinescan_data = f"Covers and details {count}/{len(details)}"
+        issuefile = item['file']
+        try:
+            if item['cover']:
+                coverfile = create_mag_cover(issuefile, pagenum=item['page'], refresh=item['refresh'])
+                if coverfile:
+                    name = f'{uuid.uuid4().hex}.jpg'
+                    hashname = os.path.join(DIRS.CACHEDIR, 'magazine', name)
+                    copyfile(coverfile, hashname)
+                    setperm(hashname)
+                    db.action('UPDATE issues SET Cover=? WHERE IssueID=?', (f'cache/magazine/{name}', item['id']))
+                elif CONFIG.get_bool('IMP_MAGCOVER') and item['page']:  # one was wanted
+                    COVER_TRIED.add((issuefile, item['mtime']))
+            if item['pages']:  # what the file says
+                meta = item['meta'] or filemeta.read_metadata(issuefile)
+                db.action('UPDATE issues SET Description=?, Pages=?, IssueNumber=? WHERE IssueID=?',
+                          (*filemeta.issue_details(meta, item['issuedate']), item['id']))
+            if item['opf']:
+                lazylibrarian.metadata_opf.create_mag_opf(issuefile, item['title'], item['issuedate'], item['id'],
+                                                          language=item['language'], overwrite=item['changed'])
+        except Exception as e:
+            COVER_TRIED.add((issuefile, item['mtime']))
+            logger.warning(f"Unable to read {issuefile}: {type(e).__name__} {e}")
 
 
 def update_latest(db, title: str):

@@ -105,6 +105,37 @@ class ComicServiceTest(LLTestCaseWithDB):
         comics.mark_issues('Remove', ['CV2_3'])
         self.assertEqual(self.sql("SELECT LatestIssue FROM comics WHERE ComicID='CV2'")[0]['LatestIssue'], '')
 
+    def test_a_scan_doesnt_open_the_issues_it_has(self):
+        """ An issue the library has is known by its file, which isn't opened again, and the comic's
+        latest issue is the highest numbered, with its cover """
+        import os
+        import shutil
+
+        from lazylibrarian import comicscan
+        from unittests.unittesthelpers import TESTDIR
+        root = os.path.join(TESTDIR, 'comicscan')
+        shutil.rmtree(root, ignore_errors=True)
+        os.makedirs(root)
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for issue in ('9', '10'):
+            name = os.path.join(root, f'Saga {issue}.cbz')
+            with open(name, 'wb') as f:
+                f.write(b'PK')
+            self.sql("UPDATE comicissues SET IssueFile=?, Pages=20, Cover=? WHERE ComicID='CV1' AND IssueID=?",
+                     (name, f'cache/comic/{issue}.jpg', issue))
+        self.sql("DELETE FROM comicissues WHERE ComicID='CV1' AND IssueID='54'")
+        saved = CONFIG.get_bool('FULL_SCAN')
+        self.addCleanup(CONFIG.set_from_ui, 'FULL_SCAN', saved)
+        CONFIG.set_from_ui('FULL_SCAN', False)
+        with mock.patch.object(comicscan, 'issue_folder', return_value=root), \
+                mock.patch.object(comicscan, 'comic_metadata', side_effect=AssertionError('opened')) as opened, \
+                mock.patch.object(comicscan, 'create_mag_cover') as made:
+            comicscan.comic_scan()
+        opened.assert_not_called()
+        made.assert_not_called()
+        self.assertEqual(self.sql("SELECT LatestIssue, LatestCover FROM comics WHERE ComicID='CV1'"),
+                         [{'LatestIssue': '10', 'LatestCover': 'cache/comic/10.jpg'}], '10 is after 9')
+
     def test_scan_and_search(self):
         with mock.patch.object(comics, 'start_task', return_value=True) as start:
             comics.start_scan('CV1')

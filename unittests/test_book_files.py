@@ -13,7 +13,7 @@ import tempfile
 from lazylibrarian.bookwork import set_series
 from lazylibrarian.config2 import CONFIG
 from lazylibrarian.database import DBConnection
-from lazylibrarian.librarysync import file_owner
+from lazylibrarian.librarysync import file_owner, known_file
 from lazylibrarian.services import library
 from unittests.unittesthelpers import LLTestCaseWithStartup
 
@@ -68,6 +68,25 @@ class BookFilesTest(LLTestCaseWithStartup):
             self.assertIsNone(file_owner(db, 'eBook', self.root, 'Somebody Else.epub'))
         self.assertEqual(self.rows("SELECT BookFile, Status FROM books WHERE BookID='1978764'"),
                          [('', CONFIG['NOTFOUND_STATUS'])])
+
+    def test_a_known_file_is_left(self):
+        """ A scan leaves a file the library has as it is, unless it's a format preferred to the
+        book's, its author is unknown, or the book isn't in the library """
+        saved = CONFIG['EBOOK_TYPE']
+        self.addCleanup(CONFIG.set_from_ui, 'EBOOK_TYPE', saved)
+        CONFIG.set_from_ui('EBOOK_TYPE', 'epub, mobi')
+        with DBConnection() as db:
+            db.action("DELETE FROM books WHERE BookID='1978764'")
+            self.assertEqual(known_file(db, 'eBook', self.root, 'Lee Child - Persuader.epub'), '62983544')
+            self.assertEqual(known_file(db, 'eBook', self.root, 'Lee Child - Persuader.mobi'), '62983544')
+            db.action("UPDATE books SET BookFile=? WHERE BookID='62983544'", (self.epub.replace('.epub', '.mobi'),))
+            self.assertEqual(known_file(db, 'eBook', self.root, 'Lee Child - Persuader.epub'), '',
+                             'The epub is preferred to the mobi it has')
+            db.action("UPDATE books SET Status='Skipped' WHERE BookID='62983544'")
+            self.assertEqual(known_file(db, 'eBook', self.root, 'Lee Child - Persuader.mobi'), '')
+            self.assertEqual(known_file(db, 'AudioBook', self.secret, '02 The Secret - Chapter 01.mp3'), '62983544')
+            db.action("UPDATE authors SET AuthorName='Unknown Author'")
+            self.assertEqual(known_file(db, 'AudioBook', self.secret, '02 The Secret - Chapter 01.mp3'), '')
 
     def test_an_audiobooks_parts(self):
         self.assertEqual([os.path.basename(part) for part in library.audio_parts(self.first)],

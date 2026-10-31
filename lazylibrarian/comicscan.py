@@ -33,7 +33,7 @@ from lazylibrarian.filesystem import (
 )
 from lazylibrarian.formatter import check_int, get_list, now, plural, sanitize
 from lazylibrarian.images import create_mag_cover
-from lazylibrarian.magazinescan import real_cover
+from lazylibrarian.magazinescan import COVER_TRIED, real_cover
 from lazylibrarian.metadata_opf import create_comic_opf
 
 
@@ -101,9 +101,28 @@ def comic_scan(comicid=None):
 
         logger.info(f" Checking [{mag_path}] for {CONFIG['COMIC_TYPE']}")
 
+        # the comics whose issues were seen, the issues whose files are read once all are found, and
+        # the folders marked as comics'
+        touched = set()
+        details = []
+        ignored = set()
         for rootdir, _, filenames in os.walk(mag_path):
             for fname in filenames:
                 if CONFIG.is_valid_booktype(fname, booktype='comic'):
+                    issuefile = os.path.join(rootdir, fname)  # full path to issue.cbr
+                    known = db.match('SELECT ComicID,IssueID,Pages,Cover from comicissues WHERE IssueFile=?',
+                                     (issuefile,))
+                    if known:  # an issue the library has, its file isn't opened to say what it is
+                        logger.debug(f"Issue {known['ComicID']} {known['IssueID']} already exists")
+                        touched.add(known['ComicID'])
+                        mtime = os.path.getmtime(issuefile)
+                        coverless = not real_cover(known['Cover']) and CONFIG.get_bool('IMP_COMICCOVER') and \
+                            (issuefile, mtime) not in COVER_TRIED
+                        if coverless or not known['Pages']:
+                            details.append({'comicid': known['ComicID'], 'issue': known['IssueID'],
+                                            'file': issuefile, 'mtime': mtime, 'cover': coverless,
+                                            'pages': not known['Pages']})
+                        continue
                     title = ''
                     issue = ''
                     start = ''
@@ -218,10 +237,9 @@ def comic_scan(comicid=None):
                         # is this issue already in the database?
                         iss_entry = db.match('SELECT IssueFile,Pages,Cover from comicissues WHERE ComicID=? and '
                                              'IssueID=?', (comicid, issue))
-                        issuefile = os.path.join(rootdir, fname)  # full path to issue.cbr
                         mtime = os.path.getmtime(issuefile)
                         iss_acquired = datetime.date.isoformat(datetime.date.fromtimestamp(mtime))
-                        myhash = uuid.uuid4().hex
+                        touched.add(comicid)
 
                         if not iss_entry or (iss_entry['IssueFile'] != issuefile):
                             new_value_dict = {
@@ -230,14 +248,7 @@ def comic_scan(comicid=None):
                             }
                             if not iss_entry:
                                 logger.debug(f"Adding issue {title} {issue}")
-                                coverfile = create_mag_cover(issuefile, refresh=True)
-                                if coverfile and path_isfile(coverfile):
-                                    hashname = os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg')
-                                    copyfile(coverfile, hashname)
-                                    setperm(hashname)
-                                    new_value_dict['Cover'] = f'cache/comic/{myhash}.jpg'
-                                else:
-                                    new_value_dict['Cover'] = 'images/nocover.png'
+                                new_value_dict['Cover'] = 'images/nocover.png'  # made once all are found
                                 new_value_dict['Description'] = issuedescription
                                 new_value_dict['Link'] = issuelink
                             else:
@@ -269,28 +280,23 @@ def comic_scan(comicid=None):
                                     logger.debug('create_comic_opf is disabled')
                                 else:
                                     _ = create_comic_opf(dest_path, data, global_name, overwrite=True)
-                        if iss_entry and not real_cover(iss_entry['Cover']) and CONFIG.get_bool('IMP_COMICCOVER'):
-                            # an issue that came in without a cover gets one now
-                            coverfile = create_mag_cover(issuefile, refresh=True)
-                            if coverfile and path_isfile(coverfile):
-                                hashname = os.path.join(DIRS.CACHEDIR, 'comic', f'{myhash}.jpg')
-                                copyfile(coverfile, hashname)
-                                setperm(hashname)
-                                db.action('UPDATE comicissues SET Cover=? WHERE ComicID=? AND IssueID=?',
-                                          (f'cache/comic/{myhash}.jpg', comicid, issue))
-                        if not iss_entry or iss_entry['IssueFile'] != issuefile or not iss_entry['Pages']:
-                            # what the file says, a description only when the comic's source had none
-                            meta = filemeta.read_metadata(issuefile)
-                            db.action("UPDATE comicissues SET Pages=?, Description=IFNULL(NULLIF(Description, ''), ?) "
-                                      "WHERE ComicID=? AND IssueID=?", (meta['pages'], meta['description'], comicid,
-                                                                        issue))
+                        # an issue that came in without a cover gets one, tried once while its file is
+                        # the same; that and what the file says are seen to once all are found
+                        coverless = not iss_entry or not real_cover(iss_entry['Cover']) and \
+                            CONFIG.get_bool('IMP_COMICCOVER') and (issuefile, mtime) not in COVER_TRIED
+                        pages = not iss_entry or iss_entry['IssueFile'] != issuefile or not iss_entry['Pages']
+                        if coverless or pages:
+                            details.append({'comicid': comicid, 'issue': issue, 'file': issuefile, 'mtime': mtime,
+                                            'cover': coverless, 'pages': pages})
 
-                        ignorefile = os.path.join(os.path.dirname(issuefile), '.ll_ignore')
-                        try:
-                            with open(syspath(ignorefile), 'w', encoding='utf-8') as f:
-                                f.write('comic')
-                        except OSError as e:
-                            logger.warning(f"Unable to create/write to ignorefile: {str(e)}")
+                        folder = os.path.dirname(issuefile)
+                        if folder not in ignored:
+                            ignored.add(folder)
+                            try:
+                                with open(syspath(os.path.join(folder, '.ll_ignore')), 'w', encoding='utf-8') as f:
+                                    f.write('comic')
+                            except OSError as e:
+                                logger.warning(f"Unable to create/write to ignorefile: {str(e)}")
 
                         # see if this issues date values are useful
                         control_value_dict = {"ComicID": comicid}
@@ -298,7 +304,6 @@ def comic_scan(comicid=None):
                             new_value_dict = {
                                 "Added": iss_acquired,
                                 "LastAcquired": iss_acquired,
-                                "LatestCover": f'cache/comic/{myhash}.jpg',
                                 "LatestIssue": latestissue,
                                 "IssueStatus": "Open"
                             }
@@ -315,12 +320,17 @@ def comic_scan(comicid=None):
                             if not lastacquired or iss_acquired > lastacquired:
                                 new_value_dict["LastAcquired"] = iss_acquired
 
-                            if not latestissue or issue >= latestissue:
-                                new_value_dict["LatestIssue"] = issue
-                                new_value_dict["LatestCover"] = f'cache/comic/{myhash}.jpg'
                             db.upsert("comics", new_value_dict, control_value_dict)
                     else:
                         logger.debug(f"No match for {fname}")
+        # the latest issue and its cover, once every issue is in the library and again once their
+        # covers are made
+        for seen in touched:
+            update_latest(db, seen)
+        if details:
+            issue_details(db, details)
+            for seen in {item['comicid'] for item in details}:
+                update_latest(db, seen)
         if CONFIG.get_bool('FULL_SCAN') and not onetitle:
             magcount = db.match("select count(*) from comics")
             isscount = db.match("select count(*) from comicissues")
@@ -337,3 +347,50 @@ def comic_scan(comicid=None):
         if 'COMICSCAN' in threading.current_thread().name:
             threading.current_thread().name = 'WEBSERVER'
         db.close()
+
+
+def issue_details(db, details: list[dict]):
+    """ What reading the files of the issues a scan found gives them, once every issue is in the
+    library: a cover for one that came in or hasn't got one, and its pages, and its description when
+    the comic's source had none. A file no cover could be made from isn't tried again until it
+    changes or LazyLibrarian restarts """
+    logger = logging.getLogger(__name__)
+    for item in details:
+        issuefile = item['file']
+        try:
+            if item['cover']:
+                coverfile = create_mag_cover(issuefile, refresh=True, comic=True)
+                if coverfile and path_isfile(coverfile):
+                    name = f'{uuid.uuid4().hex}.jpg'
+                    hashname = os.path.join(DIRS.CACHEDIR, 'comic', name)
+                    copyfile(coverfile, hashname)
+                    setperm(hashname)
+                    db.action('UPDATE comicissues SET Cover=? WHERE ComicID=? AND IssueID=?',
+                              (f'cache/comic/{name}', item['comicid'], item['issue']))
+                elif CONFIG.get_bool('IMP_COMICCOVER'):  # one was wanted
+                    COVER_TRIED.add((issuefile, item['mtime']))
+            if item['pages']:
+                meta = filemeta.read_metadata(issuefile)
+                db.action("UPDATE comicissues SET Pages=?, Description=IFNULL(NULLIF(Description, ''), ?) "
+                          "WHERE ComicID=? AND IssueID=?", (meta['pages'], meta['description'], item['comicid'],
+                                                            item['issue']))
+        except Exception as e:
+            COVER_TRIED.add((issuefile, item['mtime']))
+            logger.warning(f"Unable to read {issuefile}: {type(e).__name__} {e}")
+
+
+def update_latest(db, comicid: str):
+    """ A comic's latest issue and its cover, by the issues' numbers, and when its issues came in """
+    issues = db.select('SELECT IssueID,Cover,IssueAcquired from comicissues WHERE ComicID=?', (comicid,))
+    if not issues:
+        return
+    newest = max(issues, key=lambda row: (check_int(row['IssueID'], 0), str(row['IssueID'])))
+    acquired = sorted(row['IssueAcquired'] for row in issues if row['IssueAcquired'])
+    comic = db.match('SELECT Added from comics WHERE ComicID=?', (comicid,))
+    changes = {'LatestIssue': newest['IssueID'], 'LatestCover': newest['Cover'], 'IssueStatus': 'Open'}
+    if acquired:
+        changes['LastAcquired'] = acquired[-1]
+        if not comic or not comic['Added'] or acquired[0] < comic['Added']:
+            changes['Added'] = acquired[0]
+    db.action(f"UPDATE comics SET {', '.join(f'{column}=?' for column in changes)} WHERE ComicID=?",
+              (*changes.values(), comicid))

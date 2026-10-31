@@ -912,12 +912,15 @@ def _step(day: datetime.date, frequency: int, times: int = 1) -> datetime.date:
     return day + datetime.timedelta(days=frequency * times)
 
 
-def issue_schedule(issue_dates: list[str], frequency: int = 0, today: datetime.date | None = None) -> dict:
+def issue_schedule(issue_dates: list[str], frequency: int = 0, today: datetime.date | None = None,
+                   started: str = '') -> dict:
     """ What a magazine's issues say about the ones it hasn't got: for issues known by number, the
     numbers missing between the first and last and the next one; for issues known by date, the
     issues missing between them and when the next is due, every frequency days (taken from the gaps
-    between the issues when it isn't known). Returns frequency (0 when it can't be told), inferred
-    (it was taken from the issues), missing, next and overdue """
+    between the issues when it isn't known). Issues dated before the year the magazine started were
+    misread and are left out, and when more are missing than MAX_MISSING it's the most recent. Returns
+    frequency (0 when it can't be told), inferred (it was taken from the issues), missing, next and
+    overdue """
     today = today or datetime.date.today()
     found = {'frequency': frequency, 'inferred': False, 'missing': [], 'next': '', 'overdue': False}
     dates = sorted({str(d).strip() for d in issue_dates if str(d or '').strip()})
@@ -927,7 +930,8 @@ def issue_schedule(issue_dates: list[str], frequency: int = 0, today: datetime.d
         found['missing'] = [str(n) for n in range(numbers[0], numbers[-1]) if n not in have][:MAX_MISSING]
         found['next'] = str(numbers[-1] + 1)
         return found
-    days = sorted({day for day in (_issue_day(d) for d in dates) if day})
+    first_year = check_int(str(started or '')[:4], 0)
+    days = sorted({day for day in (_issue_day(d) for d in dates) if day and day.year >= first_year})
     if not days:
         return found
     if not frequency and len(days) >= 3:
@@ -936,12 +940,18 @@ def issue_schedule(issue_dates: list[str], frequency: int = 0, today: datetime.d
         found.update({'frequency': frequency, 'inferred': True})
     if frequency <= 0:
         return found
-    for before, after in zip(days, days[1:], strict=False):
+    missing = []
+    for before, after in reversed(list(zip(days, days[1:], strict=False))):
+        gap = []
         expected = _step(before, frequency)
         # an issue more than half a step late is a gap
-        while len(found['missing']) < MAX_MISSING and (after - expected).days > frequency / 2:
-            found['missing'].append(expected.isoformat())
+        while (after - expected).days > frequency / 2:
+            gap.append(expected.isoformat())
             expected = _step(expected, frequency)
+        missing = gap + missing
+        if len(missing) >= MAX_MISSING:
+            break
+    found['missing'] = missing[-MAX_MISSING:]
     upcoming = _step(days[-1], frequency)
     found['next'] = upcoming.isoformat()
     found['overdue'] = (today - upcoming).days > frequency / 2

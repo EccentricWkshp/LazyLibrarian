@@ -239,6 +239,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                 pairs = magreleases.known_pairs(db, book['bookid'], terms, [nzb['nzbtitle'] for nzb in resultlist])
                 magreleases.reread(db, book['bookid'], terms, datetype, scheme, pairs)
                 set_aside = 0
+                past_added = 0
                 # the quality profile: each release's quality, the best first, so the first found for
                 # an issue, which is the one taken, is the best
                 profile = profiles.for_item('magazine', book['bookid'], db)
@@ -467,7 +468,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                             mag_entry = db.match('SELECT * from issues WHERE title=? and issuedate=?',
                                                  (bookid, issuedate)) if issuedate else None
                             if mag_entry and not upgrading:
-                                logger.info(f'This issue of {nzbtitle_formatted} is already downloaded; skipping')
+                                logger.debug(f'This issue of {nzbtitle_formatted} is already downloaded; skipping')
                                 continue
                             # store only the _new_ matching results
                             #  Don't add a new entry if this issue has been found on an earlier search
@@ -476,7 +477,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
                             mag_entry = db.match(f'SELECT Status from {insert_table} WHERE NZBtitle=? and NZBprov=?',
                                                  (nzbtitle, nzbprov))
                             if mag_entry and insert_table != 'wanted':
-                                logger.info(
+                                logger.debug(
                                     f"{nzbtitle} is already in {insert_table} marked {mag_entry['Status']}; skipping")
                                 continue
                             control_value_dict = {
@@ -503,7 +504,8 @@ def search_magazines(mags=None, reset=False, backissues=False):
                                     new_value_dict["Status"] = "Skipped"
                                 new_value_dict["Added"] = int(time.time())
                                 db.upsert(insert_table, new_value_dict, control_value_dict)
-                                logger.info(f"Added {nzbtitle} to {insert_table} marked {new_value_dict['Status']}")
+                                logger.debug(f"Added {nzbtitle} to {insert_table} marked {new_value_dict['Status']}")
+                                past_added += 1
                             else:
                                 wanted_list.append([new_value_dict, control_value_dict])
 
@@ -526,7 +528,7 @@ def search_magazines(mags=None, reset=False, backissues=False):
 
                 msg = (f"Found {total_nzbs} {plural(total_nzbs, 'result')} for {bookid}. {new_date} new{' ' + str(new_list) if new_list else ''},"
                     f" {old_date} old, {bad_date} fail date, {set_aside} set aside, {bad_name} fail name, {rejects} rejected: "
-                    f"{len(wanted_list)} to download")
+                    f"{len(wanted_list)} to download{f', {past_added} added to Past Issues' if past_added else ''}")
                 logger.info(msg)
 
                 threading.Thread(target=download_maglist, name='DL-MAGLIST', args=[maglist, 'pastissues']).start()

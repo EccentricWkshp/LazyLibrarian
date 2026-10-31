@@ -1273,7 +1273,7 @@ def _create_and_cache_cover(
     Returns:
         Cached cover path (e.g., "cache/comic/abc123.jpg") or None
     """
-    coverfile = create_mag_cover(dest_file, pagenum=pagenum, refresh=True)
+    coverfile = create_mag_cover(dest_file, pagenum=pagenum, refresh=True, comic=media_type == BookType.COMIC)
 
     if not coverfile:
         return None

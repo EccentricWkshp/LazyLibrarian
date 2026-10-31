@@ -95,6 +95,12 @@ def support_zip():
     return FileResponse(path, media_type='application/zip', filename=os.path.basename(path))
 
 
+@router.get('/log/zip', tags=['Log'])
+def logs_zip():
+    """ Every log file, as it is, in one zip """
+    return FileResponse(system.logs_zip(), media_type='application/zip', filename='lazylibrarian-logs.zip')
+
+
 @router.get('/log/file/{filename}', tags=['Log'])
 def log_file(filename: str):
     return FileResponse(system.log_file_path(filename), media_type='text/plain; charset=utf-8',

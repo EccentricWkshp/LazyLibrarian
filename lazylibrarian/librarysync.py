@@ -681,6 +681,45 @@ def file_owner(db, library: str, rootdir: str, filename: str) -> dict | None:
     return dict(owners[0])
 
 
+def known_file(db, library: str, rootdir: str, filename: str) -> str:
+    """ The id of the book a file found is the file of already, when there's nothing for a scan to
+    do with it: the book is in the library, its author known, and the file isn't a format preferred
+    to the one the book has. '' when there's something to do """
+    owner = file_owner(db, library, rootdir, filename)
+    if not owner or owner['AudioStatus' if library == 'AudioBook' else 'Status'] not in ('Open', 'Have'):
+        return ''
+    if library == 'eBook':
+        types = get_list(CONFIG['EBOOK_TYPE'])
+
+        def rank(path: str) -> int:
+            extension = splitext(path)[1].lstrip('.').lower()
+            return types.index(extension) if extension in types else len(types)
+
+        if rank(filename) < rank(owner['Path']):
+            return ''
+    author = db.match('SELECT AuthorName from authors,books WHERE books.AuthorID=authors.AuthorID AND BookID=?',
+                      (owner['BookID'],))
+    if not author or 'unknown' in str(author['AuthorName']).lower():
+        return ''
+    return owner['BookID']
+
+
+def folder_cover(bookid: str, bookdir: str):
+    """ A cover kept with a book's file, cover.jpg or another picture, as the book's cover when it's
+    newer than the one it has """
+    coverimg = os.path.join(bookdir, 'cover.jpg')
+    if not path_isfile(coverimg):
+        coverimg = any_file(bookdir, '.jpg')
+    if not coverimg:
+        return
+    cacheimg = os.path.join(DIRS.CACHEDIR, 'book', f"{bookid}.jpg")
+    try:
+        if not path_isfile(cacheimg) or os.path.getmtime(coverimg) > os.path.getmtime(cacheimg):
+            shutil.copyfile(coverimg, cacheimg)
+    except OSError as e:
+        logging.getLogger(__name__).debug(f"Unable to copy {coverimg}: {e}")
+
+
 def _path_is_under(path, folder):
     """Whether path is folder itself or somewhere inside it"""
     path = os.path.abspath(path)
@@ -994,6 +1033,13 @@ def library_scan(startdir=None, library='eBook', authid=None, remove=True):
 
                             logger.debug(f"[{startdir}] Now scanning subdirectory {subdirectory}")
                             file_count += 1
+                            known = known_file(db, library, rootdir, files)
+                            if known:  # the book's file, as it was: not opened, the book not looked for
+                                logger.debug(f"{files} is the file of {known} already")
+                                if subdirectory and subdirectory not in processed_subdirectories:
+                                    processed_subdirectories.append(subdirectory)
+                                folder_cover(known, rootdir)
+                                continue
                             language = "Unknown"
                             isbn = ""
                             book = ""

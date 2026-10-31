@@ -5,6 +5,7 @@
 
 import os
 import threading
+import zipfile
 from unittest import mock
 
 import lazylibrarian
@@ -101,6 +102,18 @@ class SystemServiceTest(LLTestCaseWithDB):
             self.assertEqual((page.total, page.matched), (5, 2))
             page = system.list_log(sort='Line', descending=False, limit=1)
             self.assertEqual(page.items, [dict(zip(system.LOG_FIELDS, rows[0], strict=True))])
+
+    def test_logs_zip(self):
+        folder = os.path.join(TESTDIR, 'zipped-logs')
+        os.makedirs(folder, exist_ok=True)
+        for name in ('lazylibrarian.log', 'lazylibrarian.log.1', 'notes.txt'):
+            with open(os.path.join(folder, name), 'w') as f:
+                f.write(name)
+        with mock.patch.object(system, 'CONFIG', {'LOGDIR': folder}):
+            path = system.logs_zip()
+        with zipfile.ZipFile(path) as logs:
+            self.assertEqual(sorted(logs.namelist()), ['lazylibrarian.log', 'lazylibrarian.log.1'])
+            self.assertEqual(logs.read('lazylibrarian.log.1'), b'lazylibrarian.log.1')
 
     def test_toggle_detailed_log(self):
         CONFIG.set_bool('DETAILEDUILOG', False)

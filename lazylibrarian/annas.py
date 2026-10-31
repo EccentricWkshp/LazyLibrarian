@@ -36,6 +36,12 @@ from lazylibrarian.filesystem import DIRS, get_directory, path_isfile, remove_fi
 from lazylibrarian.formatter import check_int, get_list, md5_utf8, plural, sanitize, size_in_bytes
 
 WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Anna%27s_Archive"
+# when none of the hosts answer, the domains Wikipedia gives are asked for again, but no more often
+# than this, and that none answered is said no more often than this
+DOMAINS_EVERY = 6 * 60 * 60
+UNANSWERED_EVERY = 60 * 60
+_domains_fetched = 0.0
+_unanswered_said = 0.0
 
 @dataclass(slots=True)
 class FileInfo:
@@ -228,7 +234,7 @@ def html_parser(url: str, params: dict = None) -> BeautifulSoup:
         uri = urlparse(url)
         _annas_logged_in.discard(f"{uri.scheme}://{uri.netloc}")
         downloadlogger.error(f"{url} returned http status {response.status_code}")
-        return None
+        raise ValueError(f"http status {response.status_code}")
     html = response.text.replace("<!--", "").replace("-->", "")
     return BeautifulSoup(html, "html5lib")
 
@@ -240,12 +246,18 @@ def annas_hosts_prefer(annas_hosts, host):
     CONFIG['ANNA_HOST'] = ','.join(annas_hosts)
 
 
-def annas_hosts_update():
+def annas_hosts_update() -> list[str]:
+    """ The hosts with the domains Wikipedia gives added, asked for at most every DOMAINS_EVERY """
+    global _domains_fetched
     annas_hosts = get_list(CONFIG['ANNA_HOST'])
-    new_hosts = fetch_annas_archive_domains()
-    annas_hosts.extend(new_hosts)
-    annas_hosts = set(annas_hosts)
+    if time.time() - _domains_fetched < DOMAINS_EVERY:
+        return annas_hosts
+    _domains_fetched = time.time()
+    for domain in fetch_annas_archive_domains():
+        if domain not in annas_hosts:
+            annas_hosts.append(domain)
     CONFIG['ANNA_HOST'] = ','.join(annas_hosts)
+    return annas_hosts
 
 
 def anna_languages(value: str) -> list[Language]:
@@ -277,11 +289,13 @@ def annas_search(
         "ext": file_type.value,
         "sort": order_by.value,
     }
+    global _unanswered_said
     annas_hosts = get_list(CONFIG['ANNA_HOST'])
     if len(annas_hosts) == 1:
         # old style single host, add the wikipedia entries
-        annas_hosts_update()
+        annas_hosts = annas_hosts_update()
     soup = None
+    failures = []
     for host in annas_hosts:
         lazylibrarian.test_data = f"Annas checking {host}"
         prefix = ''
@@ -296,9 +310,14 @@ def annas_search(
                 break
         except Exception as e:
             downloadlogger.error(f"{host}: {e}")
+            failures.append(f"{host} ({type(e).__name__}: {e})")
     if not soup:
         # no searches returned anything, update the host list
         annas_hosts_update()
+        if time.time() - _unanswered_said > UNANSWERED_EVERY:
+            _unanswered_said = time.time()
+            logging.getLogger(__name__).warning(
+                f"None of Anna's Archive's hosts answered a search: {', '.join(failures) or 'no hosts'}")
         return None
 
     lazylibrarian.test_data = f"Annas searching {host}"

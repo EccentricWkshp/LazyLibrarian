@@ -532,7 +532,8 @@ def get_magazine(title: str) -> dict:
                   'logo': magazine.get('Logo') or '', 'started': magazine.get('Started') or '',
                   'wikidata_id': magazine.get('WikidataID') or '', 'cover_page': check_int(magazine['CoverPage'], 1),
                   'schedule': magazines.issue_schedule([issue['IssueDate'] for issue in issues],
-                                                       check_int(magazine.get('Frequency'), 0)),
+                                                       check_int(magazine.get('Frequency'), 0),
+                                                       started=magazine.get('Started') or ''),
                   'keep_issues': check_int(magazine.get('KeepIssues'), 0),
                   'keep_months': check_int(magazine.get('KeepMonths'), 0)})
     states = _read_states('issue')

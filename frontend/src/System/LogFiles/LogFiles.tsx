@@ -1,7 +1,7 @@
-// Sonarr's System, Log Files: the log files, to read or download, the support zip, which has the
-// passwords and keys taken out, and deleting them
+// Sonarr's System, Log Files: the log files, to read or download one at a time or all in a zip, the
+// support zip, which has the passwords and keys taken out, and deleting them
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { FileArchive, RefreshCw, Trash2 } from 'lucide-react';
+import { FileArchive, FolderDown, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import queryClient from 'App/queryClient';
 import { Alert, LoadingIndicator } from 'Components/Misc';
@@ -52,6 +52,13 @@ function LogFiles() {
             }}
           />
           <PageToolbarButton
+            label="Logs Zip"
+            iconName={FolderDown}
+            onPress={() => {
+              window.location.href = `${urlBase()}/api/v1/log/zip`;
+            }}
+          />
+          <PageToolbarButton
             label="Delete Log Files"
             iconName={Trash2}
             isSpinning={remove.isPending}
@@ -62,8 +69,8 @@ function LogFiles() {
 
       <PageContentBody>
         <p className={styles.note}>
-          The log files are in the Logs folder of LazyLibrarian's data folder. The support zip has the log and settings
-          with passwords and keys taken out, to send with a problem.
+          The log files are in the Logs folder of LazyLibrarian's data folder. The logs zip has them all, as they are.
+          The support zip has the log and settings with passwords and keys taken out, to send with a problem.
         </p>
         {isLoading ? <LoadingIndicator /> : null}
         {error ? <Alert kind="danger">Failed to load the log files: {(error as Error).message}</Alert> : null}

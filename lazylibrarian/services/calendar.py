@@ -96,10 +96,10 @@ def _issues(db, start: str, end: str, today: str) -> list[dict]:
                         'state': DOWNLOADED, 'monitored': row['Status'] == 'Active'})
     snatched = {(row['BookID'], row['AuxInfo']) for row in db.select(
         "SELECT BookID,AuxInfo from wanted WHERE Status='Snatched'")}
-    for magazine in db.select("SELECT Title,Frequency,LatestCover from magazines WHERE Status='Active'"):
+    for magazine in db.select("SELECT Title,Frequency,Started,LatestCover from magazines WHERE Status='Active'"):
         dates = [row['IssueDate'] for row in db.select('SELECT IssueDate from issues WHERE Title=?',
                                                        (magazine['Title'],))]
-        schedule = magazines.issue_schedule(dates, check_int(magazine['Frequency'], 0))
+        schedule = magazines.issue_schedule(dates, check_int(magazine['Frequency'], 0), started=magazine['Started'] or '')
         if not schedule['frequency']:
             continue  # known by number, or too few issues to tell when they come out
         for day in schedule['missing'] + ([schedule['next']] if schedule['next'] else []):

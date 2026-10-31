@@ -63,7 +63,7 @@ class CalendarTest(LLTestCaseWithDB):
                  "('Paused', 'p2', '20260012')")
         self.sql("INSERT INTO wanted (BookID, AuxInfo, Status) VALUES ('Wood', '2026-10-01', 'Snatched')")
         with mock.patch.object(calendar.magazines, 'issue_schedule',
-                               side_effect=lambda dates, frequency: SCHEDULE(dates, frequency, today=TODAY)):
+                               side_effect=lambda dates, frequency, **kwargs: SCHEDULE(dates, frequency, today=TODAY, **kwargs)):
             found = [entry for entry in calendar.entries('2026-06-01', '2026-11-30', today=TODAY)
                      if entry['kind'] != 'book']
         self.assertEqual([(entry['kind'], entry['date'], entry['state']) for entry in found], [
