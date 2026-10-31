@@ -56,6 +56,27 @@ from lazylibrarian.images import create_mag_cover
 from lazylibrarian.magazinescan import create_id, format_issue_filename, get_dateparts
 from lazylibrarian.metadata_opf import create_comic_opf, create_mag_opf, create_opf
 
+# why the folder Calibre put a book in isn't found where LazyLibrarian looks
+ELSEWHERE = ("Calibre has the book, in its own library, which has to be LazyLibrarian's eBook folder for "
+             "LazyLibrarian to find it there (Settings, Media Management); or turn off importing books "
+             "into Calibre (Settings, Tools)")
+
+
+def calibre_book_with(identifier: str) -> str:
+    """ The id of the book Calibre has with this identifier, as LazyLibrarian gives a book it adds
+    ("hardcover:536511"), '' when it has none or can't be asked """
+    if not identifier or ":" not in identifier:
+        return ""
+    scheme, value = identifier.split(":", 1)
+    res, _err, rc = calibredb("list", ["--fields", "id", "--search", f'identifiers:"={scheme.lower()}:{value}"'],
+                              ["--for-machine"])
+    if rc or "[" not in str(res):
+        return ""
+    try:
+        found = json.loads(res[res.index("["):])
+    except ValueError:
+        return ""
+    return str(found[0]["id"]) if found and isinstance(found[0], dict) and "id" in found[0] else ""
 
 def send_to_calibre(booktype, global_name, folder, data):
     """
@@ -143,6 +164,10 @@ def send_to_calibre(booktype, global_name, folder, data):
             else:  # bookid.startswith('CX'):
                 identifier = f"Comixology:{bookid[2:]}"
 
+        # an import that got as far as adding the book to Calibre and no further, tried again,
+        # finds it there by its identifier rather than adding another copy
+        existing = calibre_book_with(identifier) if booktype in ("ebook", "audiobook") else ""
+
         if booktype == "magazine":
             issueid = create_id(f"{title} {issuedate}")
             identifier = f"lazylibrarian:{issueid}"
@@ -196,6 +221,9 @@ def send_to_calibre(booktype, global_name, folder, data):
                 image = ["--cover", jpgfile]
                 params.extend(image)
             res, err, rc = calibredb("add", params)
+        elif existing:
+            logger.info(f"Calibre has {authorname} {bookname} already, its book {existing}, not adding another")
+            res, err, rc = f"Added book ids: {existing}", "", 0
         else:
             if CONFIG.get_bool("IMP_CALIBREOVERWRITE"):
                 res, err, rc = calibredb(
@@ -456,11 +484,11 @@ def send_to_calibre(booktype, global_name, folder, data):
                 if not target_dir or not path_isdir(target_dir):
                     return (
                         False,
-                        f"Failed to locate folder with calibre_id {our_id} in {author_dir}",
+                        f"Failed to locate folder with calibre_id {our_id} in {author_dir}. {ELSEWHERE}",
                         folder,
                     )
             else:
-                return False, f"Failed to locate author folder {author_dir}", folder
+                return False, f"Failed to locate author folder {author_dir}. {ELSEWHERE}", folder
 
         if booktype == "ebook":
             remv = CONFIG.get_bool("FULL_SCAN")

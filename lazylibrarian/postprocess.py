@@ -1067,6 +1067,9 @@ def _validate_candidate_directory(
     return True, ""
 
 
+# a rar set's volumes after its first: name.r00, name.r01, name.s00, name.part2.rar
+RAR_VOLUME = re.compile(r'\.(?:[rs]\d{2,3}|part0*(?:[2-9]|[1-9]\d+)\.rar)$', re.IGNORECASE)
+
 def _extract_archives_in_directory(
     candidate_ptr,
     download_dir: str,
@@ -1097,10 +1100,12 @@ def _extract_archives_in_directory(
     incoming_candidate = candidate_ptr
 
     # Handle multipart archives first
+    multipart = False
     if zipfile_count > 1:
         unpacked_path = unpack_multipart(candidate_ptr, download_dir, title)
         if unpacked_path:
             candidate_ptr = unpacked_path
+            multipart = True
 
     # Extract remaining archives
     for _dirpath, _, files in os.walk(candidate_ptr):
@@ -1109,7 +1114,11 @@ def _extract_archives_in_directory(
             _, extn = _tokenize_file(item)
             extn = extn.lower()
 
-            # Skip files that are ebooks/comics (they're already in zip format)
+            # Skip files that are ebooks/comics (they're already in zip format), and a rar set's
+            # volumes: one after the first can't be unpacked alone, and unpacking any of them again
+            # empties the folder the set was unpacked into
+            if RAR_VOLUME.search(item) or (multipart and item.lower().endswith('.rar')):
+                continue
             if item and extn not in [".epub", ".cbr", ".cbz", ".r00"]:
                 if not os.path.exists(os.path.join(dirpath, item)):
                     continue

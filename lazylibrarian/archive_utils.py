@@ -162,8 +162,9 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
                         logger.error(f"Failed to create directory {dstdir}")
                         return ""
                     try:
+                        data = z.read(item)  # read first, so one that can't be leaves no empty file
                         with open(syspath(dst), "wb") as f:
-                            f.write(z.read(item))
+                            f.write(data)
                     except Exception as e:
                         logger.error(f"Unable to extract {item} from {archivename}: {e}")
                         continue
@@ -197,8 +198,9 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
                         logger.error(f"Failed to create directory {dstdir}")
                         return ""
                     try:
+                        data = z.extractfile(item).read()  # read first, so one that can't be leaves no empty file
                         with open(syspath(dst), "wb") as f:
-                            f.write(z.extractfile(item).read())
+                            f.write(data)
                     except Exception as e:
                         logger.error(f"Unable to extract {item} from {archivename}: {e}")
                         continue
@@ -232,8 +234,9 @@ def unpack_archive(archivename, download_dir, title, targetdir=""):
                         logger.error(f"Failed to create directory {dstdir}")
                         return ""
                     try:
+                        data = z.read(item)  # read first, so one that can't be leaves no empty file
                         with open(syspath(dst), "wb") as f:
-                            f.write(z.read(item))
+                            f.write(data)
                     except Exception as e:
                         logger.error(f"Unable to extract {item} from {archivename}: {e}")
                         continue
