@@ -28,7 +28,7 @@ from enum import Enum
 
 from lazylibrarian.bookrename import name_vars, stripspaces
 from lazylibrarian.config2 import CONFIG
-from lazylibrarian.filesystem import get_directory, issue_folder
+from lazylibrarian.filesystem import existing_spelling, get_directory, issue_folder
 from lazylibrarian.formatter import (
     check_int,
     make_unicode,
@@ -331,6 +331,8 @@ def prepare_book_metadata(book_id: str, book_type: str, db) -> EbookMetadata | N
         dest_dir = str(get_directory("eBook"))
 
     dest_path = str(stripspaces(os.path.join(dest_dir, dest_path)))
+    # the author's folder as it's spelled there
+    dest_path = existing_spelling(dest_path, dest_dir)
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))
     global_name = str(namevars["BookFile"])
@@ -398,6 +400,8 @@ def prepare_magazine_metadata(title, aux_info, db) -> MagazineMetadata | None:
 
     if CONFIG["MAG_DIR"] or CONFIG.get_bool("MAG_RELATIVE"):
         dest_path = stripspaces(enforce_str(make_unicode(issue_folder("magazine", dest_path))))
+    # the magazine's folder as it's spelled there, "Cook's Country" for "Cooks Country"
+    dest_path = existing_spelling(dest_path, issue_folder("magazine", ""))
 
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))
@@ -472,6 +476,7 @@ def prepare_comic_metadata(book_id, db) -> ComicMetadata | None:
 
     if CONFIG["COMIC_DIR"] or CONFIG.get_bool("COMIC_RELATIVE"):
         dest_path = stripspaces(enforce_str(make_unicode(issue_folder("comic", dest_path))))
+    dest_path = existing_spelling(dest_path, issue_folder("comic", ""))
 
     # Validate encoding via make_utf8bytes, then decode to string for metadata
     dest_path = enforce_str(enforce_bytes(dest_path))

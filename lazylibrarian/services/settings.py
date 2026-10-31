@@ -469,6 +469,8 @@ def set_source(setting: str, value) -> str:
         if value:
             CONFIG.set_str('BOOK_API', SOURCE_SWITCHES[setting])
     elif setting in SOURCE_KEYS:
+        if value == MASK:  # a key sent back as it's shown, masked, is kept
+            return value
         if not plain_text(value, ['<', '>', '=']):
             raise InvalidRequestError(f"Invalid {setting}")
         CONFIG.set_str(setting, value)
@@ -496,7 +498,7 @@ def goodreads_auth_start(api_key: str | None = None, secret: str | None = None) 
     """ Start authorising LazyLibrarian with Goodreads, with this api key and secret if given.
         Returns what to tell the user, the link to approve it at """
     for setting, value in (('GR_API', api_key), ('GR_SECRET', secret)):
-        if value is not None:
+        if value is not None and value != MASK:
             if not plain_text(value, ['<', '>', '=']):
                 raise InvalidRequestError(f"Invalid {setting}")
             CONFIG.set_str(setting, value)
@@ -900,7 +902,7 @@ def delete_array_item(name: str, index: int):
 PROVIDER_TESTS = ('TPB', 'LIME', 'TDL', 'ABB', 'BOK', 'SLSK', 'ANNA', 'WEBSHARE')
 TESTS = (*(client.upper() for client in connections.CLIENTS), 'DELUGE',
          *(notifier.upper() for notifier in connections.NOTIFIERS), *PROVIDER_TESTS,
-         'FFMPEG', 'EBOOK_CONVERT', 'CALIBREDB', 'PREPROCESSOR', 'GOODREADS')
+         'FFMPEG', 'EBOOK_CONVERT', 'CALIBREDB', 'PREPROCESSOR', 'GOODREADS', 'GOOGLEBOOKS')
 
 
 def _provider_result(result, shown: str) -> tuple[bool, str]:
@@ -945,6 +947,8 @@ def _run_test(test: str, array: str = '', index: int | None = None) -> tuple[boo
             return False, 'There is no preprocessor'
         returncode, out, err = result
         return not returncode, str(out or err or '').strip()
+    if test == 'GOOGLEBOOKS':
+        return connections.test_googlebooks()
     result = grsync.test_auth()
     return result.startswith('Pass:'), result
 

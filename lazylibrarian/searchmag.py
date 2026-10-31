@@ -46,6 +46,73 @@ from lazylibrarian.scheduling import SchedulerCommand, schedule_job
 from lazylibrarian.services import blocklist, profiles
 
 
+def search_terms(magazine) -> list[str]:
+    """ What a magazine is searched for by: its search terms, or its title without what searches
+    don't take """
+    searchterms = get_list(magazine['Regex'], ',')
+    if searchterms:
+        return searchterms
+    dic = {'...': '', ' & ': ' and ', ' + ': ' plus ', ' = ': ' ', '?': '', '$': 's', '"': '', ',': '', '*': ''}
+    return [re.sub(r'[.\-/]', ' ', replace_all(magazine['Title'], dic))]
+
+def _formatted(title: str) -> str:
+    """ A result's name as words, so a magazine's title isn't found inside another's: Maxim USA in
+    Maximum PC USA """
+    dic = {'.': ' ', '-': ' ', '/': ' ', '_': ' ', '(': '', ')': '', '[': ' ', ']': ' ', '#': '# ', '!': ' ',
+           ':': ' '}
+    return " ".join(replace_all(title, dic).split())
+
+
+def check_release(db, magazine, nzb: dict, terms: list[str], datetype: str, scheme: str, pairs: dict,
+                  profile) -> tuple[dict | None, list[str]]:
+    """ What a search result says about the magazine (magreleases.read), and why the search would turn
+    it down: its size, quality, a name that isn't the magazine's, a blocklist, a word the magazine's
+    results mustn't have. The first reason found, as the search stops at it, else none """
+    title = nzb['nzbtitle'].replace('"', '').replace("'", "")
+    size = round(float(check_int(nzb['nzbsize'], 1000)) / 1048576, 2)  # not every torrent has a size
+    maxsize, minsize = CONFIG.get_int('REJECT_MAGSIZE'), CONFIG.get_int('REJECT_MAGMIN')
+    if maxsize and size > maxsize:
+        return None, [f"Too large ({size}Mb)"]
+    if minsize and size < minsize:
+        return None, [f"Too small ({size}Mb)"]
+    release_quality = nzb.get('quality', quality.UNKNOWN)
+    if profile:
+        if not quality.imported('magazine', release_quality):
+            return None, [f"{quality.name(release_quality)} files aren't imported (magazine types)"]
+        if not profiles.rank(profile, release_quality):
+            return None, [f"{quality.name(release_quality)} isn't wanted by the {profile['name']} quality profile"]
+    # the magazine's title (or a search term) starts the name, then the issue: "Lets Make-31 July 2023"
+    # isn't Make
+    found = magreleases.read(title, terms, datetype, scheme, pairs, nzbdate2format(nzb['nzbdate']))
+    if found['kind'] is None:
+        return found, [f"{found['reason']} ({', '.join(terms)})"]
+    if CONFIG.get_bool('BLACKLIST_FAILED'):
+        blocked = blocklist.find(db, nzb['nzburl'], title, nzb['nzbprov'])
+        if blocked:
+            return found, [f"Blocklisted at {blocked['NZBprov']}"]
+    if CONFIG.get_bool('BLACKLIST_PROCESSED'):
+        blocked = db.match("SELECT * from wanted WHERE NZBurl=? and Status NOT IN ('Failed','Aborted')",
+                           (nzb['nzburl'],))
+        if blocked:
+            return found, [f"Downloaded before, from {blocked['NZBprov']}"]
+    formatted = _formatted(title)
+    lower_title = unaccented(formatted, only_ascii=False).lower().split()
+    lower_bookid = unaccented(magazine['Title'], only_ascii=False).lower().split()
+    for word in get_list(magazine['Reject']) + get_list(CONFIG['REJECT_MAGS'], ','):
+        word = unaccented(word).lower()
+        if word in lower_title and word not in lower_bookid:
+            return found, [f"Contains {word}"]
+    if '*' in get_list(magazine['Reject']):  # strict rejection mode, no extraneous words
+        nouns = set(get_list(CONFIG['ISSUE_NOUNS']) + get_list(CONFIG['VOLUME_NOUNS']) + get_list(CONFIG['MAG_NOUNS'])
+                    + get_list(CONFIG['MAG_TYPE']) + list(lazylibrarian.SEASONS.keys()))
+        for word in lower_title:
+            if word not in lower_bookid and word not in nouns and not word.isdigit() and not any(
+                    word in lazylibrarian.MONTHNAMES[0][month] or unaccented(word).lower() in lazylibrarian.MONTHNAMES[1][month]
+                    for month in range(1, 13)):
+                return found, [f"Strict, contains {word}"]
+    return found, []
+
+
 def cron_search_magazines():
     if 'SEARCHALLMAG' not in [n.name for n in list(threading.enumerate())]:
         search_magazines()
@@ -91,18 +158,11 @@ def search_magazines(mags=None, reset=False, backissues=False):
 
         for searchmag in searchmags:
             bookid = searchmag['Title']
-            searchterms = get_list(searchmag['Regex'], ',')
             datetype = searchmag['DateType']
             if not datetype:
                 datetype = ''
 
-            if not searchterms:
-                dic = {'...': '', ' & ': ' and ', ' + ': ' plus ', ' = ': ' ', '?': '', '$': 's',
-                       '"': '', ',': '', '*': ''}
-                searchterm = replace_all(searchmag['Title'], dic)
-                searchterms = [re.sub(r'[.\-/]', ' ', searchterm)]  # single item in a list
-
-            for searchterm in searchterms:
+            for searchterm in search_terms(searchmag):
                 searchlist.append({"bookid": bookid, "searchterm": searchterm, "datetype": datetype,
                                    "library": 'magazine'})
 
@@ -276,88 +336,13 @@ def search_magazines(mags=None, reset=False, backissues=False):
                         logger.debug(f'Magazine [{nzbtitle}] does not match search term [{bookid}].')
                         bad_name += 1
                     else:
-                        rejected = False
-                        maxsize = CONFIG.get_int('REJECT_MAGSIZE')
-                        if maxsize and nzbsize > maxsize:
-                            logger.debug(f"Rejecting {nzbtitle}, too large ({nzbsize}Mb)")
-                            rejected = True
-
-                        if not rejected:
-                            minsize = CONFIG.get_int('REJECT_MAGMIN')
-                            if minsize and nzbsize < minsize:
-                                logger.debug(f"Rejecting {nzbtitle}, too small ({nzbsize}Mb)")
-                                rejected = True
-
-                        if not rejected and profile:
-                            if not quality.imported('magazine', nzb['quality']):
-                                logger.debug(f"Rejecting {nzbtitle}, {quality.name(nzb['quality'])} files "
-                                             f"aren't imported (magazine types)")
-                                rejected = True
-                            elif not profiles.rank(profile, nzb['quality']):
-                                logger.debug(f"Rejecting {nzbtitle}, {quality.name(nzb['quality'])} isn't wanted "
-                                             f"by the {profile['name']} quality profile")
-                                rejected = True
-
-                        if not rejected:
-                            # the magazine's title (or a search term) starts the name, then the issue:
-                            # "Lets Make-31 July 2023" isn't Make
-                            found = magreleases.read(nzbtitle, terms, datetype, scheme, pairs, nzbdate)
-                            if found['kind'] is None:
-                                logger.debug(f"Rejecting {nzbtitle}: {found['reason']} ({', '.join(terms)})")
-                                rejected = True
-                            else:
-                                logger.debug(f"Magazine title matched {bookid} for {nzbtitle_formatted}")
-
-                        if not rejected and CONFIG.get_bool('BLACKLIST_FAILED'):
-                            blocked = blocklist.find(db, nzburl, nzbtitle, nzbprov)
-                            if blocked:
-                                logger.debug(f"Rejecting {nzbtitle_formatted}, blacklisted at {blocked['NZBprov']}")
-                                rejected = True
-
-                        if not rejected and CONFIG.get_bool('BLACKLIST_PROCESSED'):
-                            blocked = db.match("SELECT * from wanted WHERE NZBurl=? "
-                                               "and Status NOT IN ('Failed','Aborted')", (nzburl,))
-                            if blocked:
-                                logger.debug(f"Rejecting {nzbtitle_formatted}, blacklisted at {blocked['NZBprov']}")
-                                rejected = True
-
-                        if not rejected:
-                            reject_list = get_list(results['Reject'])
-                            reject_list += get_list(CONFIG['REJECT_MAGS'], ',')
-                            lower_title = unaccented(nzbtitle_formatted, only_ascii=False).lower().split()
-                            lower_bookid = unaccented(bookid, only_ascii=False).lower().split()
-                            if reject_list:
-                                searchinglogger.debug(f'Reject: {reject_list}')
-                                searchinglogger.debug(f'Title: {lower_title}')
-                                searchinglogger.debug(f'Bookid: {lower_bookid}')
-                            for word in reject_list:
-                                word = unaccented(word).lower()
-                                if word in lower_title and word not in lower_bookid:
-                                    rejected = True
-                                    logger.debug(f"Rejecting {nzbtitle_formatted}, contains {word}")
-                                    break
-                            if not rejected:
-                                reject_list = get_list(results['Reject'])
-                                if '*' in reject_list:  # strict rejection mode, no extraneous words
-                                    nouns = get_list(CONFIG['ISSUE_NOUNS'])
-                                    nouns.extend(get_list(CONFIG['VOLUME_NOUNS']))
-                                    nouns.extend(get_list(CONFIG['MAG_NOUNS']))
-                                    nouns.extend(get_list(CONFIG['MAG_TYPE']))
-                                    nouns.extend(list(lazylibrarian.SEASONS.keys()))
-                                    nouns = set(nouns)
-                                    for word in lower_title:
-                                        if word not in lower_bookid and word not in nouns and not word.isdigit():
-                                            valid = False
-                                            for f in range(1, 13):
-                                                if (word in lazylibrarian.MONTHNAMES[0][f] or
-                                                        unaccented(word).lower() in lazylibrarian.MONTHNAMES[1][f]):
-                                                    valid = True
-                                                    break
-                                            if not valid:
-                                                rejected = True
-                                                logger.debug(
-                                                    f"Rejecting {nzbtitle_formatted}, strict, contains {word}")
-                                                break
+                        found, rejections = check_release(db, results, nzb, terms, datetype, scheme, pairs,
+                                                          profile)
+                        rejected = bool(rejections)
+                        if rejected:
+                            logger.debug(f"Rejecting {nzbtitle}: {rejections[0]}")
+                        else:
+                            logger.debug(f"Magazine title matched {bookid} for {nzbtitle_formatted}")
                         if rejected:
                             rejects += 1
                         else:

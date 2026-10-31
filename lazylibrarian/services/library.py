@@ -763,7 +763,7 @@ def series_lookup(series_id: str) -> list[dict]:
                 mine = have[_title_key(title)]
                 row = {'BookID': mine['id'], 'Status': mine['status'], 'AudioStatus': mine['audio_status']}
             if not row:
-                row = db.match('SELECT BookID, Status, AudioStatus FROM books JOIN authors ON '
+                row = db.match('SELECT BookID, books.Status AS Status, AudioStatus FROM books JOIN authors ON '
                                'books.AuthorID=authors.AuthorID WHERE BookName=? COLLATE NOCASE AND '
                                'AuthorName=? COLLATE NOCASE', (title, author))
             result.append({'number': str(order or ''), 'title': title or '', 'author_name': author or '',

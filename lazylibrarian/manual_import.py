@@ -49,6 +49,7 @@ from lazylibrarian.config2 import CONFIG, DIRS
 from lazylibrarian.filesystem import (
     book_file,
     book_opf,
+    existing_spelling,
     get_directory,
     issue_folder,
     listdir,
@@ -140,9 +141,8 @@ def process_mag_from_file(source_file, title, issuenum):
 
         if CONFIG["MAG_DIR"] or CONFIG.get_bool("MAG_RELATIVE"):
             dest_path = stripspaces(issue_folder("magazine", dest_path))
-            dest_path = make_utf8bytes(dest_path)[0]
-        else:
-            dest_path = make_utf8bytes(dest_path)[0]
+        # the magazine's folder as it's spelled there, "Cook's Country" for "Cooks Country"
+        dest_path = make_utf8bytes(existing_spelling(dest_path, issue_folder("magazine", "")))[0]
 
         if not dest_path or not make_dirs(dest_path):
             logger.error(f"Unable to create destination directory {dest_path}")

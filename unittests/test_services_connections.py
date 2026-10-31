@@ -14,7 +14,7 @@ from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
 KEYS = ('PUSHOVER_PRIORITY', 'PUSHOVER_APITOKEN', 'QBITTORRENT_IGNORE_SSL', 'QBITTORRENT_HOST', 'EMAIL_TLS', 'SAB_HOST',
         'SAB_PORT', 'DELUGE_HOST', 'DELUGE_USER', 'DELUGE_LABEL', 'DELUGE_LABEL_AUDIO', 'DELUGE_LABEL_MAG',
         'DELUGE_LABEL_COMIC', 'DELUGE_CERT', 'FFMPEG', 'EXT_PREPROCESS',
-        'PROWL_PRIORITY', 'SLACK_TOKEN')
+        'PROWL_PRIORITY', 'SLACK_TOKEN', 'GB_API')
 
 
 class ConnectionServiceTest(LLTestCaseWithConfigandDIRS):
@@ -124,3 +124,21 @@ class ConnectionServiceTest(LLTestCaseWithConfigandDIRS):
         self.assertIsNone(connections.test_preprocessor())
         with mock.patch.object(connections, 'run_script', return_value=(0, 'ok', '')):
             self.assertEqual(connections.test_preprocessor('pre'), (0, 'ok', ''))
+
+    def test_googlebooks(self):
+        """ What Google says of the key as it's kept, and what the key is like, never the key itself """
+        key = 'AIzaSyExampleExampleExampleExample12345'
+        CONFIG.set_str('GB_API', '')
+        self.assertEqual(connections.test_googlebooks(), (False, 'There is no GoogleBooks API key'))
+        CONFIG.set_str('GB_API', f'{key}\n')
+        refused = mock.Mock(status_code=400)
+        refused.json.return_value = {'error': {'message': 'API key not valid. Please pass a valid API key.'}}
+        with mock.patch('requests.get', return_value=refused) as asked:
+            ok, message = connections.test_googlebooks()
+        self.assertFalse(ok)
+        self.assertEqual(asked.call_args.kwargs['params']['key'], f'{key}\n', 'The key as it is kept')
+        self.assertIn('spaces or a line break around it', message)
+        self.assertNotIn(key, message)
+        CONFIG.set_str('GB_API', key)
+        with mock.patch('requests.get', return_value=mock.Mock(status_code=200)):
+            self.assertEqual(connections.test_googlebooks(), (True, f'Google takes the key. It has {len(key)} characters'))

@@ -303,6 +303,40 @@ def test_calibredb(program: str = '') -> str:
     return calibre_test()
 
 
+def test_googlebooks() -> tuple[bool, str]:
+    """ Whether Google takes the GoogleBooks API key as it's kept, asking it for one book, and what
+    the key is like (its length, any spaces or quotes) without showing it, to tell a key kept wrongly
+    from one Google doesn't know """
+    import re  # noqa: PLC0415, only this test needs it
+
+    import requests  # noqa: PLC0415
+
+    from lazylibrarian.common import proxy_list  # noqa: PLC0415
+    key = CONFIG['GB_API'] or ''
+    if not key:
+        return False, 'There is no GoogleBooks API key'
+    shape = [f'{len(key)} characters']
+    if key != key.strip():
+        shape.append('spaces or a line break around it')
+    if not re.fullmatch(r'[A-Za-z0-9_\-]+', key.strip()):
+        shape.append("characters a Google key doesn't have")
+    elif not key.startswith('AIza'):
+        shape.append("not starting AIza, as Google's keys do")
+    try:
+        response = requests.get('/'.join([CONFIG['GB_URL'], 'books/v1/volumes']),
+                                params={'q': 'isbn:9780141439518', 'maxResults': 1, 'key': key},
+                                proxies=proxy_list(), timeout=check_int(CONFIG['HTTP_TIMEOUT'], 30))
+    except Exception as e:
+        return False, f"Google couldn't be asked: {type(e).__name__} {e}. The key has {', '.join(shape)}"
+    if response.status_code == 200:
+        return True, f"Google takes the key. It has {', '.join(shape)}"
+    try:
+        said = response.json()['error']['message']
+    except (ValueError, KeyError, TypeError):
+        said = response.text[:200]
+    return False, f"Google said {response.status_code}: {said} The key as it's kept has {', '.join(shape)}"
+
+
 def test_preprocessor(program: str = '') -> tuple | None:
     """ Run the preprocessor in test mode, returns (return code, output, errors), None if there isn't one """
     set_tool('preprocessor', program)

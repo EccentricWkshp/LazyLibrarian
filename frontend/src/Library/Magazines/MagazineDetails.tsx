@@ -17,6 +17,7 @@ import {
   Send,
   SquarePen,
   Trash2,
+  UserSearch,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -24,6 +25,7 @@ import { runCommand } from 'App/commands';
 import { CheckInput, SelectInput } from 'Components/Form/Form';
 import FormattedDate from 'Components/FormattedDate';
 import Icon from 'Components/Icon';
+import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import { Alert, Label, LoadingIndicator } from 'Components/Misc';
 import PageContent from 'Components/Page/PageContent';
@@ -43,6 +45,7 @@ import { api } from 'Utilities/api';
 import { useDates } from 'Utilities/dates';
 import EditIssueModal from './EditIssueModal';
 import EditMagazineModal from './EditMagazineModal';
+import { IssueSearchModal } from './IssueSearch';
 import { deleteMagazines, setMagazineStatus } from './MagazineIndex';
 
 // how often it comes out, in words
@@ -90,13 +93,54 @@ export function markRead(kind: 'issue' | 'comic', ids: string[], finished: boole
   );
 }
 
-function Schedule({ schedule, title }: { schedule: IssueSchedule; title: string }) {
+// an issue the magazine hasn't got, searched for as Sonarr searches for an episode: automatically, or
+// interactively to choose a release
+function IssueSearchButtons({
+  title,
+  issue,
+  label,
+  onInteractive,
+}: {
+  title: string;
+  issue: string;
+  label: string;
+  onInteractive: (issue: string) => void;
+}) {
+  const [isSearching, setIsSearching] = useState(false);
+
+  return (
+    <span className={styles.issueSearch}>
+      <IconButton
+        name={Search}
+        title={`Search for ${label}`}
+        isSpinning={isSearching}
+        onPress={() => {
+          setIsSearching(true);
+          runCommand('IssueSearch', { title, issue }, `Search for ${title} ${label}`).finally(() =>
+            setIsSearching(false)
+          );
+        }}
+      />
+      <IconButton name={UserSearch} title={`Interactive search for ${label}`} onPress={() => onInteractive(issue)} />
+    </span>
+  );
+}
+
+function Schedule({
+  schedule,
+  title,
+  onInteractive,
+}: {
+  schedule: IssueSchedule;
+  title: string;
+  onInteractive: (issue: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const dates = useDates();
-  const missing = schedule.missing.map(dates.issue);
   const howOften = frequencyName(schedule.frequency);
+  const missing = showAll ? schedule.missing : schedule.missing.slice(0, 12);
 
-  if (!schedule.next && !missing.length) {
+  if (!schedule.next && !schedule.missing.length) {
     return null;
   }
 
@@ -108,20 +152,32 @@ function Schedule({ schedule, title }: { schedule: IssueSchedule; title: string 
           The next issue
           {/^\d+$/.test(schedule.next) ? ` is number ${schedule.next}` : ` is due around ${dates.issue(schedule.next)}`}
           {schedule.overdue ? ', and it is overdue' : ''}.
+          {schedule.overdue ? (
+            <IssueSearchButtons
+              title={title}
+              issue={schedule.next}
+              label={/^\d+$/.test(schedule.next) ? `number ${schedule.next}` : dates.issue(schedule.next)}
+              onInteractive={onInteractive}
+            />
+          ) : null}
         </p>
       ) : null}
-      {missing.length ? (
+      {schedule.missing.length ? (
         <Alert kind="warning">
-          {plural(missing.length, 'issue')} missing between the first and the latest:{' '}
-          {(showAll ? missing : missing.slice(0, 12)).join(', ')}
-          {missing.length > 12 && !showAll ? (
-            <>
-              {' '}
-              <Link onPress={() => setShowAll(true)}>and {missing.length - 12} more</Link>
-            </>
-          ) : null}
-          . <Link to={`/magazines/pastissues?title=${encodeURIComponent(title)}`}>Past Issues</Link> has the ones a
+          {plural(schedule.missing.length, 'issue')} missing between the first and the latest.{' '}
+          <Link to={`/magazines/pastissues?title=${encodeURIComponent(title)}`}>Past Issues</Link> has the ones a
           search found but didn't want.
+          <ul className={styles.missingIssues}>
+            {missing.map((issue) => (
+              <li key={issue}>
+                {dates.issue(issue)}
+                <IssueSearchButtons title={title} issue={issue} label={dates.issue(issue)} onInteractive={onInteractive} />
+              </li>
+            ))}
+          </ul>
+          {schedule.missing.length > 12 && !showAll ? (
+            <Link onPress={() => setShowAll(true)}>and {schedule.missing.length - 12} more</Link>
+          ) : null}
         </Alert>
       ) : null}
     </div>
@@ -215,6 +271,8 @@ function MagazineDetails() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState('');
   const [coverIssue, setCoverIssue] = useState<MagazineIssue | null>(null);
+  // the issue an interactive search is for, '' for every release, null for none open
+  const [searchingIssue, setSearchingIssue] = useState<string | null>(null);
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['library', 'magazine', title],
@@ -270,6 +328,12 @@ function MagazineDetails() {
             onPress={() =>
               run('search', 'BookSearch', { books: [{ bookId: data?.title, mediaType: 'magazine' }] }, `Search for ${title}`)
             }
+          />
+          <PageToolbarButton
+            label="Interactive Search"
+            iconName={UserSearch}
+            isDisabled={!data}
+            onPress={() => setSearchingIssue('')}
           />
           <PageToolbarButton
             label="Scan"
@@ -370,7 +434,7 @@ function MagazineDetails() {
           </div>
         ) : null}
 
-        {data ? <Schedule schedule={data.schedule} title={data.title} /> : null}
+        {data ? <Schedule schedule={data.schedule} title={data.title} onInteractive={setSearchingIssue} /> : null}
 
         {data && !issues.length ? <Alert kind="info">No issues yet. Search for it, or scan its folder.</Alert> : null}
         {issues.length ? (
@@ -462,6 +526,12 @@ function MagazineDetails() {
           onModalClose={() => setCoverIssue(null)}
         />
       ) : null}
+      <IssueSearchModal
+        isOpen={searchingIssue !== null}
+        title={title}
+        issue={searchingIssue ?? ''}
+        onModalClose={() => setSearchingIssue(null)}
+      />
     </PageContent>
   );
 }

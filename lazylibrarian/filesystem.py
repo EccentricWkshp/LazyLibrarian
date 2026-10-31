@@ -672,6 +672,46 @@ def issue_folder(library: str, folder: str) -> str:
     return folder
 
 
+def _folder_key(name: str) -> str:
+    """ A folder's name without what a made-up name leaves out or changes: punctuation, spaces, case """
+    return ''.join(c for c in unaccented(name, only_ascii=False).casefold() if c.isalnum())
+
+
+def existing_spelling(path: str, root: str = '') -> str:
+    """ A folder path below root as the folders already there spell it. A name made from a title has
+    the characters a file name can't have, or shouldn't, taken out ("Cooks Country"); a folder there
+    already with them ("Cook's Country") is that folder, so a magazine's, comic's or author's files
+    stay together. Each folder below root that isn't there is looked for among those beside it; one
+    that is there as it's named stays as it is """
+    if not path:
+        return path
+    path = os.path.normpath(path)
+    root = os.path.normpath(root) if root else ''
+    if root and os.path.commonpath([path, root]) != root:
+        root = ''
+    below = os.path.relpath(path, root) if root else path
+    current = root or ''
+    parts = below.split(os.sep)
+    if not root and os.path.isabs(path):  # the drive or / that starts it
+        current, parts = parts[0] + os.sep, parts[1:]
+    for name in parts:
+        if not name or name in ('.', '..'):
+            current = os.path.join(current, name) if name else current
+            continue
+        found = os.path.join(current, name) if current else name
+        if current and path_isdir(current) and not path_isdir(found):
+            key = _folder_key(name)
+            try:
+                alike = sorted(entry for entry in os.listdir(current) if entry != name and key
+                               and _folder_key(entry) == key and os.path.isdir(os.path.join(current, entry)))
+            except OSError:
+                alike = []
+            if alike:
+                found = os.path.join(current, alike[0])
+        current = found
+    return current
+
+
 def copy_tree(src_dir, dest_dir):
     # rolled our own copytree using walk and copyfile as odd permission errors from the library version
     # This should hopefully just work, or if not at least it will show what's going on

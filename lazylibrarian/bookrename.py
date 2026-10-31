@@ -26,6 +26,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     book_opf,
     copy_tree,
+    existing_spelling,
     get_directory,
     listdir,
     path_isdir,
@@ -469,7 +470,8 @@ def audio_rename(bookid, rename=False, playlist=False, overwrite=False):
     dest_dir = get_directory('Audio')
     dest_path = os.path.join(dest_dir, dest_path)
     old_path = old_path.rstrip(os.path.sep)
-    dest_path = os.path.normpath(dest_path)
+    # the author's folder as it's spelled there
+    dest_path = existing_spelling(os.path.normpath(dest_path), dest_dir)
 
     # check for windows case-insensitive
     if os.name == 'nt' and old_path.lower() == dest_path.lower():
@@ -637,7 +639,8 @@ def book_rename(bookid, overwrite=False):
     dest_path = namevars['FolderName']
     dest_dir = get_directory('eBook')
     dest_path = os.path.join(dest_dir, dest_path)
-    dest_path = stripspaces(dest_path.rstrip(os.path.sep))
+    # the author's folder as it's spelled there
+    dest_path = existing_spelling(stripspaces(dest_path.rstrip(os.path.sep)), dest_dir)
     new_basename = namevars['BookFile']
 
     if fullname and not os.path.isfile(fullname):

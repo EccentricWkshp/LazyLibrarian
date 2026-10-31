@@ -27,6 +27,7 @@ from lazylibrarian.config2 import CONFIG
 from lazylibrarian.filesystem import (
     DIRS,
     book_file,
+    existing_spelling,
     issue_folder,
     make_dirs,
     path_exists,
@@ -345,7 +346,7 @@ def magazine_scan(title=None):
                                 matchinglogger.debug(f"Metadata date style [{dateparts['style']}][{issuedate}]")
 
                         if not issuedate:
-                            logger.warning(f"Invalid name format for [{fname}]")
+                            logger.warning(f"Invalid name format for [{issuefile}]")
                             UNREAD.add((issuefile, os.path.getmtime(syspath(issuefile))))
                             continue
                         if title not in schemes:
@@ -543,9 +544,11 @@ def issue_details(db, details: list[dict]):
 def update_latest(db, title: str):
     """ A magazine's latest issue date and cover from its newest issue, as they would be if each issue
     had come in in order """
-    # an issue filed under 1970-01-01, with none, isn't the newest
-    newest = db.match("SELECT IssueDate,Cover FROM issues WHERE Title=? ORDER BY IssueDate='1970-01-01', "
-                      "IssueDate DESC", (title,))
+    from lazylibrarian import magreleases  # noqa: PLC0415, it reads names with this module
+    issues = db.select("SELECT IssueDate,Cover FROM issues WHERE Title=?", (title,))
+    # the newest of the form most issues have, not one misread or filed under 1970-01-01
+    latest = magreleases.latest_of([issue['IssueDate'] for issue in issues])
+    newest = next((issue for issue in issues if issue['IssueDate'] == latest), None)
     if newest:
         db.action('UPDATE magazines SET IssueDate=?, LatestCover=? WHERE Title=?',
                   (newest['IssueDate'], newest['Cover'], title))
@@ -662,6 +665,17 @@ NOT_ISSUE_NUMBERS = re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:[kmgt]i?b|bytes)\b|\b\d+
                                r'[\[(]\s*\d+\s*/\s*\d+\s*[])]', re.IGNORECASE)
 # a year run into the month after it, "December 2023January 2024", as some names have
 GLUED_YEAR = re.compile(r'\b((?:19|20)\d\d)(?=[^\W\d_]{3,})')
+# two months together and the year apart, "Cook's Country 08.09 2025", the August-September issue
+MONTH_PAIR = re.compile(r'(?<![\d.\-/])(0?[1-9]|1[0-2])[.\-/](0?[1-9]|1[0-2])[\s_]+((?:19|20)\d\d)(?!\d|[.\-/]\d)')
+
+
+def _month_pair(found: re.Match) -> str:
+    """ Two months in a row and a year as the first month and the year, as a bi-monthly issue is dated;
+    any other two numbers are left, a day and a month """
+    first, second, year = int(found.group(1)), int(found.group(2)), found.group(3)
+    if second == first % 12 + 1:
+        return f"{year} {first:02d}"
+    return found.group(0)
 
 
 def get_dateparts(title_or_issue, datetype=''):
@@ -687,7 +701,8 @@ def get_dateparts(title_or_issue, datetype=''):
     logger = logging.getLogger(__name__)
     datetype = datetype or ''  # a magazine's DateType can be NULL
     dic = {'.': ' ', '-': ' ', '/': ' ', '+': ' ', '_': ' ', '(': '', ')': '', '[': ' ', ']': ' ', '#': '# '}
-    words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', GLUED_YEAR.sub(r'\1 ', str(title_or_issue))), dic).split()
+    text = MONTH_PAIR.sub(_month_pair, GLUED_YEAR.sub(r'\1 ', str(title_or_issue)))
+    words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', text), dic).split()
     issuenouns = get_list(CONFIG['ISSUE_NOUNS'])
     volumenouns = get_list(CONFIG['VOLUME_NOUNS'])
     nouns = issuenouns + volumenouns
@@ -1095,6 +1110,8 @@ def rename_issue(issueid, tags=None):
     old_folder = os.path.dirname(match['IssueFile'])
     new_folder = stripspaces(issue_folder('magazine', format_issue_filename(CONFIG['MAG_DEST_FOLDER'], match['Title'],
                                                                              parts)))
+    # the magazine's folder as it's spelled there, "Cook's Country" for "Cooks Country"
+    new_folder = existing_spelling(new_folder, issue_folder('magazine', ''))
 
     new_filename = os.path.join(new_folder, new_name + extn)
 

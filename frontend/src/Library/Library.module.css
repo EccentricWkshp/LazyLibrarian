@@ -357,6 +357,29 @@
   color: var(--warningColor);
 }
 
+/* the issues a magazine is missing, each with its searches */
+.missingIssues {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+  padding: 0;
+  gap: 4px 18px;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+.issueSearch {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  vertical-align: middle;
+  gap: 2px;
+}
+
 /* a book's formats, each with its status, searches and file */
 .formatPanels {
   display: grid;

@@ -559,9 +559,11 @@ def set_latest(title) -> str:
     db = database.DBConnection()
     try:
         cmd = "select IssueDate,IssueAcquired,IssueFile,Cover from issues where title=? order by "
-        # an issue filed under 1970-01-01, with none, isn't the newest
-        newest = db.match(cmd + "IssueDate='1970-01-01', IssueDate DESC", (title,))
-        oldest = db.match(cmd + 'IssueDate ASC', (title,))
+        issues = db.select(cmd + 'IssueDate ASC', (title,))
+        # the newest of the form most issues have, not one misread or filed under 1970-01-01
+        latest = magreleases.latest_of([issue['IssueDate'] for issue in issues])
+        newest = next((issue for issue in issues if issue['IssueDate'] == latest), None)
+        oldest = issues[0] if issues else None
         if newest and oldest:
             new_value_dict = {'IssueDate': newest['IssueDate'], 'LatestCover': newest['Cover'],
                               'LastAcquired': file_date(newest['IssueFile']),

@@ -42,3 +42,21 @@ export interface Release {
   rejections: string[];
   approved: boolean;
 }
+
+// a release of a magazine, with the issue it is
+export interface IssueRelease {
+  id: string;
+  title: string;
+  indexer: string;
+  protocol: string;
+  size: number;
+  // yyyy-mm-dd, '' when it came without a date
+  posted: string;
+  // as the library keeps it, '' when the name doesn't say
+  issue: string;
+  quality: string;
+  rejections: string[];
+  approved: boolean;
+  // it's the issue searched for
+  matches: boolean;
+}

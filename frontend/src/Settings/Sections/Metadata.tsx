@@ -24,6 +24,7 @@ const GROUPS: Group[] = [
   {
     legend: 'Metadata Source',
     help: 'Where authors and books are looked up',
+    tests: [{ label: 'Test GoogleBooks', test: 'GOOGLEBOOKS' }],
     fields: [
       {
         key: 'BOOK_API',

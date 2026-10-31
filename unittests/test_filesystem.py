@@ -376,3 +376,20 @@ class FilesystemTest(LLTestCaseWithConfigandDIRS):
 
         book = filesystem.book_file(DIRS.DATADIR, 'book', config=self.cfg(), recurse=True)
         self.assertTrue(book != '', 'Expected to find a book file below the DATADIR')
+
+    def test_existing_spelling(self):
+        """ A folder made from a title, its apostrophe taken out, is the one there with it """
+        root = tempfile.mkdtemp(dir=TESTDIR)
+        os.makedirs(os.path.join(root, "Cook's Country", '2025'))
+        os.makedirs(os.path.join(root, 'Wood Magazine'))
+        self.assertEqual(filesystem.existing_spelling(os.path.join(root, 'Cooks Country', '2025'), root),
+                         os.path.join(root, "Cook's Country", '2025'))
+        self.assertEqual(filesystem.existing_spelling(os.path.join(root, 'Cooks Country', '2026'), root),
+                         os.path.join(root, "Cook's Country", '2026'), 'A new folder in it')
+        if not os.path.isdir(os.path.join(root, 'wood magazine')):  # where case makes another folder
+            self.assertEqual(filesystem.existing_spelling(os.path.join(root, 'wood magazine'), root),
+                             os.path.join(root, 'Wood Magazine'), 'Nor is a case apart another folder')
+        self.assertEqual(filesystem.existing_spelling(os.path.join(root, 'Make'), root), os.path.join(root, 'Make'))
+        os.makedirs(os.path.join(root, 'Cooks Country'))
+        self.assertEqual(filesystem.existing_spelling(os.path.join(root, 'Cooks Country'), root),
+                         os.path.join(root, 'Cooks Country'), 'One there as named stays')

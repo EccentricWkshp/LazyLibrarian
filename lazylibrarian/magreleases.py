@@ -29,7 +29,7 @@ from lazylibrarian.formatter import (
     two_months,
     unaccented,
 )
-from lazylibrarian.magazinescan import NOT_ISSUE_NUMBERS, get_dateparts
+from lazylibrarian.magazinescan import MONTH_PAIR, NOT_ISSUE_NUMBERS, _month_pair, get_dateparts
 
 ISSUE = 'issue'
 BUNDLE = 'bundle'
@@ -219,6 +219,19 @@ def form_of(datetype: str, issue_dates: list[str]) -> str:
     return ''
 
 
+def latest_of(keys: list[str]) -> str:
+    """ The newest of a magazine's issue keys, of the form most of them have: a misread one, a number
+    among dates ("20255" for October 2025), isn't the newest for sorting after them all, nor is an
+    issue filed as 1970-01-01 when it had none. '' when there are none """
+    keys = [str(key) for key in keys if key]
+    known = [key for key in keys if key != NO_ISSUE]
+    if not known:
+        return keys[0] if keys else ''
+    dated = [key for key in known if re.match(r'^\d{4}-\d\d-\d\d$', key)]
+    others = [key for key in known if key not in dated]
+    return max(dated if len(dated) >= len(others) else others)
+
+
 def pairs_of(readings: list[dict]) -> dict:
     """ The numbers and dates names give together, each month to its number and each number to its
     date; a month or a number given two ways is left out """
@@ -328,7 +341,8 @@ def read(name: str, terms: list[str], datetype: str = '', scheme: str = '', pair
     are known (scheme, using pairs to put a number as a date or a date as a number) or ''; edition is
     another edition's words, as the name has them. A month without a year is the one around posted,
     when the result was posted (yyyy-mm-dd) """
-    text = html.unescape(str(name))
+    # two months together, "08.09 2025", read before the name is split into words
+    text = MONTH_PAIR.sub(_month_pair, html.unescape(str(name)))
     found = {'kind': None, 'reason': '', 'issuedate': '', 'date': '', 'number': 0, 'issue': 0, 'volume': 0,
              'year': 0, 'edition': ''}
     # sizes and part counts are no issue's numbers

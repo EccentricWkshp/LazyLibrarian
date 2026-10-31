@@ -308,6 +308,16 @@ def _index_issues(command: dict, body: dict) -> str:
             f"{plural(found['items'], 'issue')} can be searched, {found['pages']} {plural(found['pages'], 'page')}")
 
 
+def _issue_search(command: dict, body: dict) -> str:
+    """ Search for one issue of a magazine (title, issue) and download the best release of it """
+    from lazylibrarian.services import releases  # it imports most of LazyLibrarian
+    title, issue = body.get('title') or '', body.get('issue') or ''
+    if not title or not issue:
+        raise InvalidRequestError('Search for a magazine (title) and one of its issues (issue)')
+    _update(command, message=f"Searching for {title} {issue}")
+    return releases.search_issue(title, issue)
+
+
 def _refresh_languages(command: dict, body: dict) -> str:
     from lazylibrarian.services import books  # it imports most of LazyLibrarian
     return books.refresh_languages_now(progress=lambda text: _update(command, message=text))
@@ -326,7 +336,7 @@ HANDLERS: dict[str, Callable[[dict, dict], str]] = {'ManualImport': _manual_impo
                                                     'TagIssues': _tag_issues, 'RefreshMagazine': _refresh_magazine,
                                                     'ApplyRetention': _apply_retention, 'IndexIssues': _index_issues,
                                                     'RenumberIssues': _renumber_issues,
-                                                    'CompleteBooks': _complete_books}
+                                                    'CompleteBooks': _complete_books, 'IssueSearch': _issue_search}
 # what System, Tasks calls each command
 TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'MissingBookSearch': 'Missing Book Search',
           'CutoffUnmetSearch': 'Upgrade Search',
@@ -336,7 +346,8 @@ TITLES = {'ManualImport': 'Manual Import', 'BookSearch': 'Book Search', 'Missing
           'RefreshLanguages': tasks.MANUAL['RefreshLanguages'][0], 'IssueCovers': 'Make Covers',
           'SwapCover': 'Swap Cover Page', 'TagIssues': 'Tag Issues', 'RefreshMagazine': 'Refresh Magazine',
           'ApplyRetention': 'Delete Old Issues', 'IndexIssues': 'Index Issues for Search',
-          'RenumberIssues': 'Renumber Issues', 'CompleteBooks': tasks.MANUAL['CompleteBooks'][0]}
+          'RenumberIssues': 'Renumber Issues', 'CompleteBooks': tasks.MANUAL['CompleteBooks'][0],
+          'IssueSearch': 'Issue Search'}
 
 
 def _run(command: dict, body: dict):

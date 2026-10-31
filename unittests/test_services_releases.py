@@ -243,3 +243,89 @@ class WantedTest(SettingsMixin, LLTestCaseWithStartup):
             command = self.wait(commands.start('BookSearch', {'books': [{'book_id': 'w1', 'media_type': 'ebook'}]}))
         self.assertEqual(command['status'], 'failed')
         self.assertIn('No search providers', command['message'])
+
+
+def _nzb(title, url, size='20000000'):
+    return {'bookid': 'Cook Mag', 'nzbprov': 'https://indexer.example', 'nzbtitle': title, 'nzburl': url,
+            'nzbdate': 'Fri, 03 Oct 2025 10:00:00 +0000', 'nzbsize': size, 'nzbmode': 'nzb'}
+
+
+class IssueSearchTest(SettingsMixin, LLTestCaseWithStartup):
+    """ Searching for one issue of a magazine, as Sonarr for an episode """
+
+    def setUp(self):
+        super().setUp()
+        with DBConnection() as db:
+            for table in ('magazines', 'issues', 'wanted'):
+                db.action(f"DELETE FROM {table} WHERE {'BookID' if table == 'wanted' else 'Title'} LIKE 'Cook Mag%'")
+            db.action("INSERT INTO magazines (Title, Status, Regex, Reject) VALUES ('Cook Mag', 'Active', '', '')")
+            for issue in ('2025-04-01', '2025-06-01'):
+                db.action("INSERT INTO issues (Title, IssueID, IssueDate) VALUES ('Cook Mag', ?, ?)", (issue, issue))
+        patch = mock.patch.object(CONFIG, 'total_active_providers', return_value=1)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.results = [_nzb('Cook Mag - June July 2025', 'http://x/have'),
+                        _nzb('Other Mag - August September 2025', 'http://x/other'),
+                        _nzb('Cook Mag - August September 2025', 'http://x/aug'),
+                        _nzb('Cook Mag 08.09 2025', 'http://x/aug2', size='0'),
+                        _nzb('Cook Mag - October November 2025', 'http://x/oct')]
+
+    def search(self, issue=''):
+        with mock.patch.object(releases, '_provider_results', return_value=[('nzb', list(self.results))]):
+            return releases.search_issues('Cook Mag', issue)
+
+    def test_the_issue_asked_for_first(self):
+        found = self.search('August 2025')
+        self.assertEqual([(release['title'], release['issue'], release['matches']) for release in found[:2]],
+                         [('Cook Mag - August September 2025', '2025-08-01', True),
+                          ('Cook Mag 08.09 2025', '2025-08-01', True)], 'Of the issue, what could be taken first')
+        by_title = {release['title']: release for release in found}
+        self.assertEqual(by_title['Cook Mag - June July 2025']['rejections'], ['That issue is in the library already'])
+        self.assertFalse(by_title['Other Mag - August September 2025']['approved'], 'Not the magazine')
+        self.assertTrue(by_title['Cook Mag - October November 2025']['approved'])
+        self.assertFalse(by_title['Cook Mag - October November 2025']['matches'])
+        self.assertEqual(by_title['Cook Mag - August September 2025']['posted'], '2025-10-03')
+        with self.assertRaises(InvalidRequestError):
+            self.search('no such issue at all')
+
+    def test_downloaded_as_an_issue(self):
+        release = next(release for release in self.search() if release['title'] == 'Cook Mag 08.09 2025')
+
+        def snatched(maglist, table):
+            with DBConnection() as db:
+                db.action("UPDATE wanted SET Status='Snatched' WHERE NZBurl=?", (maglist[0]['nzburl'],))
+
+        from lazylibrarian import searchmag
+        with mock.patch.object(searchmag, 'download_maglist', side_effect=snatched):
+            self.assertEqual(releases.download(release['id']), 'Downloading Cook Mag 08.09 2025 as Cook Mag 2025-08-01')
+            with self.assertRaises(InvalidRequestError):
+                releases.download(release['id'])  # already downloading
+        with DBConnection() as db:
+            row = db.match("SELECT BookID, AuxInfo, Status FROM wanted WHERE NZBurl='http://x/aug2'")
+        self.assertEqual(tuple(row), ('Cook Mag', '2025-08-01', 'Snatched'))
+        # one that doesn't say its issue is filed under the one chosen
+        self.results.append(_nzb('Cook Mag Holiday Special', 'http://x/special'))
+        special = next(release for release in self.search() if release['title'] == 'Cook Mag Holiday Special')
+        self.assertEqual(special['issue'], '')
+        with mock.patch.object(searchmag, 'download_maglist', side_effect=snatched):
+            with self.assertRaises(InvalidRequestError):
+                releases.download(special['id'])
+            self.assertIn('2025-12-01', releases.download(special['id'], 'December 2025'))
+
+    def test_the_automatic_search_for_an_issue(self):
+        from lazylibrarian import searchmag
+
+        def snatched(maglist, table):
+            with DBConnection() as db:
+                db.action("UPDATE wanted SET Status='Snatched' WHERE NZBurl=?", (maglist[0]['nzburl'],))
+
+        with mock.patch.object(releases, '_provider_results', return_value=[('nzb', list(self.results))]), \
+                mock.patch.object(searchmag, 'download_maglist', side_effect=snatched) as downloaded:
+            self.assertEqual(releases.search_issue('Cook Mag', 'August 2025'),
+                             'Downloading Cook Mag - August September 2025 as Cook Mag 2025-08-01')
+            self.assertEqual(downloaded.call_args.args[0][0]['nzburl'], 'http://x/aug', 'The best of the issue')
+            self.assertEqual(releases.search_issue('Cook Mag', 'February 2025'),
+                             'No release of Cook Mag February 2025 was found')
+        with mock.patch.object(releases, '_provider_results', return_value=[('nzb', list(self.results))]), \
+                mock.patch.object(searchmag, 'download_maglist'), self.assertRaises(InvalidRequestError):
+            releases.search_issue('Cook Mag', 'October 2025')  # the download client didn't take it

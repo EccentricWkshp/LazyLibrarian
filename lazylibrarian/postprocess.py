@@ -55,6 +55,7 @@ from lazylibrarian.filesystem import (
     book_file,
     bts_file,
     copy_tree,
+    existing_spelling,
     folder_unwriteable,
     get_directory,
     jpg_file,
@@ -3589,6 +3590,8 @@ def process_book(book_path: str, book_id: str, logger=None, library=""):
             else:
                 folder_name = str(namevars["FolderName"])  # Enforce string from dict
                 dest_path = stripspaces(os.path.join(dest_dir, folder_name))
+            # the author's folder as it's spelled there
+            dest_path = existing_spelling(dest_path, dest_dir)
 
             # Validate encoding via make_utf8bytes, then decode to string for metadata
             dest_path = enforce_str(enforce_bytes(dest_path))

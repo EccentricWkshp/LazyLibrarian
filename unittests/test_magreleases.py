@@ -108,6 +108,24 @@ class MagReleasesTest(LLTestCaseWithDB):
         found = self.read('Popular Mechanics South Africa-October 2013', 'Popular Mechanics South Africa')
         self.assertEqual(found['kind'], magreleases.ISSUE, 'The edition the magazine is')
 
+    def test_two_months_together_and_the_year_apart(self):
+        """ "08.09 2025" is the August-September issue, not the 8th of September; two numbers that
+        aren't months in a row, or a whole date, are still a day and a month """
+        for name, issuedate in (("Cook's Country 02.03 2025", '2025-02-01'),
+                                ("Cook's Country 08.09 2025_example.net", '2025-08-01'),
+                                ("Cook's Country 12-01 2025", '2025-12-01')):
+            self.assertEqual(self.read(name, "Cook's Country")['issuedate'], issuedate, name)
+        for name, month in (("Cook's Country 08.10 2025", '2025-10'), ("Cook's Country 08.09.2025", '2025-09')):
+            self.assertEqual(self.read(name, "Cook's Country")['issuedate'][:7], month, name)
+
+    def test_the_latest_issue(self):
+        """ The newest key of the form most issues have: a number misread among dates isn't the newest """
+        self.assertEqual(magreleases.latest_of(['2025-04-01', '2025-06-01', '20255']), '2025-06-01')
+        self.assertEqual(magreleases.latest_of(['20240276', '20240277', '2026-03-01']), '20240277')
+        self.assertEqual(magreleases.latest_of([magreleases.NO_ISSUE, '2025-01-01']), '2025-01-01')
+        self.assertEqual(magreleases.latest_of([magreleases.NO_ISSUE]), magreleases.NO_ISSUE)
+        self.assertEqual(magreleases.latest_of([]), '')
+
     def test_form_of(self):
         self.assertEqual(magreleases.form_of('', ['2026-03-01', '2026-05-01', '20240276']), 'date')
         self.assertEqual(magreleases.form_of('', ['20130221', '20130222', '0-00-01']), 'number')

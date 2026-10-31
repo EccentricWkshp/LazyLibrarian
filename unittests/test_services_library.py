@@ -221,7 +221,9 @@ class LibraryTest(LLTestCaseWithStartup):
                    ['3', 'Tripwire', 'Lee Child', '', 'OL1A', '1999', '', '', 'OL3W'],
                    ['1', 'Killing Floor', 'Lee Child', '', 'OL1A', '1997', '', '', 'OL1W'],
                    ['2', 'Die Trying', 'Lee Child', '', 'OL1A', '1998', '', '', 'b2']]
-        with mock.patch('lazylibrarian.bookwork.get_series_members', return_value=(members, 0, 'OL')) as asked:
+        # one without an id is looked for by its title and author, books' and authors' Status apart
+        with mock.patch('lazylibrarian.bookwork.get_series_members', return_value=(members, 0, 'OL')) as asked, \
+                self.assertNoLogs('lazylibrarian.database', 'ERROR'):
             found = library.series_lookup('OL1')
         asked.assert_called_once_with('OL1', 'Jack Reacher', refresh=True)
         self.assertEqual([(b['number'], b['title'], b['in_library'], b['library_id'], b['id'], b['source'])

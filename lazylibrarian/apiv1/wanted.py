@@ -56,8 +56,27 @@ class Release(ApiModel):
     approved: bool
 
 
+class IssueRelease(ApiModel):
+    id: str
+    title: str
+    indexer: str
+    protocol: str
+    size: int
+    # when it was posted, yyyy-mm-dd, '' when it came without a date
+    posted: str
+    # the issue it is, as the library keeps it, '' when it doesn't say
+    issue: str
+    quality: str
+    rejections: list[str]
+    approved: bool
+    # it's the issue searched for
+    matches: bool
+
+
 class ReleaseChoice(ApiModel):
     id: str
+    # a magazine's release filed under this issue, typed as in an issue's Edit, not the one it says
+    issue: str = ''
 
 
 class Message(ApiModel):
@@ -130,7 +149,16 @@ def search_releases(book_id: str = Query(alias='bookId'), media_type: str = Quer
     return releases.search(book_id, media_type)
 
 
+@router.get('/release/issue', response_model=list[IssueRelease], tags=['Release'])
+def search_issue_releases(title: str, issue: str = ''):
+    """ Interactive search for a magazine: every release the providers have for it, the issue each
+    is and the reasons the magazine search would turn it down. With an issue, typed as in an issue's
+    Edit, its releases first. The IssueSearch command takes the best of them """
+    return releases.search_issues(title, issue)
+
+
 @router.post('/release', response_model=Message, tags=['Release'])
 def download_release(choice: ReleaseChoice):
-    """ Download a release from an interactive search, by its id """
-    return {'message': releases.download(choice.id)}
+    """ Download a release from an interactive search, by its id, a magazine's filed under issue
+    when one is given """
+    return {'message': releases.download(choice.id, choice.issue)}
