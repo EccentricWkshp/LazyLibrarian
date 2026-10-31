@@ -314,6 +314,8 @@ class PastIssue(ApiModel):
     named: str = ''
     # another edition's words, as the name has them (South Africa), when it's set aside as one
     edition: str = ''
+    # its issue is in the library now, found since it was stored
+    in_library: bool = False
 
 
 class PastIssueEdition(ApiModel):

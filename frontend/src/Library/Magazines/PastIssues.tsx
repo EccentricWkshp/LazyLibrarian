@@ -11,7 +11,7 @@ import { CheckInput, FormInputHelpText, FormLabel, FormRow, SelectInput, TextInp
 import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
-import { Alert, LoadingIndicator } from 'Components/Misc';
+import { Alert, Label, LoadingIndicator } from 'Components/Misc';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from 'Components/Modal/Modal';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
@@ -21,7 +21,7 @@ import {
   PageToolbarSection,
   PageToolbarSeparator,
 } from 'Components/Page/Toolbar/PageToolbar';
-import { Column, Table, TableRow, TableRowCell } from 'Components/Table/Table';
+import { Column, nextSort, SortDirection, Table, TableRow, TableRowCell } from 'Components/Table/Table';
 import { change, plural } from 'Library/library';
 import styles from 'Library/Library.module.css';
 import { PastIssue } from 'typings/Library';
@@ -37,13 +37,34 @@ const ACTIONS = [
 ];
 
 const COLUMNS: Column[] = [
-  { name: 'title', label: 'Magazine' },
-  { name: 'issue', label: 'Issue' },
-  { name: 'releaseTitle', label: 'Release Title' },
-  { name: 'indexer', label: 'Indexer' },
-  { name: 'date', label: 'Found' },
+  { name: 'title', label: 'Magazine', isSortable: true },
+  { name: 'issue', label: 'Issue', isSortable: true },
+  { name: 'releaseTitle', label: 'Release Title', isSortable: true },
+  { name: 'indexer', label: 'Indexer', isSortable: true },
+  { name: 'date', label: 'Found', isSortable: true },
   { name: 'actions', label: '' },
 ];
+type SortKey = 'title' | 'issue' | 'releaseTitle' | 'indexer' | 'date';
+
+// the ones whose issue the library has now, found since they were stored
+const IN_LIBRARY = [
+  { key: 'hide', value: 'Not in the library' },
+  { key: 'mark', value: 'In the library too, marked' },
+  { key: 'only', value: 'Only those in the library' },
+];
+const WITH_ISSUE = [
+  { key: '', value: 'Any issue' },
+  { key: 'issue', value: 'With an issue' },
+  { key: 'none', value: 'Without one' },
+];
+
+function compare(a: PastIssue, b: PastIssue, key: SortKey) {
+  // those without an issue last, whichever way
+  if (key === 'issue' && !a.issue !== !b.issue) {
+    return a.issue ? -1 : 1;
+  }
+  return String(a[key] ?? '').localeCompare(String(b[key] ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+}
 
 // want one past issue, downloaded, filed under the issue given or the one its name says
 function download(issue: PastIssue, filedAs = '') {
@@ -115,6 +136,11 @@ function PastIssues() {
   const status = params.get('status') ?? 'Skipped';
   const title = params.get('title') ?? '';
   const [term, setTerm] = useState('');
+  const [inLibrary, setInLibrary] = useState('hide');
+  const [withIssue, setWithIssue] = useState('');
+  const [indexer, setIndexer] = useState('');
+  const [magazine, setMagazine] = useState('');
+  const [sort, setSort] = useState<{ key: string; direction: SortDirection }>({ key: 'date', direction: 'descending' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<PastIssue | null>(null);
 
@@ -123,12 +149,32 @@ function PastIssues() {
     queryFn: () => api<PastIssue[]>('/library/magazine/pastissues', { query: { status, title } }),
   });
 
+  // each column's values to filter by
+  const indexers = useMemo(
+    () => [{ key: '', value: 'Every indexer' }, ...[...new Set((data ?? []).map((issue) => issue.indexer))].sort().map((name) => ({ key: name, value: name }))],
+    [data]
+  );
+  const magazines = useMemo(
+    () => [{ key: '', value: 'Every magazine' }, ...[...new Set((data ?? []).map((issue) => issue.title))].sort().map((name) => ({ key: name, value: name }))],
+    [data]
+  );
+  // the ones Have are the library's, all of them
+  const libraryFilter = status === 'Have' ? 'mark' : inLibrary;
+  const held = (data ?? []).filter((issue) => issue.inLibrary).length;
+
   const shown = useMemo(() => {
     const words = term.trim().toLowerCase();
-    return (data ?? []).filter(
-      (issue) => !words || `${issue.title} ${issue.releaseTitle} ${issue.issue}`.toLowerCase().includes(words)
+    const found = (data ?? []).filter(
+      (issue) =>
+        (!words || `${issue.title} ${issue.releaseTitle} ${issue.issue}`.toLowerCase().includes(words)) &&
+        (libraryFilter === 'mark' || (libraryFilter === 'only') === issue.inLibrary) &&
+        (!withIssue || (withIssue === 'issue') === !!issue.issue) &&
+        (!indexer || issue.indexer === indexer) &&
+        (!magazine || issue.title === magazine)
     );
-  }, [data, term]);
+    const way = sort.direction === 'descending' ? -1 : 1;
+    return [...found].sort((a, b) => way * compare(a, b, sort.key as SortKey));
+  }, [data, term, libraryFilter, withIssue, indexer, magazine, sort]);
   const selectedUrls = shown.filter((issue) => selected.has(issue.url)).map((issue) => issue.url);
   const allSelected = shown.length > 0 && selectedUrls.length === shown.length;
 
@@ -190,8 +236,15 @@ function PastIssues() {
         <PageToolbarSection alignContent="right">
           {title ? (
             <PageToolbarButton label="All Magazines" iconName={X} onPress={() => show({ title: '' })} />
-          ) : null}
+          ) : (
+            <SelectInput className={styles.filter} value={magazine} values={magazines} onChange={setMagazine} />
+          )}
           <SelectInput className={styles.filter} value={status} values={STATUSES} onChange={(next) => show({ status: next })} />
+          {status === 'Have' ? null : (
+            <SelectInput className={styles.filter} value={inLibrary} values={IN_LIBRARY} onChange={setInLibrary} />
+          )}
+          <SelectInput className={styles.filter} value={withIssue} values={WITH_ISSUE} onChange={setWithIssue} />
+          <SelectInput className={styles.filter} value={indexer} values={indexers} onChange={setIndexer} />
           <TextInput className={styles.filter} value={term} placeholder="Filter" onChange={setTerm} />
         </PageToolbarSection>
       </PageToolbar>
@@ -199,14 +252,18 @@ function PastIssues() {
       <PageContentBody>
         {isLoading ? <LoadingIndicator /> : null}
         {error ? <Alert kind="danger">{(error as Error).message}</Alert> : null}
-        {data && !shown.length ? (
+        {data && !data.length ? (
           <Alert kind="info">
             No past issues are {status}. A magazine search keeps the issues it found but didn't want here.
           </Alert>
         ) : null}
+        {data?.length && !shown.length ? <Alert kind="info">None of the {plural(data.length, 'past issue')} are shown by these filters.</Alert> : null}
         {shown.length ? (
           <Table
             columns={COLUMNS}
+            sortKey={sort.key}
+            sortDirection={sort.direction}
+            onSortPress={(name) => setSort((current) => nextSort(current, name))}
             selectAll={
               <CheckInput
                 checked={allSelected}
@@ -240,6 +297,11 @@ function PastIssues() {
                 </TableRowCell>
                 <TableRowCell className={styles.date}>
                   <FormattedDate value={issue.issue} kind="issue" />
+                  {issue.inLibrary && status !== 'Have' ? (
+                    <div>
+                      <Label kind="success">In the library</Label>
+                    </div>
+                  ) : null}
                 </TableRowCell>
                 <TableRowCell>
                   {issue.releaseTitle}
@@ -268,7 +330,13 @@ function PastIssues() {
           </Table>
         ) : null}
         {downloading ? <DownloadAsModal issue={downloading} onModalClose={() => setDownloading(null)} /> : null}
-        {shown.length ? <div className={styles.footer}>{plural(shown.length, 'past issue')}</div> : null}
+        {shown.length ? (
+          <div className={styles.footer}>
+            {plural(shown.length, 'past issue')}
+            {data && shown.length < data.length ? ` of ${data.length}` : ''}
+            {held && libraryFilter === 'hide' ? `, ${plural(held, 'more')} in the library already` : ''}
+          </div>
+        ) : null}
       </PageContentBody>
     </PageContent>
   );

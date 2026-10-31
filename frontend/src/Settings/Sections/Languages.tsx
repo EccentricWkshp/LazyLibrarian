@@ -66,6 +66,7 @@ const GROUPS: Group[] = [
         input: 'password',
         help: "To tell a book's language from its title with Azure",
         advanced: true,
+        test: { label: 'Test', test: 'AZURE' },
       },
     ],
   },

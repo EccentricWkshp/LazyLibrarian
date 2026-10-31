@@ -37,6 +37,29 @@ class SettingsServiceTest(LLTestCaseWithDB):
         self.assertEqual(settings.update_owner_login('', 'abcdefgh1', 'abcdefgh1'), [settings.PASSWORD_CHANGED])
         self.assertEqual(settings.update_owner_login('bob'), [], 'Already that name')
 
+    def test_the_owners_hardcover_token(self):
+        """ The owner's HardCover token among the settings, masked, kept with the owner; sent back masked
+        it stays, and tested it's kept only when HardCover takes it """
+        patch = mock.patch.object(settings, 'save_config')  # the config file, which this isn't about
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.assertEqual(settings.config_values(['HC_TOKEN'])[0]['value'], '')
+        settings.save_values({'HC_TOKEN': 'first-token'})
+        self.assertEqual(self.sql("SELECT hc_token FROM users WHERE UserID='u1'"), [{'hc_token': 'first-token'}])
+        self.assertEqual(settings.config_values(['HC_TOKEN'])[0], {'key': 'HC_TOKEN', 'kind': 'password',
+                                                                   'value': settings.MASK, 'default': '', 'unit': ''})
+        settings.save_values({'HC_TOKEN': settings.MASK})
+        self.assertEqual(self.sql("SELECT hc_token FROM users WHERE UserID='u1'"), [{'hc_token': 'first-token'}])
+        with mock.patch.object(settings.connections, 'test_hardcover_token', return_value=(False, 'No')) as asked:
+            self.assertFalse(settings.run_test('HARDCOVER', {'HC_TOKEN': 'bad-token'})['ok'])
+        self.assertEqual(asked.call_args.args, ('u1', 'bad-token'))
+        self.assertEqual(self.sql("SELECT hc_token FROM users WHERE UserID='u1'"), [{'hc_token': 'first-token'}])
+        with mock.patch.object(settings.connections, 'test_hardcover_token', return_value=(True, 'Yes')) as asked:
+            self.assertTrue(settings.run_test('HARDCOVER', {'HC_TOKEN': 'good-token'})['ok'])
+            settings.run_test('HARDCOVER', {'HC_TOKEN': settings.MASK})
+        self.assertEqual(asked.call_args.args, ('u1', ''), 'The one kept, when the page has it masked')
+        self.assertEqual(self.sql("SELECT hc_token FROM users WHERE UserID='u1'"), [{'hc_token': 'good-token'}])
+
     def test_check_auth_settings(self):
         values = {'auth_type': 'NONSENSE', 'auth_required': 'MAYBE'}
         self.assertEqual(settings.check_auth_settings(values), [])

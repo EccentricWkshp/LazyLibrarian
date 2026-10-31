@@ -599,14 +599,31 @@ def list_past_issues(status: str = 'Skipped', title: str = '') -> list[dict]:
     found, with a status, and of one magazine when title is given """
     if status not in PAST_ISSUE_STATUSES:
         raise InvalidRequestError(f"The status is one of {', '.join(PAST_ISSUE_STATUSES)}")
+    rows = magazines.list_past_issues(status, title or None, sort='NZBdate', descending=True).items
+    # the issues the library has now, found since some of these were stored
+    held = _held_issues({row['BookID'] for row in rows if row['BookID']})
     return [{'url': row['NZBurl'] or '', 'release_title': (row['NZBtitle'] or '').replace('.', ' '),
              'date': row['NZBdate'] or '',
              'issue': '' if row['AuxInfo'] == magreleases.NO_ISSUE else row['AuxInfo'] or '',
              'indexer': row['NZBprov'] or '', 'title': row['BookID'] or '',
              'reason': row['DLResult'] or '',
+             'in_library': (row['BookID'], row['AuxInfo']) in held,
              **(_named(row['BookID'] or '', row['NZBtitle'] or '', row['NZBdate'] or '')
                 if row['AuxInfo'] in ('', None, magreleases.NO_ISSUE) else {'named': '', 'edition': ''})}
-            for row in magazines.list_past_issues(status, title or None, sort='NZBdate', descending=True).items]
+            for row in rows]
+
+
+def _held_issues(titles: set[str]) -> set[tuple[str, str]]:
+    """ The issues the library has of these magazines, (title, issue) """
+    if not titles:
+        return set()
+    db = database.DBConnection()
+    try:
+        rows = db.select(f"SELECT Title,IssueDate FROM issues WHERE Title IN ({','.join('?' * len(titles))})",
+                         tuple(titles))
+    finally:
+        db.close()
+    return {(row['Title'], row['IssueDate']) for row in rows}
 
 
 def _named(title: str, name: str, posted: str) -> dict:

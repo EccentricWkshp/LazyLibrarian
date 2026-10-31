@@ -548,7 +548,9 @@ MONTH_SETTINGS = tuple(f'MONTH_{n}' for n in range(13))
 SEASON_SETTINGS = tuple(f'SEASON_{n}' for n in range(1, 13))
 # the owner's addresses Send to Device emails to, in the users table
 SEND_TO = 'OWNER_SENDTO'
-OTHER_SETTINGS = (*GENRE_SETTINGS, *MONTH_SETTINGS, *SEASON_SETTINGS, SEND_TO)
+# the owner's HardCover token, kept with the owner as each user's is
+HC_TOKEN = 'HC_TOKEN'
+OTHER_SETTINGS = (*GENRE_SETTINGS, *MONTH_SETTINGS, *SEASON_SETTINGS, SEND_TO, HC_TOKEN)
 INFO_SOURCES_CHANGED = 'The info source searched first was off, {} is searched first now'
 # the special debug logs, by their logger's name
 SPECIAL_LOGS = {'matching': 'Name matching', 'searching': 'Search results', 'dlcomms': 'Download clients',
@@ -598,14 +600,17 @@ def _other_value(key: str) -> dict:
         months = lazylibrarian.MONTHNAMES[0] if lazylibrarian.MONTHNAMES else []
         number = int(key.split('_')[1])
         value = ', '.join(months[number]) if number < len(months) else ''
-    elif key == SEND_TO:
-        kind = 'csv'
+    elif key in (SEND_TO, HC_TOKEN):
         db = database.DBConnection()
         try:
             owner = get_owner(db)
+            token = db.match('SELECT hc_token FROM users WHERE UserID=?', (owner['UserID'],)) if owner else None
         finally:
             db.close()
-        value = owner['SendTo'] or '' if owner else ''
+        if key == SEND_TO:
+            kind, value = 'csv', owner['SendTo'] or '' if owner else ''
+        else:  # a secret, masked
+            kind, value = 'password', MASK if token and token['hc_token'] else ''
     else:
         kind = 'csv'
         number = int(key.split('_')[1])
@@ -640,6 +645,18 @@ def _save_other_settings(values: dict) -> list[str]:
             for name in get_list(sent.get(key, _other_value(key)['value']), ','):
                 seasons[name] = int(key.split('_')[1])
         update_seasons(seasons)
+    if HC_TOKEN in sent and sent[HC_TOKEN] != MASK:
+        token = sent[HC_TOKEN].strip()
+        if token and not plain_text(token, ['<', '>', '=']):
+            messages.append("The HardCover token wasn't changed, it has characters a token doesn't")
+        else:
+            db = database.DBConnection()
+            try:
+                owner = get_owner(db)
+                if owner:
+                    db.action('UPDATE users SET hc_token=? WHERE UserID=?', (token, owner['UserID']))
+            finally:
+                db.close()
     if SEND_TO in sent:
         addresses = get_list(sent[SEND_TO], ',')
         wrong = [address for address in addresses if not is_valid_email(address)]
@@ -898,11 +915,15 @@ def delete_array_item(name: str, index: int):
 
 # --- testing a connection with the settings the page has
 
+# the keys tested by asking the service they're for, by the test's name
+KEY_TESTS = {'GOOGLEBOOKS': connections.test_googlebooks, 'COMICVINE': connections.test_comicvine,
+             'LIBRARYTHING': connections.test_librarything, 'GOODREADS_KEY': connections.test_goodreads_key,
+             'AZURE': connections.test_azure}
 # the indexers that aren't lists, tested by their name
 PROVIDER_TESTS = ('TPB', 'LIME', 'TDL', 'ABB', 'BOK', 'SLSK', 'ANNA', 'WEBSHARE')
 TESTS = (*(client.upper() for client in connections.CLIENTS), 'DELUGE',
          *(notifier.upper() for notifier in connections.NOTIFIERS), *PROVIDER_TESTS,
-         'FFMPEG', 'EBOOK_CONVERT', 'CALIBREDB', 'PREPROCESSOR', 'GOODREADS', 'GOOGLEBOOKS')
+         'FFMPEG', 'EBOOK_CONVERT', 'CALIBREDB', 'PREPROCESSOR', 'GOODREADS', *KEY_TESTS, 'HARDCOVER')
 
 
 def _provider_result(result, shown: str) -> tuple[bool, str]:
@@ -947,10 +968,29 @@ def _run_test(test: str, array: str = '', index: int | None = None) -> tuple[boo
             return False, 'There is no preprocessor'
         returncode, out, err = result
         return not returncode, str(out or err or '').strip()
-    if test == 'GOOGLEBOOKS':
-        return connections.test_googlebooks()
+    if test in KEY_TESTS:
+        return KEY_TESTS[test]()
     result = grsync.test_auth()
     return result.startswith('Pass:'), result
+
+
+def _test_hardcover(token: str) -> dict:
+    """ The owner's HardCover token, the one the page has or the one kept, kept if it works """
+    db = database.DBConnection()
+    try:
+        owner = get_owner(db)
+    finally:
+        db.close()
+    if not owner:
+        return {'ok': False, 'message': 'There is no owner to test the token for', 'index': None}
+    token = '' if token == MASK else token.strip()
+    try:
+        ok, message = connections.test_hardcover_token(owner['UserID'], token)
+    except Exception as e:
+        ok, message = False, f'{type(e).__name__} {e}'
+    if ok and token:
+        _save_other_settings({HC_TOKEN: token})
+    return {'ok': ok, 'message': message, 'index': None}
 
 
 def run_test(test: str, values: dict, array: str = '', index: int | None = None) -> dict:
@@ -961,6 +1001,8 @@ def run_test(test: str, values: dict, array: str = '', index: int | None = None)
     if not array and test not in TESTS:
         raise InvalidRequestError(f'There is no test {test}')
     values = {key.upper(): value for key, value in values.items()}
+    if test == 'HARDCOVER':
+        return _test_hardcover(str(values.get(HC_TOKEN) or ''))
     if array:
         items = _array(array)
         if index is None:

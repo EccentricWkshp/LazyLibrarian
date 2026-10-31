@@ -442,6 +442,24 @@ class PeriodicalTest(ManualImportTestCase):
         row = self.db.match("SELECT Status,AuxInfo FROM wanted WHERE BookID='Wood Magazine'")
         self.assertEqual(tuple(row), ('Processed', '2024-05-01'), 'In the history')
 
+    def test_an_issue_in_zips_in_its_groups_folder(self):
+        """ A release packed as its group packs them, zips in a folder of the group's below the
+        release's: "<release>/<release>-GRP/wma.zip, wmb.zip", the issue in one, the group's notes in
+        each """
+        group = os.path.join(self.incoming, "Wood.Magazine.May.2024", "Wood.Magazine.May.2024-GRP")
+        os.makedirs(group)
+        for name, members in (('wma.zip', {'file_id.diz': b'notes', 'Wood Magazine May 2024.pdf':
+                                           text_pdf(['Wood Magazine May 2024'])}),
+                              ('wmb.zip', {'file_id.diz': b'notes'})):
+            with zipfile.ZipFile(os.path.join(group, name), 'w') as archive:
+                for member, data in members.items():
+                    archive.writestr(member, data)
+        release = os.path.dirname(group)
+        manualimport.import_item({'path': release, 'files': [], 'media_type': 'magazine',
+                                  'book_id': 'Wood Magazine', 'issue': 'May 2024'})
+        issue = self.db.match("SELECT IssueFile FROM issues WHERE Title='Wood Magazine' AND IssueDate='2024-05-01'")
+        self.assertTrue(issue and os.path.isfile(issue['IssueFile']), 'Unpacked from the folder below')
+
     def test_a_comic_issue_from_a_folder(self):
         cbz = self.cbz("Saga 012.cbz")
         manualimport.import_item({'path': cbz, 'files': [cbz], 'media_type': 'comic', 'book_id': 'CV777',

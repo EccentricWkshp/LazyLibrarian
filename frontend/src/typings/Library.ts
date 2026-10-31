@@ -161,6 +161,8 @@ export interface PastIssue {
   named: string;
   // another edition's words, as the name has them (South Africa), when it's set aside as one
   edition: string;
+  // its issue is in the library now, found since it was stored
+  inLibrary: boolean;
 }
 
 export interface Comic {

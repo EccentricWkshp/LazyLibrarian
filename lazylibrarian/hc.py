@@ -1324,7 +1324,7 @@ query FindAuthor { authors_by_pk(id: [authorid])
         logger = logging.getLogger(__name__)
         msg = ''
         if token:
-            logger.debug(f"Sending whoami with token: {token}")
+            logger.debug("Sending whoami with a token given")
 
         if userid:
             logger.debug(f"Sending whoami with userid: {userid}")

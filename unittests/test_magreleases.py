@@ -188,6 +188,18 @@ class MagReleasesTest(LLTestCaseWithDB):
         self.assertEqual(date('Popular Mechanics USA-October', '1970-01-01'), '', "Nor a result's made-up date")
         self.assertEqual(date('Popular Mechanics USA-May 2023', '2026-09-21'), '2023-05-01', 'Its own year first')
 
+    def test_a_past_issue_in_the_library_now(self):
+        """ A past issue whose issue came in since it was stored says so """
+        from lazylibrarian.services import library
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject) "
+                 "VALUES ('Wood','Active','2026-09-01','','','')")
+        for url, issue in (('w1', '2026-03-01'), ('w2', '2026-05-01'), ('w3', '1970-01-01')):
+            self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,NZBprov,NZBdate,AuxInfo,Status,NZBmode) "
+                     "VALUES ('Wood',?,?,'test','2026-09-21',?,'Skipped','nzb')", (url, f'Wood {issue}', issue))
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate) VALUES ('Wood','i1','2026-05-01')")
+        rows = {row['url']: row['in_library'] for row in library.list_past_issues('Skipped', 'Wood')}
+        self.assertEqual(rows, {'w1': False, 'w2': True, 'w3': False})
+
     def test_another_edition_as_a_magazine(self):
         """ Another edition set aside is added as a magazine of its own, with its past issues """
         from lazylibrarian.services import library

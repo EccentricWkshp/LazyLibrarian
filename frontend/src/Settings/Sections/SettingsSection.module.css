@@ -130,6 +130,23 @@
   white-space: pre-line;
 }
 
+/* a key with its test beside it, the result under them */
+.withTest {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+
+  & > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  & > button {
+    flex-shrink: 0;
+  }
+}
+
 @media (--breakpointSmall) {
   .row,
   .advancedRow {

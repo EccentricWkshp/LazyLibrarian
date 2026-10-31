@@ -2,7 +2,7 @@
 // changed, and the advanced settings shown when asked for. What it shows is the section's fields
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Eye, EyeOff, RefreshCw, Save, Settings2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { runCommand } from 'App/commands';
 import { showMessage } from 'App/messagesStore';
 import queryClient from 'App/queryClient';
@@ -284,6 +284,7 @@ export function FieldRows({
   fields,
   configs,
   values,
+  changes = {},
   choices,
   showAdvanced,
   onChange,
@@ -291,6 +292,8 @@ export function FieldRows({
   fields: Field[];
   configs: Record<string, ConfigValue>;
   values: Values;
+  // what's changed and not saved, a key's test uses it
+  changes?: Values;
   choices: ConfigChoices | undefined;
   showAdvanced: boolean;
   onChange: (key: string, value: FieldValue) => void;
@@ -301,6 +304,16 @@ export function FieldRows({
         .filter((field) => (showAdvanced || !field.advanced) && (!field.showIf || field.showIf(values)))
         .map((field) => {
           const config = configs[field.key];
+          const input = (
+            <FieldInput
+              field={field}
+              config={config}
+              value={values[field.key]}
+              values={values}
+              choices={choices}
+              onChange={(value) => onChange(field.key, value)}
+            />
+          );
           return (
             <FormRow key={field.key}>
               <div className={field.advanced ? styles.advancedRow : styles.row}>
@@ -308,14 +321,13 @@ export function FieldRows({
                   {config?.kind === 'bool' ? null : <FormLabel htmlFor={field.key}>{field.label}</FormLabel>}
                 </div>
                 <div className={styles.inputColumn}>
-                  <FieldInput
-                    field={field}
-                    config={config}
-                    value={values[field.key]}
-                    values={values}
-                    choices={choices}
-                    onChange={(value) => onChange(field.key, value)}
-                  />
+                  {field.test ? (
+                    <FieldTest field={field} changes={changes}>
+                      {input}
+                    </FieldTest>
+                  ) : (
+                    input
+                  )}
                   {field.help ? <FormInputHelpText text={field.help} /> : null}
                 </div>
               </div>
@@ -326,15 +338,14 @@ export function FieldRows({
   );
 }
 
-// a group's tests, with the group's settings as the page has them
-function GroupTests({ group, changes }: { group: Group; changes: Values }) {
+// a test with these settings as the page has them, the ones not changed as they're kept
+function useConfigTest() {
   const [running, setRunning] = useState('');
   const [result, setResult] = useState<TestResult | null>(null);
 
-  async function run(test: string) {
+  async function run(test: string, keys: string[], changes: Values) {
     setRunning(test);
     setResult(null);
-    const keys = group.fields.map((field) => field.key);
     try {
       const tested = await api<TestResult>('/config/test', {
         method: 'POST',
@@ -351,20 +362,50 @@ function GroupTests({ group, changes }: { group: Group; changes: Values }) {
     }
   }
 
+  return { running, result, run };
+}
+
+function TestResultAlert({ result }: { result: TestResult | null }) {
+  return result ? (
+    <Alert kind={result.ok ? 'success' : 'danger'}>
+      <span className={styles.testMessage}>{result.message || (result.ok ? 'It works' : "It didn't work")}</span>
+    </Alert>
+  ) : null;
+}
+
+// a key's test, beside it
+function FieldTest({ field, changes, children }: { field: Field; changes: Values; children: ReactNode }) {
+  const { running, result, run } = useConfigTest();
+  const test = field.test!;
+
+  return (
+    <>
+      <span className={styles.withTest}>
+        {children}
+        <Button isSpinning={!!running} onPress={() => run(test.test, [field.key, ...(test.testWith ?? [])], changes)}>
+          {test.label}
+        </Button>
+      </span>
+      <TestResultAlert result={result} />
+    </>
+  );
+}
+
+// a group's tests, with the group's settings as the page has them
+function GroupTests({ group, changes }: { group: Group; changes: Values }) {
+  const { running, result, run } = useConfigTest();
+  const keys = group.fields.map((field) => field.key);
+
   return (
     <div className={styles.tests}>
       <div className={styles.testButtons}>
         {group.tests!.map((each) => (
-          <Button key={each.test} isSpinning={running === each.test} onPress={() => run(each.test)}>
+          <Button key={each.test} isSpinning={running === each.test} onPress={() => run(each.test, keys, changes)}>
             {each.label}
           </Button>
         ))}
       </div>
-      {result ? (
-        <Alert kind={result.ok ? 'success' : 'danger'}>
-          <span className={styles.testMessage}>{result.message || (result.ok ? 'It works' : "It didn't work")}</span>
-        </Alert>
-      ) : null}
+      <TestResultAlert result={result} />
     </div>
   );
 }
@@ -423,6 +464,7 @@ export function SettingsGroups({
               fields={group.fields}
               configs={configs}
               values={values}
+              changes={changes}
               choices={choices}
               showAdvanced={showAdvanced}
               onChange={onChange}

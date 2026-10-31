@@ -66,6 +66,8 @@ export interface Field {
   advanced?: boolean;
   // only when the other settings make it matter
   showIf?: (values: Values) => boolean;
+  // a key's test, a button beside it: POST /config/test with the key as the page has it, and testWith
+  test?: { label: string; test: string; testWith?: string[] };
 }
 
 export interface Group {

@@ -22,6 +22,7 @@ from deluge_client import DelugeRPCClient
 
 import lazylibrarian
 from lazylibrarian import (
+    database,
     deluge,
     grsync,
     hc,
@@ -303,38 +304,137 @@ def test_calibredb(program: str = '') -> str:
     return calibre_test()
 
 
-def test_googlebooks() -> tuple[bool, str]:
-    """ Whether Google takes the GoogleBooks API key as it's kept, asking it for one book, and what
-    the key is like (its length, any spaces or quotes) without showing it, to tell a key kept wrongly
-    from one Google doesn't know """
-    import re  # noqa: PLC0415, only this test needs it
+# --- an API key or token tested with what it's for: whether the service takes it as it's kept, and
+# what it's like (its length, spaces or other characters around it) without showing it, to tell a key
+# kept wrongly from one the service doesn't know. Each returns whether it worked and what to say
 
-    import requests  # noqa: PLC0415
+# a book every source has, asked for by its ISBN
+TEST_ISBN = '9780141439518'
 
-    from lazylibrarian.common import proxy_list  # noqa: PLC0415
-    key = CONFIG['GB_API'] or ''
-    if not key:
-        return False, 'There is no GoogleBooks API key'
+
+def _key_shape(key: str, prefix: str = '') -> str:
+    """ What a key is like, never the key """
+    import re  # noqa: PLC0415, only the key tests need it
     shape = [f'{len(key)} characters']
     if key != key.strip():
         shape.append('spaces or a line break around it')
     if not re.fullmatch(r'[A-Za-z0-9_\-]+', key.strip()):
-        shape.append("characters a Google key doesn't have")
-    elif not key.startswith('AIza'):
-        shape.append("not starting AIza, as Google's keys do")
+        shape.append("characters a key doesn't have")
+    elif prefix and not key.startswith(prefix):
+        shape.append(f"not starting {prefix}, as its keys do")
+    return ', '.join(shape)
+
+
+def _ask(url: str, params: dict | None = None):
+    """ A GET of a service's API as LazyLibrarian, through the proxy if there is one """
+    import platform  # noqa: PLC0415
+
+    import requests  # noqa: PLC0415
+
+    from lazylibrarian.common import proxy_list  # noqa: PLC0415
+    agent = f"LazyLibrarian ({platform.system()} {platform.release()} {CONFIG['CURRENT_VERSION'][:8]})"
+    return requests.get(url, params=params or {}, headers={'User-Agent': agent}, proxies=proxy_list(),
+                        timeout=check_int(CONFIG['HTTP_TIMEOUT'], 30))
+
+
+def _key_test(name: str, setting: str, url: str, params: dict, worked, prefix: str = '') -> tuple[bool, str]:
+    """ Ask a service (name) with the key in setting, worked(response) telling whether it took it, or
+    returning what it said when it didn't """
+    key = CONFIG[setting] or ''
+    if not key:
+        return False, f'There is no {name} key'
+    shape = _key_shape(key, prefix)
     try:
-        response = requests.get('/'.join([CONFIG['GB_URL'], 'books/v1/volumes']),
-                                params={'q': 'isbn:9780141439518', 'maxResults': 1, 'key': key},
-                                proxies=proxy_list(), timeout=check_int(CONFIG['HTTP_TIMEOUT'], 30))
+        response = _ask(url.replace('{key}', key), {param: key if value == '{key}' else value
+                                                     for param, value in params.items()})
     except Exception as e:
-        return False, f"Google couldn't be asked: {type(e).__name__} {e}. The key has {', '.join(shape)}"
+        return False, f"{name} couldn't be asked: {type(e).__name__} {e}. The key has {shape}"
+    said = worked(response)
+    if said is True:
+        return True, f"{name} takes the key. It has {shape}"
+    return False, f"{name} said {response.status_code}: {said or response.reason} The key as it's kept has {shape}"
+
+
+def _google_said(response):
     if response.status_code == 200:
-        return True, f"Google takes the key. It has {', '.join(shape)}"
+        return True
     try:
-        said = response.json()['error']['message']
+        return response.json()['error']['message']
     except (ValueError, KeyError, TypeError):
-        said = response.text[:200]
-    return False, f"Google said {response.status_code}: {said} The key as it's kept has {', '.join(shape)}"
+        return response.text[:200]
+
+
+def test_googlebooks() -> tuple[bool, str]:
+    """ The GoogleBooks API key, asking Google for one book """
+    return _key_test('GoogleBooks', 'GB_API', '/'.join([CONFIG['GB_URL'], 'books/v1/volumes']),
+                     {'q': f'isbn:{TEST_ISBN}', 'maxResults': 1, 'key': '{key}'}, _google_said, prefix='AIza')
+
+
+def _comicvine_said(response):
+    try:
+        found = response.json()
+    except ValueError:
+        return response.text[:200]
+    return True if found.get('status_code') == 1 else found.get('error') or 'No answer'
+
+
+def test_comicvine() -> tuple[bool, str]:
+    """ The ComicVine API key, asking ComicVine for its kinds of things """
+    return _key_test('ComicVine', 'CV_APIKEY', '/'.join([CONFIG['CV_URL'], 'api/types/']),
+                     {'api_key': '{key}', 'format': 'json'}, _comicvine_said)
+
+
+def _librarything_said(response):
+    # a cover; a key it doesn't know gets a picture of nothing, a pixel
+    if response.status_code == 200 and response.headers.get('Content-Type', '').startswith('image') \
+            and len(response.content) > 1000:
+        return True
+    return 'No cover, only an empty picture' if response.status_code == 200 else response.text[:200]
+
+
+def test_librarything() -> tuple[bool, str]:
+    """ The LibraryThing developer key, asking LibraryThing for a book's cover """
+    return _key_test('LibraryThing', 'LT_DEVKEY', '/'.join([CONFIG['LT_URL'], 'devkey/{key}/medium/isbn', TEST_ISBN]),
+                     {}, _librarything_said)
+
+
+def _goodreads_said(response):
+    return True if response.status_code == 200 and response.text.strip().isdigit() else response.text[:200]
+
+
+def test_goodreads_key() -> tuple[bool, str]:
+    """ The Goodreads API key, asking Goodreads for a book's id by its ISBN """
+    return _key_test('Goodreads', 'GR_API', '/'.join([CONFIG['GR_URL'], 'book/isbn_to_id', TEST_ISBN]),
+                     {'key': '{key}'}, _goodreads_said)
+
+
+def test_azure() -> tuple[bool, str]:
+    """ The Microsoft Azure translator key, asking Azure the language of a title """
+    from lazylibrarian.bookwork import detect_language_ms  # noqa: PLC0415, it imports most of LazyLibrarian
+    key = CONFIG['MS_TRANS_ID'] or ''
+    if not key:
+        return False, 'There is no Microsoft Azure key'
+    language, score = detect_language_ms('The House of the Seven Gables')
+    if score:
+        return True, f"Azure takes the key, the title is in {language}. It has {_key_shape(key)}"
+    return False, f"Azure said: {language}. The key as it's kept has {_key_shape(key)}"
+
+
+def test_hardcover_token(userid: str, token: str = '') -> tuple[bool, str]:
+    """ A HardCover token, the one given or the user's own, asking HardCover who it's for """
+    if not token:
+        db = database.DBConnection()
+        try:
+            row = db.match('SELECT hc_token FROM users WHERE UserID=?', (userid,))
+        finally:
+            db.close()
+        token = row['hc_token'] if row and row['hc_token'] else ''
+    if not token:
+        return False, 'There is no HardCover token'
+    result = test_hardcover_auth(userid=userid, token=token)
+    if result.startswith('Pass'):
+        return True, f"HardCover takes the token, it's HardCover user {result.split('=', 1)[1]}. It has {_key_shape(token)}"
+    return False, f"HardCover said: {result} The token as it's kept has {_key_shape(token)}"
 
 
 def test_preprocessor(program: str = '') -> tuple | None:

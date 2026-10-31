@@ -129,7 +129,7 @@ class ConnectionServiceTest(LLTestCaseWithConfigandDIRS):
         """ What Google says of the key as it's kept, and what the key is like, never the key itself """
         key = 'AIzaSyExampleExampleExampleExample12345'
         CONFIG.set_str('GB_API', '')
-        self.assertEqual(connections.test_googlebooks(), (False, 'There is no GoogleBooks API key'))
+        self.assertEqual(connections.test_googlebooks(), (False, 'There is no GoogleBooks key'))
         CONFIG.set_str('GB_API', f'{key}\n')
         refused = mock.Mock(status_code=400)
         refused.json.return_value = {'error': {'message': 'API key not valid. Please pass a valid API key.'}}
@@ -141,4 +141,41 @@ class ConnectionServiceTest(LLTestCaseWithConfigandDIRS):
         self.assertNotIn(key, message)
         CONFIG.set_str('GB_API', key)
         with mock.patch('requests.get', return_value=mock.Mock(status_code=200)):
-            self.assertEqual(connections.test_googlebooks(), (True, f'Google takes the key. It has {len(key)} characters'))
+            self.assertEqual(connections.test_googlebooks(),
+                             (True, f'GoogleBooks takes the key. It has {len(key)} characters'))
+
+    def test_other_keys(self):
+        """ ComicVine, LibraryThing and Goodreads asked with their keys, and what they say """
+        saved = {key: CONFIG[key] for key in ('CV_APIKEY', 'LT_DEVKEY', 'GR_API')}
+        self.addCleanup(lambda: [CONFIG.set_str(key, value) for key, value in saved.items()])
+        for key in saved:
+            CONFIG.set_str(key, 'abc123')
+        comicvine = mock.Mock(status_code=401)
+        comicvine.json.return_value = {'error': 'Invalid API Key', 'status_code': 100}
+        with mock.patch('requests.get', return_value=comicvine) as asked:
+            self.assertEqual(connections.test_comicvine(),
+                             (False, "ComicVine said 401: Invalid API Key The key as it's kept has 6 characters"))
+        self.assertEqual(asked.call_args.kwargs['params']['api_key'], 'abc123')
+        comicvine.json.return_value = {'error': 'OK', 'status_code': 1}
+        with mock.patch('requests.get', return_value=comicvine):
+            self.assertTrue(connections.test_comicvine()[0])
+        cover = mock.Mock(status_code=200, headers={'Content-Type': 'image/jpeg'}, content=b'x' * 5000)
+        with mock.patch('requests.get', return_value=cover) as asked:
+            self.assertTrue(connections.test_librarything()[0])
+        self.assertIn('/devkey/abc123/', asked.call_args.args[0], 'The key in the address')
+        with mock.patch('requests.get', return_value=mock.Mock(status_code=200, headers={'Content-Type': 'image/gif'},
+                                                               content=b'GIF89a')):
+            self.assertIn('only an empty picture', connections.test_librarything()[1])
+        with mock.patch('requests.get', return_value=mock.Mock(status_code=200, text='2657\n')):
+            self.assertTrue(connections.test_goodreads_key()[0])
+
+    def test_a_hardcover_token(self):
+        """ The token the page has, or the one kept, asked of HardCover, never shown """
+        with mock.patch.object(connections, 'test_hardcover_auth', return_value='Pass: whoami=4321') as asked:
+            ok, message = connections.test_hardcover_token('u1', 'tok-en')
+        self.assertTrue(ok)
+        self.assertEqual(asked.call_args.kwargs, {'userid': 'u1', 'token': 'tok-en'})
+        self.assertNotIn('tok-en', message)
+        with mock.patch.object(connections, 'test_hardcover_auth', return_value='Unauthorized'):
+            self.assertEqual(connections.test_hardcover_token('u1', 'tok-en'),
+                             (False, "HardCover said: Unauthorized The token as it's kept has 6 characters"))

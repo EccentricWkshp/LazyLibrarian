@@ -22,6 +22,29 @@
   white-space: nowrap;
 }
 
+/* a header that sorts the rows by its column */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  gap: 4px;
+
+  &:hover {
+    color: var(--textColor);
+  }
+}
+
+.sorted {
+  color: var(--textColor);
+}
+
 .select {
   width: 36px;
 }

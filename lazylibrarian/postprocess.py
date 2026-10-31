@@ -48,6 +48,7 @@ from lazylibrarian.download_client import (
     get_download_folder,
     get_download_name,
     get_download_progress,
+    is_archive_file,
     may_delete_data,
 )
 from lazylibrarian.filesystem import (
@@ -907,6 +908,22 @@ def _count_zipfiles_in_directory(directory_path: str) -> int:
         if extn not in [".epub", ".cbz", ".r00"] and zipfile.is_zipfile(file_path):
             zipcount += 1
     return zipcount
+
+
+def _archive_folder(directory_path: str) -> str:
+    """ The folder a download's archives are in: the download's own, or the first one below it with
+    some, as a release packed in a folder of its group's is ("<release>/<release>-group/x.zip").
+    The download's own when there are none """
+    def has_archives(folder: str, names) -> bool:
+        return any(is_archive_file(name) and os.path.isfile(os.path.join(folder, name)) for name in names)
+
+    if has_archives(directory_path, listdir(directory_path)):
+        return directory_path
+    for dirpath, dirnames, filenames in os.walk(directory_path):
+        dirnames[:] = sorted(name for name in dirnames if not name.endswith('.unpack'))
+        if has_archives(dirpath, filenames):
+            return dirpath
+    return directory_path
 
 
 def _find_valid_file_in_directory(
@@ -1848,9 +1865,9 @@ def _process_matched_directory(
     if valid_file_path:
         book_state.update_candidate(os.path.dirname(valid_file_path))
     else:
-        # No valid file, try extracting archives
+        # No valid file, try extracting archives, in a folder of their own below when they're there
         new_candidate, archives_extracted = _extract_archives_in_directory(
-            book_state.candidate_ptr, download_dir, book_state.download_title
+            _archive_folder(book_state.candidate_ptr), download_dir, book_state.download_title
         )
         book_state.update_candidate(new_candidate)
 
