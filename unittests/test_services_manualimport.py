@@ -408,6 +408,21 @@ class PeriodicalTest(ManualImportTestCase):
         self.assertEqual((book['media_type'], book['book']['id']), ('ebook', 'mi_001'), 'A book is still a book')
         self.assertEqual(book['issues']['magazine'], '', 'What it would be as an issue, to start choosing from')
 
+    def test_issues_named_as_sites_name_them(self):
+        """ A downloaded issue's name with the site's name after it, a season for its date, or an
+        issue number before the date, is still the magazine's issue """
+        for name in ("Wood Magazine - Summer 2025_example.net.pdf", "Wood Magazine - Issue 148 , Spring 2024.pdf",
+                     "Wood Magazine December 2023January 2024_example.net.pdf"):
+            self.pdf(name)
+        items = {item['relative_path']: item for item in manualimport.candidates(self.incoming)['items']}
+        found = {name: (item['media_type'], (item['book'] or {}).get('issue'), item['rejections'])
+                 for name, item in items.items()}
+        self.assertEqual(found, {
+            "Wood Magazine - Summer 2025_example.net.pdf": ('magazine', '2025-07-01', []),
+            "Wood Magazine - Issue 148 , Spring 2024.pdf": ('magazine', '20240148', []),
+            # its year run into the next month isn't just a year
+            "Wood Magazine December 2023January 2024_example.net.pdf": ('magazine', '2024-01-01', [])})
+
     def test_an_issue_not_in_the_library_yet(self):
         self.pdf("Wood Magazine - May 2024.pdf")
         have = os.path.join(self.library_dir, "Wood Magazine 2024-05-01.pdf")

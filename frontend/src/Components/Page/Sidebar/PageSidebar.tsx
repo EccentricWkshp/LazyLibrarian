@@ -110,6 +110,7 @@ function groups(): SidebarGroup[] {
           children: [
             { title: 'Missing', to: '/wanted/missing' },
             { title: 'Cutoff Unmet', to: '/wanted/cutoffunmet' },
+            { title: 'Manual Import', to: '/wanted/manualimport' },
           ],
         },
       ],

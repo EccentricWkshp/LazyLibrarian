@@ -660,6 +660,8 @@ def format_issue_filename(base, mag_title, dateparts):
 # numbers in a name that aren't its issue's: a size ("1646 MB"), a part counter ("1 of 9", "[01/10]")
 NOT_ISSUE_NUMBERS = re.compile(r'\b\d+(?:[.,]\d+)?\s*(?:[kmgt]i?b|bytes)\b|\b\d+\s+of\s+\d+\b|'
                                r'[\[(]\s*\d+\s*/\s*\d+\s*[])]', re.IGNORECASE)
+# a year run into the month after it, "December 2023January 2024", as some names have
+GLUED_YEAR = re.compile(r'\b((?:19|20)\d\d)(?=[^\W\d_]{3,})')
 
 
 def get_dateparts(title_or_issue, datetype=''):
@@ -685,7 +687,7 @@ def get_dateparts(title_or_issue, datetype=''):
     logger = logging.getLogger(__name__)
     datetype = datetype or ''  # a magazine's DateType can be NULL
     dic = {'.': ' ', '-': ' ', '/': ' ', '+': ' ', '_': ' ', '(': '', ')': '', '[': ' ', ']': ' ', '#': '# '}
-    words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', str(title_or_issue)), dic).split()
+    words = replace_all(NOT_ISSUE_NUMBERS.sub(' ', GLUED_YEAR.sub(r'\1 ', str(title_or_issue))), dic).split()
     issuenouns = get_list(CONFIG['ISSUE_NOUNS'])
     volumenouns = get_list(CONFIG['VOLUME_NOUNS'])
     nouns = issuenouns + volumenouns

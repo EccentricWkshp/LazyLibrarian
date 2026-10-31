@@ -45,6 +45,7 @@ import Tools from 'Settings/Sections/Tools';
 import UI from 'Settings/Sections/UI';
 import Settings from 'Settings/Settings';
 import CutoffUnmet from 'Wanted/CutoffUnmet/CutoffUnmet';
+import ManualImport from 'Wanted/ManualImport/ManualImport';
 import Missing from 'Wanted/Missing/Missing';
 import BookSearch from 'Wanted/Search/BookSearch';
 import queryClient from './queryClient';
@@ -80,6 +81,7 @@ function App() {
               <Route path="/wanted/missing" element={<Missing />} />
               <Route path="/wanted/search" element={<BookSearch />} />
               <Route path="/wanted/cutoffunmet" element={<CutoffUnmet />} />
+              <Route path="/wanted/manualimport" element={<ManualImport />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/mediamanagement" element={<MediaManagement />} />
               <Route path="/settings/general" element={<General />} />

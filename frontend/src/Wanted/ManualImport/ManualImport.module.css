@@ -1,0 +1,12 @@
+.note {
+  margin: 0 0 15px;
+  max-width: 900px;
+  color: var(--helpTextColor);
+  font-size: var(--smallFontSize);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 15px;
+}

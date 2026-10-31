@@ -1,4 +1,5 @@
-// Sonarr's InteractiveImportModal: for a queued download, or for a folder chosen first
+// Sonarr's InteractiveImportModal: for a queued download, a folder already chosen, or a folder
+// chosen first
 import { useEffect, useState } from 'react';
 import { Modal } from 'Components/Modal/Modal';
 import { QueueItem } from 'typings/Queue';
@@ -8,22 +9,24 @@ import InteractiveImportModalContent from './Interactive/InteractiveImportModalC
 interface InteractiveImportModalProps {
   isOpen: boolean;
   queueItem?: QueueItem;
+  // the folder to import from, chosen on the Manual Import page
+  initialFolder?: string;
   onModalClose: () => void;
 }
 
-function InteractiveImportModal({ isOpen, queueItem, onModalClose }: InteractiveImportModalProps) {
-  const [folder, setFolder] = useState('');
-  const [isChoosingFolder, setIsChoosingFolder] = useState(!queueItem);
+function InteractiveImportModal({ isOpen, queueItem, initialFolder = '', onModalClose }: InteractiveImportModalProps) {
+  const [folder, setFolder] = useState(initialFolder);
+  const [isChoosingFolder, setIsChoosingFolder] = useState(!queueItem && !initialFolder);
 
   const fromQueue = !!queueItem;
 
   // each time it opens it starts again
   useEffect(() => {
     if (isOpen) {
-      setFolder('');
-      setIsChoosingFolder(!fromQueue);
+      setFolder(initialFolder);
+      setIsChoosingFolder(!fromQueue && !initialFolder);
     }
-  }, [isOpen, fromQueue]);
+  }, [isOpen, fromQueue, initialFolder]);
 
   return (
     <Modal isOpen={isOpen} size={isChoosingFolder ? 'large' : 'extraLarge'} onModalClose={onModalClose}>
