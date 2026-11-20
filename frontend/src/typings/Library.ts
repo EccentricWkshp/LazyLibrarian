@@ -163,6 +163,9 @@ export interface PastIssue {
   edition: string;
   // its issue is in the library now, found since it was stored
   inLibrary: boolean;
+  // its issue isn't, though it's between the oldest and newest the library has: a search, taking only
+  // newer ones, doesn't get it
+  missing: boolean;
 }
 
 export interface Comic {

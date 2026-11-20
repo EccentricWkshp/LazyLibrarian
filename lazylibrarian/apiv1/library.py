@@ -316,6 +316,9 @@ class PastIssue(ApiModel):
     edition: str = ''
     # its issue is in the library now, found since it was stored
     in_library: bool = False
+    # its issue isn't, though it's between the oldest and newest the library has: a search, taking
+    # only newer ones, doesn't get it
+    missing: bool = False
 
 
 class PastIssueEdition(ApiModel):

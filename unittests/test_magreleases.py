@@ -200,6 +200,30 @@ class MagReleasesTest(LLTestCaseWithDB):
         rows = {row['url']: row['in_library'] for row in library.list_past_issues('Skipped', 'Wood')}
         self.assertEqual(rows, {'w1': False, 'w2': True, 'w3': False})
 
+    def test_why_a_past_issue_wasnt_taken(self):
+        """ A skipped one the library hasn't says why a search didn't take it, and it's missing when it's
+        between the oldest and newest issues the library has """
+        from lazylibrarian.services import library
+        self.sql("INSERT INTO magazines (Title,Status,IssueDate,DateType,Regex,Reject) "
+                 "VALUES ('Wood','Active','2026-09-01','','','')")
+        self.sql("INSERT INTO issues (Title,IssueID,IssueDate) VALUES ('Wood','i1','2026-01-01'), "
+                 "('Wood','i2','2026-05-01'), ('Wood','i3','2026-09-01')")
+        for url, issue, result in (('w1', '2026-03-01', ''), ('w2', '2025-11-01', ''), ('w3', '2026-11-01', ''),
+                                   ('w4', '2026-07-01', 'Download failed'), ('w5', '2026-05-01', ''),
+                                   ('w6', '0034', '')):
+            self.sql("INSERT INTO pastissues (BookID,NZBurl,NZBtitle,NZBprov,NZBdate,AuxInfo,Status,NZBmode,DLResult) "
+                     "VALUES ('Wood',?,?,'test','2026-09-21',?,'Skipped','nzb',?)", (url, f'Wood {issue}', issue, result))
+        rows = {row['url']: row for row in library.list_past_issues('Skipped', 'Wood')}
+        self.assertEqual({url: row['missing'] for url, row in rows.items()},
+                         {'w1': True, 'w2': False, 'w3': False, 'w4': True, 'w5': False, 'w6': False})
+        self.assertIn('Missing from the library', rows['w1']['reason'])
+        self.assertIn('oldest issue the library has, 2026-01-01', rows['w2']['reason'])
+        self.assertIn('the newest now is 2026-09-01', rows['w3']['reason'])
+        self.assertEqual(rows['w4']['reason'], 'Download failed', 'Why its download failed, kept')
+        self.assertEqual(rows['w5']['reason'], '', 'In the library')
+        self.assertIn('Not taken when it was found', rows['w6']['reason'], 'A number, the issues dates')
+        self.assertEqual([row['missing'] for row in library.list_past_issues('Ignored', 'Wood')], [])
+
     def test_another_edition_as_a_magazine(self):
         """ Another edition set aside is added as a magazine of its own, with its past issues """
         from lazylibrarian.services import library

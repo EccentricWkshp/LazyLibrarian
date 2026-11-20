@@ -41,7 +41,7 @@ const COLUMNS: Column[] = [
   { name: 'issue', label: 'Issue', isSortable: true },
   { name: 'releaseTitle', label: 'Release Title', isSortable: true },
   { name: 'indexer', label: 'Indexer', isSortable: true },
-  { name: 'date', label: 'Found', isSortable: true },
+  { name: 'date', label: 'Posted', isSortable: true },
   { name: 'actions', label: '' },
 ];
 type SortKey = 'title' | 'issue' | 'releaseTitle' | 'indexer' | 'date';
@@ -55,8 +55,16 @@ const IN_LIBRARY = [
 const WITH_ISSUE = [
   { key: '', value: 'Any issue' },
   { key: 'issue', value: 'With an issue' },
+  { key: 'missing', value: 'Missing from the library' },
   { key: 'none', value: 'Without one' },
 ];
+
+function withIssueShown(issue: PastIssue, withIssue: string) {
+  if (withIssue === 'missing') {
+    return issue.missing;
+  }
+  return !withIssue || (withIssue === 'issue') === !!issue.issue;
+}
 
 function compare(a: PastIssue, b: PastIssue, key: SortKey) {
   // those without an issue last, whichever way
@@ -161,6 +169,7 @@ function PastIssues() {
   // the ones Have are the library's, all of them
   const libraryFilter = status === 'Have' ? 'mark' : inLibrary;
   const held = (data ?? []).filter((issue) => issue.inLibrary).length;
+  const missing = new Set((data ?? []).filter((issue) => issue.missing).map((issue) => `${issue.title} ${issue.issue}`)).size;
 
   const shown = useMemo(() => {
     const words = term.trim().toLowerCase();
@@ -168,7 +177,7 @@ function PastIssues() {
       (issue) =>
         (!words || `${issue.title} ${issue.releaseTitle} ${issue.issue}`.toLowerCase().includes(words)) &&
         (libraryFilter === 'mark' || (libraryFilter === 'only') === issue.inLibrary) &&
-        (!withIssue || (withIssue === 'issue') === !!issue.issue) &&
+        withIssueShown(issue, withIssue) &&
         (!indexer || issue.indexer === indexer) &&
         (!magazine || issue.title === magazine)
     );
@@ -302,6 +311,11 @@ function PastIssues() {
                       <Label kind="success">In the library</Label>
                     </div>
                   ) : null}
+                  {issue.missing ? (
+                    <div>
+                      <Label kind="warning">Missing</Label>
+                    </div>
+                  ) : null}
                 </TableRowCell>
                 <TableRowCell>
                   {issue.releaseTitle}
@@ -335,6 +349,7 @@ function PastIssues() {
             {plural(shown.length, 'past issue')}
             {data && shown.length < data.length ? ` of ${data.length}` : ''}
             {held && libraryFilter === 'hide' ? `, ${plural(held, 'more')} in the library already` : ''}
+            {missing ? `; ${plural(missing, 'issue')} missing from the library` : ''}
           </div>
         ) : null}
       </PageContentBody>

@@ -602,28 +602,58 @@ def list_past_issues(status: str = 'Skipped', title: str = '') -> list[dict]:
     rows = magazines.list_past_issues(status, title or None, sort='NZBdate', descending=True).items
     # the issues the library has now, found since some of these were stored
     held = _held_issues({row['BookID'] for row in rows if row['BookID']})
-    return [{'url': row['NZBurl'] or '', 'release_title': (row['NZBtitle'] or '').replace('.', ' '),
-             'date': row['NZBdate'] or '',
-             'issue': '' if row['AuxInfo'] == magreleases.NO_ISSUE else row['AuxInfo'] or '',
-             'indexer': row['NZBprov'] or '', 'title': row['BookID'] or '',
-             'reason': row['DLResult'] or '',
-             'in_library': (row['BookID'], row['AuxInfo']) in held,
-             **(_named(row['BookID'] or '', row['NZBtitle'] or '', row['NZBdate'] or '')
-                if row['AuxInfo'] in ('', None, magreleases.NO_ISSUE) else {'named': '', 'edition': ''})}
-            for row in rows]
+    found = []
+    for row in rows:
+        issue = '' if row['AuxInfo'] == magreleases.NO_ISSUE else row['AuxInfo'] or ''
+        issues = held.get(row['BookID'], [])
+        in_library = bool(issue) and issue in issues
+        # a skipped one with an issue the library hasn't: why a search didn't take it
+        why, missing = _not_taken(issue, issues) if status == 'Skipped' and issue and not in_library else ('', False)
+        found.append({'url': row['NZBurl'] or '', 'release_title': (row['NZBtitle'] or '').replace('.', ' '),
+                      'date': row['NZBdate'] or '', 'issue': issue,
+                      'indexer': row['NZBprov'] or '', 'title': row['BookID'] or '',
+                      'reason': row['DLResult'] or why, 'in_library': in_library, 'missing': missing,
+                      **(_named(row['BookID'] or '', row['NZBtitle'] or '', row['NZBdate'] or '')
+                         if not issue else {'named': '', 'edition': ''})})
+    return found
 
 
-def _held_issues(titles: set[str]) -> set[tuple[str, str]]:
-    """ The issues the library has of these magazines, (title, issue) """
+def _held_issues(titles: set[str]) -> dict[str, list[str]]:
+    """ The issues the library has of these magazines, by title """
     if not titles:
-        return set()
+        return {}
     db = database.DBConnection()
     try:
         rows = db.select(f"SELECT Title,IssueDate FROM issues WHERE Title IN ({','.join('?' * len(titles))})",
                          tuple(titles))
     finally:
         db.close()
-    return {(row['Title'], row['IssueDate']) for row in rows}
+    held = {}
+    for row in rows:
+        held.setdefault(row['Title'], []).append(row['IssueDate'] or '')
+    return held
+
+
+def _form(issue: str) -> str:
+    """ What an issue key is, so only keys of one form are put in order: a date, or a number of its length """
+    if re.fullmatch(r'\d{4}-\d\d-\d\d', issue):
+        return 'date'
+    return f'number{len(issue)}' if issue.isdigit() else ''
+
+
+def _not_taken(issue: str, issues: list[str]) -> tuple[str, bool]:
+    """ Why a search didn't take an issue the library hasn't, and whether it's missing: between the
+    oldest and newest issues the library has, which a search, taking only newer ones, never gets """
+    alike = sorted(key for key in issues if _form(key) == _form(issue)) if _form(issue) else []
+    if not alike:
+        return 'Not taken when it was found: older than the newest issue then, or than the age a search ' \
+               'takes when there were none', False
+    if issue < alike[0]:
+        return f"Older than the oldest issue the library has, {alike[0]}: a search takes only newer ones", False
+    if issue < alike[-1]:
+        return f"Missing from the library, but older than its newest issue, {alike[-1]}, so a search doesn't " \
+               f"take it", True
+    return f"Not taken when it was found: older than the newest issue then (the newest now is {alike[-1]})", False
 
 
 def _named(title: str, name: str, posted: str) -> dict:
