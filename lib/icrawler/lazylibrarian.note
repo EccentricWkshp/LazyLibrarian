@@ -4,3 +4,7 @@ https://github.com/hellock/icrawler/pull/74/files
 bs4 parsing has been changed from lxml to html5lib as we already have that installed 
 in lazylibrarian, and we try to use relative imports for bs4 and requests as some nas 
 units do not have system-wide versions available
+
+Only the Google, Bing, Baidu and Flickr crawlers and filesystem storage are kept (the greedy and url
+list crawlers and Google Cloud storage are taken out), and the downloader opens only the image
+formats LazyLibrarian does (JPEG, PNG, WEBP, GIF, BMP).

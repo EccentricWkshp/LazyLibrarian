@@ -37,6 +37,9 @@ except ImportError:
     Image = None
 
 IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
+# the only formats Pillow is let open: covers and pages come from downloads and the web, and any
+# other of its decoders (EPS hands the file to Ghostscript) is more of it a crafted file can reach
+IMAGE_FORMATS = ('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP')
 ARCHIVES = ('.cbz', '.cbr', '.cb7')
 PAGED = ('.pdf', *ARCHIVES)
 # pdfium isn't thread safe
@@ -154,7 +157,7 @@ def page_image(path, page: int = 1, width: int = 0) -> bytes:
                 archive.close()
             if not Image:
                 return data
-            return _jpeg(Image.open(io.BytesIO(data)), width)
+            return _jpeg(Image.open(io.BytesIO(data), formats=IMAGE_FORMATS), width)
     except Exception as why:
         logger.warning(f"Can't draw page {page} of {path}: {type(why).__name__} {why}")
     return b''

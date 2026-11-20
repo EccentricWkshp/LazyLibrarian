@@ -118,7 +118,7 @@ def createthumb(jpeg, basewidth=None, overwrite=True):
 
     bwidth = basewidth if basewidth else 300
     try:
-        img = PILImage.open(jpeg)
+        img = PILImage.open(jpeg, formats=pages.IMAGE_FORMATS)
     except Exception as e:
         logger.debug(str(e))
         if magic:
@@ -695,7 +695,7 @@ def crawl_image(crawler_name, src, cachedir, bookid, safeparams, imgid=None):
         # signal the crawler matched on the wrong thing rather than found a real cover,
         # so reject those instead of silently caching them.
         try:
-            with PILImage.open(img) as pil_img:
+            with PILImage.open(img, formats=pages.IMAGE_FORMATS) as pil_img:
                 width, height = pil_img.size
             if height and width / height >= 0.95:
                 logger.debug(
@@ -1007,7 +1007,7 @@ def save_jpeg(data: bytes, imagefile: str) -> bool:
             with open(syspath(imagefile), 'wb') as f:
                 f.write(data)
         else:
-            PILImage.open(io.BytesIO(data)).convert('RGB').save(syspath(imagefile), 'jpeg')
+            PILImage.open(io.BytesIO(data), formats=pages.IMAGE_FORMATS).convert('RGB').save(syspath(imagefile), 'jpeg')
     except Exception as why:
         logger.warning(f"Can't write {imagefile}: {type(why).__name__} {why}")
         return False
@@ -1110,7 +1110,7 @@ def extract_image_from_page(issuefile=None, refresh=True, pagenum=1, cover=False
                     break
             if img:
                 if PIL and fextn in ['.png', '.webp']:
-                    image = PILImage.open(io.BytesIO(img))
+                    image = PILImage.open(io.BytesIO(img), formats=pages.IMAGE_FORMATS)
                     image = image.convert('RGB')
                     image.save(imagefile, 'jpeg')
                 else:

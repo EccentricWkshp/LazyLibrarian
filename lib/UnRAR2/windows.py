@@ -20,7 +20,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Low level interface - see UnRARDLL\UNRARDLL.TXT
+# Low level interface to rarlab's UnRAR.dll (UnRARDLL\, its version in whatsnew.txt); its documentation
+# comes with it from https://www.rarlab.com/rar_add.htm
 
 from __future__ import generators
 

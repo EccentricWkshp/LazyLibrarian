@@ -1,68 +1,54 @@
-# Basic use test for iCrawler, based on
-# https://github.com/hellock/icrawler/blob/master/tests/test_todo.py
+#  This file is part of Lazylibrarian.
+#
+# Purpose:
+#   Test that Pillow opens only the image formats LazyLibrarian expects: a cover or page from a
+#   download or a web search can be any file, and another of Pillow's decoders (EPS runs Ghostscript)
+#   is more of it a crafted one can reach. icrawler's downloader, which keeps a search's images,
+#   and images.save_jpeg, which converts a cover
 
-import logging
+import io
 import os
-import os.path as osp
 import shutil
 import tempfile
-import unittest
+from types import SimpleNamespace
 
-from lib.icrawler.builtin import (
-    GreedyImageCrawler,
-)
+from PIL import Image
+
+from lazylibrarian import images, pages
+from lib.icrawler import ImageDownloader
+from unittests.unittesthelpers import LLTestCaseWithConfigandDIRS
+
+EPS = b'%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\nshowpage\n'
 
 
-class TestICrawler(unittest.TestCase):
-    logger = logging.getLogger()
+def picture(kind: str) -> bytes:
+    data = io.BytesIO()
+    Image.new('RGB', (10, 20), 'red').save(data, kind)
+    return data.getvalue()
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        super().setUpClass()
-        cls.test_dir = tempfile.mkdtemp()
-        cls.logger.setLevel(logging.DEBUG)
 
-    """ icrawler google search is broken, awaiting upstream fix
-    def test_google(self):
-        img_dir = osp.join(self.test_dir, 'google')
-        google_crawler = GoogleImageCrawler(
-            downloader_threads=2,
-            storage={'root_dir': img_dir},
-            log_level=logging.INFO)
-        search_filters = dict(
-            size='large')
-        google_crawler.crawl('cat', filters=search_filters, max_num=5)
-        self.assertTrue(os.path.exists(self.test_dir), f'Expect {self.test_dir} to exist')
-        self.assertTrue(os.path.exists(img_dir), f'Expect {img_dir} to exist')
-        res = len(os.listdir(img_dir))
-        self.assertGreater(res, 0, f'Expected Google to have a cat result!')
-        shutil.rmtree(img_dir)
-    """
-    """ bing is broken, returns nsfw images so disabled
-    def test_bing(self):
-        img_dir = osp.join(self.test_dir, 'bing')
-        bing_crawler = BingImageCrawler(
-            downloader_threads=2,
-            storage={'root_dir': img_dir},
-            log_level=logging.INFO)
-        search_filters = dict(
-            type='photo',
-            size='large')
-        bing_crawler.crawl('cat', max_num=5, filters=search_filters)
-        self.assertTrue(os.path.exists(self.test_dir), f'Expect {self.test_dir} to exist')
-        self.assertTrue(os.path.exists(img_dir), f'Expect {img_dir} to exist')
-        res = len(os.listdir(img_dir))
-        self.assertGreater(res, 0, f'Expected Bing to have a cat result!')
-        shutil.rmtree(img_dir)
-    """
-    def test_greedy(self):
-        img_dir = osp.join(self.test_dir, 'greedy')
-        greedy_crawler = GreedyImageCrawler(
-            parser_threads=2, storage={'root_dir': img_dir})
-        greedy_crawler.crawl(
-            'https://www.bbc.com/news', max_num=5, min_size=(100, 100))
-        self.assertTrue(os.path.exists(self.test_dir), f'Expect {self.test_dir} to exist')
-        self.assertTrue(os.path.exists(img_dir), f'Expect {img_dir} to exist')
-        res = len(os.listdir(img_dir))
-        self.assertGreater(res, 0, 'Expected Greedy to have a cat result!')
-        shutil.rmtree(img_dir)
+class ImageFormatsTest(LLTestCaseWithConfigandDIRS):
+
+    def setUp(self):
+        super().setUp()
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def test_a_search_keeps_only_the_formats_expected(self):
+        downloader = ImageDownloader.__new__(ImageDownloader)  # keep_file needs none of its threads
+        for kind in ('PNG', 'WEBP', 'GIF', 'BMP', 'JPEG'):
+            task = {}
+            self.assertTrue(downloader.keep_file(task, SimpleNamespace(content=picture(kind))), kind)
+            self.assertEqual(task['img_size'], (10, 20))
+        self.assertFalse(downloader.keep_file({}, SimpleNamespace(content=EPS)), 'Never handed to Ghostscript')
+        self.assertFalse(downloader.keep_file({}, SimpleNamespace(content=picture('TIFF'))))
+
+    def test_a_cover_converted_only_from_the_formats_expected(self):
+        cover = os.path.join(self.root, 'cover.jpg')
+        self.assertTrue(images.save_jpeg(picture('PNG'), cover))
+        with Image.open(cover) as saved:
+            self.assertEqual((saved.format, saved.size), ('JPEG', (10, 20)))
+        os.remove(cover)
+        self.assertFalse(images.save_jpeg(EPS, cover))
+        self.assertFalse(os.path.exists(cover))
+        self.assertEqual(pages.IMAGE_FORMATS, ('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'))

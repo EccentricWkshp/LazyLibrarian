@@ -18,3 +18,7 @@ it's a top level folder so can be removed to use a pip installed version if the 
 
 rfeed has been modified to include atom/media/webfeeds and thumbnails added to Feed and Item
 Changes not pushed to upstream version
+
+UnRAR2/UnRARDLL is rarlab's UnRAR.dll, used on Windows: 7.23, from https://www.rarlab.com/rar_add.htm
+(the installer signed by win.rar GmbH). Replace unrar.dll and x64/unrar64.dll, keeping those names,
+when rarlab releases a fix; its whatsnew.txt gives the version.

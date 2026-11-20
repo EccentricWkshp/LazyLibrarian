@@ -241,7 +241,9 @@ class ImageDownloader(Downloader):
             bool: whether to keep the image.
         """
         try:
-            img = Image.open(BytesIO(response.content))
+            # only the formats LazyLibrarian opens (lazylibrarian.pages.IMAGE_FORMATS): a search
+            # result can be any file, and Pillow's other decoders are more a crafted one can reach
+            img = Image.open(BytesIO(response.content), formats=('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'))
         except (IOError, OSError):
             return False
         task['img_size'] = img.size
